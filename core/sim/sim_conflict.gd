@@ -631,6 +631,8 @@ static func _maybe_raid(sim: WorldSim, s: SimSettlement) -> void:
 			continue
 		var loot: float = d.stock.food * (2.0 if hungry else 0.5) + d.wealth
 		var w2: float = loot / 600.0 * o * (1.0 - 0.5 * dist[sid] / reach)
+		if sim.t - d.last_raided < 180 * WorldSim.DAY_H:
+			w2 *= 0.3
 		cands.append(["settlement", sid, w2])
 		total += w2
 	if cands.is_empty():
@@ -871,6 +873,7 @@ static func _assault(sim: WorldSim, p: SimParty, d: SimSettlement) -> void:
 		_: outcome = "tribute" if sim.rng.randf() < 0.7 else "sack"
 	if outcome == "tribute" and d.tribute_to == f.id:
 		outcome = "conquest"
+	d.cooldowns["spared"] = sim.t + 2 * WorldSim.YEAR_H
 	var old_faction := sim.faction_name(enemy)
 	match outcome:
 		"conquest":
@@ -1050,7 +1053,7 @@ static func _maybe_army(sim: WorldSim, f: SimFaction) -> void:
 			if not sim.settlements.has(tid) or dist[tid] > reach:
 				continue
 			var d: SimSettlement = sim.settlements[tid]
-			if not f.at_war(d.faction) or d.besieged_by >= 0:
+			if not f.at_war(d.faction) or d.besieged_by >= 0 or sim.t < int(d.cooldowns.get("spared", 0)):
 				continue
 			var o := SimCombat.odds(comp, defenders(d)[0], wall_ac(d))
 			if o < 0.6:
