@@ -165,10 +165,13 @@ func add_player(player_name: String, owner: int) -> HostEntity:
 	var rec: Dictionary = records.get(player_name, {})
 	if rec.has("pos"):
 		var p := Vector2(float(rec["pos"][0]), float(rec["pos"][1]))
-		var probe := e.body.duplicate_body()
-		probe.pos = p
-		if world.in_bounds(floori(p.x), floori(p.y)) and not _in_solid(probe):
+		if world.in_bounds(floori(p.x), floori(p.y)):
 			e.body.pos = p
+	# Someone built where they left (or the spawn is in rock): step out to the nearest gap.
+	if _in_solid(e.body):
+		TileCollision.depenetrate(world, e.body)
+		if _in_solid(e.body):
+			e.body.pos = spawn
 	TileCollision.update_contacts(world, e.body)
 	e.flags = HostEntity.body_flags(e.body)
 	e.last_state_tick = tick_count
@@ -185,6 +188,7 @@ func add_monster(stats: MoveStats, pos: Vector2, brain: Object, look := {}) -> H
 	e.stats = stats
 	e.body = stats.make_body()
 	e.body.pos = pos
+	TileCollision.depenetrate(world, e.body)
 	e.brain = brain
 	e.look = look if not look.is_empty() else {"kind": "monster", "size": stats.size, "color": Color(0.6, 0.2, 0.2)}
 	entities[e.id] = e

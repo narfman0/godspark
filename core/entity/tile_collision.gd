@@ -118,6 +118,42 @@ static func overlaps_solid(world: TileWorld, rect: Rect2) -> bool:
 				return true
 	return false
 
+## Push a body that overlaps solid tiles out to the nearest free spot: the feet go onto a
+## whole row, x moves by whole tiles, the smallest move wins (ties go up, then left). Searches
+## `radius` tiles each way. Velocity is zeroed and contacts refreshed. Returns true if it
+## moved; false if it was already free or nothing free was found.
+static func depenetrate(world: TileWorld, body: Body, radius := 12) -> bool:
+	if not overlaps_solid(world, body.rect()):
+		return false
+	var base := Vector2(body.pos.x, floorf(body.pos.y))
+	for o: Vector2i in _offsets(radius):
+		var p := base + Vector2(o)
+		var r := Rect2(p.x - body.size.x * 0.5, p.y, body.size.x, body.size.y)
+		if not overlaps_solid(world, r):
+			body.pos = p
+			body.vel = Vector2.ZERO
+			update_contacts(world, body)
+			return true
+	return false
+
+static var _offset_cache := {}
+static func _offsets(radius: int) -> Array:
+	if not _offset_cache.has(radius):
+		var out: Array = []
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				out.append(Vector2i(dx, dy))
+		out.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+			var la := a.length_squared()
+			var lb := b.length_squared()
+			if la != lb:
+				return la < lb
+			if a.y != b.y:
+				return a.y > b.y
+			return a.x < b.x)
+		_offset_cache[radius] = out
+	return _offset_cache[radius]
+
 ## A one-way tile: a platform, or a ladder's top rung.
 static func is_one_way(world: TileWorld, x: int, y: int) -> bool:
 	var id := world.get_fg(x, y)

@@ -3,6 +3,7 @@ extends RefCounted
 const DT := 1.0 / 60.0
 
 func run(t: TestLog) -> void:
+	_depenetrate(t)
 	_rest(t)
 	_tunnelling(t)
 	_gaps(t)
@@ -197,3 +198,25 @@ func _raycast(t: TestLog) -> void:
 	var plat := flat()
 	fill(plat, 0, 12, 64, 13, TileDefs.id("platform"))
 	t.check(not TileCollision.raycast(plat, Vector2(5, 20), Vector2(5, 9))["hit"], "platforms don't block rays")
+
+## A body spawned inside solid tiles is pushed out to the nearest free spot.
+func _depenetrate(t: TestLog) -> void:
+	var world := TileWorld.make_test()
+	var g := world.height / 2
+	var b := Body.for_size("medium")
+	b.pos = Vector2(40.5, g - 2.3)          # buried 2.3 tiles deep in the ground
+	t.check(TileCollision.depenetrate(world, b), "a buried body is moved")
+	t.eq(b.pos, Vector2(40.5, g), "onto the ground right above it")
+	t.check(not TileCollision.overlaps_solid(world, b.rect()), "and is free")
+	t.check(not TileCollision.depenetrate(world, b), "a free body is left alone")
+	var stone := TileDefs.id("stone")
+	for y in range(g, g + 6):
+		world.set_fg(60, y, stone, true)      # a 1-wide pillar on the ground
+	b.pos = Vector2(60.5, g)
+	TileCollision.depenetrate(world, b)
+	t.check(not TileCollision.overlaps_solid(world, b.rect()), "a body inside a pillar gets out")
+	t.check(absf(b.pos.x - 60.5) <= 2.0 and b.pos.y == g, "sideways, not on top of it (%s)" % b.pos)
+	var host := WorldHost.new(world)
+	host.spawn = Vector2(40.5, g - 5)
+	var p := host.add_player("ann", 2)
+	t.check(not TileCollision.overlaps_solid(world, p.body.rect()), "a player spawned in rock starts free (%s)" % p.body.pos)
