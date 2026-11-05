@@ -18,6 +18,7 @@ var _next := 0.0
 ## Group id (its first player's id) -> director time before which it gets no new pack: a
 ## lull after one of its director monsters dies, so a cleared area stays clear a while.
 var _lull := {}
+var _settlements: Array[Vector2] = []
 ## Counters for tests and tools.
 var stats := {"packs": 0, "spawned": 0, "rejected_view": 0, "rejected_safe": 0, "no_spot": 0, "despawned": 0,
 	"raiders": 0, "over_budget": 0}
@@ -95,6 +96,46 @@ func band_def(h: WorldHost, band: String) -> Dictionary:
 		return b["any"]
 	return b["night"] if is_night(h) else b["day"]
 
+## A band's table at a place: on the surface and in the sky, near a settlement the "ramp"
+## table's near row (by day or night) is blended toward the band's own with distance, so a
+## new player by the spawn settlement meets small, minion-heavy packs and the world gets
+## harder as they walk out (data: spawning.json ramp).
+func band_def_at(h: WorldHost, band: String, pos: Vector2) -> Dictionary:
+	var bd := band_def(h, band)
+	var rp: Dictionary = cfg().get("ramp", {})
+	if rp.is_empty() or not band in (rp.get("bands", ["surface", "sky"]) as Array):
+		return bd
+	var near: Dictionary = rp.get("night" if is_night(h) else "day", {})
+	if near.is_empty():
+		return bd
+	var d := settlement_dist(h, pos)
+	var n0 := float(rp.get("near_tiles", 120))
+	var n1 := float(rp.get("far_tiles", 480))
+	var f := clampf((d - n0) / maxf(1.0, n1 - n0), 0.0, 1.0)
+	var out := bd.duplicate(true)
+	var cr: Array = bd.get("cr", [0, 1])
+	out["cr"] = [float(cr[0]), lerpf(float(near.get("max_cr", cr[1])), float(cr[1]), f)]
+	out["budget"] = lerpf(float(near.get("budget", bd.get("budget", 4.0))), float(bd.get("budget", 4.0)), f)
+	out["pack_cr"] = lerpf(float(near.get("pack_cr", bd.get("pack_cr", 4.0))), float(bd.get("pack_cr", 4.0)), f)
+	out["minion_share"] = lerpf(float(near.get("minion_share", cfg().get("minion_share", 0.6))), float(cfg().get("minion_share", 0.6)), f)
+	out["standard_only"] = f < float(rp.get("ranks_from", 0.5))
+	out["ramp"] = f
+	return out
+
+## Tiles to the nearest surface or sky settlement site (INF without one).
+func settlement_dist(h: WorldHost, p: Vector2) -> float:
+	if _settlements.is_empty():
+		for s: Variant in h.world.meta.get("sites", []):
+			if s is Dictionary and s.get("kind") == "settlement" and String(s.get("band", "surface")) in ["surface", "sky"]:
+				_settlements.append(Vector2(float(s["x"]), float(s["y"])))
+		if _settlements.is_empty():
+			_settlements.append(Vector2.INF)
+	var best := INF
+	for s: Vector2 in _settlements:
+		if s != Vector2.INF:
+			best = minf(best, s.distance_to(p))
+	return best
+
 ## CR cost alive for a group (monsters the director spawned for it).
 func group_cost(g: Array) -> Dictionary:
 	var ids := {}
@@ -138,7 +179,7 @@ func _fill(h: WorldHost, g: Array) -> void:
 			if bool(rules.call("is_resting", p)):
 				return
 	var band := band_at(h, anchor.body.pos.y)
-	var bd := band_def(h, band)
+	var bd := band_def_at(h, band, anchor.body.pos)
 	var budget := float(bd.get("budget", 4.0))
 	var have := group_cost(g)
 	var caps: Dictionary = cfg().get("caps", {})
@@ -155,7 +196,7 @@ func _fill(h: WorldHost, g: Array) -> void:
 		if spot == Vector2.INF:
 			continue
 		var sband := band_at(h, spot.y)
-		var sdef := band_def(h, sband)
+		var sdef := band_def_at(h, sband, spot)
 		var room := minf(left, float(sdef.get("pack_cr", 4.0)))
 		if _raiders(h, g, spot, sband, room):
 			return
@@ -171,6 +212,17 @@ func _fill(h: WorldHost, g: Array) -> void:
 func build_pack(h: WorldHost, band: String, biome: String, bd: Dictionary, room: float) -> Array:
 	var cr: Array = bd.get("cr", [0, 1])
 	var cands := Ecology.roster(h.srd, band, biome, is_night(h), float(cr[0]), minf(float(cr[1]), room))
+	# promote (the nadir): sometimes a pack of a shallower band's creatures, all elites and
+	# champions, which fills the band's missing CRs with what the SRD has
+	var promo: Dictionary = bd.get("promote", {})
+	var ranks_w: Dictionary = {}
+	if not promo.is_empty() and rng.randf() < float(promo.get("chance", 0.0)):
+		var pcr: Array = promo.get("cr", [0, 1])
+		var pb := String(promo.get("from_band", band))
+		var pc := Ecology.roster(h.srd, pb, String(cfg().get("band_biome", {}).get(pb, biome)), is_night(h), float(pcr[0]), float(pcr[1]))
+		if not pc.is_empty():
+			cands = pc
+			ranks_w = promo.get("ranks", {})
 	if cands.is_empty():
 		return []
 	var total := 0.0
@@ -186,7 +238,9 @@ func build_pack(h: WorldHost, band: String, biome: String, bd: Dictionary, room:
 	var row: Dictionary = pick["row"]
 	var out: Array = []
 	var used := 0.0
-	var lead_rank := _rank_roll(band)
+	var plain := bool(bd.get("standard_only", false))
+	var share := float(bd.get("minion_share", cfg().get("minion_share", 0.6)))
+	var lead_rank := "standard" if plain else (_weighted_rank(ranks_w) if not ranks_w.is_empty() else _rank_roll(band))
 	var lead_cost := Ecology.cost(pick["cr"]) * float(Ecology.rank_def(lead_rank).get("xp_mult", 1.0))
 	if lead_cost > room:
 		lead_rank = "standard"
@@ -203,7 +257,8 @@ func build_pack(h: WorldHost, band: String, biome: String, bd: Dictionary, room:
 	var n := rng.randi_range(int(pr[0]), int(pr[1])) - (0 if not leads.is_empty() else 1)
 	var fcr := Ecology.cr_of(h.srd, follower)
 	for i in n:
-		var rk := "minion" if bool(fr.get("minion", false)) and rng.randf() < float(cfg().get("minion_share", 0.6)) else _rank_roll(band)
+		var rk := "minion" if bool(fr.get("minion", false)) and rng.randf() < share and ranks_w.is_empty() \
+			else ("standard" if plain else (_weighted_rank(ranks_w) if not ranks_w.is_empty() else _rank_roll(band)))
 		var c := Ecology.cost(fcr) * float(Ecology.rank_def(rk).get("xp_mult", 1.0))
 		if used + c > room:
 			if rk != "minion" and bool(fr.get("minion", false)) and used + Ecology.cost(fcr) * 0.25 <= room:
@@ -214,6 +269,17 @@ func build_pack(h: WorldHost, band: String, biome: String, bd: Dictionary, room:
 		out.append({"slug": follower, "rank": rk, "leader": false})
 		used += c
 	return out
+
+func _weighted_rank(w: Dictionary) -> String:
+	var total := 0.0
+	for k: String in w:
+		total += float(w[k])
+	var r := rng.randf() * total
+	for k: String in w:
+		r -= float(w[k])
+		if r <= 0.0:
+			return k
+	return "elite"
 
 func _rank_roll(band: String) -> String:
 	var w: Dictionary = cfg()["rank_roll"].get(band, {"standard": 1})

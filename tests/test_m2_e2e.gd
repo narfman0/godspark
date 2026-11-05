@@ -229,7 +229,8 @@ func _client_slots_used(i: int) -> int:
 func _loot_and_gear(t: TestLog) -> void:
 	var items: ItemsSystem = sys(HostSystem.ITEMS)
 	var drops: Array = items.drops.list.values()
-	t.check(not drops.is_empty(), "the pack dropped loot (%d piles; a champion always drops)" % drops.size())
+	var taken_in_fight: int = gone_drops[0].filter(func(g: Array) -> bool: return int(g[1]) != 0).size()
+	t.check(not drops.is_empty() or taken_in_fight > 0, "the pack dropped loot (%d piles left, %d picked up while fighting)" % [drops.size(), taken_in_fight])
 	var picked := 0
 	for d: Drops.Drop in drops:
 		if not items.drops.list.has(d.id):
@@ -238,10 +239,10 @@ func _loot_and_gear(t: TestLog) -> void:
 		if rig.until(func() -> bool: return not items.drops.list.has(d.id), 3.0) >= 0.0:
 			picked += 1
 	rig.run(0.5)
-	t.check(picked > 0, "ann walked over the loot and picked up %d piles" % picked)
+	t.check(picked + taken_in_fight > 0, "loot was picked up (%d piles walked over now, %d in the fight)" % [picked, taken_in_fight])
 	t.check(_bag_count(0) > kit_count, "her inventory mirror holds the loot (kit %d, now %d)" % [kit_count, _bag_count(0)])
-	t.check(not gone_drops[1].is_empty() and gone_drops[1].any(func(g: Array) -> bool: return g[1] == he(0).id),
-		"bob saw the piles go to ann")
+	t.check(not gone_drops[1].is_empty() and gone_drops[1].any(func(g: Array) -> bool: return int(g[1]) == he(0).id or int(g[1]) == he(1).id),
+		"bob saw the piles go to a player")
 	# a +2 longsword: equip it through the client
 	var sword := Items.make_magic("weapon-1-2-or-3", 1, "longsword")
 	items.give(he(0).id, sword)

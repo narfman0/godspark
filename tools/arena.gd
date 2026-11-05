@@ -4,6 +4,9 @@
 ##   vs=dummy[:N]   a target that never fights back (100000 hit points, AC from ac=), for
 ##                  sustained damage; the run lasts time= seconds
 ##   report=spells | report=monsters   what the combat machine supports from the addon
+##   vs=SLUG[:N[:RANK]],...   a mixed pack with ranks (minion, elite, champion as the director)
+##   spell=SLUG     cast this cantrip on cooldown from 6-14 tiles away (melee if caught)
+##   potions=N      drink a healing potion (2d4+2) below 40% hit points, N times (the kit has 2)
 ## The hero walks at the nearest monster and attacks on cooldown (kite=1 with a ranged
 ## weapon: keeps 10-20 tiles away). Monsters use CombatBrain. Prints per-seed lines and a
 ## summary: win rate, time to kill, hero damage per second, damage taken per second, and the
@@ -25,9 +28,15 @@ func _initialize() -> void:
 	var build := String(opts.get("build", "fighter:1")).split(":")
 	var cls := build[0]
 	var level := int(build[1]) if build.size() > 1 else 1
-	var vs := String(opts.get("vs", "goblin-warrior:1")).split(":")
-	var slug := vs[0]
-	var count := int(vs[1]) if vs.size() > 1 else 1
+	# vs=SLUG[:N[:RANK]][,SLUG[:N[:RANK]]...]: a mixed pack with ranks (minion 1 HP, elite and
+	# champion the hit dice maximum (x2), as MonstersSystem does)
+	var groups := String(opts.get("vs", "goblin-warrior:1")).split(",")
+	var pack: Array = []
+	for g in groups:
+		var p := g.split(":")
+		pack.append([p[0], int(p[1]) if p.size() > 1 else 1, p[2] if p.size() > 2 else "standard"])
+	var slug: String = pack[0][0]
+	var count: int = pack.reduce(func(a: int, x: Array) -> int: return a + int(x[1]), 0)
 	var seeds := _seeds(String(opts.get("seeds", "1..10")))
 	var limit := float(opts.get("time", 60 if slug == "dummy" else 120))
 	var wins := 0
@@ -40,7 +49,7 @@ func _initialize() -> void:
 	var rolls := 0
 	var srd_dpr := 0.0
 	for sd: int in seeds:
-		var r := _fight(cls, level, slug, count, sd, limit)
+		var r := _fight(cls, level, pack, sd, limit)
 		srd_dpr = r["srd_dpr"]
 		print("seed %d: %s in %.1f s, hero dealt %d (%.1f/s), took %d (%.1f/s), swings %d, hits %d/%d, hp %d/%d" % [sd,
 			"WIN" if r["win"] else ("LOSS" if r["lost"] else "TIME"), r["t"], r["dealt"], r["dealt"] / maxf(r["t"], 0.01),
@@ -54,11 +63,25 @@ func _initialize() -> void:
 		swings += r["swings"]
 		hits += r["hits"]
 		rolls += r["rolls"]
-	print("ARENA %s:%d (%s) vs %s x%d, %d seeds: win %d%%, time to kill %s, hero dps %.2f, taken dps %.2f, swings/s %.2f, hit rate %.0f%%, SRD DPR %.2f (dps/DPR %.2f)" % [
-		cls, level, opts.get("weapon", "default"), slug, count, seeds.size(), roundi(100.0 * wins / seeds.size()),
+	print("ARENA %s:%d (%s) vs %s (%d), %d seeds: win %d%%, time to kill %s, hero dps %.2f, taken dps %.2f, swings/s %.2f, hit rate %.0f%%, SRD DPR %.2f (dps/DPR %.2f)" % [
+		cls, level, opts.get("weapon", "default"), opts.get("vs", "goblin-warrior:1"), count, seeds.size(), roundi(100.0 * wins / seeds.size()),
 		"%.1f s" % (ttk / wins) if wins > 0 else "-", dealt / maxf(secs, 0.01), taken / maxf(secs, 0.01),
 		swings / maxf(secs, 0.01), 100.0 * hits / maxi(rolls, 1), srd_dpr, (dealt / maxf(secs, 0.01)) / maxf(srd_dpr, 0.01)])
 	quit(0)
+
+## Rank hit points as MonstersSystem._apply_rank gives them.
+static func _rank(host: WorldHost, m: HostEntity, slug: String, rank: String) -> void:
+	var how := String(Ecology.rank_def(rank).get("hp", "as_written"))
+	var mx := m.combatant.stats.max_hp
+	match how:
+		"one":
+			mx = 1
+		"max":
+			mx = maxi(Ecology.max_hp(host.srd, slug), mx)
+		"max2":
+			mx = 2 * maxi(Ecology.max_hp(host.srd, slug), mx)
+	m.combatant.stats.max_hp = mx
+	m.combatant.stats.current_hp = mx
 
 static func _seeds(spec: String) -> Array:
 	if ".." in spec:
@@ -74,7 +97,8 @@ static func flat_world() -> TileWorld:
 			w.set_fg(x, y, stone, true)
 	return w
 
-func _fight(cls: String, level: int, slug: String, count: int, sd: int, limit: float) -> Dictionary:
+func _fight(cls: String, level: int, pack: Array, sd: int, limit: float) -> Dictionary:
+	var slug: String = pack[0][0]
 	var host := WorldHost.new(flat_world())
 	host.rng.seed = hash("arena:%d" % sd)
 	var combat := CombatSystem.new()
@@ -101,16 +125,20 @@ func _fight(cls: String, level: int, slug: String, count: int, sd: int, limit: f
 	hero.body.pos = Vector2(60.5, 20)
 	var monsters: Array[HostEntity] = []
 	var spread := float(opts.get("spread", 3))
-	for i in count:
-		var m: HostEntity
-		if slug == "dummy":
-			m = host.add_srd_monster("ogre", Vector2(66.5 + spread * i, 20), null)
-			m.combatant.stats.max_hp = 100000
-			m.combatant.stats.current_hp = 100000
-			m.combatant.equipment.natural_ac = int(opts.get("ac", 15))
-		else:
-			m = host.add_srd_monster(slug, Vector2(72.5 + spread * i, 20), CombatBrain.new())
-		monsters.append(m)
+	var i := 0
+	for g: Array in pack:
+		for k in int(g[1]):
+			var m: HostEntity
+			if slug == "dummy":
+				m = host.add_srd_monster("ogre", Vector2(66.5 + spread * i, 20), null)
+				m.combatant.stats.max_hp = 100000
+				m.combatant.stats.current_hp = 100000
+				m.combatant.equipment.natural_ac = int(opts.get("ac", 15))
+			else:
+				m = host.add_srd_monster(String(g[0]), Vector2(72.5 + spread * i, 20), CombatBrain.new())
+				_rank(host, m, String(g[0]), String(g[2]))
+			monsters.append(m)
+			i += 1
 	var hb := hero.body.duplicate_body()
 	var seq := 0
 	var dealt := 0
@@ -123,7 +151,14 @@ func _fight(cls: String, level: int, slug: String, count: int, sd: int, limit: f
 	var t := 0.0
 	var lost := false
 	var target_ac := 0
+	var spell := String(opts.get("spell", ""))
+	var potions := int(opts.get("potions", 0))
+	var prng := RandomNumberGenerator.new()
+	prng.seed = sd
 	while t < limit:
+		if potions > 0 and c.current_hp > 0 and c.current_hp < c.stats.max_hp * 0.4:
+			potions -= 1
+			c.stats.heal(Loot.roll_dice(prng, "2d4+2"))
 		var foe: HostEntity = null
 		var bd := 1e9
 		for m in monsters:
@@ -136,7 +171,12 @@ func _fight(cls: String, level: int, slug: String, count: int, sd: int, limit: f
 		var inp := PlayerInput.new()
 		var dx := foe.body.pos.x - hb.pos.x
 		var g := HitShapes.gap(hb.rect(), foe.body.rect())
-		if kite:
+		if spell != "":
+			if g < 6.0 and g > reach:
+				inp.move_x = -signf(dx)
+			elif g > 14.0:
+				inp.move_x = signf(dx)
+		elif kite:
 			if g < 10.0:
 				inp.move_x = -signf(dx)
 			elif g > 20.0:
@@ -144,7 +184,9 @@ func _fight(cls: String, level: int, slug: String, count: int, sd: int, limit: f
 		elif g > reach * 0.8:
 			inp.move_x = signf(dx)
 		hb.facing = 1 if dx >= 0.0 else -1
-		if (kite and g <= 30.0) or g <= reach:
+		if spell != "" and g > reach:
+			combat.cast(hero, spell, 0, foe.body.rect().get_center())
+		elif (kite and g <= 30.0) or g <= reach:
 			combat.start_attack(hero, -1, foe.body.rect().get_center())
 		inp = combat.filter_input(hero, inp)
 		for k in 2:

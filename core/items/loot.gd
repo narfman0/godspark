@@ -86,6 +86,11 @@ static func roll(rng: RandomNumberGenerator, info: Dictionary) -> Array:
 		"spark_and_magic":
 			out.append(random_spark(rng, String(info.get("band", "surface"))))
 			out.append(random_magic(rng, band))
+	# a healing potion on its own chance (band "healing" x rank "healing"), so a new player
+	# keeps finding them whatever the creature type (rolled last: the draws above are unchanged)
+	var heal := float(band.get("healing", 0.0)) * float(rk.get("healing", 1.0))
+	if heal > 0.0 and rng.randf() < heal:
+		out.append(Items.make_magic("potions-of-healing", 0))
 	return out
 
 static func _drop(rng: RandomNumberGenerator, t: Dictionary, bi: int, band: Dictionary, rank: String) -> Dictionary:

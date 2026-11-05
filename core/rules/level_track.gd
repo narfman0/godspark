@@ -15,9 +15,13 @@ extends RefCounted
 
 const MAX_LEVEL := 100
 const MAX_CLASS_LEVEL := 20
-## Multiplies every XP threshold. 15: tools/xp_pacing.gd's best fit to the pacing target
-## (levels 2-5 in 3-5 min, level 50 ~23, the 90s ~59, ~42 h in all) under its assumed kill rates.
-const XP_SCALE := 15.0
+## Multiplies every XP threshold. 8 (was 15, fitted to assumed kill rates): with the kill
+## rates measured from the spawn director (tools/xp_pacing.gd -- measured) it puts levels 2-5
+## at 4.7-7.5 min. The measured curve is flatter than the target: level 50 ~8 min and the 90s
+## ~6 min, ~10 h in all, where the target wants 20 min, an hour and ~40 h. No single scale
+## fits both ends (the best log fit, 24, makes level 2 take 23 min); the deep bands' XP needs
+## its own curve (docs/tracks/m2-integration.md).
+const XP_SCALE := 8.0
 
 enum Reward { SPARK_SLOT, VIGOR, KNACK, CLASS_LEVEL, EPIC_BOON }
 

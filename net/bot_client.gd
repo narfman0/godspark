@@ -379,11 +379,14 @@ func _rules_place(tile: int, dx: int) -> bool:
 			if c.world.get_fg(cell.x, cell.y) == tile:
 				input.place = false
 				return true
-	for k in [dx, -dx, dx + 1, -dx - 1, dx + 2, -dx - 2]:
-		var cell := Vector2i(fx + k * dir, fy)
-		if TileEdit.can_place(c.world, c.body, cell.x, cell.y, tile, [c.body]):
-			at = cell
-			break
+	var found := false
+	for k in [dx, -dx, dx + 1, -dx - 1, dx + 2, -dx - 2, dx + 3, -dx - 3]:
+		for dy in [0, 1]:
+			var cell := Vector2i(fx + k * dir, fy + dy)
+			if not found and TileEdit.can_place(c.world, c.body, cell.x, cell.y, tile, [c.body], c.edit_reach):
+				at = cell
+				found = true
+	input.move_x = 0.0 if found else float(dir)      # nowhere to put it here: walk on a little
 	input.place = fmod(_t, 0.4) < 0.2      # press, hold, release, press again
 	input.place_tile = tile
 	input.target = at

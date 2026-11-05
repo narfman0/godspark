@@ -1,6 +1,13 @@
 ## What the spawn director makes around a player standing or walking in each depth band.
 ##   godot --headless -s res://tools/spawn_sim.gd -- [seed=4] [size=1024x512] [minutes=3]
 ##       [walk=1] [bands=surface,caves,deeps,nadir] [night=0|1] [perf=1]
+##       [from=settlement] [kill=1]
+## from=settlement starts the surface walker at the first surface settlement (the spawn) and
+## prints its distance from it as it goes. kill=1: everything that comes within 4 tiles of
+## the walker dies there (a stand-in for a player who wins every fight); kill=hunt: a hunter
+## who goes to them: every 2.5 s the oldest monster spawned at least 10 s ago dies (supply
+## limited, lulls included). Prints kills and stat-block XP per minute (rank multipliers,
+## XP_SCALE not applied) for tools/xp_pacing.gd.
 ## Prints per band: packs (creatures and ranks), pack sizes, rank mix, CR alive over time, and
 ## host tick cost (avg / p99) with the monsters it made (perf=1 also nav numbers).
 extends SceneTree
@@ -51,6 +58,18 @@ func _run(world: TileWorld, band: String, night: bool, minutes: float, walk: boo
 	ms.lairs_enabled = false
 	ms.director.keep_log = true
 	var start := _spot(world, band)
+	var cli := {}
+	for a in OS.get_cmdline_user_args():
+		var kv := a.split("=")
+		cli[kv[0]] = kv[1] if kv.size() > 1 else "1"
+	if String(cli.get("from", "")) == "settlement" and band in ["surface", "sky"]:
+		for s: Variant in world.meta.get("sites", []):
+			if s is Dictionary and s.get("kind") == "settlement" and String(s.get("band", "")) == band:
+				start = Vector2(float(s["x"]) + 0.5, float(s["y"]))
+				break
+	var killing := cli.has("kill")
+	var kills := 0
+	var kill_xp := 0.0
 	var p := host.add_player("walker", 2, {"class": "fighter"})
 	p.body.pos = start
 	p.combatant.stats.max_hp = 99999
@@ -73,6 +92,21 @@ func _run(world: TileWorld, band: String, night: bool, minutes: float, walk: boo
 		var t0 := Time.get_ticks_usec()
 		host.tick()
 		usec.append(Time.get_ticks_usec() - t0)
+		var hunt := String(cli.get("kill", "")) == "hunt"
+		if killing and i % (int(K.TICK_HZ * 2.5) if hunt else 15) == 0:
+			var oldest: HostEntity = null
+			for m: HostEntity in host.entities.values():
+				if hunt and not m.is_player() and m.combatant != null and m.combatant.current_hp > 0 and not m.has_meta("friendly") \
+						and host.tick_count - int(ms.mons[m.id].rec["born"]) >= 10 * K.TICK_HZ:
+					if oldest == null or int(ms.mons[m.id].rec["born"]) < int(ms.mons[oldest.id].rec["born"]):
+						oldest = m
+			for m: HostEntity in host.entities.values():
+				if not m.is_player() and m.combatant != null and m.combatant.current_hp > 0 \
+						and not m.has_meta("friendly") and ((hunt and m == oldest) or (not hunt and m.body.center().distance_to(p.body.center()) <= 4.0)):
+					var row := host.srd.pack.get_row("monster", String(m.look.get("slug", "")))
+					kill_xp += float(row.get("data", {}).get("xp", 0)) * RulesSystem.xp_mult(m)
+					kills += 1
+					(host.system(HostSystem.COMBAT) as CombatSystem).damage(p.id, m, 99999, "force")
 		if i % (K.TICK_HZ * 15) == 0:
 			var c: Dictionary = ms.director.group_cost([p])
 			cr_samples.append("%.1f/%d" % [c["cost"], c["n"]])
@@ -96,6 +130,9 @@ func _run(world: TileWorld, band: String, night: bool, minutes: float, walk: boo
 	print("packs %d, creatures %d, despawned %d, raiders %d; pack sizes %s" % [ms.director.stats["packs"], ms.director.stats["spawned"],
 		ms.director.stats["despawned"], ms.director.stats["raiders"], sizes])
 	print("ranks %s" % ranks)
+	if killing:
+		print("KILLS %s %s: %d in %.0f min = %.2f kills/min, %.1f stat-block XP/min (ranked), ended %.0f tiles from the nearest settlement" % [band,
+			"night" if night else "day", kills, minutes, kills / minutes, kill_xp / minutes, ms.director.settlement_dist(host, p.body.pos)])
 	print("kinds %s" % kinds)
 	print("CR alive / count every 15 s: %s" % " ".join(cr_samples))
 	print("first packs:")

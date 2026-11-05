@@ -29,6 +29,20 @@ const BANDS := [
 		"monsters": ["cloaker", "aboleth", "fire-giant", "behir", "stone-giant"],
 		"mix": {"minion": 0.5, "standard": 0.45, "elite": 0.05}},
 ]
+## MEASURED (measured=1): stat-block XP per minute (rank multipliers in, XP_SCALE out) from
+##   tools/spawn_sim.gd -- bands=B minutes=6 kill=hunt from=settlement   (seed 4, 1024x512)
+## a hunter who kills the oldest monster the director made at least 10 s ago every 2.5 s: the
+## director's supply with its lulls, capped by a brisk fight pace. Anchors by level: the
+## surface by day near the spawn settlement (1), the surface at night (10), caves (25), deeps
+## (45), nadir (75). M2 integration, after the balance pass.
+## The hunter's 2.5 s per kill is brisk for deep creatures: deeper anchors are scaled by
+## min(1, measured kills/min / (60 / fight_s)) with fight_s an ASSUMED fight length (caves 5 s,
+## deeps 10 s, nadir 20 s); the result is the third column.
+const MEASURED := [[1, 80.0, "surface day, near the spawn settlement (4.7 kills/min)"],
+	[10, 222.1, "surface night (9.2 kills/min)"],
+	[25, 2666.5 * 12.0 / 15.0, "caves (15.0 kills/min measured, 12 at 5 s a fight)"],
+	[45, 7948.3 * 6.0 / 15.83, "deeps (15.8 kills/min measured, 6 at 10 s a fight)"],
+	[75, 56766.7 * 3.0 / 12.67, "nadir (12.7 kills/min measured, 3 at 20 s a fight)"]]
 ## Targets: minutes for levels 2..5, level 50 and the 90s, and total hours.
 const TARGET := {"early": 4.5, "l50": 20.0, "l90s": 60.0, "hours": 40.0}
 
@@ -41,6 +55,20 @@ func _initialize() -> void:
 		var kv := a.split("=")
 		opts[kv[0]] = kv[1] if kv.size() > 1 else ""
 	var anchors := []
+	if opts.has("measured"):
+		print("XP pacing (MEASURED XP/min from spawn_sim kill=hunt; LevelTrack.XP_SCALE = %s)" % LevelTrack.XP_SCALE)
+		for m: Array in MEASURED:
+			anchors.append([int(m[0]), float(m[1])])
+			print("  from level %2d: %8.1f XP/min  %s" % [m[0], m[1], m[2]])
+		var sc := float(opts.get("scale", LevelTrack.XP_SCALE))
+		print("")
+		_report(anchors, sc, true)
+		var bst := _best(anchors)
+		print("")
+		print("Best single scale against the targets (log error): %.1f" % bst)
+		_report(anchors, bst, true)
+		quit()
+		return
 	print("XP pacing (ASSUMED kill rates and monster mix; LevelTrack.XP_SCALE = %s)" % LevelTrack.XP_SCALE)
 	print("%-14s %5s %9s %10s %8s  monsters" % ["band", "from", "kills/min", "XP/kill", "XP/min"])
 	for b: Dictionary in BANDS:
@@ -98,7 +126,7 @@ static func _score(anchors: Array, scale: float) -> float:
 static func _best(anchors: Array) -> float:
 	var best := 1.0
 	var be := INF
-	for i in range(10, 400):
+	for i in range(5, 1200):
 		var s := i / 10.0
 		var e := _score(anchors, s)
 		if e < be:
