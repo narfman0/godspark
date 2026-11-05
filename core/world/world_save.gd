@@ -44,7 +44,10 @@ static func load(dir: String) -> TileWorld:
 	var path := dir.path_join("world.json")
 	if not FileAccess.file_exists(path):
 		return null
-	var info: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var json := JSON.new()
+	if json.parse(FileAccess.get_file_as_string(path)) != OK:
+		return null
+	var info: Variant = json.data
 	if not info is Dictionary or int(info.get("format", -1)) != FORMAT:
 		return null
 	var w := int(info.get("width", 0))

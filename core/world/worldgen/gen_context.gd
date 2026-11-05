@@ -155,13 +155,17 @@ func wall_rect(x0: int, y0: int, x1: int, y1: int, id: int) -> void:
 			bg[row + x] = id
 
 ## One column of a road or ramp: open rows y..y+tall-1, paving at y-1, built wall behind.
-func carve_road_column(x: int, y: int, tall: int) -> void:
+## bridge: pave over open air too (the level deep road); ramps only pave over rock, so a
+## sloped pavement never walls off a cavern it crosses.
+func carve_road_column(x: int, y: int, tall: int, bridge := true) -> void:
 	if x < 0 or x >= w:
 		return
 	carve_rect(x, y, x, y + tall - 1)
 	wall_rect(x, y, x, y + tall - 1, W_COBBLE)
-	if y - 1 >= 1 and fg[x + (y - 1) * w] != BEDROCK:
-		fg[x + (y - 1) * w] = COBBLE
+	if y - 1 >= 1:
+		var i := x + (y - 1) * w
+		if fg[i] != BEDROCK and (bridge or fg[i] != AIR):
+			fg[i] = COBBLE
 
 ## Highest solid tile per column into `surface`.
 func survey() -> void:

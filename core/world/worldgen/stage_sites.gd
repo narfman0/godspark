@@ -19,12 +19,16 @@ static func ruins(c: GenContext, rng: RandomNumberGenerator) -> void:
 	if c.w >= 6000:
 		n = 3
 	c.buried_rooms = []
-	for i in n:
+	for _try in n * 50:
+		if c.buried_rooms.size() >= n:
+			break
 		var rw := rng.randi_range(18, 26)
 		var rh := rng.randi_range(7, 9)
 		var x := rng.randi_range(rw + 10, c.w - rw - 10)
 		var y := rng.randi_range(cb[0] + 8, cb[1] - 30)
 		y = mini(y, c.ground[x] - 30)
+		if _touches_built(c, x - 4, y - 4, x + rw + 4, y + rh + 4):
+			continue  # never wall off a road or ramp
 		c.carve_rect(x, y, x + rw - 1, y + rh - 1)
 		c.wall_rect(x, y, x + rw - 1, y + rh - 1, c.W_COBBLE)
 		c.fill_rect(x - 1, y - 1, x + rw, y - 1, c.COBBLE)
@@ -36,6 +40,16 @@ static func ruins(c: GenContext, rng: RandomNumberGenerator) -> void:
 		c.fill_rect(x - 1, y, x - 1, y + rng.randi_range(2, rh), c.COBBLE)
 		c.fill_rect(x + rw, y, x + rw, y + rng.randi_range(2, rh), c.COBBLE)
 		c.buried_rooms.append({"x": x + rw / 2, "y": y, "w": rw})
+
+static func _touches_built(c: GenContext, x0: int, y0: int, x1: int, y1: int) -> bool:
+	for r: Dictionary in c.buried_rooms:
+		if absi(int(r["x"]) - (x0 + x1) / 2) < 60 and absi(int(r["y"]) - y0) < 30:
+			return true
+	for y in range(maxi(0, y0), mini(c.h - 1, y1) + 1):
+		for x in range(maxi(0, x0), mini(c.w - 1, x1) + 1):
+			if c.bg[x + y * c.w] == c.W_COBBLE:
+				return true
+	return false
 
 static func finish(c: GenContext, _rng: RandomNumberGenerator) -> void:
 	c.survey()

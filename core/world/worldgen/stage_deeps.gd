@@ -60,7 +60,9 @@ static func _carve_cavern(c: GenContext, shape: FastNoiseLite, lobes: FastNoiseL
 			var i := x + y * c.w
 			# flat floor in the middle, curving up toward the walls
 			var fy := floor_y + int(maxf(0.0, absf(dx) - 0.6) * ry * 1.2)
-			if y >= fy and d < 1.0:
+			# the middle of the floor is always open and level: settlements and the road go there
+			var plateau := absf(dx) < 0.55 and y >= floor_y and y <= floor_y + maxi(8, int(ry * 0.6))
+			if plateau or (y >= fy and d < 1.0):
 				if c.fg[i] != c.BEDROCK:
 					c.fg[i] = c.AIR
 			elif y < floor_y and y >= floor_y - 3 and absf(dx) < 0.75:
@@ -80,27 +82,33 @@ static func _carve_cavern(c: GenContext, shape: FastNoiseLite, lobes: FastNoiseL
 static func deep_road(c: GenContext, rng: RandomNumberGenerator) -> void:
 	var db: Array = c.bands["deeps"]
 	var bh := c.band_h("deeps")
-	var pts: Array = []
+	# Level plateaus [x0, x1, floor] through each cavern, left to right.
+	var flats: Array = []
 	for cav: Dictionary in c.caverns:
-		pts.append(Vector2i(cav["x"], cav["floor"]))
-	pts.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x < b.x)
+		var p := int(int(cav["rx"]) * 0.45)
+		flats.append([int(cav["x"]) - p, int(cav["x"]) + p, int(cav["floor"])])
+	flats.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	var wiggle := c.noise(rng, 1.0 / 160.0, 2)
 	var amp := bh * 0.12
-	c.road_x0 = pts[0].x
-	c.road_x1 = pts[-1].x
+	c.road_x0 = flats[0][0]
+	c.road_x1 = flats[-1][1]
 	c.road_floor = PackedInt32Array()
 	c.road_floor.resize(c.road_x1 - c.road_x0 + 1)
 	var lo: int = db[0] + 4
 	var hi: int = db[1] - GenContext.ROAD_H - 4
-	var f: int = pts[0].y
+	var f: int = flats[0][2]
 	var seg := 0
 	for x in range(c.road_x0, c.road_x1 + 1):
-		while seg < pts.size() - 2 and x > pts[seg + 1].x:
+		while seg < flats.size() - 1 and x > flats[seg][1] and x >= flats[seg + 1][0]:
 			seg += 1
-		var a: Vector2i = pts[seg]
-		var b: Vector2i = pts[seg + 1]
-		var t := float(x - a.x) / maxf(1.0, float(b.x - a.x))
-		var target := lerpf(a.y, b.y, smoothstep(0.0, 1.0, t)) + wiggle.get_noise_1d(x) * amp * sin(PI * t)
+		var target: float
+		var a: Array = flats[seg]
+		if x <= a[1] or seg == flats.size() - 1:
+			target = a[2]
+		else:
+			var b: Array = flats[seg + 1]
+			var t := float(x - a[1]) / maxf(1.0, float(b[0] - a[1]))
+			target = lerpf(a[2], b[2], smoothstep(0.0, 1.0, t)) + wiggle.get_noise_1d(x) * amp * sin(PI * t)
 		var ti := clampi(roundi(target), lo, hi)
 		f += clampi(ti - f, -1, 1)  # never steeper than one tile per column
 		c.road_floor[x - c.road_x0] = f
@@ -133,7 +141,7 @@ static func _carve_path(c: GenContext, path: Array, tall: int) -> void:
 		if p.y - 1 > c.ground[p.x]:
 			c.carve_rect(p.x, p.y, p.x, p.y + tall - 1)  # out in the open: no paving in the air
 		else:
-			c.carve_road_column(p.x, p.y, tall)
+			c.carve_road_column(p.x, p.y, tall, false)
 
 static func ascent(c: GenContext, rng: RandomNumberGenerator) -> void:
 	# Try each settled cavern and both directions; keep the ramp that surfaces closest to a
@@ -146,16 +154,17 @@ static func ascent(c: GenContext, rng: RandomNumberGenerator) -> void:
 		var cav: Dictionary = c.caverns[ci]
 		if not cav["settled"]:
 			continue
-		for dir: int in [1, -1]:
-			var sx: int = cav["x"] + dir * int(cav["rx"] * 0.6)
+		for k in 8:
+			var dir := 1 if k % 2 == 0 else -1
+			var sx: int = cav["x"] + dir * int(cav["rx"] * [0.6, 0.4, 0.2, 0.0][k / 2])
 			var sub := RandomNumberGenerator.new()
-			sub.seed = rng.seed + ci * 2 + (1 if dir > 0 else 0)
+			sub.seed = rng.seed + ci * 16 + k
 			var path := _ramp_path(c, sub, sx, int(cav["floor"]), dir, 1, stop, c.h * 3)
 			if path.is_empty():
 				continue
 			var end: Vector2i = path[-1]
 			var gap := _flat_gap(c, end.x)
-			if gap < 24:
+			if gap < 6 or _tail_under_flat(c, path, 16):
 				continue
 			var score: float = float(gap) + path.size() * 0.05
 			if score < best_score:
@@ -168,6 +177,14 @@ static func ascent(c: GenContext, rng: RandomNumberGenerator) -> void:
 		return
 	_carve_path(c, best, GenContext.RAMP_H)
 	c.ascent = best_meta
+
+## True if any of the last n path columns lies under (or within 3 of) a settlement flat:
+## a ramp that close to the surface would break the settlement's ground.
+static func _tail_under_flat(c: GenContext, path: Array, n: int) -> bool:
+	for i in range(maxi(0, path.size() - n), path.size()):
+		if _flat_gap(c, path[i].x) < 3:
+			return true
+	return false
 
 ## Horizontal distance from x to the nearest flat (0 when inside one).
 static func _flat_gap(c: GenContext, x: int) -> int:

@@ -61,6 +61,8 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 		c.ground[x] = clampi(c.ground[x], c.ground[x - 1] - 3, c.ground[x - 1] + 3)
 	for x in range(c.w - 2, -1, -1):
 		c.ground[x] = clampi(c.ground[x], c.ground[x + 1] - 3, c.ground[x + 1] + 3)
+	for f: Dictionary in c.flats:  # the band clamp may have moved a flat
+		f["y"] = c.ground[(int(f["x0"]) + int(f["x1"])) / 2]
 
 static func _smooth(a: PackedFloat32Array, r: int) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
