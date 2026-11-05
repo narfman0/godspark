@@ -1,7 +1,7 @@
 ## The character sheet (C): abilities with modifiers and saves, skills, proficiency bonus, AC
 ## and what makes it up, attacks with to-hit and damage, features from the class kit,
 ## Knacks, Bonds, deeds, Hit Point Dice, resistances, and movement as the sparks have it.
-## Numbers come from SheetModel (worked out from the mirrored sheet and gear).
+## Every number is the host's (RulesClient.summary through SheetModel).
 class_name CharacterSheet
 extends UiScreen
 
@@ -10,7 +10,7 @@ var _m := {}
 
 func _init() -> void:
 	title = "Character"
-	hint = "Worked out from your sheet and gear; the host's dice have the last word."
+	hint = "C or Esc to close."
 	panel_size = Vector2(1140, 590)
 
 func build() -> void:
@@ -24,13 +24,13 @@ func build() -> void:
 func attach() -> void:
 	if gu.rules != null:
 		gu.rules.sheet_changed.connect(func(_s: Dictionary) -> void: refresh())
-	if gu.items != null:
-		gu.items.equipment_changed.connect(func(_s: Array) -> void: refresh())
+		gu.rules.summary_changed.connect(func(_s: Dictionary) -> void: refresh())
+		gu.rules.deeds_changed.connect(func(_d: Dictionary) -> void: refresh())
 
 func refresh() -> void:
-	if not visible or gu.rules == null or gu.items == null:
+	if not visible or gu.rules == null:
 		return
-	_m = SheetModel.build(gu.cw.player_name, gu.rules.sheet, gu.items.equipment, gu.cw.stats, ItemText.srd())
+	_m = SheetModel.build(gu.rules.summary, gu.cw.stats)
 	body.queue_redraw()
 
 func _h(c: Control, p: Vector2, t: String) -> void:
@@ -128,16 +128,17 @@ func _draw_body() -> void:
 	for k: String in dk.slice(0, 5):
 		UiTheme.text(c, Vector2(x, fy), UiCopy.deed(k, int(deeds[k])) + ".", UiTheme.SMALL, UiTheme.INK)
 		fy += 19
-	if not gu.rules.sheet.has("deeds"):
-		UiTheme.text(c, Vector2(x, fy), "(counted since you arrived; the host keeps the full tally)", UiTheme.TINY, UiTheme.INK_SOFT)
-		fy += 17
 	fy += 12
 	_h(c, Vector2(x, fy), "Resistances and movement")
 	fy += 22
 	var res: Array = _m["resist"]
 	UiTheme.text(c, Vector2(x, fy), "Resist: " + (", ".join(res) if not res.is_empty() else "nothing in particular"), UiTheme.SMALL, UiTheme.INK)
 	fy += 19
-	UiTheme.text(c, Vector2(x, fy), "Speed %d ft." % int(_m["speed_ft"]), UiTheme.SMALL, UiTheme.INK)
+	var langs: Array = _m.get("profs", {}).get("languages", [])
+	var tools: Array = _m.get("profs", {}).get("tools", [])
+	UiTheme.text(c, Vector2(x, fy), "Speed %d ft.%s%s" % [int(_m["speed_ft"]),
+		("  Tools: " + ", ".join(tools)) if not tools.is_empty() else "", ("  Languages: " + ", ".join(langs)) if not langs.is_empty() else ""],
+		UiTheme.SMALL, UiTheme.INK)
 	var mv: Array = _m["move"]
 	for i in range(0, mv.size(), 2):
 		fy += 19

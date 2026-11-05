@@ -14,19 +14,28 @@
 ##           still up, BED_WAIT)
 ##   GAIN    u32 xp, str source (a monster's name, "debug")
 ##   NOTE    str text (a refusal or a notice for the owner, e.g. "answer refused: ...")
+##   DEEDS   u16 n, n x (str counter, u32 count): the owner's whole deed tally, on change, at
+##           most every DEEDS_EVERY ticks
+##   SUMMARY u32 length + UTF-8 JSON (at most SUMMARY_MAX bytes): the host's character sheet
+##           numbers (SheetSummary.of): abilities, pb, skills, ac, ac_parts, attacks, features,
+##           resist, profs, speed_ft; sent on change
+##   PREFS   u32 length + UTF-8 JSON: the owner's interface preferences saved with the
+##           character ({quick: [4 spell slugs]}), on join and after a change
 ## Client -> host
 ##   ANSWER     str key, u8 n, n x str      answer a pending choice
 ##   KNACK      str knack id                pick one of an open Knack offer
 ##   REST_SHORT, REST_LONG, STAND, RESPAWN  no payload
 ##   REVIVE     u32 target entity id (0: let go)
 ##   DEBUG      u8 op (Debug), s32 n        only when the host runs with `cheats`
+##   SET_PREFS  as PREFS                    store interface preferences with the character
 class_name RulesCodec
 extends RefCounted
 
 enum K {
-	CHAR = 1, CHOICE = 2, LEVEL = 3, DOWNED = 4, REST = 5, GAIN = 6, NOTE = 7,
+	CHAR = 1, CHOICE = 2, LEVEL = 3, DOWNED = 4, REST = 5, GAIN = 6, NOTE = 7, DEEDS = 8,
+	SUMMARY = 9, PREFS = 10,
 	ANSWER = 64, KNACK = 65, REST_SHORT = 66, REST_LONG = 67, STAND = 68, REVIVE = 69,
-	RESPAWN = 70, DEBUG = 71,
+	RESPAWN = 70, DEBUG = 71, SET_PREFS = 72,
 }
 ## Downed state of a player.
 enum Down { UP, DOWNED, STABLE, DEAD }
@@ -38,6 +47,9 @@ enum Resting { NONE, SHORT, BED }
 enum Debug { XP, LEVEL, AUTO, HURT, DIE, HEAL }
 
 const STR_MAX := 1024
+const SUMMARY_MAX := 16384
+## Prefs JSON cap (a client may not store more than this with its character).
+const PREFS_MAX := 1024
 const VERSION := 1
 
 # --- primitives ---------------------------------------------------------------------
@@ -299,6 +311,42 @@ static func decode_str(data: PackedByteArray) -> Dictionary:
 	var r := Reader.new(data)
 	var s := r.s()
 	return {"text": s} if r.done() else {}
+
+## DEEDS: {counter: count}.
+static func encode_deeds(deeds: Dictionary) -> PackedByteArray:
+	var keys := deeds.keys()
+	keys.sort()
+	var w := Writer.new().u16(mini(keys.size(), 0xffff))
+	for i in mini(keys.size(), 0xffff):
+		w.s(String(keys[i])).u32(clampi(int(deeds[keys[i]]), 0, 0x7fffffff))
+	return w.b
+
+static func decode_deeds(data: PackedByteArray) -> Dictionary:
+	var r := Reader.new(data)
+	var n := r.u16()
+	var out := {}
+	for i in n:
+		var k := r.s()
+		out[k] = r.u32()
+	return {"deeds": out} if r.done() else {}
+
+## SUMMARY and PREFS: a JSON object behind a u32 length; {} if it is not one (or too long).
+static func encode_json(d: Dictionary, cap := SUMMARY_MAX) -> PackedByteArray:
+	var txt := JSON.stringify(d).to_utf8_buffer()
+	if txt.size() > cap:
+		return PackedByteArray()
+	var w := Writer.new().u32(txt.size())
+	w.b.append_array(txt)
+	return w.b
+
+static func decode_json(data: PackedByteArray, cap := SUMMARY_MAX) -> Dictionary:
+	if data.size() < 4:
+		return {}
+	var n := data.decode_u32(0)
+	if n > cap or data.size() != 4 + n:
+		return {}
+	var v: Variant = JSON.parse_string(data.slice(4).get_string_from_utf8())
+	return v if v is Dictionary else {}
 
 # --- client messages ----------------------------------------------------------------
 

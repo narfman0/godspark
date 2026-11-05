@@ -29,7 +29,7 @@ var catcher: Control
 var ui_scale := 1.0
 ## Drops seen (id -> item), so a pickup can say what it was.
 var drop_items := {}
-## Deeds counted on this client since joining (the host does not send deeds yet).
+## Deeds counted on this client since joining (only until the host's DEEDS arrive).
 var tally := {}
 ## Frame cost of the interface, microseconds (for the tour's report).
 var frame_usec := PackedInt32Array()
@@ -81,7 +81,9 @@ func attach(client: ClientWorld, pres: Node) -> void:
 	items = cw.system(HostSystem.ITEMS) as ItemsClient
 	combat = cw.system(HostSystem.COMBAT) as CombatClient
 	monsters = cw.system(HostSystem.MONSTERS)
-	quick.load_for(cw.player_name)
+	quick.on_change = func(slugs: Array) -> void:
+		if rules != null:
+			rules.set_prefs({"quick": slugs})
 	if items != null:
 		items.drop_added.connect(func(id: int, _p: Vector2, it: Dictionary) -> void: drop_items[id] = it)
 		items.drop_removed.connect(_on_drop_removed)
@@ -90,8 +92,12 @@ func attach(client: ClientWorld, pres: Node) -> void:
 		rules.leveled.connect(_on_leveled)
 		rules.notice.connect(func(t: String) -> void: toast(t))
 		rules.xp_gained.connect(func(n: int, src: String) -> void: hud.xp_toast(n, src))
+		rules.prefs_arrived.connect(func(p: Dictionary) -> void: quick.load_prefs(p))
+		quick.load_prefs(rules.prefs)
 	if combat != null:
 		combat.event.connect(_on_combat_event)
+		# the host said no: why, briefly (out of range, no slot, busy, you are down ...)
+		combat.refused.connect(func(_intent: int, why: String) -> void: toast(UiCopy.refusal(why), 1.6, UiTheme.BLOOD_DARK))
 	cw.edit_result.connect(_on_edit_result)
 	cw.world.tile_changed.connect(_on_tile_changed)
 	hud.attach()

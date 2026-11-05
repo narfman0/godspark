@@ -268,6 +268,12 @@ func _draw_vitals(c: Control) -> void:
 	var hb := Rect2(lx, 52, r.end.x - lx - 12, 22)
 	UiTheme.ink_bar(c, hb, float(hp) / mx, UiTheme.VERMILION, UiTheme.BLOOD_DARK.darkened(0.3), _hp_ghost / mx)
 	var hp_txt := "%d / %d" % [hp, cw.max_hp] if cw.max_hp > 0 else "-"
+	# temporary hit points (combat STATUS): a teal cap over the bar's right end, and "+N"
+	var temp := int(gu.combat.status.get("temp_hp", 0)) if gu.combat != null else 0
+	if temp > 0:
+		var tw := minf(hb.size.x, hb.size.x * float(temp) / mx)
+		c.draw_rect(Rect2(hb.end.x - tw, hb.position.y, tw, 5), UiTheme.TEAL)
+		hp_txt += "  +%d" % temp
 	UiTheme.text(c, Vector2(hb.position.x, hb.position.y + 17), hp_txt, UiTheme.BODY, UiTheme.TEXT_LIGHT, false, HORIZONTAL_ALIGNMENT_CENTER, hb.size.x, 4)
 	# experience
 	var x0 := int(sh.get("xp_level", 0))

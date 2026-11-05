@@ -65,6 +65,9 @@ func _codec(t: TestLog) -> void:
 	var st := {"action": 0.25, "bonus": 1.5, "reaction": 0.0, "move_mult": 0.5, "flags": CombatCodec.ST_NO_JUMP, "fear_src": 42,
 		"slots": [[2, 4], [1, 3], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]], "concentration": "bless"}
 	var st2 := CombatCodec.read_status(CombatCodec.status(st))
+	t.eq(CombatCodec.read_status(CombatCodec.status(st.merged({"temp_hp": 9}))).get("temp_hp"), 9, "STATUS carries temporary hit points")
+	t.eq(CombatCodec.read_refused(CombatCodec.refused(CombatCodec.Msg.CAST, "no slot left")), {"intent": CombatCodec.Msg.CAST, "reason": "no slot left"}, "REFUSED round trip")
+	t.eq(CombatCodec.read_refused(PackedByteArray([2])), {}, "a short REFUSED is refused")
 	t.check(absf(st2["move_mult"] - 0.5) < 0.01 and st2["slots"] == st["slots"] and st2["concentration"] == "bless"
 		and st2["fear_src"] == 42 and is_equal_approx(st2["bonus"], 1.5), "STATUS round trip")
 	var sp := [{"slug": "fire-bolt", "name": "Fire Bolt", "level": 0, "flags": 65}, {"slug": "shield", "name": "Shield", "level": 1, "flags": 68}]

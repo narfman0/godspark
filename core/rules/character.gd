@@ -70,6 +70,8 @@ var slots_left: Array = []
 var uses_left := {}
 ## Where death and long rests return you: a Vector2i, or null for none.
 var bed: Variant = null
+## Interface preferences kept with the character (clean_prefs): {quick: [4 spell slugs]}.
+var prefs := {}
 
 ## A new level-1 character. Empty scores, skills, species or background take the class
 ## default (DEFAULTS; other SRD classes get flat 10s and no skills). With `srd`, the class
@@ -231,6 +233,7 @@ func to_dict() -> Dictionary:
 		"inventory": inventory.to_dict(), "equipment": equipment.to_dict(),
 		"hp": hp, "hit_dice_left": hit_dice_left, "slots_left": slots_left.duplicate(),
 		"uses_left": uses_left.duplicate(true), "bed": [bed.x, bed.y] if bed is Vector2i else null,
+		"prefs": prefs.duplicate(true),
 	}
 
 ## Inverse of to_dict, also after a trip through JSON (numbers come back as floats: the
@@ -259,7 +262,20 @@ static func from_dict(d: Dictionary) -> Character:
 	ch.uses_left = _ints(d.get("uses_left", {}))
 	var b: Variant = d.get("bed")
 	ch.bed = Vector2i(int(b[0]), int(b[1])) if b is Array and (b as Array).size() == 2 else null
+	ch.prefs = clean_prefs(d.get("prefs", {}))
 	return ch
+
+## Only known preference keys and shapes survive: quick = 4 short strings.
+static func clean_prefs(d: Variant) -> Dictionary:
+	var out := {}
+	if d is Dictionary and (d as Dictionary).get("quick") is Array:
+		var q: Array = []
+		for s: Variant in (d["quick"] as Array).slice(0, 4):
+			q.append(String(s).left(64) if s is String else "")
+		while q.size() < 4:
+			q.append("")
+		out["quick"] = q
+	return out
 
 ## Whole-number floats (from JSON) back to ints, recursively. Build data has no real floats.
 static func _ints(v: Variant) -> Variant:

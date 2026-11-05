@@ -111,6 +111,22 @@ static func deed(counter: String, n: int) -> String:
 	return "%s: %d" % [counter, n]
 
 ## A deed with no count yet: what earns it.
+## "bird" -> "birds", "wolf" -> "wolves" (beast kinds in deed lines).
+## A host refusal of an attack or cast, as a short line ("Not now: busy").
+static func refusal(why: String) -> String:
+	if why == "":
+		return "Not now"
+	return why.left(1).to_upper() + why.substr(1)
+
+static func plural(word: String) -> String:
+	if word == "" or word.ends_with("s"):
+		return word
+	if word.ends_with("f"):
+		return word.left(-1) + "ves"
+	if word.ends_with("y") and not word.ends_with("ey"):
+		return word.left(-1) + "ies"
+	return word + "s"
+
 static func deed_hint(counter: String) -> String:
 	var parts := counter.split(":")
 	var what := parts[1].replace("_", " ").replace("-", " ") if parts.size() > 1 else ""
@@ -132,7 +148,7 @@ static func deed_hint(counter: String) -> String:
 		"kill":
 			return "for felling " + (what if what != "" else "foes")
 		"beast":
-			return "for time among " + what
+			return "for time among " + plural(what)
 		"trade":
 			return "for trading"
 		"sleep", "rest":

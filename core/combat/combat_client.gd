@@ -15,6 +15,8 @@ extends ClientSystem
 signal event(ev: Dictionary)
 signal cooldowns_changed(status: Dictionary)
 signal spells_changed(spells: Array)
+## The host refused an attack or cast intent (intent: CombatCodec.Msg.ATTACK or CAST).
+signal refused(intent: int, reason: String)
 
 const LOG_MAX := 64
 ## Seconds a sent intent blocks a repeat while its SWING has not come back.
@@ -50,6 +52,10 @@ func handle(kind: int, data: PackedByteArray) -> void:
 		CombatCodec.Msg.SPELLS:
 			spells = CombatCodec.read_spells(data)
 			spells_changed.emit(spells)
+		CombatCodec.Msg.REFUSED:
+			var m := CombatCodec.read_refused(data)
+			if not m.is_empty():
+				refused.emit(int(m["intent"]), String(m["reason"]))
 
 func _apply(ev: Dictionary) -> void:
 	var me := cw != null and int(ev["dst"]) == cw.my_id

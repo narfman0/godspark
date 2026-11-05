@@ -101,6 +101,9 @@ class PState extends RefCounted:
 	var pending_ok := false
 	var dirty := true
 	var extras := {}
+	var sent_summary := PackedByteArray()
+	var sent_deeds := {}
+	var deeds_at := -1000000
 
 func _init() -> void:
 	cheats = cmdline_cheats()
@@ -257,6 +260,9 @@ func handle(_h: WorldHost, e: HostEntity, kind: int, data: PackedByteArray) -> v
 		K.RESPAWN:
 			if not respawn(e):
 				_note(e, "respawn refused: you are not dead")
+		K.SET_PREFS:
+			var pm := RulesCodec.decode_json(data, RulesCodec.PREFS_MAX)
+			e.character.prefs = Character.clean_prefs(pm)
 		K.DEBUG:
 			var m := RulesCodec.decode_debug(data)
 			if m.is_empty():
@@ -1276,8 +1282,12 @@ func sheet(e: HostEntity) -> Dictionary:
 		"state": ps.down, "successes": c.death_saves.successes, "failures": c.death_saves.failures,
 		"resting": ps.resting, "rest_ready": long_rest_ready(e), "bed": ch.bed}
 
-## Send the owner its new choices (CHOICE) and its sheet (CHAR) when anything but current HP
-## changed, or always with `force`.
+## Ticks between DEEDS messages at most (deeds change with every step taken).
+const DEEDS_EVERY := 60
+
+## Send the owner its new choices (CHOICE), its sheet (CHAR) when anything but current HP
+## changed, the host's sheet numbers (SUMMARY) and deeds (DEEDS, rate-limited) when they
+## changed, or all of them with `force`.
 func _sync(e: HostEntity, force := false) -> void:
 	var ps := _ps(e)
 	if ps == null or e.combatant == null or e.character == null:
@@ -1296,6 +1306,16 @@ func _sync(e: HostEntity, force := false) -> void:
 	if force or ps.dirty or sig != ps.sent_sig:
 		ps.sent_sig = sig
 		host.send_sys(sys_id(), K.CHAR, bytes, e.id)
+	var summ := RulesCodec.encode_json(SheetSummary.of(e.combatant, e.character, host.srd, proficiencies(e.id)))
+	if force or summ != ps.sent_summary:
+		ps.sent_summary = summ
+		host.send_sys(sys_id(), K.SUMMARY, summ, e.id)
+	if force or (host.tick_count - ps.deeds_at >= DEEDS_EVERY and e.character.deeds != ps.sent_deeds):
+		ps.deeds_at = host.tick_count
+		ps.sent_deeds = e.character.deeds.duplicate()
+		host.send_sys(sys_id(), K.DEEDS, RulesCodec.encode_deeds(e.character.deeds), e.id)
+	if force:
+		host.send_sys(sys_id(), K.PREFS, RulesCodec.encode_json(e.character.prefs, RulesCodec.PREFS_MAX), e.id)
 	ps.dirty = false
 
 func _note(e: HostEntity, text: String) -> void:

@@ -33,7 +33,7 @@
 class_name CombatCodec
 extends RefCounted
 
-enum Msg { ATTACK = 1, CAST = 2, CANCEL = 3, EVENTS = 16, STATUS = 17, SPELLS = 18 }
+enum Msg { ATTACK = 1, CAST = 2, CANCEL = 3, EVENTS = 16, STATUS = 17, SPELLS = 18, REFUSED = 19 }
 enum Ev { SWING = 1, HIT, MISS, CRIT, SAVE, DAMAGE, HEAL, CONDITION, DOWNED, DEATH, XP, EFFECT,
 		PROJECTILE, IMPACT, PUSH, CANCEL }
 ## SWING modes.
@@ -269,7 +269,7 @@ static func status(st: Dictionary) -> PackedByteArray:
 	for i in 9:
 		var s: Array = slots[i] if i < slots.size() else [0, 0]
 		w.u8(int(s[0])).u8(int(s[1]))
-	return w.text(String(st.get("concentration", ""))).b
+	return w.text(String(st.get("concentration", ""))).u16(clampi(int(st.get("temp_hp", 0)), 0, 0xffff)).b
 
 static func read_status(data: PackedByteArray) -> Dictionary:
 	var r := R.new(data)
@@ -280,7 +280,17 @@ static func read_status(data: PackedByteArray) -> Dictionary:
 		slots.append([r.u8(), r.u8()])
 	st["slots"] = slots
 	st["concentration"] = r.text()
+	st["temp_hp"] = r.u16()
 	return st if r.done() else {}
+
+## REFUSED (host -> owner): u8 intent (Msg.ATTACK or Msg.CAST), str reason.
+static func refused(intent: int, reason: String) -> PackedByteArray:
+	return W.new().u8(intent).text(reason).b
+
+static func read_refused(data: PackedByteArray) -> Dictionary:
+	var r := R.new(data)
+	var d := {"intent": r.u8(), "reason": r.text()}
+	return d if r.done() else {}
 
 ## spells: [{slug, name, level, flags}]
 static func spells(list: Array) -> PackedByteArray:

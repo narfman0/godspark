@@ -28,6 +28,12 @@ signal rest_event(ev: Dictionary)
 signal xp_gained(amount: int, source: String)
 ## A line for the player from the host (a refused request, "bob got you up").
 signal notice(text: String)
+## The host's sheet numbers (SheetSummary) changed.
+signal summary_changed(summary: Dictionary)
+## The deed tally arrived (also in sheet["deeds"]).
+signal deeds_changed(deeds: Dictionary)
+## The interface preferences stored with the character arrived (on join).
+signal prefs_arrived(prefs: Dictionary)
 
 var cw: ClientWorld
 ## The last sheet ({} until the first CHAR).
@@ -39,6 +45,12 @@ var downed := {}
 ## The last rest event.
 var last_rest := {}
 var notices := PackedStringArray()
+## The host's computed sheet numbers ({} until the first SUMMARY): SheetSummary.of.
+var summary := {}
+## The whole deed tally as the host counts it ({} until the first DEEDS).
+var deeds := {}
+## Interface preferences saved with the character ({quick: [4 slugs]}).
+var prefs := {}
 var _base_stats: MoveStats = null
 
 func sys_id() -> int:
@@ -60,9 +72,25 @@ func handle(kind: int, data: PackedByteArray) -> void:
 			for k: String in choices.keys():
 				if not keys.has(k):
 					choices.erase(k)
+			if not deeds.is_empty():
+				s["deeds"] = deeds
 			_own_state(int(s["state"]))
 			_own_look(String(s.get("class", "")))
 			sheet_changed.emit(s)
+		RulesCodec.K.DEEDS:
+			var m := RulesCodec.decode_deeds(data)
+			if not m.is_empty():
+				deeds = m["deeds"]
+				sheet["deeds"] = deeds
+				deeds_changed.emit(deeds)
+		RulesCodec.K.SUMMARY:
+			var m := RulesCodec.decode_json(data)
+			if not m.is_empty():
+				summary = m
+				summary_changed.emit(m)
+		RulesCodec.K.PREFS:
+			prefs = Character.clean_prefs(RulesCodec.decode_json(data, RulesCodec.PREFS_MAX))
+			prefs_arrived.emit(prefs)
 		RulesCodec.K.CHOICE:
 			var c := RulesCodec.decode_choice(data)
 			if not c.is_empty():
@@ -136,6 +164,11 @@ func respawn() -> void:
 	_send(RulesCodec.K.RESPAWN, PackedByteArray())
 
 ## Debug (the host must run with `cheats`): op is RulesCodec.Debug.
+## Store interface preferences with the character on the host ({quick: [4 slugs]}).
+func set_prefs(p: Dictionary) -> void:
+	prefs = Character.clean_prefs(p)
+	_send(RulesCodec.K.SET_PREFS, RulesCodec.encode_json(prefs, RulesCodec.PREFS_MAX))
+
 func debug(op: int, n := 0) -> void:
 	_send(RulesCodec.K.DEBUG, RulesCodec.encode_debug(op, n))
 

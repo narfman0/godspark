@@ -56,8 +56,10 @@ func _draw() -> void:
 	UiTheme.text(self, r.position + Vector2(14, 134), kind.capitalize(), UiTheme.SMALL, col.darkened(0.3), false, HORIZONTAL_ALIGNMENT_CENTER, w)
 	draw_line(r.position + Vector2(40, 144), r.position + Vector2(r.size.x - 40, 144), UiTheme.INK_FADED, 1.5)
 	_wrap(text, r.position + Vector2(14, 168), w, UiTheme.SMALL, UiTheme.INK, 6)
-	draw_rect(Rect2(r.position + Vector2(10, r.size.y - 78), Vector2(r.size.x - 20, 66)), Color(col, 0.16))
-	_wrap(deed, r.position + Vector2(18, r.size.y - 58), w - 8, UiTheme.SMALL, UiTheme.INK_SOFT, 3)
+	# the deed line: wrapped inside its box (it used to run off the card: "for time among bird")
+	var lh := UiTheme.TINY + 3
+	draw_rect(Rect2(r.position + Vector2(10, r.size.y - 14 - lh * 4 - 8), Vector2(r.size.x - 20, lh * 4 + 8)), Color(col, 0.16))
+	_wrap(deed, r.position + Vector2(18, r.size.y - 14 - lh * 4 + UiTheme.TINY), w - 8, UiTheme.TINY, UiTheme.INK_SOFT, 4)
 	if _hover:
 		UiTheme.text(self, r.position + Vector2(0, r.size.y + 22), "click to take it", UiTheme.SMALL, UiTheme.INK_SOFT, false, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 

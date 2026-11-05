@@ -121,15 +121,29 @@ func handle(_h: WorldHost, e: HostEntity, kind: int, data: PackedByteArray) -> v
 				return
 			_set_lead(a, d["clock"])
 			if not start_attack(e, -1, d["aim"], d["throw"]):
-				a.last_refusal = "attack: busy or cannot act"
+				a.last_refusal = _attack_refusal(a)
+				host.send_sys(sys_id(), CombatCodec.Msg.REFUSED, CombatCodec.refused(kind, a.last_refusal), e.id)
 		CombatCodec.Msg.CAST:
 			var d := CombatCodec.read_cast(data)
 			if d.is_empty():
 				return
 			_set_lead(a, d["clock"])
 			a.last_refusal = cast(e, d["slug"], d["level"], d["aim"])
+			if a.last_refusal != "":
+				host.send_sys(sys_id(), CombatCodec.Msg.REFUSED, CombatCodec.refused(kind, a.last_refusal), e.id)
 		CombatCodec.Msg.CANCEL:
 			cancel(e)
+
+## Why an attack intent was refused, in a few words for the HUD.
+func _attack_refusal(a: Actor) -> String:
+	var e := a.e
+	if e.combatant == null or is_downed(e) or a.downed_at >= 0.0:
+		return "you are down"
+	if not e.combatant.can_act():
+		return "you cannot act"
+	if not a.seq.is_empty() or now < a.action_ready - 1e-6:
+		return "busy"
+	return "not now"
 
 func _set_lead(a: Actor, clock: float) -> void:
 	if clock < 0.0:
@@ -1344,7 +1358,8 @@ func status_of(a: Actor) -> Dictionary:
 		| (CombatCodec.ST_DOWNED if a.downed_at >= 0.0 else 0) | (CombatCodec.ST_CONCENTRATING if a.conc.is_concentrating else 0)
 	return {"action": maxf(0.0, a.action_ready - now), "bonus": maxf(0.0, a.bonus_ready - now),
 		"reaction": maxf(0.0, a.reaction_ready - now), "move_mult": a.move_mult, "flags": flags, "fear_src": a.fear_src,
-		"slots": slots, "concentration": a.conc.active_ability.spell_id if a.conc.is_concentrating else ""}
+		"slots": slots, "concentration": a.conc.active_ability.spell_id if a.conc.is_concentrating else "",
+		"temp_hp": c.stats.temp_hp}
 
 func _send_status() -> void:
 	for a: Actor in actors.values():
@@ -1357,8 +1372,8 @@ func _send_status() -> void:
 				a.spells_sent = true
 				host.send_sys(sys_id(), CombatCodec.Msg.SPELLS, CombatCodec.spells(list), a.e.id)
 		var st := status_of(a)
-		var sig := "%.3f|%.3f|%.3f|%s|%d|%d|%s|%s" % [a.action_ready, a.bonus_ready, a.reaction_ready, a.move_mult, st["flags"],
-			a.fear_src, st["slots"], st["concentration"]]
+		var sig := "%.3f|%.3f|%.3f|%s|%d|%d|%s|%s|%d" % [a.action_ready, a.bonus_ready, a.reaction_ready, a.move_mult, st["flags"],
+			a.fear_src, st["slots"], st["concentration"], st["temp_hp"]]
 		if sig != a.status_sig:
 			a.status_sig = sig
 			host.send_sys(sys_id(), CombatCodec.Msg.STATUS, CombatCodec.status(st), a.e.id)

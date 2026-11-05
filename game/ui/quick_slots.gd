@@ -1,15 +1,14 @@
 ## The four quick-spell slots (Q R T G): which prepared spell each holds, and why one cannot
-## be cast right now. Assignments are kept per character name in user://ui.cfg. Unassigned
-## slots fall back to the combat client's default (the i-th castable spell).
+## be cast right now. Assignments are stored with the character on the host (rules prefs:
+## RulesClient.set_prefs / prefs_arrived), so they follow the character to any machine.
+## Unassigned slots fall back to the combat client's default (the i-th castable spell).
 class_name QuickSlots
 extends RefCounted
 
 const N := 4
 const KEYS := ["Q", "R", "T", "G"]
-const CFG := "user://ui.cfg"
 
 var slugs: Array = ["", "", "", ""]
-var owner_name := ""
 
 ## The spell row ({slug, name, level, flags}) slot i holds, from the mirrored spell list.
 func spell_for(i: int, spells: Array) -> Dictionary:
@@ -80,18 +79,15 @@ static func timer_for(spell: Dictionary, status: Dictionary) -> float:
 		return float(status.get("bonus", 0.0))
 	return float(status.get("action", 0.0))
 
-func load_for(name: String) -> void:
-	owner_name = name
-	var cfg := ConfigFile.new()
-	if cfg.load(CFG) == OK:
-		var a: Variant = cfg.get_value("quick", name, [])
-		if a is Array and (a as Array).size() == N:
-			slugs = (a as Array).map(func(x: Variant) -> String: return String(x))
+## Called with every change (GameUi sends it to the host): func(slugs: Array).
+var on_change := Callable()
+
+## The slots as the host stored them (RulesClient.prefs["quick"]).
+func load_prefs(prefs: Dictionary) -> void:
+	var a: Variant = prefs.get("quick")
+	if a is Array and (a as Array).size() == N:
+		slugs = (a as Array).map(func(x: Variant) -> String: return String(x))
 
 func save() -> void:
-	if owner_name == "":
-		return
-	var cfg := ConfigFile.new()
-	cfg.load(CFG)
-	cfg.set_value("quick", owner_name, slugs)
-	cfg.save(CFG)
+	if on_change.is_valid():
+		on_change.call(slugs.duplicate())

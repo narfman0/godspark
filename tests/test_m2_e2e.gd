@@ -46,6 +46,7 @@ func run(t_: TestLog) -> void:
 	_fight(t)
 	_loot_and_gear(t)
 	_spark(t)
+	_mirrors(t)
 	_rests(t)
 	_downed(t)
 	_persist(t)
@@ -314,6 +315,35 @@ func _props(s: MoveStats) -> Dictionary:
 			out[p["name"]] = s.get(p["name"])
 	return out
 
+# --- mirrors the interface reads --------------------------------------------------------------
+
+func _mirrors(t: TestLog) -> void:
+	rig.run(2.5)      # DEEDS are rate-limited
+	for i in 2:
+		t.eq(rc(i).deeds.get("kill", -1), he(i).character.deeds.get("kill", -2), "client %d: the host's deed tally (kills)" % i)
+		t.eq(rc(i).sheet.get("deeds", {}).get("kill", -1), he(i).character.deeds.get("kill", -2), "client %d: and in the sheet" % i)
+		var s: Dictionary = rc(i).summary
+		t.eq(int(s.get("ac", -1)), he(i).combatant.armor_class, "client %d: the summary's AC is the host's" % i)
+		t.eq(int(s.get("attacks", [{}])[0].get("to_hit", -99)), he(i).combatant.attack_modifier(), "client %d: and the to-hit" % i)
+		t.eq((s.get("skills", []) as Array).size(), SRD.Skill.size(), "client %d: every skill" % i)
+	# temporary hit points
+	he(0).combatant.stats.temp_hp = 7
+	rig.run(0.3)
+	t.eq(int(cc(0).status.get("temp_hp", -1)), 7, "temporary hit points mirrored")
+	he(0).combatant.stats.temp_hp = 0
+	# a refused cast says why
+	var why: Array = []
+	cc(1).refused.connect(func(_k: int, w: String) -> void: why.append(w))
+	rig.cw(1).send_sys(HostSystem.COMBAT, CombatCodec.Msg.CAST, CombatCodec.cast("wish", 9, he(1).body.center(), -1.0))
+	rig.run(0.3)
+	t.check(why.size() == 1 and String(why[0]) != "", "the host's refusal came back: %s" % [why])
+	# quick spells and the hotbar selection live on the host with the character
+	rc(1).set_prefs({"quick": ["magic-missile", "fire-bolt", "", ""]})
+	ic(1).select_hotbar(2)
+	rig.run(0.3)
+	t.eq(he(1).character.prefs.get("quick", []), ["magic-missile", "fire-bolt", "", ""], "quick spells stored on the host")
+	t.eq(he(1).character.inventory.selected, 2, "and the hotbar selection")
+
 # --- rests --------------------------------------------------------------------------------------------
 
 func _rests(t: TestLog) -> void:
@@ -470,7 +500,8 @@ func _snapshot(e: HostEntity) -> Dictionary:
 	return {"level": ch.level, "xp": ch.xp, "inventory": ch.inventory.to_dict(), "equipment": ch.equipment.to_dict(),
 		"sparks": ch.sparks.to_dict(), "slots_left": RulesSystem._slots_left(e.combatant), "deeds": ch.deeds.duplicate(),
 		"knacks": ch.knacks.duplicate(), "bed": ch.bed, "hp": e.combatant.stats.current_hp, "max_hp": e.combatant.stats.max_hp,
-		"ac": e.combatant.armor_class, "atk": e.combatant.attack_modifier(), "run": e.stats.run_speed}
+		"ac": e.combatant.armor_class, "atk": e.combatant.attack_modifier(), "run": e.stats.run_speed,
+		"prefs": ch.prefs.duplicate(true), "edit_reach": e.edit_reach}
 
 func _persist(t: TestLog) -> void:
 	var rules: RulesSystem = sys(HostSystem.RULES)
@@ -525,6 +556,9 @@ func _persist(t: TestLog) -> void:
 	t.check(bool(he(0).character.equipment.at("ring_1").get("bonded", false)), "the ring is still bonded")
 	t.eq(int(rc(0).sheet.get("level", 0)), before[0]["level"], "the client sheet shows the level")
 	t.eq(ic(1).constellation.size(), 1, "the wizard's client shows the kindled spark")
+	t.eq(rc(1).prefs.get("quick", []), ["magic-missile", "fire-bolt", "", ""], "the quick spells came back to the client")
+	t.eq(ic(1).selected(), 2, "and the hotbar selection")
+	t.eq(rc(0).deeds.get("kill", -1), he(0).character.deeds.get("kill", -2), "the deed tally came back")
 	t.eq(_props(rig.cw(1).stats), _props(he(1).stats), "and moves with it")
 	_rm(dir)
 

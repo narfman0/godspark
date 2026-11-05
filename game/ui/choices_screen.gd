@@ -45,7 +45,7 @@ func refresh() -> void:
 		details = []
 	for k: String in keys:
 		var ch: Dictionary = gu.rules.choices[k]
-		var b := UiTheme.button(String(ch.get("label", k)).replace(" (class level ", ", class level ").replace(")", "").replace("Ability Score Improvement or Feat", "Improvement or Feat"), UiTheme.SMALL)
+		var b := UiTheme.button(String(ch.get("label", k)).replace(" (class level ", ", class level ").replace(" (level ", ", level ").replace(")", "").replace("Ability Score Improvement or Feat", "Improvement or Feat"), UiTheme.SMALL)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.custom_minimum_size = Vector2(230, 30)
 		b.clip_text = true

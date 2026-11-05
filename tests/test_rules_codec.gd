@@ -2,6 +2,7 @@
 extends RefCounted
 
 func run(t: TestLog) -> void:
+	_mirrors(t)
 	var s := {"level": 24, "xp": 123456, "xp_level": 120000, "xp_next": 130000, "class": "wizard",
 		"subclass": "evoker", "species": "human", "background": "sage", "class_level": 5,
 		"scores": [8, 13, 14, 16, 12, 10], "hp": 31, "max_hp": 40, "hit_dice": 7, "hit_dice_max": 9,
@@ -48,3 +49,19 @@ func run(t: TestLog) -> void:
 			{"op": RulesCodec.Debug.HURT, "n": -5}, "DEBUG round-trips")
 	var long := "x".repeat(5000)
 	t.eq(String(RulesCodec.decode_str(RulesCodec.encode_str(long))["text"]).length(), RulesCodec.STR_MAX, "long strings are cut")
+
+## Integration mirrors: DEEDS, SUMMARY, PREFS (and their refusals of bad input).
+func _mirrors(t: TestLog) -> void:
+	var deeds := {"kill": 16, "kill:fey": 8, "dig:stone": 412, "run": 90000}
+	t.eq(RulesCodec.decode_deeds(RulesCodec.encode_deeds(deeds)).get("deeds"), deeds, "DEEDS round trip")
+	var d := RulesCodec.encode_deeds(deeds)
+	t.eq(RulesCodec.decode_deeds(d.slice(0, d.size() - 1)), {}, "a truncated DEEDS is refused")
+	var summ := {"ac": 18, "attacks": [{"name": "Longsword", "to_hit": 5, "damage": "1d8+3 slashing", "per_action": 1}],
+		"skills": [{"name": "Athletics", "bonus": 5, "prof": true, "expert": false}], "resist": ["fire"]}
+	var back := RulesCodec.decode_json(RulesCodec.encode_json(summ))
+	t.eq([int(back["ac"]), String(back["attacks"][0]["damage"]), back["resist"]], [18, "1d8+3 slashing", ["fire"]], "SUMMARY round trip")
+	var raw := RulesCodec.encode_json(summ)
+	t.eq(RulesCodec.decode_json(raw.slice(0, raw.size() - 2)), {}, "a truncated SUMMARY is refused")
+	t.eq(RulesCodec.decode_json(PackedByteArray([3, 0, 0, 0, 0x5b, 0x31, 0x5d])), {}, "a JSON array is not a summary")
+	t.eq(RulesCodec.encode_json({"x": "y".repeat(RulesCodec.PREFS_MAX)}, RulesCodec.PREFS_MAX).size(), 0, "oversize prefs are not encoded")
+	t.eq(Character.clean_prefs({"quick": ["a", 3, "c"], "evil": 1}), {"quick": ["a", "", "c", ""]}, "prefs are cleaned to known shapes")
