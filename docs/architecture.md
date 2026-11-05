@@ -74,6 +74,10 @@ routes:  [{id, a, b, kind, length}]    a and b are site ids; kind: road | deep_r
 
 - `tools/worldmap.gd -- seed=N size=dev out=path.png` writes a picture of the world: tiles
   by colour, sites and routes drawn over it.
+- As built (details in `tracks/worldgen.md`): stages write u8 grids that are packed into
+  chunks at the end (equivalent to quiet writes; chunks are left unmodified). Site `y` is
+  the feet row (first open tile above solid ground). Underground site `biome` is `caves`
+  or `underdark`. Route `length` is walking distance in tiles. Sizes: `WorldGen.SIZES`.
 
 ## Track B: light and rendering
 

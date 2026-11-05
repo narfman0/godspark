@@ -1,0 +1,8 @@
+{
+	"_comment": "Ore veins. depth = [top, bottom] as fractions of world height measured from the top (0 = sky top, 1 = bedrock). veins = veins per 10000 tiles of that depth range. size = tiles per vein. replace = tile names an ore may overwrite.",
+	"ores": [
+		{"tile": "copper_ore", "depth": [0.20, 0.52], "veins": 2.2, "size": [6, 16], "replace": ["stone", "dirt"]},
+		{"tile": "iron_ore", "depth": [0.36, 0.70], "veins": 1.6, "size": [6, 16], "replace": ["stone", "slate"]},
+		{"tile": "silver_ore", "depth": [0.60, 0.97], "veins": 1.1, "size": [5, 12], "replace": ["slate", "stone"]}
+	]
+}
