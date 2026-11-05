@@ -453,15 +453,44 @@ Character.inventory / equipment / sparks are Inventory / Equipment / Constellati
 
 ### Combat (`core/combat/`)
 
+As built ([tracks/combat.md](tracks/combat.md)). `CombatSystem` (HostSystem.COMBAT) and
+`CombatClient`; byte layouts in `CombatCodec`.
+
 ```
-Intent, from a client: {kind: ATTACK | CAST | USE, aim: Vector2 (tile units), what: slot or spell}
-CombatEvent, host to clients near it:
-  {t: tick, kind: SWING | HIT | MISS | CRIT | SAVE | DAMAGE | HEAL | CONDITION | DOWNED | DEATH | XP,
-   src: entity id, dst: entity id, amount, dtype, roll?, what?}
-Tempo and durations come from data/combat.json. Every weapon hit goes through the addon's
-AttackResolver.weapon_attack and every spell through SpellResolver.cast; the game supplies
-positional facts (cover from TileCollision.raycast, within_5ft, light from LightEngine).
+Intents, client -> host (SYS kinds 1-3; no USE: items and features are not wired yet):
+  ATTACK {aim: Vector2, clock, throw}     CAST {slug, level, aim, clock}     CANCEL
+  clock = ClientWorld.clock: the host estimates the one-way delay from it and leads the
+  attacker's body by vel * delay when it tests hit shapes
+Host -> client: EVENTS (to players near, one message per chunk per tick), STATUS and
+  SPELLS (to the owner)
+CombatEvent {t: tick, kind, src, dst, ...}: SWING (mode, swings, windup, total, aim, what) |
+  HIT | MISS | CRIT (d20, total_roll, ac) | SAVE (dc, saved, what) | DAMAGE (amount, dtype, hp) |
+  HEAL (amount, hp) | CONDITION (cond, on) | DOWNED | DEATH | XP (amount; reserved) |
+  EFFECT (on, what) | PROJECTILE (pid, pkind, pos, vel, gravity) | IMPACT (pid, pos) |
+  PUSH (push) | CANCEL
+# brains (host thread)
+combat.can_act(e); combat.busy(e); combat.start_attack(e, action := -1, aim, throw := false) -> bool
+combat.targets_in_reach(e, action := -1) -> Array[HostEntity]; combat.nearest_foe(e, tiles)
+combat.actions_of(e) -> Array; combat.filter_input(e, inp) -> PlayerInput   # brains must call it
+# others
+combat.damage(src_id, dst, amount, dtype, opts := {}) -> int; combat.in_combat(e) -> bool
+combat.cast(e, slug, level, aim) -> String ("" ok); combat.cancel(e); combat.is_downed(e)
+# client (UI)
+signal event(ev), cooldowns_changed(status), spells_changed(spells)
+cc.attack(aim, throw := false); cc.cast(slug, level, aim); cc.cancel(); cc.spell_slot(i)
+cc.filter_input(inp); cc.events_log; cc.status; cc.spells
+Presenter.combat_event(ev)     # optional; LogPresenter prints it, ViewPresenter plays one-shots
 ```
+
+- Tempo and durations come from `data/combat.json`. Every weapon hit goes through
+  `AttackResolver.weapon_attack` (the sweep of a wide arc is the game's own reduced roll) and
+  every spell through `SpellResolver.cast`; positional facts are measured on the host (cover
+  from 3x3 raycasts, within 5 ft box to box, unseen from a host LightEngine plus player
+  torches and Darkvision, ranged in melee, long range).
+- Monster combatants are renamed `"<name> #<id>"` (the addon keys effects by name).
+- A player's position is moved by the host only for the fallback respawn, through a
+  CORRECT event with a new epoch (no WorldHost change); pushes on players are a PUSH event
+  the owner applies to its own body.
 
 ### Wave 1: who owns what, and how systems call each other
 

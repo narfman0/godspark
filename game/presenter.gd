@@ -19,6 +19,9 @@ func attach(client: ClientWorld) -> void:
 	cw.meta_arrived.connect(meta_arrived)
 	cw.chronicle_lines.connect(chronicle_lines)
 	cw.vitals_changed.connect(actor_vitals)
+	var combat := cw.system(HostSystem.COMBAT)
+	if combat != null and combat.has_signal("event"):
+		combat.connect("event", combat_event)
 	world_ready(cw.world, cw.my_id)
 	# the own player was announced in setup(), before we were listening
 	actor_added(cw.my_id, {"kind": "player", "size": cw.stats.size, "color": Color(0.85, 0.75, 0.55), "name": cw.player_name, "own": true})
@@ -33,6 +36,9 @@ func detach() -> void:
 			[cw.chronicle_lines, chronicle_lines], [cw.vitals_changed, actor_vitals]]:
 		if (sig[0] as Signal).is_connected(sig[1]):
 			(sig[0] as Signal).disconnect(sig[1])
+	var combat := cw.system(HostSystem.COMBAT)
+	if combat != null and combat.has_signal("event") and combat.is_connected("event", combat_event):
+		combat.disconnect("event", combat_event)
 	cw = null
 
 ## Per frame: interpolate and move actors.
@@ -79,4 +85,8 @@ func chronicle_lines(_lines: PackedStringArray) -> void:
 
 ## An actor's hit points (the own player too: id == cw.my_id). Optional.
 func actor_vitals(_id: int, _hp: int, _max_hp: int) -> void:
+	pass
+
+## A combat event (CombatCodec.Ev: SWING, HIT, DAMAGE, DEATH...; see CombatClient). Optional.
+func combat_event(_ev: Dictionary) -> void:
 	pass

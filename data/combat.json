@@ -1,0 +1,62 @@
+{
+	"_comment": "Combat tunables (core/combat). Seconds and tiles (1 tile = 2.5 ft). See docs/tracks/combat.md for why each number is what it is.",
+	"weapon_tempo": {
+		"_comment": "One Attack action = wind-up, contact frame(s), recovery. total = windup + recovery. sweep: extra targets a melee arc may graze (see docs).",
+		"light":         {"windup": 0.15, "recovery": 0.35, "sweep": 0},
+		"plain":         {"windup": 0.20, "recovery": 0.40, "sweep": 1},
+		"versatile_two": {"windup": 0.22, "recovery": 0.46, "sweep": 1},
+		"heavy":         {"windup": 0.26, "recovery": 0.49, "sweep": 2},
+		"thrown":        {"windup": 0.18, "recovery": 0.42, "sweep": 0},
+		"bow":           {"windup": 0.22, "recovery": 0.43, "sweep": 0},
+		"heavy_bow":     {"windup": 0.26, "recovery": 0.49, "sweep": 0},
+		"loading":       {"windup": 0.22, "recovery": 0.78, "sweep": 0},
+		"unarmed":       {"windup": 0.12, "recovery": 0.33, "sweep": 0},
+		"monster":       {"windup": 0.50, "recovery": 0.60, "sweep": 1}
+	},
+	"combo": {
+		"_comment": "Extra Attack / Multiattack: the swings share one action's time. Follow-up contacts come gap apart (at most gap_max), taken out of the recovery, which keeps at least recovery_min.",
+		"gap_max": 0.22,
+		"recovery_min": 0.08
+	},
+	"cast": {
+		"action":       {"windup": 0.28, "recovery": 0.32},
+		"bonus_action": {"windup": 0.15, "recovery": 0.15},
+		"reaction":     {"windup": 0.0, "recovery": 0.0},
+		"monster_windup": 0.5,
+		"breath_windup": 0.8
+	},
+	"timers": {"bonus_s": 2.0, "reaction_s": 2.0},
+	"move_mult_during_swing": 1.0,
+	"melee": {"arc_half_angle_deg": 70.0, "within_5ft_tiles": 2.0},
+	"sweep": {"damage_fraction": 0.5},
+	"projectiles": {
+		"arrow":  {"speed": 45.0, "gravity": 22.0},
+		"bolt":   {"speed": 55.0, "gravity": 12.0},
+		"thrown": {"speed": 30.0, "gravity": 30.0},
+		"spell":  {"speed": 40.0, "gravity": 0.0},
+		"dart":   {"speed": 35.0, "gravity": 0.0},
+		"max_life_s": 4.0
+	},
+	"pick_radius": 3.0,
+	"cover": {"_comment": "fraction of the 3x3 sample rays blocked: 3 of 9 = half, 6 of 9 = three-quarters, all = total", "half": 0.3, "three_quarters": 0.6},
+	"durations_s": {
+		"_comment": "A spell's duration text -> real seconds. Exact rows first, then n x per_unit (capped at a game day).",
+		"rows": {"1 round": 2, "1 minute": 20, "10 minutes": 120, "1 hour": 300, "8 hours": 600, "24 hours": 1200},
+		"per_unit": {"round": 2, "minute": 20, "hour": 300, "day": 1200},
+		"cap": 1200
+	},
+	"conditions": {
+		"speed_zero": ["grappled", "restrained", "paralyzed", "petrified", "unconscious"],
+		"no_jump": ["prone", "grappled", "restrained", "paralyzed", "petrified", "unconscious"],
+		"prone_crawl": 0.5,
+		"prone_stand_s": 1.0
+	},
+	"fall": {"_comment": "net drop from the last footing; dice = floor(ft / ft_per_die) once over free_ft", "free_ft": 10.0, "ft_per_die": 10.0, "max_dice": 20},
+	"death": {"monster_linger_s": 1.5, "player_respawn_s": 3.0},
+	"in_combat_s": 5.0,
+	"push_tiles_per_5ft": 2.0,
+	"light": {"_comment": "every player carries a torch until the items track has light sources", "player_torch_bright": 8.0, "player_torch_dim": 16.0},
+	"darkvision_species": {"dwarf": 120, "elf": 60, "gnome": 60, "orc": 120, "tiefling": 60, "dragonborn": 60},
+	"aim": {"_comment": "players' bodies are led by vel x (one-way delay + half a tick), the delay read from the client clock in each intent", "clock_bias_s": 0.025, "max_lead_s": 0.25, "max_lead_tiles": 2.5},
+	"brain": {"sight_tiles": 32.0, "backoff_s": 0.6, "leash_tiles": 48.0}
+}

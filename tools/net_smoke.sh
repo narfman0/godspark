@@ -10,6 +10,9 @@
 #   KEEP=1 tools/net_smoke.sh     keep the logs
 #   WORLD="gen=dev seed=3" tools/net_smoke.sh   on a generated world (default gen=test)
 #   SPAWN=goblin-warrior:1 SEE="Goblin Warrior monster 10/10" tools/net_smoke.sh   (defaults)
+#   FIGHT=1 SPAWN=goblin-warrior:2 tools/net_smoke.sh   bot1 first attacks the spawned
+#                                 monsters (on open ground, SPAWN_DX=-44) until they die (combat
+#                                 track); it must report "BOT bot1 fight killed=N ... done"
 set -u
 cd "$(dirname "$0")/.."
 
@@ -59,9 +62,12 @@ WORLD=${WORLD:-gen=test}
 SPAWN=${SPAWN:-goblin-warrior:1}
 SEE=${SEE:-Goblin Warrior monster 10/10}
 # shellcheck disable=SC2086
-run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world" spawn="$SPAWN"
+FIGHT=${FIGHT:-0}
+# FIGHT: the test world's wooden ledges start 24 tiles left of the spawn; put the pack on open ground
+SPAWN_DX=${SPAWN_DX:-$([ "$FIGHT" != 0 ] && echo -44 || echo -24)}
+run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world" spawn="$SPAWN" spawn_dx="$SPAWN_DX"
 sleep "${HOST_WAIT:-1.5}"
-run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1
+run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1 fight="$FIGHT"
 run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=3 places=4 dir=-1 delay=2 class=wizard
 
 fail=()
@@ -99,6 +105,9 @@ for bot in bot1 bot2; do
 done
 if [ -n "$SEE" ] && ! grep -q "^BOT bot1 vitals .*$SEE" "$LOGS/bot1.log"; then
 	fail+=("bot1 never reported seeing \"$SEE\"")
+fi
+if [ "$FIGHT" != 0 ] && ! grep -q "^BOT bot1 fight killed=[1-9].* done" "$LOGS/bot1.log"; then
+	fail+=("bot1 did not kill the spawned monsters: $(grep -h '^BOT bot1 fight' "$LOGS/bot1.log")")
 fi
 grep -h "^spawned" "$LOGS/host.log" | sed 's/^/  host /'
 grep -h "^SRD content\|^\[host\] SRD content" "$LOGS/host.log" | sed 's/^/  /'
