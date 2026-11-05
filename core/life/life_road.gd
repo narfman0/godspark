@@ -268,8 +268,21 @@ func _start_raid(h: WorldHost, p: SimParty, rec: Dictionary) -> void:
 	var s: SimSettlement = h.sim.settlements.get(sid)
 	rec["arrival"] = true
 	rec["raid"] = {"site": sid, "n0": p.size(), "g0": s.soldiers if s != null else 0, "killed": 0, "soldiers": 0,
-		"players": {}, "party": p}
+		"players": {}, "party": p, "last": life.now()}
 	life.stats["raids"] += 1
+
+## A party's people dealt or took a blow (hit or miss).
+func blow(pid: int) -> void:
+	if active.has(pid):
+		active[pid]["blow"] = life.now()
+		active[pid]["calm_until"] = -1.0
+
+## Blows were exchanged at a settlement under a raid: it is not stalled.
+func raid_blow(sid: int) -> void:
+	for pid: int in active:
+		var r: Dictionary = active[pid]["raid"]
+		if not r.is_empty() and int(r["site"]) == sid:
+			r["last"] = life.now()
 
 func town_loss(sid: int, soldier: bool) -> void:
 	for pid: int in active:
@@ -296,6 +309,18 @@ func _resolve(h: WorldHost) -> void:
 			var won := -1
 			if party.size() == 0 or lost >= ceili(int(r["n0"]) * float(brk.get("raid_attackers", 0.4))):
 				won = 0
+			elif life.now() - float(r["last"]) > float(Life.people_cfg().get("stall_s", 45.0)):
+				# no blows: the raiders cannot get at the town (no way through): the sim's rules decide
+				party.frozen = false
+				rec["arrival"] = false
+				rec["raid"] = {}
+				life.stats["raids_stalled"] = int(life.stats.get("raids_stalled", 0)) + 1
+				if sim.parties.has(party.id):
+					if party.kind == "pack":
+						SimConflict._pack_attack(sim, party)
+					else:
+						SimConflict._raid_settlement(sim, party)
+				continue
 			else:
 				var s: SimSettlement = sim.settlements.get(int(r["site"]))
 				if s == null or s.soldiers == 0 or int(r["soldiers"]) >= maxi(1, ceili(int(r["g0"]) * float(brk.get("raid_defenders", 0.35)))):
@@ -329,6 +354,16 @@ func _resolve(h: WorldHost) -> void:
 						and bool(combat.call("in_combat", e)):
 					fighting = true
 					break
+		# a hold with no blows for stall_s (foes out of reach, no way through) lets go for a while
+		var t := life.now()
+		var stall := float(Life.people_cfg().get("stall_s", 45.0))
+		if fighting and not bool(rec["hold"]):
+			rec["blow"] = maxf(float(rec.get("blow", -1e9)), t)
+		if fighting and t - float(rec.get("blow", t)) > stall:
+			rec["calm_until"] = t + stall
+			life.stats["holds_stalled"] = int(life.stats.get("holds_stalled", 0)) + 1
+		if t < float(rec.get("calm_until", -1.0)):
+			fighting = false
 		var want := fighting or _busy(pid)
 		if want and not bool(rec["arrival"]):
 			if not bool(rec["hold"]):
@@ -418,7 +453,11 @@ func died(h: WorldHost, pid: int, e: HostEntity, info: Dictionary, killers: Arra
 	var keep := _busy(pid)
 	if sim.party_member_killed(pid, slug, not keep):
 		life.stats["party_deaths"] += 1
-	# a raid wiped out on the road by players never happens
+	# a raid wiped out on the road never happens (the chronicle says who stopped it)
+	if not sim.parties.has(pid) and p.kind == "raid":
+		var by := "adventurers" if not rec.is_empty() and not (rec["killers"] as Dictionary).is_empty() else "defenders"
+		sim.log_event("raid_repelled", {"raiders": SimConflict._adj(p.culture), "rfrom": SimConflict._home_name(sim, p),
+			"site": sim._site_label(p.target) if sim.site_by_id.has(p.target) else sim.route_name(p.target), "by": by})
 	if not sim.parties.has(pid) and p.kind == "raid" and not rec.is_empty() and not (rec["killers"] as Dictionary).is_empty():
 		for f: int in _raid_victims(sim, p):
 			for pl: int in rec["killers"]:

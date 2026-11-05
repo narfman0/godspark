@@ -75,8 +75,8 @@ func hostile(a: HostEntity, b: HostEntity) -> bool:
 ##   neutral (NEUTRAL) or a player has their Bond (FRIENDLY); NEUTRAL among themselves
 ## - a player and a faction's people: by standing (raiders by raiders_spare_at); a Bond
 ##   with the people raises standing to bond_floor
-## - two factions: HOSTILE when the sim's own test says so (war, bad relations, raiding),
-##   FRIENDLY with good relations, else NEUTRAL
+## - two factions: HOSTILE at war, or when one side is out raiding and the sim's own raid
+##   test says so (SimConflict._hostile); FRIENDLY with good relations, else NEUTRAL
 func stance(a: HostEntity, b: HostEntity) -> int:
 	if a == b:
 		return Life.FRIENDLY
@@ -124,6 +124,13 @@ static func _raider(x: HostEntity) -> bool:
 	var s: Variant = x.get_meta("sim", {})
 	return s is Dictionary and String((s as Dictionary).get("party", "")) in ["raid", "army"]
 
+## The factions a raider's party is out to raid (its target settlement, or the towns at the
+## ends of the route it waits on).
+static func _raid_targets(sim: WorldSim, x: HostEntity) -> Array:
+	var info: Dictionary = x.get_meta("sim", {})
+	var p: SimParty = sim.parties.get(int(info.get("id", -1)))
+	return LifeRoad._raid_victims(sim, p) if p != null else []
+
 func _vs_player(p: HostEntity, x: HostEntity, fx: String) -> int:
 	if fx == "wild":
 		if x.brain is MonsterBrain:
@@ -146,7 +153,13 @@ func _factions(a: HostEntity, b: HostEntity, fa: int, fb: int) -> int:
 	var sim := host.sim
 	if sim == null:
 		return Life.NEUTRAL
-	if SimConflict._hostile(sim, fa, fb, _raider(a) or _raider(b)):
+	# as in the sim: peoples fight only at war, or when one side is out raiding
+	var fw: SimFaction = sim.factions.get(fa)
+	if fw != null and fw.at_war(fb):
+		return Life.HOSTILE
+	if (_raider(a) or _raider(b)) and SimConflict._hostile(sim, fa, fb, true):
+		return Life.HOSTILE
+	if (_raider(a) and fb in _raid_targets(sim, a)) or (_raider(b) and fa in _raid_targets(sim, b)):
 		return Life.HOSTILE
 	if sim.factions.has(fa) and (sim.factions[fa] as SimFaction).rel(fb) >= 40.0:
 		return Life.FRIENDLY
@@ -433,17 +446,22 @@ func on_combat_damage(e: HostEntity, _dealt: int, src: int) -> void:
 	if a == null or a == e:
 		return
 	var fe := Life.faction_of(e)
-	if Life.is_sim_faction(fe) and Life.faction_of(a) != fe:
-		var was := hostile(a, e)
+	# an unprovoked attack (not between foes already) makes the whole faction hostile
+	if Life.is_sim_faction(fe) and Life.faction_of(a) != fe and (not hostile(a, e) or _grudged(e, a)):
 		if not _grudge.has(fe):
 			_grudge[fe] = {}
 		var fresh := float((_grudge[fe] as Dictionary).get(a.id, -1.0)) <= now()
 		_grudge[fe][a.id] = now() + Life.num("grudge_s", 60.0)
 		_cache.clear()
-		if a.is_player() and not was and fresh:
+		if a.is_player() and fresh:
 			add_standing(a.id, fe, int(Life.num("attack_member", -5)), "attacked one of their people")
 	var ie: Dictionary = actors.get(e.id, {})
 	var ia: Dictionary = actors.get(a.id, {})
+	for inf: Dictionary in [ie, ia]:
+		if String(inf.get("kind", "")) == "settlement":
+			road.raid_blow(int(inf["id"]))
+		elif String(inf.get("kind", "")) == "party":
+			road.blow(int(inf["id"]))
 	if String(ie.get("kind", "")) == "party" and String(ia.get("kind", "")) == "party" and int(ie["id"]) != int(ia["id"]):
 		road.clash(h, int(ia["id"]), int(ie["id"]))
 	if a.is_player() and String(ie.get("kind", "")) == "party":

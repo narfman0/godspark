@@ -12,7 +12,7 @@ const WEIGHT := {"faction_fell": 10, "conquered": 9, "sacked": 9, "abandoned": 8
 	"siege_broken": 5, "bad_harvest": 5, "raid": 4, "monster_raid": 4, "tier_up": 4, "tier_down": 4,
 	"expedition_failed": 4, "apex_tribute": 3, "trade_opened": 3, "ambush": 3, "lair_new": 3,
 	"migrants": 2, "army": 2, "siege_lifted": 2, "patrol_clash": 2, "lair_attack": 1, "lair_empty": 1, "lair_cleared_players": 6,
-	"slain_by_players": 3}
+	"slain_by_players": 3, "raid_repelled": 4}
 
 static func stamp(t: int) -> String:
 	var y := t / WorldSim.YEAR_H + 1
@@ -57,6 +57,8 @@ static func line(e: Dictionary) -> String:
 			return "settlers from %s found %s%s (%d souls)" % [e.from, e.site, " in old ruins" if e.ruin else "", int(e.n)]
 		"lair_new":
 			return "a %s settles at %s, now called %s" % [e.what, e.site, e.lair]
+		"raid_repelled":
+			return "%s raiders from %s were cut down on their way to %s by %s" % [e.raiders, e.rfrom, e.site, e.by]
 		"slain_by_players":
 			return "%s killed %s of %s" % [e.by, e.who, e.site]
 		"lair_cleared_players":
