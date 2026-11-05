@@ -19,6 +19,7 @@ const Deeps := preload("stage_deeps.gd")
 const Ores := preload("stage_ores.gd")
 const Sites := preload("stage_sites.gd")
 const DressingStage := preload("stage_dressing.gd")
+const CaveSteps := preload("stage_cave_steps.gd")
 
 ## [name, script, static method]. Append new stages where they belong; names are the RNG
 ## keys, so renaming a stage changes every world.
@@ -27,6 +28,7 @@ const STAGES := [
 	["surface", Surface, "run"],
 	["layers", Layers, "run"],
 	["caves", Caves, "run"],
+	["cave_steps", CaveSteps, "run"],
 	["caverns", Deeps, "caverns"],
 	["deep_road", Deeps, "deep_road"],
 	["ascent", Deeps, "ascent"],

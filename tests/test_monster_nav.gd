@@ -282,8 +282,9 @@ func _window_and_partial(t: TestLog) -> void:
 
 ## Generated cave terrain: a Medium walker and a Large climber try to reach spots ~40 tiles
 ## away in the caves band. Pairs are random standing spots (not known to be connected).
-func _caves(t: TestLog) -> void:
-	var world := WorldGen.generate(1024, 512, 11)
+func _caves(t: TestLog, world_seed := 11, pairs := 24) -> Array:
+	var world := WorldGen.generate(1024, 512, world_seed)
+	var out := []
 	var band: Array = world.meta.get("bands", {}).get("caves", [100, 200])
 	var r := RandomNumberGenerator.new()
 	r.seed = 5
@@ -294,7 +295,7 @@ func _caves(t: TestLog) -> void:
 		var n := 0
 		var usec := 0
 		var tries := 0
-		while n < 24 and tries < 5000:
+		while n < pairs and tries < 5000:
 			tries += 1
 			var a := _spot(world, st, r, int(band[0]), int(band[1]))
 			if a == Vector2.INF:
@@ -316,11 +317,13 @@ func _caves(t: TestLog) -> void:
 			if res["reached"]:
 				ok += 1
 		print("  cave nav %s: %d/%d reached (%d planned), %.1f ms per plan" % [spec[0], ok, n, planned, usec / 1000.0 / maxf(n, 1)])
+		out.append([ok, n])
 		t.check(n >= 20, "enough cave pairs for %s (%d)" % [spec[0], n])
 		# Noise caves are often cramped shafts a 2x3 or 3x4 body cannot climb without digging;
 		# when the search finds a way, the real body must take it.
 		t.check(planned > 0 and ok * 10 >= planned * 8, "%s: the real body follows found cave paths (%d of %d)" % [spec[0], ok, planned])
 		t.check(ok * 4 >= n, "%s reaches at least a quarter of air-connected cave spots 40 tiles away (%d/%d)" % [spec[0], ok, n])
+	return out
 
 static func _connected_spots(world: TileWorld, st: MoveStats, a: Vector2) -> Array:
 	var seen := {}
