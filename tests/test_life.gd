@@ -178,3 +178,81 @@ func _stance(t: TestLog) -> void:
 	var hp2 := p2.combatant.current_hp
 	ticks(host, 300)
 	t.eq(p2.combatant.current_hp, hp2, "the wolf leaves its friend alone")
+
+# --- 2. standing ---------------------------------------------------------------------------------
+
+static func _life_msgs(host: WorldHost, to: int) -> Array:
+	var out: Array = []
+	for m: Dictionary in host.outbox:
+		if int(m.get("type", -1)) == WorldHost.Ev.SYS and int(m["sys"]) == HostSystem.LIFE and (int(m["to"]) == to or int(m["to"]) == WorldHost.ALL):
+			out.append(m)
+	return out
+
+func _standing(t: TestLog) -> void:
+	var r := rig(true, true)
+	var host: WorldHost = r["host"]
+	var life: LifeSystem = r["life"]
+	var combat: CombatSystem = r["combat"]
+	var ms: MonstersSystem = r["ms"]
+	var rules: FakeRules = r["rules"]
+	var sid := town_of(host)
+	var s: SimSettlement = host.sim.settlements[sid]
+	var f := str(s.faction)
+	var sp := LifeTown.site_pos(host, sid)
+	var p := put(host, "hero", sp + Vector2(0, 3))
+	host.outbox.clear()
+	ticks(host, 70)
+	t.eq(life.standing(p.id, f), 0, "standing starts at 0")
+	# the client mirror: the factions table with names
+	var lc := LifeClient.new()
+	for m: Dictionary in _life_msgs(host, p.id):
+		lc.handle(int(m["kind"]), m["data"])
+	t.check(lc.factions.has(f) and String(lc.factions[f]["name"]) == host.sim.faction_name(s.faction), "the client knows the factions by name")
+	t.check(not lc.people_at(sid).is_empty(), "and who the town's people are (%d)" % lc.people_at(sid).size())
+	var seen := []
+	lc.standing_changed.connect(func(fid: String, v: int, why: String) -> void: seen.append([fid, v, why]))
+	# killing its enemies near its people: a gain
+	var guards := life.actors_at(sid).filter(func(e: HostEntity) -> bool: return e.get_meta("sim")["role"] == "guard")
+	var gob := ms.spawn("goblin-warrior", (guards[0] as HostEntity).body.pos + Vector2(3, 0) if not guards.is_empty() else sp)
+	host.outbox.clear()
+	combat.damage(p.id, gob, 9999, "force")
+	ticks(host, 3)
+	t.check(life.standing(p.id, f) > 0, "killing a goblin by its guards raises standing (%d)" % life.standing(p.id, f))
+	for m: Dictionary in _life_msgs(host, p.id):
+		lc.handle(int(m["kind"]), m["data"])
+	t.check(not seen.is_empty() and seen[-1][0] == f and seen[-1][1] == life.standing(p.id, f), "the owner hears it: %s" % [seen])
+	t.eq(lc.standing(f), life.standing(p.id, f), "the mirror matches")
+	# killing its people: a large loss
+	var folk := life.actors_at(sid).filter(func(e: HostEntity) -> bool: return e.get_meta("sim")["role"] != "guard")
+	var before := life.standing(p.id, f)
+	combat.damage(p.id, folk[0], 9999, "force")
+	ticks(host, 3)
+	t.check(life.standing(p.id, f) <= before - 20, "killing a townsperson costs dearly (%d -> %d)" % [before, life.standing(p.id, f)])
+	var said := false
+	for e: Dictionary in host.sim.chronicle:
+		if e["kind"] == "slain_by_players":
+			said = true
+	t.check(said, "and the chronicle remembers it")
+	# a Bond with the people sets a floor
+	rules.bonds["%d:people:%s" % [p.id, s.culture]] = 1
+	t.check(life.standing(p.id, f) >= int(Life.num("bond_floor", 30)), "a Bond sets a floor (%d)" % life.standing(p.id, f))
+	rules.bonds.clear()
+	# a lair that preyed on them
+	if not host.sim.lairs.is_empty():
+		var lid: int = WorldSim._sorted_keys(host.sim.lairs)[0]
+		s.grievance[lid] = 5.0
+		var l: SimLair = host.sim.lairs[lid]
+		var slug: String = WorldSim._sorted_keys(l.monsters)[0]
+		var m := ms.spawn(slug, sp + Vector2(-40, 3), {"lair": lid})
+		var b2 := life.standing(p.id, f)
+		combat.damage(p.id, m, 99999, "force")
+		ticks(host, 3)
+		t.check(life.standing(p.id, f) > b2, "killing a creature of a lair that preyed on them raises standing (%d -> %d)" % [b2, life.standing(p.id, f)])
+	# add_standing for the Deals track, saved with the player
+	life.add_standing(p.id, f, 7, "a deal")
+	var saved := life.save_player(p)
+	var v := life.standing(p.id, f)
+	var life2 := LifeSystem.new()
+	life2._host = weakref(host)
+	life2.load_player(p, JSON.parse_string(JSON.stringify(saved)))
+	t.eq(life2.standing(p.id, f), v, "standing survives a save and load (%d)" % v)
