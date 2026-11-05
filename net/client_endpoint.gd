@@ -125,6 +125,8 @@ func _handle(bytes: PackedByteArray) -> void:
 			match type:
 				Protocol.T.META:
 					cw.apply_meta(m["meta"])
+				Protocol.T.CLOCK:
+					cw.apply_clock(m["ticks"])
 				Protocol.T.CHUNK:
 					cw.apply_chunk(m["cx"], m["cy"], m["blob"])
 				Protocol.T.UNLOAD:

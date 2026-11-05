@@ -80,6 +80,9 @@ func frame(delta: float) -> void:
 	if view == null or cw == null:
 		return
 	rig.target = cw.view_pos() + Vector2(0, cw.body.size.y * 0.5)
+	var s := WorldClock.sun_at(cw.hours())
+	if absf(s - light.sun) > 0.002 or (s != light.sun and (s <= WorldClock.MOON or s >= 1.0)):
+		light.sun = s
 	view.view_half = rig.visible_half_extent()
 	view.set_focus(rig.pos)
 	env.background_color = WorldView.sky_color(light.sun)

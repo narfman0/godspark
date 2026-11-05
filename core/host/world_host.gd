@@ -50,6 +50,10 @@ var spawn := Vector2.ZERO
 ## Seam for world saving until Track A's WorldSave lands: func(world: TileWorld, dir: String)
 ## -> Error. Empty: save() writes players only.
 var world_saver := Callable()
+## Game time. Advances one tick per tick; saved with the world (host.json).
+var clock := WorldClock.new()
+## Set when the clock jumped (sleep), so the net layer tells clients at once.
+var clock_jumped := false
 var _next_id := 1
 
 func _init(w: TileWorld) -> void:
@@ -65,6 +69,7 @@ func dt() -> float:
 ## One host step. Advances held digs and host-simulated bodies.
 func tick() -> void:
 	tick_count += 1
+	clock.advance(1)
 	var step_dt := 1.0 / MoveStats.step_hz()
 	var steps := maxi(1, MoveStats.step_hz() / K.TICK_HZ)
 	for e: HostEntity in entities.values():
@@ -314,13 +319,46 @@ func _on_tile_changed(x: int, y: int, layer: int, _old: int, now: int) -> void:
 
 # --- saving -------------------------------------------------------------------------
 
-## World (through `world_saver`, when set) and players.
+## Jump the world clock ahead (sleeping; the sleep=HOURS option and debug keys).
+func sleep(h: float) -> void:
+	clock.sleep(h)
+	clock_jumped = true
+
+## World (through `world_saver`, when set), host state (clock) and players.
 func save(dir: String) -> Error:
 	if world_saver.is_valid():
 		var err: Error = world_saver.call(world, dir)
 		if err != OK:
 			return err
+	var e2 := save_state(dir)
+	if e2 != OK:
+		return e2
 	return save_players(dir)
+
+## dir/host.json: {format, clock}. Written atomically.
+func save_state(dir: String) -> Error:
+	var err := DirAccess.make_dir_recursive_absolute(dir)
+	if err != OK:
+		return err
+	var d := {"format": 1, "clock": clock.to_dict()}
+	var tmp := dir.path_join("host.json.tmp")
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null:
+		return FileAccess.get_open_error()
+	f.store_string(JSON.stringify(d, "\t"))
+	f.close()
+	return DirAccess.rename_absolute(tmp, dir.path_join("host.json"))
+
+## Read dir/host.json if present. True if it was read.
+func load_state(dir: String) -> bool:
+	var path := dir.path_join("host.json")
+	if not FileAccess.file_exists(path):
+		return false
+	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not d is Dictionary:
+		return false
+	clock.from_dict(d.get("clock", {}))
+	return true
 
 ## One JSON file per player under dir/players/, keyed by name.
 func save_players(dir: String) -> Error:

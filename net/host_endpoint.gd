@@ -27,6 +27,8 @@ var snapshot_every := 2
 var chunk_bytes_per_tick := 96 * 1024
 var chunks_per_peer_tick := 16
 var handshake_timeout := 5.0
+## Host ticks between CLOCK messages (clients run the clock locally in between).
+var clock_every := 10 * K.TICK_HZ
 ## Host time, seconds (ticks / TICK_HZ).
 var time := 0.0
 var peers := {}           ## peer id -> PeerState
@@ -62,6 +64,12 @@ func tick() -> void:
 		for p: PeerState in peers.values():
 			if p.phase == PeerPhase.PLAYING:
 				_snapshot(p)
+	if host.clock_jumped or host.tick_count % clock_every == 0:
+		host.clock_jumped = false
+		var msg := Protocol.clock(host.clock.ticks)
+		for p: PeerState in peers.values():
+			if p.phase == PeerPhase.PLAYING:
+				_send(p.id, msg)
 	_timeouts()
 	tick_usec.append(Time.get_ticks_usec() - t0)
 
@@ -170,6 +178,7 @@ func _hello(p: PeerState, m: Dictionary) -> void:
 	_send(p.id, Protocol.welcome(e.id, host.world.width, host.world.height, host.world.world_seed,
 			e.body.pos, e.epoch, K.TICK_HZ, K.TICK_HZ / snapshot_every, radius))
 	_send(p.id, _meta())
+	_send(p.id, Protocol.clock(host.clock.ticks))
 	_update_interest(p)
 	_log("join peer %d as %s (entity %d) at %s" % [p.id, name, e.id, e.body.pos])
 	player_joined.emit(p.id, name)

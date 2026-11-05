@@ -31,13 +31,15 @@
 ##   META       u32 raw size, zstd(var_to_bytes({surface: PackedInt32Array of column
 ##              deltas, biomes, bands, sites}))                     5 + blob
 ##              Sent once, right after WELCOME and before any chunk.
+##   CLOCK      s64 game ticks (WorldClock.ticks)                   9
+##              After META, every CLOCK_EVERY host ticks, and at once after a jump.
 ## (* = unreliable, sequenced; everything else reliable and ordered on one channel, so a
 ## chunk blob always precedes the tile deltas for that chunk.)
 class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 2
+const VERSION := 3
 const MAX_STR := 64
 const VEL_SCALE := 64.0
 
@@ -45,7 +47,7 @@ enum T {
 	HELLO = 1, STATE = 2, EDIT = 3, BYE = 4, CHECK_REQ = 5,
 	WELCOME = 16, REJECT = 17, CHUNK = 18, UNLOAD = 19, TILES = 20, ENT_ADD = 21,
 	ENT_REMOVE = 22, SNAPSHOT = 23, CORRECT = 24, RESULT = 25, CHECK = 26, KICK = 27,
-	META = 28,
+	META = 28, CLOCK = 29,
 }
 ## Largest decompressed META body accepted.
 const MAX_META := 8 * 1024 * 1024
@@ -269,6 +271,11 @@ static func _decode_meta(r: Reader) -> Variant:
 	out["surface"] = surf
 	return out
 
+static func clock(ticks: int) -> PackedByteArray:
+	var w := Writer.new(T.CLOCK)
+	w.s64(ticks)
+	return w.b
+
 static func _vq(v: float) -> int:
 	return clampi(roundi(v * VEL_SCALE), -32768, 32767)
 
@@ -365,6 +372,8 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			if d == null:
 				return {}
 			m["meta"] = d
+		T.CLOCK:
+			m["ticks"] = r.s64()
 		T.CHECK:
 			m["tag"] = r.str8()
 			var n := r.u16()

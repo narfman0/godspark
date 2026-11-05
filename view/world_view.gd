@@ -21,6 +21,9 @@ const ACTOR_SHADER := preload("res://view/shaders/actor.gdshader")
 const T := K.TILE_M
 ## The backdrop plane sits this far (metres) behind the background walls.
 const BACKDROP_Z := -1.2
+## The least sun factor the picture uses for the sky field (moonlight); see _apply_sun.
+const NIGHT_VISUAL := 0.25
+const MOON_TINT := Color(0.52, 0.64, 1.0)
 
 ## Mesh builds in flight at once.
 @export var max_tasks := 3
@@ -320,8 +323,13 @@ func _refill_light() -> void:
 
 func _apply_sun() -> void:
 	var s := light.sun
-	RenderingServer.global_shader_parameter_set("gs_sun", s)
+	# Moonlight: the rules sun at night (WorldClock.MOON) leaves open ground in Darkness, as
+	# the SRD has it, but a black screen is unplayable, so the picture draws the sky field at
+	# no less than NIGHT_VISUAL (about 15% brightness through gs_curve), tinted blue. Caves
+	# have no sky field and stay black.
+	RenderingServer.global_shader_parameter_set("gs_sun", maxf(s, NIGHT_VISUAL))
 	var warm := Color(1.0, 0.62, 0.42).lerp(Color(1.0, 0.97, 0.92), clampf((s - 0.2) / 0.6, 0.0, 1.0))
+	warm = warm.lerp(MOON_TINT, 1.0 - smoothstep(0.05, 0.3, s))
 	RenderingServer.global_shader_parameter_set("gs_sky_tint", warm)
 	var top := sky_color(s)
 	_backdrop_mat.set_shader_parameter("sky_top", top)

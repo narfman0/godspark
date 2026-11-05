@@ -8,6 +8,7 @@
 ##             for the fixed test world; a world saved in world=DIR is loaded instead
 ##   any mode: timeout=S (exit 1 after S seconds),
 ##             offline (host with no ENet port: single-player), view=log (no 3D view),
+##             sleep=HOURS (host: advance the world clock at start),
 ##             frame_delay=MS (sleep every frame: a slow renderer, for testing),
 ##             host_thread=0 (tick the host in the render loop instead of on its thread),
 ##             shot=PATH.png [shot_after=S]: save a screenshot after S seconds and quit
@@ -25,6 +26,7 @@ var _quit_in := -1.0
 var _elapsed := 0.0
 var _timeout := 0.0
 var _frames := 0
+var _world_loaded := false
 var _shut_down := false
 var _frame_delay := 0
 var _worst_frame := 0.0
@@ -74,6 +76,7 @@ func world_source() -> TileWorld:
 		return TileWorld.make_test(w, h)
 	var saved := WorldSave.load(ProjectSettings.globalize_path(world_dir))
 	if saved != null:
+		_world_loaded = true
 		print("loaded world %dx%d seed %d from %s" % [saved.width, saved.height, saved.world_seed, world_dir])
 		return saved
 	var world_seed := int(opts["seed"]) if opts.has("seed") else int(Time.get_unix_time_from_system())
@@ -104,6 +107,11 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	session.host.world_saver = WorldSave.save
 	session.host.spawn = spawn_for(session.host.world, session.host.spawn)
 	var n := session.host.load_players(ProjectSettings.globalize_path(world_dir))
+	if _world_loaded and session.host.load_state(ProjectSettings.globalize_path(world_dir)):
+		print("world clock: %s" % WorldClock.describe(session.host.clock.hours()))
+	if opts.has("sleep"):
+		session.host.sleep(float(opts["sleep"]))
+		print("slept %s h: %s" % [opts["sleep"], WorldClock.describe(session.host.clock.hours())])
 	print("hosting on port %d (%s), %d saved players in %s" % [port, "dedicated" if dedicated else "listen", n, world_dir])
 	# Emitted on the host thread: handle it on the main thread.
 	session.host_ep.player_left.connect(_on_player_left, CONNECT_DEFERRED)
@@ -216,6 +224,18 @@ func _report() -> void:
 		mx = maxi(mx, u)
 	print("HOSTSTATS ticks=%d tick_avg_us=%.1f tick_max_us=%d host_time=%.1f" % [ticks.size(), float(sum) / maxi(1, ticks.size()), mx, ep.time])
 	print("HOSTSTATS traffic by message type:\n" + ep.traffic_report())
+
+## Debug keys on a host with a local player: F6 one game hour, F7 one game day.
+func _unhandled_input(event: InputEvent) -> void:
+	if session == null or session.host == null:
+		return
+	var h := 0.0
+	if event.is_action_pressed("debug_hour"):
+		h = 1.0
+	elif event.is_action_pressed("debug_day"):
+		h = 24.0
+	if h > 0.0:
+		session.host_call(func(host: WorldHost) -> void: host.sleep(h))
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and _exit_code < 0:

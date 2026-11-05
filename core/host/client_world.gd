@@ -79,6 +79,8 @@ var _pending := {}
 ## req -> {cell: Vector2i, t: client time when predicted}
 var _pending_reqs := {}
 var _time := 0.0
+## The host's game clock (WorldClock ticks, fractional), run locally between CLOCK messages.
+var clock_ticks := float(WorldClock.START_HOUR * WorldClock.TICKS_PER_HOUR)
 ## View-only offset of the own player after a correction (decays to zero).
 var view_offset := Vector2.ZERO
 ## Edits predicted and rolled back (host refused or timed out).
@@ -376,9 +378,18 @@ func apply_snapshot(tick: int, entries: Array) -> void:
 		if r.samples.size() > MAX_SAMPLES:
 			r.samples.pop_front()
 
-## Advance local time by a frame (also fades the correction offset).
+## The host's game clock arrived (join, periodically, after a jump).
+func apply_clock(ticks: int) -> void:
+	clock_ticks = float(ticks)
+
+## Game hours (WorldClock time) as this client sees it.
+func hours() -> float:
+	return clock_ticks / WorldClock.TICKS_PER_HOUR
+
+## Advance local time by a frame (also the game clock and the correction offset).
 func advance(frame_dt: float) -> void:
 	clock += frame_dt
+	clock_ticks += frame_dt * K.TICK_HZ
 	if view_offset != Vector2.ZERO:
 		view_offset *= exp(-frame_dt / CORRECT_BLEND)
 		if view_offset.length() < 0.01:
