@@ -10,3 +10,5 @@ assets/props/
 worlds/
 tools/__pycache__/
 tools/.venv/
+# Fetched fonts (tools/fetch_fonts.sh)
+assets/fonts/
