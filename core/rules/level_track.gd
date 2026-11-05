@@ -15,8 +15,9 @@ extends RefCounted
 
 const MAX_LEVEL := 100
 const MAX_CLASS_LEVEL := 20
-## Multiplies every XP threshold (tuned by tools/xp_pacing.gd later).
-const XP_SCALE := 1.0
+## Multiplies every XP threshold. 15: tools/xp_pacing.gd's best fit to the pacing target
+## (levels 2-5 in 3-5 min, level 50 ~23, the 90s ~59, ~42 h in all) under its assumed kill rates.
+const XP_SCALE := 15.0
 
 enum Reward { SPARK_SLOT, VIGOR, KNACK, CLASS_LEVEL, EPIC_BOON }
 

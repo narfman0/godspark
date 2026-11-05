@@ -2,6 +2,11 @@
 ## tiles, places `places` blocks, checks its partial world against the host, leaves,
 ## rejoins (expecting to come back where it left), checks again and says a final BYE.
 ## Prints one "BOT ..." line per milestone and the client NETCHECK lines.
+## With `rules=1` on the command line (the host needs `cheats`), it first runs the rules
+## scenario after joining: debug XP to `rules_level=N` (default 24) with auto answers, a
+## campfire and a short rest, a bed and a long rest (waiting for the other bot), then
+## `rules_role=down` gets downed, is revived by the `rules_role=revive` bot, dies and
+## respawns at its bed. On rejoin it checks the level survived. Lines: "BOT <name> rules ...".
 ##
 ##   var bot := BotClient.new(); bot.address = "127.0.0.1"; bot.port = 24650
 ##   bot.bot_name = "bot1"; bot.finished.connect(...); add_child(bot)
@@ -46,9 +51,26 @@ var _check_ok := false
 var _check_tag := ""
 var _done := false
 var _wood := 0
+## Rules scenario (rules=1): see the header.
+var rules_mode := false
+var rules_level := 24
+var rules_role := ""
+var _rules_evs: Array = []
+var _rules_other := 0
+var _rules_corr := 0
+var _rules_asked := false
 
 func _ready() -> void:
 	_wood = TileDefs.id("wood")
+	for a in OS.get_cmdline_user_args():
+		var kv := a.trim_prefix("--").split("=")
+		match kv[0]:
+			"rules":
+				rules_mode = kv.size() < 2 or kv[1] != "0"
+			"rules_level":
+				rules_level = int(kv[1]) if kv.size() > 1 else rules_level
+			"rules_role":
+				rules_role = kv[1] if kv.size() > 1 else ""
 
 func _say(s: String) -> void:
 	print("BOT %s %s" % [bot_name, s])
@@ -125,10 +147,18 @@ func _process(delta: float) -> void:
 					_go("fight")
 					return
 				if phase == "rejoin":
+					if rules_mode:
+						var lv := _rules().level() if _rules() != null else -1
+						if lv != rules_level:
+							_fail("rules: came back at level %d, left at %d" % [lv, rules_level])
+							return
+						_say("rules rejoin ok level=%d knacks=%d" % [lv, (_rules().sheet["knacks"] as Array).size()])
 					if c.body.pos.distance_to(_left_at) > 0.6:
 						_fail("came back at %s, left at %s" % [c.body.pos, _left_at])
 						return
 					_go("settle_final")
+				elif rules_mode:
+					_rules_start()
 				else:
 					_go("walk")
 			elif _t > 15.0:
@@ -175,6 +205,8 @@ func _process(delta: float) -> void:
 					_go("settle_final")
 			elif _t > 5.0:
 				_fail("no check answer")
+		"r_level", "r_fire", "r_short", "r_bed", "r_sleep", "r_down", "r_dead", "r_up", "r_revive", "r_wait":
+			_rules_step()
 		"leave":
 			if _t > 0.8:
 				session.queue_free()
@@ -286,3 +318,134 @@ func _pick(ok: Callable, dxs: Array, dys: Array) -> Vector2i:
 				_tried[at] = true
 				return at
 	return Vector2i(-1, -1)
+
+# --- rules scenario (rules=1) -------------------------------------------------------
+
+func _rules() -> RulesClient:
+	return cw().system(HostSystem.RULES) as RulesClient if cw() != null else null
+
+func _rules_start() -> void:
+	var rc := _rules()
+	if rc == null:
+		_fail("rules: no rules client system")
+		return
+	rc.rest_event.connect(func(ev: Dictionary) -> void: _rules_evs.append(ev))
+	rc.notice.connect(func(text: String) -> void: _say("rules notice: " + text))
+	rc.debug(RulesCodec.Debug.LEVEL, rules_level)
+	rc.debug(RulesCodec.Debug.AUTO)
+	_go("r_level")
+
+func _rules_rest_ev(ev: int) -> Dictionary:
+	for e: Dictionary in _rules_evs:
+		if int(e["event"]) == ev:
+			return e
+	return {}
+
+## Place `tile` next to the feet (dx * dir) until the world shows it. True when there.
+func _rules_place(tile: int, dx: int) -> bool:
+	var c := cw()
+	var at := Vector2i(floori(c.body.pos.x) + dx * dir, floori(c.body.pos.y))
+	if c.world.get_fg(at.x, at.y) == tile:
+		input.place = false
+		return true
+	input.place = fmod(_t, 0.4) < 0.2      # press, hold, release, press again
+	input.place_tile = tile
+	input.target = at
+	return false
+
+func _rules_step() -> void:
+	var rc := _rules()
+	var c := cw()
+	match phase:
+		"r_level":
+			if rc.level() == rules_level and rc.pending_keys().is_empty():
+				_say("rules level=%d class_level=%d hp=%d/%d knacks=%d" % [rc.level(), rc.sheet["class_level"],
+						rc.sheet["hp"], rc.sheet["max_hp"], (rc.sheet["knacks"] as Array).size()])
+				_go("r_fire")
+			elif _t > 8.0:
+				_fail("rules: level %d, pending %s" % [rc.level(), rc.pending_keys()])
+		"r_fire":
+			if _rules_place(TileDefs.id("campfire"), 2):
+				rc.debug(RulesCodec.Debug.HURT, 5)
+				_rules_evs.clear()
+				_go("r_short")
+			elif _t > 6.0:
+				_fail("rules: could not place a campfire")
+		"r_short":
+			if _t > 0.5 and not _rules_asked:
+				_rules_asked = true
+				rc.rest_short()
+			var done := _rules_rest_ev(RulesCodec.RestEv.SHORT_DONE)
+			var stop := _rules_rest_ev(RulesCodec.RestEv.SHORT_STOP)
+			if not done.is_empty():
+				_say("rules short_rest healed=%d dice=%d" % [done["healed"], done["dice"]])
+				_go("r_bed")
+			elif not stop.is_empty():
+				_fail("rules: short rest stopped: " + String(stop["reason"]))
+			elif _t > 10.0:
+				_fail("rules: short rest never finished")
+		"r_bed":
+			if _rules_place(TileDefs.id("bed"), 1):
+				_rules_evs.clear()
+				rc.rest_long()
+				_go("r_sleep")
+			elif _t > 6.0:
+				_fail("rules: could not place a bed")
+		"r_sleep":
+			var wait := _rules_rest_ev(RulesCodec.RestEv.BED_WAIT)
+			if not wait.is_empty() and not wait.has("said"):
+				wait["said"] = true
+				_say("rules waiting for %s" % ", ".join(wait["names"]))
+			var stop := _rules_rest_ev(RulesCodec.RestEv.BED_STOP)
+			if not _rules_rest_ev(RulesCodec.RestEv.BED_DONE).is_empty():
+				_say("rules slept until %s bed=%s" % [WorldClock.describe(c.hours()), rc.sheet["bed"]])
+				_go("r_wait")
+			elif not stop.is_empty():
+				_fail("rules: long rest stopped: " + String(stop["reason"]))
+			elif _t > 30.0:
+				_fail("rules: the night never passed")
+		"r_wait":
+			if _t > 1.0:
+				if rules_role == "down":
+					rc.debug(RulesCodec.Debug.HURT, 9999)
+					_go("r_down")
+				elif rules_role == "revive":
+					_go("r_revive")
+				else:
+					_go("walk")
+		"r_down":
+			if rc.state_of(c.my_id) == RulesCodec.Down.DOWNED and not rc.has_meta("down_said"):
+				rc.set_meta("down_said", true)
+				_say("rules downed")
+			if rc.has_meta("down_said") and rc.state_of(c.my_id) == RulesCodec.Down.UP:
+				_say("rules revived hp=%d" % c.hp)
+				rc.debug(RulesCodec.Debug.DIE)
+				_go("r_dead")
+			elif _t > 20.0:
+				_fail("rules: never revived")
+		"r_dead":
+			if rc.state_of(c.my_id) == RulesCodec.Down.DEAD and _rules_corr == 0:
+				_rules_corr = c.corrections + 1
+				rc.respawn()
+			if _rules_corr > 0 and rc.state_of(c.my_id) == RulesCodec.Down.UP and c.corrections >= _rules_corr:
+				var bed: Variant = rc.sheet["bed"]
+				var at := Vector2(bed.x + 0.5, bed.y) if bed is Vector2i else Vector2.INF
+				if c.body.pos.distance_to(at) > 1.0:
+					_fail("rules: respawned at %s, bed at %s" % [c.body.pos, bed])
+					return
+				_say("rules respawned at bed %s hp=%d/%d" % [bed, c.hp, c.max_hp])
+				_go("walk")
+			elif _t > 10.0:
+				_fail("rules: never respawned")
+		"r_revive":
+			if _rules_other == 0:
+				for id: int in rc.downed:
+					if int(rc.downed[id]["state"]) == RulesCodec.Down.DOWNED:
+						_rules_other = id
+						rc.revive(id)
+			elif rc.state_of(_rules_other) == RulesCodec.Down.UP:
+				var r: ClientWorld.RemoteEntity = c.remotes.get(_rules_other)
+				_say("rules revived %s" % (r.name if r != null else str(_rules_other)))
+				_go("walk")
+			if _t > 25.0:
+				_fail("rules: no one to revive")
