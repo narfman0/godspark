@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""Copy rigged monsters and their props from monster-forge into assets/ (stdlib only).
+
+    python3 -I tools/sync_monsters.py --all                 # every rigged monster with clips + every prop
+    python3 -I tools/sync_monsters.py --ids wolf harpy      # these monsters + the props they wield
+    python3 -I tools/sync_monsters.py --props               # every prop (or --props scimitar shield)
+    python3 -I tools/sync_monsters.py --all --forge ~/workspace/monster-forge --source srd-5.2.1
+
+Copies only what the game loads: model_rigged.glb (LOD0, textures embedded),
+model_rigged_lod<k>.glb (geometry only, they use LOD0's material) and anims/<clip>.glb, and
+writes a trimmed monster.json (id, name, scale_m, body_plan, sockets, clips, lods, plus
+wields / shield from data/registry/<source>.json, rider_height_m from the manifest or
+data/overrides/<source>/<id>.json, swarm_unit from the manifest when the swarm was made as
+one unit). Props (out/props/<id>/, already in prop
+space) go to assets/props/<id>/: model.glb, model_lod<k>.glb, lods.json, manifest.json.
+Never model_hi.glb, model_raw.glb, PNGs or paint/. Idempotent: files are compared by content, unchanged files are
+left alone, files the source no longer has are removed. Monsters without a rig are skipped,
+and --all also skips rigged monsters that have no clips yet.
+Ported from godot-dnd (docs/monsters.md there). Godspark additions:
+  --registry   writes data/looks_creatures.json (slug -> size, type, body plan, scale_m,
+               speeds for all SRD monsters) from the forge registry. It is committed: the
+               looks resolver uses it to give unlisted slugs a by-type / by-size body.
+  .gdignore    is written into assets/monsters and assets/props so the editor never imports
+               them (the game loads the GLBs at runtime with GLTFDocument).
+When ../monster-forge is missing, it says so and exits 0: the game runs without monsters.
+See docs/tracks/assets.md.
+"""
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import struct
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+DEST = ROOT / "assets" / "monsters"
+PROPS_DEST = ROOT / "assets" / "props"
+# A sibling checkout; from a worktree (../godspark-wt/<name>) it is one level further up.
+DEFAULT_FORGE = Path(os.environ.get("MONSTER_FORGE") or next(
+    (p for p in (ROOT.parent / "monster-forge", ROOT.parent.parent / "monster-forge") if p.is_dir()),
+    ROOT.parent / "monster-forge"))
+
+
+def digest(p: Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def glb_json(p: Path) -> dict:
+    with p.open("rb") as f:
+        head = f.read(20)
+        if head[:4] != b"glTF":
+            raise ValueError(f"{p} is not a GLB")
+        n = struct.unpack("<I", head[12:16])[0]
+        return json.loads(f.read(n))
+
+
+def glb_tris(p: Path) -> int:
+    j = glb_json(p)
+    tris = 0
+    for m in j.get("meshes", []):
+        for prim in m["primitives"]:
+            if "indices" in prim:
+                tris += j["accessors"][prim["indices"]]["count"] // 3
+            else:
+                tris += j["accessors"][prim["attributes"]["POSITION"]]["count"] // 3
+    return tris
+
+
+def wanted_files(src: Path) -> dict[str, Path]:
+    """Relative destination path -> source file."""
+    files = {"model_rigged.glb": src / "model_rigged.glb"}
+    for p in sorted(src.glob("model_rigged_lod*.glb")):
+        files[p.name] = p
+    for p in sorted((src / "anims").glob("*.glb")):
+        files[f"anims/{p.name}"] = p
+    return files
+
+
+def registry(forge: Path, source: str) -> dict:
+    """id -> registry record (empty if the registry is missing)."""
+    p = forge / "data" / "registry" / f"{source}.json"
+    if not p.exists():
+        return {}
+    r = json.loads(p.read_text())
+    recs = r if isinstance(r, list) else r.get("monsters", r)
+    recs = recs if isinstance(recs, list) else list(recs.values())
+    return {m["id"]: m for m in recs if isinstance(m, dict) and "id" in m}
+
+
+def override(forge: Path, source: str, mid: str) -> dict:
+    """data/overrides/<source>/<id>.json (empty if missing or unreadable)."""
+    p = forge / "data" / "overrides" / source / f"{mid}.json"
+    try:
+        o = json.loads(p.read_text())
+    except (OSError, ValueError):
+        return {}
+    return o if isinstance(o, dict) else {}
+
+
+def monster_json(src: Path, files: dict[str, Path], rec: dict, ov: dict | None = None) -> dict:
+    man = json.loads((src / "manifest.json").read_text())
+    rig = man.get("rig") or {}
+    lods = {"0": {"file": "model_rigged.glb", "tris": glb_tris(files["model_rigged.glb"])}}
+    for name in files:
+        if name.startswith("model_rigged_lod"):
+            k = name[len("model_rigged_lod"):-len(".glb")]
+            lods[k] = {"file": name, "tris": glb_tris(files[name])}
+    # The rig stage renames each socket bone to the socket name in the GLB; the manifest
+    # maps socket -> the bone it was derived from (kept for reference).
+    sockets = {s: {"bone": s, "from": b} for s, b in sorted(rig.get("sockets", {}).items())}
+    ov = ov or {}
+    out = {
+        "id": man["id"],
+        "name": man.get("name", man["id"]),
+        "source": man.get("source"),
+        "scale_m": man.get("scale_m"),
+        "body_plan": man.get("body_plan"),
+        "sockets": sockets,
+        "clips": sorted(Path(n).stem for n in files if n.startswith("anims/")),
+        "lods": dict(sorted(lods.items(), key=lambda kv: int(kv[0]))),
+        "joints": rig.get("joints"),
+        "wields": rec.get("wields", []),
+        "shield": bool(rec.get("shield", False)),
+    }
+    # Props are sized for a 1.8 m wielder: centauroids / merfolk-naga carry the rider's height
+    # (override rider_height_m, docs/equipment.md "Prop space"); the game scales props by it.
+    rh = man.get("rider_height_m", ov.get("rider_height_m", rec.get("rider_height_m")))
+    if rh is not None:
+        out["rider_height_m"] = rh
+    # A swarm made as ONE unit (monster-forge docs/references.md "Swarm units"): the model is a
+    # single unit at swarm_unit.scale_m, the game multiplies it over swarm_unit.swarm.scale_m.
+    if man.get("swarm_unit"):
+        out["swarm_unit"] = man["swarm_unit"]
+    return out
+
+
+def copy_files(files: dict[str, Path], dest: Path) -> list[str]:
+    changes = []
+    dest.mkdir(parents=True, exist_ok=True)
+    for rel, sp in files.items():
+        dp = dest / rel
+        if dp.exists() and dp.stat().st_size == sp.stat().st_size and digest(dp) == digest(sp):
+            continue
+        dp.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dp.with_suffix(dp.suffix + ".tmp")
+        shutil.copyfile(sp, tmp)
+        changes.append(("updated " if dp.exists() else "added   ") + rel)
+        tmp.replace(dp)
+    return changes
+
+
+def sync_one(src: Path, dest: Path, rec: dict, ov: dict | None = None) -> list[str]:
+    files = wanted_files(src)
+    changes = copy_files(files, dest)
+    # Remove GLBs the source no longer has (and Godot's .import sidecars for them).
+    for dp in sorted(list(dest.glob("*.glb")) + list(dest.glob("anims/*.glb"))):
+        rel = dp.relative_to(dest).as_posix()
+        if rel not in files:
+            dp.unlink()
+            Path(str(dp) + ".import").unlink(missing_ok=True)
+            changes.append("removed " + rel)
+    text = json.dumps(monster_json(src, files, rec, ov), indent=1) + "\n"
+    mj = dest / "monster.json"
+    if not mj.exists() or mj.read_text() != text:
+        changes.append(("updated " if mj.exists() else "added   ") + "monster.json")
+        mj.write_text(text)
+    return changes
+
+
+def sync_prop(src: Path, dest: Path) -> list[str]:
+    files = {"model.glb": src / "model.glb", "manifest.json": src / "manifest.json"}
+    if (src / "lods.json").exists():
+        files["lods.json"] = src / "lods.json"
+    for p in sorted(src.glob("model_lod*.glb")):
+        files[p.name] = p
+    changes = copy_files(files, dest)
+    for dp in sorted(dest.glob("model_lod*.glb")):
+        if dp.name not in files:
+            dp.unlink()
+            Path(str(dp) + ".import").unlink(missing_ok=True)
+            changes.append("removed " + dp.name)
+    return changes
+
+
+def sync_props(prop_root: Path, ids: list[str], dest: Path) -> int:
+    failed = 0
+    for pid in ids:
+        src = prop_root / pid
+        if not (src / "model.glb").exists() or not (src / "manifest.json").exists():
+            print(f"prop {pid}: skipped (no model.glb or manifest.json in {src})")
+            failed += 1
+            continue
+        changes = sync_prop(src, dest / pid)
+        print(f"prop {pid}: " + ("unchanged" if not changes else f"{len(changes)} change(s)"))
+        for c in changes:
+            print("  " + c)
+    return failed
+
+
+def write_registry(forge: Path, source: str) -> int:
+    reg = registry(forge, source)
+    if not reg:
+        print(f"no registry at {forge}/data/registry/{source}.json", file=sys.stderr)
+        return 2
+    rows = {}
+    for mid in sorted(reg):
+        m = reg[mid]
+        rows[mid] = {"name": m.get("name", mid), "size": m.get("size", "medium"), "type": m.get("type", ""),
+                     "plan": m.get("body_plan", ""), "scale_m": m.get("scale_m"),
+                     "speeds": m.get("speeds", {})}
+    out = ROOT / "data" / "looks_creatures.json"
+    doc = {"_comment": "Generated by tools/sync_monsters.py --registry from monster-forge's registry "
+           f"({source}). Look metadata per SRD monster slug: size, creature type, body plan, "
+           "height scale in metres, speeds (ft). Used by view/actors/looks.gd for by-type and "
+           "by-size fallbacks. Do not edit by hand.", "source": source, "creatures": rows}
+    lines = [f' {json.dumps(k)}: {json.dumps(v, separators=(",", ":"))}' for k, v in rows.items()]
+    head = json.dumps({k: v for k, v in doc.items() if k != "creatures"}, indent=1)[:-2]
+    out.write_text(head + ',\n "creatures": {\n' + ",\n".join(lines) + "\n }\n}\n")
+    print(f"wrote {out.relative_to(ROOT)}: {len(rows)} creatures")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--ids", nargs="+", metavar="ID", help="these monsters and the props they wield")
+    g.add_argument("--all", action="store_true", help="every monster with model_rigged.glb and clips, every prop")
+    g.add_argument("--props", nargs="*", metavar="PROP", help="props only (all when no id is given)")
+    g.add_argument("--registry", action="store_true", help="write data/looks_creatures.json from the registry")
+    ap.add_argument("--forge", type=Path, default=DEFAULT_FORGE, help="monster-forge checkout")
+    ap.add_argument("--source", default="srd-5.2.1")
+    ap.add_argument("--dest", type=Path, default=DEST)
+    ap.add_argument("--props-dest", type=Path, default=PROPS_DEST)
+    a = ap.parse_args()
+    forge = a.forge.expanduser()
+    if a.registry:
+        return write_registry(forge, a.source)
+    if not forge.is_dir():
+        print(f"monster-forge not found at {forge}: no monsters synced (the game uses stand-ins).")
+        return 0
+    for d in (a.dest, a.props_dest):
+        d.mkdir(parents=True, exist_ok=True)
+        (d / ".gdignore").touch()
+    prop_root = forge / "out" / "props"
+    all_props = sorted(p.name for p in prop_root.iterdir() if (p / "model.glb").exists()) if prop_root.is_dir() else []
+    if a.props is not None:
+        return 1 if sync_props(prop_root, a.props or all_props, a.props_dest) else 0
+
+    out = forge / "out" / a.source
+    reg = registry(forge, a.source)
+    if not out.is_dir():
+        print(f"no such directory: {out}", file=sys.stderr)
+        return 2
+    # --all: every rigged monster that also has clips (a rig without anims/ is still being
+    # made, e.g. centaur-trooper in round 4; --ids syncs it anyway).
+    ids = a.ids or sorted(p.name for p in out.iterdir()
+                          if (p / "model_rigged.glb").exists() and any((p / "anims").glob("*.glb")))
+    if a.all:
+        for p in sorted(out.iterdir()):
+            if (p / "model_rigged.glb").exists() and p.name not in ids:
+                print(f"{p.name}: skipped (rigged, no anims/*.glb clips yet)")
+    if a.all and a.dest.is_dir():
+        for p in sorted(a.dest.iterdir()):
+            if (p / "monster.json").exists() and p.name not in ids:
+                print(f"{p.name}: kept (no model_rigged.glb upstream right now; delete the folder to drop it)")
+    failed = 0
+    for mid in ids:
+        src = out / mid
+        if not (src / "model_rigged.glb").exists() or not (src / "manifest.json").exists():
+            print(f"{mid}: skipped (no model_rigged.glb or manifest.json in {src})")
+            failed += 1
+            continue
+        try:
+            changes = sync_one(src, a.dest / mid, reg.get(mid, {}), override(forge, a.source, mid))
+        except (OSError, ValueError, KeyError) as e:
+            print(f"{mid}: FAILED {e}")
+            failed += 1
+            continue
+        print(f"{mid}: " + ("unchanged" if not changes else f"{len(changes)} change(s)"))
+        for c in changes:
+            print("  " + c)
+    if a.all:
+        props = all_props
+    else:
+        props = sorted({w for mid in ids for w in reg.get(mid, {}).get("wields", [])})
+    failed += sync_props(prop_root, props, a.props_dest)
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

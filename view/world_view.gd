@@ -1,13 +1,13 @@
 ## The 2.5D view of a TileWorld: chunk meshes streamed around a focus point (built on
-## WorkerThreadPool), the per-tile light textures, a sky/rock backdrop, placeholder actors.
+## WorkerThreadPool), the per-tile light textures, a sky/rock backdrop, actors (ActorBody).
 ## A pure reader of core state.
 ##
 ##   var view := WorldView.new()
 ##   add_child(view)
 ##   view.setup(world, light)
 ##   view.set_focus(Vector2(128, 64))        # tile units, every frame from the camera
-##   var body := view.add_actor(7, {"kind": "hero", "size": Vector2(1.5, 2.5), "color": Color.TAN})
-##   view.move_actor(7, pos, facing)
+##   var body := view.add_actor(7, {"player": "fighter", "name": "Ash"})   # see view/actors/looks.gd
+##   view.move_actor(7, pos, facing, ActorBody.state_for(core_body), core_body.vel)
 ##
 ## Light: two R8 textures (block and sky fields, raw levels, one texel per tile) cover a
 ## rectangle around the focus and reach every shader through the global uniforms in
@@ -107,44 +107,31 @@ func set_focus(pos: Vector2) -> void:
 		_light_rect = Rect2i(origin, half * 2)
 		_light_dirty = true
 
+## An actor's body from its look (view/actors/looks.gd resolves it: a monster-forge GLB, a
+## Synty model or a tinted primitive with a nameplate). look: {slug, people, player, key,
+## name, size: Vector2, size_name, type, color, tint, scale, height_m, nameplate} or the
+## original {kind, size, color}. Returns the ActorBody (a Node3D); its feet are its origin.
 func add_actor(id: int, look: Dictionary) -> Node3D:
 	remove_actor(id)
-	var size: Vector2 = look.get("size", Vector2(1.5, 2.5))
-	var color: Color = look.get("color", Color(0.8, 0.7, 0.55))
-	var root := Node3D.new()
+	var root := ActorBody.build(look, _actor_mat)
 	root.name = "actor_%d" % id
-	var body := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = minf(size.x * 0.5, size.y * 0.5) * T
-	cap.height = size.y * T
-	cap.radial_segments = 12
-	cap.rings = 4
-	body.mesh = cap
-	body.position.y = size.y * 0.5 * T
-	body.material_override = _actor_mat
-	body.set_instance_shader_parameter("tint", color)
-	body.name = "body"
-	root.add_child(body)
-	var nose := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(size.x * 0.35, size.y * 0.12, size.x * 0.35) * T
-	nose.mesh = box
-	nose.position = Vector3(size.x * 0.5 * T, size.y * 0.78 * T, 0)
-	nose.material_override = _actor_mat
-	nose.set_instance_shader_parameter("tint", color.darkened(0.45))
-	root.add_child(nose)
-	root.set_meta("size", size)
+	root.set_meta("size", root.size)
 	add_child(root)
 	_actors[id] = root
 	return root
 
-## facing: +1 right, -1 left. state "dead" lays the placeholder down.
-func move_actor(id: int, pos: Vector2, facing: int, state := "idle") -> void:
-	var root: Node3D = _actors.get(id)
+## facing: +1 right, -1 left (0 keeps the last). state: idle | walk | run | jump | fall |
+## climb | swim | fly | attack | hit | death ("dead" = death): see ActorBody. vel (tiles/s)
+## picks walk / run / sprint and scales the clip; left out, it is estimated from positions.
+func move_actor(id: int, pos: Vector2, facing: int, state := "idle", vel := Vector2.INF) -> void:
+	var root: ActorBody = _actors.get(id)
 	if root == null:
 		return
-	root.position = Vector3(pos.x * T, pos.y * T, 0)
-	root.rotation = Vector3(0, 0 if facing >= 0 else PI, PI * 0.5 if state == "dead" else 0.0)
+	root.update(pos, facing, state, vel)
+
+## The ActorBody for an id, or null.
+func get_actor(id: int) -> ActorBody:
+	return _actors.get(id)
 
 func remove_actor(id: int) -> void:
 	var root: Node3D = _actors.get(id)
