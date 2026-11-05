@@ -259,66 +259,156 @@ Design: [m2.md](m2.md). These are the shapes the M2 tracks share. Tracks own the
 directories and reach the host and the wire only through systems, so they do not edit
 `world_host.gd`, `protocol.gd` or the endpoints.
 
+As built for the base ([tracks/m2-base.md](tracks/m2-base.md)); the sections below are
+the exact signatures.
+
 ### Systems
 
 ```gdscript
-HostSystem (core/host/host_system.gd), one per feature area, added with host.add_system(sys)
-  sys_id() -> int                       # 1 rules, 2 combat, 3 items, 4 monsters
-  attach(host: WorldHost)
-  tick(host)                            # every host tick, after movement
-  entity_added(host, e: HostEntity); entity_removed(host, e)
-  handle(host, e: HostEntity, kind: int, data: PackedByteArray)   # from e's owner
-  save_player(e) -> Dictionary; load_player(e, d: Dictionary)     # merged into the player record
-  save_world() -> Dictionary; load_world(d: Dictionary)
-host.send_sys(sys_id, kind, data, to_entity := ALL)   # ALL: every player; or one entity id
-host.send_sys_near(sys_id, kind, data, pos: Vector2)  # players whose interest covers pos
-host.system(sys_id) -> HostSystem
+HostSystem (core/host/host_system.gd): RefCounted, every hook a no-op by default
+  const RULES = 1, COMBAT = 2, ITEMS = 3, MONSTERS = 4    # wire ids (u8), stable
+  sys_id() -> int
+  attach(host: WorldHost)                     # once, when added
+  tick(host: WorldHost)                       # every host tick, after movement and digs
+  entity_added(host, e: HostEntity)           # players (after load_player) and monsters
+  entity_removed(host, e: HostEntity)         # still in host.entities; players after save_player
+  handle(host, e: HostEntity, kind: int, data: PackedByteArray)   # SYS from e's owner
+  save_player(e) -> Dictionary                # stored in the player record: rec.systems["<id>"]
+  load_player(e, d: Dictionary)               # on join, {} for a new player
+  save_world() -> Dictionary                  # stored in host.json: systems["<id>"]
+  load_world(d: Dictionary)
+host.add_system(sys: HostSystem)              # also: load_world if load_state already ran,
+                                              # then attach, then entity_added for those present
+host.system(sys_id) -> HostSystem             # null if absent
+host.send_sys(sys_id, kind, data, to_entity := WorldHost.ALL) -> bool    # one player or all
+host.send_sys_near(sys_id, kind, data, pos: Vector2) -> bool  # players whose interest covers pos
+host.receive_sys(entity_id, sys_id, kind, data) -> bool       # the endpoint calls it
+WorldHost.SYS_MAX = Protocol.MAX_SYS = 32768  # payload cap; send_sys refuses bigger
 
-ClientSystem (core/host/client_system.gd), the client-side half
+ClientSystem (core/host/client_system.gd)
   sys_id() -> int
   attach(cw: ClientWorld)
   handle(kind: int, data: PackedByteArray)
-  frame(dt: float)
-cw.send_sys(sys_id, kind, data); cw.system(sys_id) -> ClientSystem
+  frame(dt: float)                            # every client frame, from cw.advance
+cw.add_system(sys); cw.system(sys_id) -> ClientSystem
+cw.send_sys(sys_id, kind, data)               # queued; the endpoint sends it the same frame
+
+Systems (core/host/systems.gd)                # where the game finds them: no boot edits
+  Systems.HOST / Systems.CLIENT: id -> script path, e.g. 1: res://core/rules/rules_system.gd
+  Systems.install_host(host); Systems.install_client(cw)   # NetSession does both
 ```
 
-On the wire both directions use one message, `SYS`: u8 system id, u8 kind, payload. Each
-system defines its own kinds and byte layouts in its own codec file with round-trip tests.
+- One wire message, `SYS` (type 32), both directions: u8 system id, u8 kind, payload (rest
+  of the packet, at most 32 KiB). Reliable and ordered with everything else; a host SYS goes
+  out after the tile deltas queued before it. Each system defines its kinds and byte layouts
+  in its own codec file with round-trip tests.
+- A SYS for an unknown system id is ignored and logged once (per peer and id on the host,
+  per id on a client). Never a kick.
+- Hooks run on the host thread. Saved dictionaries go through JSON: numbers come back as
+  floats. Records and world state of systems not installed in a run are kept and written
+  back unchanged.
+- To plug a track in, put its scripts at the `Systems` paths (rules 1, combat 2, items 3,
+  monsters 4: `core/<rules|combat|items|monsters>/<name>_system.gd` and `..._client.gd`, see
+  the file). `new()` takes no arguments; the shared rules content is `host.srd`.
+- Client systems are installed on `ClientEndpoint.welcomed`, before the SYS messages that
+  follow WELCOME are read. Tests add systems by hand (`tests/echo_system.gd` is the example).
 
-### Level track (`core/rules/level_track.gd`, pure functions)
+### Level track (`core/rules/level_track.gd`, pure static functions)
 
 ```gdscript
-LevelTrack.MAX_LEVEL = 100
+LevelTrack.MAX_LEVEL = 100; MAX_CLASS_LEVEL = 20; XP_SCALE = 1.0
+enum LevelTrack.Reward { SPARK_SLOT, VIGOR, KNACK, CLASS_LEVEL, EPIC_BOON }
 LevelTrack.class_level(level) -> int        # min(20, 1 + level / 5)
-LevelTrack.reward(level) -> Reward          # SPARK_SLOT (level % 5 in 1, 3), VIGOR (2), KNACK (4), CLASS_LEVEL (0)
-LevelTrack.spark_slots(level) -> int        # 40 at level 100
-LevelTrack.vigor_steps(level) -> int; LevelTrack.knacks(level) -> int
-LevelTrack.xp_for_level(level) -> int       # SRD gap between class levels split in five, times XP_SCALE
-LevelTrack.max_hp(level, hit_die, con_mod) -> int   # SRD total at each class level, a fifth of the
-                                                    # next gain per level between, plus Vigor
+LevelTrack.reward(level) -> Reward          # level % 5: 1, 3 SPARK_SLOT; 2 VIGOR; 4 KNACK;
+                                            # 0 CLASS_LEVEL, and EPIC_BOON at 100
+LevelTrack.count(level, r) -> int           # rewards of kind r in levels 1..level
+LevelTrack.spark_slots(level) -> int        # 40 at 100 (level 1 brings the first)
+LevelTrack.vigor_steps(level) -> int        # 20 at 100
+LevelTrack.knacks(level) -> int             # 20 at 100
+LevelTrack.xp_for_level(level) -> int       # total XP; 0 at level 1
+LevelTrack.level_for_xp(xp) -> int
+LevelTrack.srd_hp(class_level, hit_die, con_mod) -> int    # SRD fixed-value total
+LevelTrack.vigor_hp(hit_die) -> int         # ceil(hit_die / 2)
+LevelTrack.max_hp(level, hit_die, con_mod) -> int
+LevelTrack.hit_dice(level) -> int           # class level + Vigor steps
 ```
+
+- Between class levels XP and hit points move in fifths: level 5c + p is the SRD value at
+  class level c + 1 plus p/5 of the gap to the next (hit points floored, so they never
+  fall). The first band (levels 1-4) moves in quarters, so level 1 is exactly SRD level 1.
+- Levels 96-100 continue one more band as if there were a class level 21 with the last SRD
+  gap: level 100 needs 405000 XP (times XP_SCALE) and has one more class level's worth of
+  hit points. `class_level(100)` is still 20.
+- `max_hp` is the SRD total at every class level plus `vigor_steps * vigor_hp`. CON is the
+  current modifier applied to every level, as the SRD does.
 
 ### Character (`core/rules/character.gd`)
 
-One per player, owned by the host, saved in the player record, mirrored to its owner.
+One per player, owned by the host, saved in the player record (`rec.character`), mirrored
+to its owner by the rules system (not built yet).
 
-```
-name, class_slug, subclass, species, background
-level (1..100), xp
-build            the addon's SRDProgression build: {class, scores, skills, spells?, choices}
-knacks: [id]; deeds: {counter: n}
-sparks           Constellation (items track): slots from the level, kindled sparks in order
-inventory        Inventory (items track); equipment: Equipment (items track)
-hp, hit_dice_left, slots_left, uses_left      state that rests restore
-bed: Vector2i or none                         where death and long rests return you
-to_dict() / Character.from_dict(d)            JSON-safe
-make_combatant(srd: SRDContent) -> Combatant  the addon Combatant at class_level(level), with
-                                              track hit points, gear mods and nothing from sparks
-move_stats() -> MoveStats                     SRD speeds plus spark and gear changes
+```gdscript
+Character.create(name, class_slug, scores := [], skills := [], species := "", background := "",
+        srd: SRDContent = null) -> Character   # level 1; "" / [] take the class default;
+                                               # with srd, class level 1 choices are answered
+Character.DEFAULTS                     # fighter, rogue, wizard, cleric: scores, skills,
+                                       # background, auto_answer prefs, default gear
+Character.HIT_DIE                      # class -> SRD hit die
+name, class_slug, subclass, species, background: String
+level: int (1..100), xp: int
+build: Dictionary                      # SRDProgression build {class, scores, skills, choices}
+knacks: Array; deeds: Dictionary
+sparks, inventory, equipment: Dictionary   # placeholders: the items track replaces them
+hp, hit_dice_left: int; slots_left: Array; uses_left: Dictionary
+bed: Vector2i or null
+class_level() -> int; hit_die() -> int; con_mod() -> int
+max_hp() -> int                        # LevelTrack.max_hp with the resolved CON
+hit_dice_max() -> int; spark_slots() -> int
+resolved() -> Dictionary               # SRDProgression.resolve at class_level()
+auto_choices(srd) -> int               # answer every open SRD choice (auto_answer + prefs)
+pending_choices(srd) -> [{class_level, choice}]
+answer_choice(class_level, choice_id, answer: Array)    # hp follows a changed max
+gain_level() -> LevelTrack.Reward      # +1 level: hp and Hit Point Dice grow with the max;
+                                       # choices and Knacks stay open for the rules track
+make_combatant(srd) -> Combatant       # make_character at class_level() with the resolved
+                                       # build and default gear; max_hp = LevelTrack.max_hp,
+                                       # current hp and hit dice from the record
+capture(c: Combatant)                  # hp and hit dice back into the record
+move_stats(c: Combatant = null) -> MoveStats   # from_srd({walk: c.speed}, "medium")
+to_dict() -> Dictionary; Character.from_dict(d) -> Character   # JSON-safe, exact round trip
 ```
 
-`HostEntity.character` (players) and `HostEntity.combatant` (players and monsters) hold
-them. Snapshots carry hit points and max hit points for every entity with a combatant.
+- Species and background are labels for now (the addon's make_character takes neither).
+- Make the combatant first, then `ItemEffects.apply` gear on it. Note: the addon's
+  ItemEffects recomputes max hit points for a CON change as `con_delta * stats.level`
+  (class level), which is not what `LevelTrack.max_hp` does for the levels between; the
+  items track should re-derive max hit points from the level track after applying gear.
+
+### Entities and hit points on the wire
+
+```gdscript
+HostEntity.character: Character        # players
+HostEntity.combatant: Combatant        # players and monsters; null allowed
+HostEntity.vitals() -> Vector2i        # (hp, max) or HostEntity.NO_VITALS
+host.add_player(name, owner, opts := {})   # opts.class: SRD class for a new character
+host.default_class = "fighter"
+host.add_monster(stats, pos, brain, look := {}, combatant: Combatant = null)
+host.add_srd_monster(slug, pos, brain = null) -> HostEntity   # null for an unknown slug
+WorldHost.monster_size(stat_block) / monster_speeds(stat_block)
+host.srd  /  WorldHost.shared_srd() / WorldHost.warm_srd()    # one SRDContent per process
+cw.hp, cw.max_hp; cw.vitals_of(id) -> Vector2i; RemoteEntity.hp / max_hp (-1: none)
+signal ClientWorld.vitals_changed(id, hp, max_hp)
+Presenter.actor_vitals(id, hp, max_hp)  # optional; LogPresenter prints it
+```
+
+- Protocol 6. HELLO gains an optional `str class`. ENT_ADD gains u16 hp, u16 max_hp
+  (max 0: none). New `VITALS` (type 33, reliable): u8 n, n x (u32 id, u16 hp, u16 max_hp),
+  sent on snapshot ticks with only the values that changed since the peer last heard, for
+  entities it sees and its own player. SNAPSHOT stays 17 bytes per entity.
+- `WorldHost.tick()` installs its own seeded `Dice.rng` first, so the rules dice are always
+  the ticking host's. Only host-thread code (ticks, system hooks, `host_call`) may roll.
+- `main.gd` options: `class=SLUG` (any client mode), `spawn=SLUG[:N]` (host: N monsters
+  left of the spawn point, no brain). The bot prints `BOT <name> vitals me=hp/max sees ...`.
 
 ### Items (`core/items/`)
 
