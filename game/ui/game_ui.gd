@@ -255,6 +255,8 @@ func _on_leveled(level: int, reward: int) -> void:
 func _on_combat_event(ev: Dictionary) -> void:
 	if cw == null:
 		return
+	if int(ev["kind"]) == CombatCodec.Ev.SWING and int(ev["src"]) == cw.my_id:
+		hud._hint_fading = true      # they found the attack: let the controls hint go
 	if int(ev["kind"]) == CombatCodec.Ev.DEATH and int(ev["dst"]) != cw.my_id:
 		var r: ClientWorld.RemoteEntity = cw.remotes.get(int(ev["dst"]))
 		if r != null and r.kind != HostEntity.Kind.PLAYER and hud.hurt_by_me.has(r.id):

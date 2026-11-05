@@ -11,6 +11,10 @@ extends RefCounted
 const HOTBAR := 10
 const BAG := 40
 const SIZE := HOTBAR + BAG
+## Hotbar slot 1 (index 0) is the attack slot: new characters start with it selected and
+## empty (an empty selection swings the wielded weapon), and nothing fills it by itself
+## (add, first_free); the player may still put something there by hand.
+const ATTACK_SLOT := 0
 
 ## SIZE records; {} for an empty slot.
 var slots: Array = []
@@ -41,7 +45,7 @@ func is_empty_slot(i: int) -> bool:
 
 func first_free() -> int:
 	for i in SIZE:
-		if slots[i].is_empty():
+		if i != ATTACK_SLOT and slots[i].is_empty():
 			return i
 	return -1
 
@@ -51,15 +55,16 @@ func room_for(item: Dictionary) -> int:
 		return Items.count(item)
 	var mx := Items.stack_max(item)
 	var n := 0
-	for s: Dictionary in slots:
+	for i in SIZE:
+		var s: Dictionary = slots[i]
 		if s.is_empty():
-			n += mx
+			n += mx if i != ATTACK_SLOT else 0
 		elif Items.same_stack(s, item):
 			n += maxi(0, mx - Items.count(s))
 	return n
 
 ## Add a record: coin goes to `coin`; the rest tops up matching stacks, then fills empty
-## slots (hotbar first). Returns what did not fit ({} when everything did).
+## slots (hotbar first, never the attack slot). Returns what did not fit ({} when everything did).
 func add(item: Dictionary) -> Dictionary:
 	if item.is_empty() or Items.count(item) <= 0:
 		return {}
@@ -81,7 +86,7 @@ func add(item: Dictionary) -> Dictionary:
 	for i in SIZE:
 		if left <= 0:
 			break
-		if slots[i].is_empty():
+		if i != ATTACK_SLOT and slots[i].is_empty():
 			var n := mini(left, mx)
 			slots[i] = Items.with_count(item, n)
 			left -= n

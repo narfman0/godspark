@@ -119,7 +119,16 @@ func set_dimmed(d: bool) -> void:
 
 # --- per frame (cheap: redraws only what changed) ----------------------------------------
 
+## The first-minutes controls hint above the hotbar: 1 shown, fading to 0 after the first
+## attack the host accepts (an own SWING), then gone.
+const HINT := "Left click: use what is selected.   F: always attack.   Right click: dig."
+var hint_alpha := 1.0
+var _hint_fading := false
+
 func tick(delta: float) -> void:
+	if _hint_fading and hint_alpha > 0.0:
+		hint_alpha = maxf(0.0, hint_alpha - delta / 2.5)
+		bar.queue_redraw()
 	var cw := gu.cw
 	var hp := Vector2i(cw.hp, cw.max_hp)
 	if hp != _last.get("hp", Vector2i(-9, -9)):
@@ -422,10 +431,20 @@ func _draw_bar(c: Control) -> void:
 	# the hotbar
 	var hb: Array = gu.items.hotbar() if gu.items != null else []
 	var sel := gu.items.selected() if gu.items != null else 0
+	if hint_alpha > 0.0:
+		var hx := hotbar_rect(0).position.x
+		UiTheme.text(c, Vector2(hx, -14), HINT, UiTheme.SMALL, Color(UiTheme.TEXT_LIGHT, hint_alpha), false,
+			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 4)
 	for i in 10:
 		var r := hotbar_rect(i)
 		var it: Dictionary = hb[i] if i < hb.size() else {}
 		_slot(c, r, it, i == sel)
+		if i == Inventory.ATTACK_SLOT and it.is_empty() and gu.items != null:
+			# the attack slot: the wielded weapon, ghosted (it lives on the paper doll)
+			var w: Dictionary = gu.items.item(Equipment.index_of("main_hand"))
+			if not w.is_empty():
+				c.draw_texture_rect(ItemIcons.texture(w), r.grow(-7), false, Color(1, 1, 1, 0.55))
+			UiTheme.text(c, Vector2(r.position.x, r.end.y - 3), "attack", UiTheme.TINY, UiTheme.INK, false, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 		UiTheme.text(c, r.position + Vector2(4, 13), str((i + 1) % 10), UiTheme.TINY, UiTheme.INK_SOFT)
 	# the selected item's name, briefly, above its slot
 	if _sel_name_t > 0.0 and sel < hb.size() and not (hb[sel] as Dictionary).is_empty():

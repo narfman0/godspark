@@ -86,7 +86,8 @@ func entity_removed(_h: WorldHost, e: HostEntity) -> void:
 # --- the starting kit -------------------------------------------------------------------
 
 ## A new character's kit: the class's SRD default weapon and armour worn (iron where metal),
-## and wood, torches, a campfire, a bed and two healing potions on the hotbar.
+## and wood, torches, a campfire, two healing potions and a bed on hotbar slots 2-6; slot 1
+## stays empty and selected (the attack slot: Inventory.ATTACK_SLOT), so a left click fights.
 static func give_kit(ch: Character) -> void:
 	var g: Dictionary = Character.DEFAULTS.get(ch.class_slug, {}).get("gear", Character.FALLBACK_GEAR)
 	var eq := ch.equipment
@@ -102,6 +103,7 @@ static func give_kit(ch: Character) -> void:
 	inv.add(Items.make("tile:campfire", 1))
 	inv.add(Items.make_magic("potions-of-healing", 0).merged({"count": 2}, true))
 	inv.add(Items.make("tile:bed", 1))
+	inv.selected = Inventory.ATTACK_SLOT
 	inv.kit_given = true
 
 static func _plain(base: String) -> Dictionary:

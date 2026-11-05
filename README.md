@@ -35,7 +35,12 @@ clock, the world history and the players are saved on exit.
 
 ## Controls
 
-Terraria-like: the selected hotbar item decides what the left mouse button does.
+Terraria-like: the selected hotbar item decides what the left mouse button does. Hotbar slot 1 is the
+attack slot: a new character starts with it selected and empty (it shows the wielded weapon,
+which lives on the paper doll), so a left click fights; the kit's blocks, torches, campfire,
+potions and bed are on slots 2-6, and loot never lands in slot 1. A hint above the hotbar
+("Left click: use what is selected. F: always attack. Right click: dig.") fades after your
+first attack.
 **Digging moved from the left to the right mouse button.**
 
 | Action | Keys |
