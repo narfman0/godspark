@@ -27,6 +27,7 @@ func world_ready(world: TileWorld, id: int) -> void:
 	my_id = id
 	_clear()
 	light = LightEngine.new(world)
+	light.deferred = true     # chunk arrivals and cold chunks are spread over frames
 	light.sun = sun
 	if env == null:
 		env = Environment.new()

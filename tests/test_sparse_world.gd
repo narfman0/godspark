@@ -5,6 +5,7 @@ extends RefCounted
 func run(t: TestLog) -> void:
 	_tiles(t)
 	_light(t)
+	_deferred(t)
 	_meta(t)
 
 func _copy(src: TileWorld, dst: TileWorld, cx: int, cy: int) -> void:
@@ -113,3 +114,36 @@ func _meta(t: TestLog) -> void:
 	for i in 16384:
 		big.append(1000 + (i % 7) - 3 + i / 50)
 	t.check(Protocol.meta({"surface": big}).size() < 8000, "a large world's surface compresses (%d bytes)" % Protocol.meta({"surface": big}).size())
+
+## Deferred light (the view's mode): chunk changes queue up and process() works through them
+## a budget at a time; the result equals a synchronous fresh computation.
+func _deferred(t: TestLog) -> void:
+	var host := TileWorld.make_test(256, 256)
+	var w := TileWorld.new(256, 256, 1, true)
+	w.sky_line = host.scan_surface()
+	var light := LightEngine.new(w)
+	light.deferred = true
+	var want := Rect2i(80, 70, 128, 120)
+	for cy in range(2, 6):
+		for cx in range(2, 7):
+			_copy(host, w, cx, cy)
+	t.eq(light.backlog(), 20, "arrivals are queued, not computed")
+	t.eq(light.page_count(), 0, "nothing lit yet")
+	var calls := 1
+	while not light.process(500, want) and calls < 500:
+		calls += 1
+	t.check(calls > 1, "the work is spread over calls (%d)" % calls)
+	t.eq(light.backlog(), 0, "the queue drains")
+	w.unload_chunk(2, 5)
+	w.set_fg(150, 120, TileDefs.AIR)
+	_copy(host, w, 2, 5)
+	while not light.process(500, want):
+		pass
+	var fresh := LightEngine.new(w)
+	fresh.ensure_region(want)
+	var bad := 0
+	for y in range(want.position.y, want.end.y):
+		for x in range(want.position.x, want.end.x):
+			if w.is_loaded(x, y) and (light.block_at(x, y) != fresh.block_at(x, y) or light.sky_at(x, y) != fresh.sky_at(x, y)):
+				bad += 1
+	t.eq(bad, 0, "deferred light equals a fresh synchronous computation")

@@ -73,6 +73,12 @@ var _zeros := PackedByteArray()
 var _top := PackedInt32Array()   ## per column: lowest y that sees the sky, -1 = not scanned
 var _done := PackedByteArray()   ## per chunk: 1 once computed
 var _lights := {}                ## id -> Vector3i(x, y, strength)
+## Deferred mode (the view's): whole-chunk changes are queued, and process() works through
+## them and through cold chunks a budget at a time, so a frame never pays for more than one
+## chunk's flood plus one update. Off (default): everything happens at once, as before.
+var deferred := false
+var _queue: Array[Vector2i] = []
+var _queued := {}
 var _reach := 0                  ## tiles a level can travel: ceil(strongest source / STEP)
 
 func _init(w: TileWorld) -> void:
@@ -239,8 +245,68 @@ func ensure_region(rect: Rect2i) -> void:
 func is_computed(cx: int, cy: int) -> bool:
 	return _done[cx + cy * world.chunks_x] != 0
 
+## Queued chunk changes not yet applied (deferred mode).
+func backlog() -> int:
+	return _queue.size()
+
+## Deferred mode: apply queued chunk changes, then compute cold chunks of `want` nearest its
+## centre first, until `budget_us` is spent (at least one unit of work is done). A unit is
+## one chunk computed from cold or one queued chunk change. True when nothing is left.
+func process(budget_us: int, want := Rect2i()) -> bool:
+	var t0 := Time.get_ticks_usec()
+	var first := true
+	while first or Time.get_ticks_usec() - t0 < budget_us:
+		first = false
+		if not _queue.is_empty():
+			var c: Vector2i = _queue[0]
+			var need := Rect2i(c * K.CHUNK, Vector2i(K.CHUNK, K.CHUNK)).grow(_reach + 1)
+			var cold := _cold_in(need, need.get_center()) if _any_computed(need) else Vector2i(-1, -1)
+			if cold.x >= 0:
+				_ensure_batch(Rect2i(cold, Vector2i.ONE))
+				continue
+			_queue.pop_front()
+			_queued.erase(c)
+			_chunk_changed_now(c.x, c.y)
+			continue
+		if want.has_area():
+			var cold := _cold_in(want, want.get_center())
+			if cold.x >= 0:
+				_ensure_batch(Rect2i(cold, Vector2i.ONE))
+				continue
+		return true
+	return _queue.is_empty() and (not want.has_area() or _cold_in(want, want.get_center()).x < 0)
+
+## The not-yet-computed chunk of rect nearest to `at` (tiles), or (-1, -1).
+func _cold_in(rect: Rect2i, at: Vector2i) -> Vector2i:
+	rect = rect.intersection(Rect2i(0, 0, _w, _h))
+	if not rect.has_area():
+		return Vector2i(-1, -1)
+	var best := Vector2i(-1, -1)
+	var best_d := 1 << 30
+	for cy in range(rect.position.y >> 5, ((rect.end.y - 1) >> 5) + 1):
+		for cx in range(rect.position.x >> 5, ((rect.end.x - 1) >> 5) + 1):
+			if _done[cx + cy * _cxn] != 0:
+				continue
+			var d := (Vector2i(cx * K.CHUNK + 16, cy * K.CHUNK + 16) - at).length_squared()
+			if d < best_d:
+				best_d = d
+				best = Vector2i(cx, cy)
+	return best
+
+func _any_computed(rect: Rect2i) -> bool:
+	rect = rect.intersection(Rect2i(0, 0, _w, _h))
+	if not rect.has_area():
+		return false
+	for cy in range(rect.position.y >> 5, ((rect.end.y - 1) >> 5) + 1):
+		for cx in range(rect.position.x >> 5, ((rect.end.x - 1) >> 5) + 1):
+			if _done[cx + cy * _cxn] != 0:
+				return true
+	return false
+
 ## Forget everything (a whole new world was loaded into the same TileWorld).
 func reset() -> void:
+	_queue.clear()
+	_queued.clear()
 	for i in _pages.size():
 		_pages[i] = PackedByteArray()
 	_top.fill(-1)
@@ -498,6 +564,15 @@ func _on_tile_changed(x: int, y: int, layer: int, old: int, now: int) -> void:
 	_update(span.grow(_reach), false, true)
 
 func _on_chunk_changed(cx: int, cy: int) -> void:
+	if deferred:
+		var c := Vector2i(cx, cy)
+		if not _queued.has(c):
+			_queued[c] = true
+			_queue.append(c)
+		return
+	_chunk_changed_now(cx, cy)
+
+func _chunk_changed_now(cx: int, cy: int) -> void:
 	# Whole chunk rewritten (arrived, dropped, loaded): recompute everything it can reach.
 	# Direct sun changes only between each column's old and new sky top, so the sun update
 	# spans from the lowest of those up to the chunk. A column nobody has scanned has no
@@ -509,7 +584,8 @@ func _on_chunk_changed(cx: int, cy: int) -> void:
 		if old < 0:
 			continue
 		_top[x] = _scan_top(x, _h - 1)
-		lo = mini(lo, mini(old, _top[x]))
+		if _top[x] != old:
+			lo = mini(lo, mini(old, _top[x]))
 	_update(r.grow(_reach), true, false)
 	_update(Rect2i(r.position.x, lo, K.CHUNK, r.end.y - lo).grow(_reach), false, true)
 	if world.sparse and not world.has_chunk(cx, cy):

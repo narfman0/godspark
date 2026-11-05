@@ -27,6 +27,9 @@ const MOON_TINT := Color(0.52, 0.64, 1.0)
 
 ## Mesh builds in flight at once.
 @export var max_tasks := 3
+## Main-thread microseconds per frame for light work when the LightEngine is deferred
+## (chunk arrivals and cold chunks; at least one chunk's worth is always done).
+@export var light_budget_us := 3000
 ## Half-size, in tiles, of the area to keep meshed and lit around the focus. CameraRig
 ## keeps this in step with what it can see.
 var view_half := Vector2(40, 24)
@@ -191,6 +194,8 @@ func _process(_delta: float) -> void:
 	_collect()
 	_launch()
 	_apply_sun()
+	if light.deferred and light.backlog() > 0:
+		_light_dirty = true
 	if _light_dirty:
 		_refill_light()
 
@@ -300,8 +305,12 @@ func _on_light_changed(rect: Rect2i) -> void:
 
 func _refill_light() -> void:
 	var t0 := Time.get_ticks_usec()
-	light.ensure_region(_light_rect)
-	_light_dirty = false
+	if light.deferred:
+		# What is not lit yet reads dark for a frame or two; the nearest chunks come first.
+		_light_dirty = not light.process(light_budget_us, _light_rect)
+	else:
+		light.ensure_region(_light_rect)
+		_light_dirty = false
 	var size := _light_rect.size
 	var blk := light.region_bytes(_light_rect, false)
 	var sky := light.region_bytes(_light_rect, true)
