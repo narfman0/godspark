@@ -22,6 +22,8 @@ static func tick_parties(sim: WorldSim, hours: int) -> void:
 		if not sim.parties.has(pid):
 			continue
 		var p: SimParty = sim.parties[pid]
+		if p.frozen:
+			continue        # held by real time (Life)
 		match p.state:
 			"travel":
 				_advance(sim, p, float(hours))
@@ -61,6 +63,9 @@ static func _advance(sim: WorldSim, p: SimParty, hours: float) -> void:
 
 static func _arrive(sim: WorldSim, p: SimParty) -> void:
 	var home_leg: bool = p.plan.get("leg", "out") == "home"
+	if not home_leg and _handed_off(sim, p):
+		p.frozen = true     # players are watching: the fight is fought in real time (Life)
+		return
 	match p.kind:
 		"caravan":
 			SimEconomy.caravan_arrive(sim, p)
@@ -96,6 +101,13 @@ static func _arrive(sim: WorldSim, p: SimParty) -> void:
 				_:
 					SimEconomy._go_home(sim, p)
 
+## A raid or monster attack arriving at a settlement players watch is handed to real time.
+static func _handed_off(sim: WorldSim, p: SimParty) -> bool:
+	if not (p.kind == "pack" or (p.kind == "raid" and p.plan.get("mode", "") == "settlement")):
+		return false
+	var here: int = p.path[p.path.size() - 1] if not p.path.is_empty() else -1
+	return sim.settlements.has(here) and sim.settlements[here].watched
+
 static func _encounters(sim: WorldSim, hours: int) -> void:
 	var on_route := {}
 	for pid in sim.parties:
@@ -113,7 +125,8 @@ static func _encounters(sim: WorldSim, hours: int) -> void:
 				continue
 			for ra in list:
 				if ra.state == "ambush" and sim.parties.has(ra.id) and sim.parties.has(pa.id) \
-						and _hostile(sim, ra.faction, pa.faction, false) and sim.rng.randf() < 0.25:
+						and _hostile(sim, ra.faction, pa.faction, false) and sim.rng.randf() < 0.25 \
+						and not (pa.watched or ra.watched):
 					_patrol_clash(sim, pa, ra, rid)
 		# Raiders spring on travellers.
 		for ra in list:
@@ -128,7 +141,7 @@ static func _encounters(sim: WorldSim, hours: int) -> void:
 					continue
 				if not _hostile(sim, ra.faction, v.faction, true):
 					continue
-				if sim.rng.randf() < 0.65:
+				if sim.rng.randf() < 0.65 and not (ra.watched or v.watched):
 					var helpers: Array = []
 					for pa in list:
 						if pa.state == "patrol" and sim.parties.has(pa.id) and not _hostile(sim, pa.faction, v.faction, false) \
@@ -146,7 +159,7 @@ static func _encounters(sim: WorldSim, hours: int) -> void:
 				if l.out > 0 or l.count() == 0:
 					continue
 				var chance := LAIR_HUNT * l.hunger * l.hunger * hours / 24.0
-				if sim.rng.randf() < chance:
+				if sim.rng.randf() < chance and not v.watched:
 					if _lair_hunt(sim, l, v, rid):
 						break
 
@@ -289,14 +302,19 @@ static func _ambush(sim: WorldSim, ra: SimParty, v: SimParty, rid: int, helpers:
 	for p in parts:
 		side = _merge(side, p.members)
 	var res := SimCombat.resolve(sim.rng, ra.members, side, {"a_ambush": 0.5, "a_break": 0.5, "b_break": 0.6})
-	sim.stats_add("battles", 1)
-	sim.stats_add("ambushes", 1)
 	var raider_dead := party_losses(ra, res.a_dead)
 	var splits := _split_dead(res.b_dead, parts)
 	var victim_dead := 0
 	for i in parts.size():
 		victim_dead += party_losses(parts[i], splits[i])
-	var won: bool = res.winner == "a"
+	ambush_outcome(sim, ra, v, rid, helpers, res.winner == "a", raider_dead, victim_dead)
+
+## The rest of an ambush once its fight is decided: here, or in real time by Life (losses
+## already written back). Loot, captives, threat, relations, the chronicle, who goes home.
+static func ambush_outcome(sim: WorldSim, ra: SimParty, v: SimParty, rid: int, helpers: Array, won: bool,
+		raider_dead: int, victim_dead: int) -> void:
+	sim.stats_add("battles", 1)
+	sim.stats_add("ambushes", 1)
 	var loot_food := 0
 	var loot_goods := 0
 	var loot_coin := 0
@@ -486,18 +504,22 @@ static func _tick_lairs(sim: WorldSim) -> void:
 
 static func _pack_attack(sim: WorldSim, p: SimParty) -> void:
 	var here: int = p.path[p.path.size() - 1]
-	var l: SimLair = sim.lairs.get(p.home)
 	if not sim.settlements.has(here):
 		SimEconomy._go_home(sim, p)
 		return
 	var s: SimSettlement = sim.settlements[here]
 	var dm := defenders(s)
 	var res := SimCombat.resolve(sim.rng, p.members, dm[0], {"a_break": 0.5, "b_break": 0.45, "b_ac": wall_ac(s)})
-	sim.stats_add("battles", 1)
-	sim.stats_add("monster_raids", 1)
 	var slain := party_losses(p, res.a_dead)
 	var killed := settlement_losses(s, res.b_dead, dm[1])
-	var won: bool = res.winner == "a"
+	pack_outcome(sim, p, s, res.winner == "a", killed, slain)
+
+## The rest of a monster attack on a settlement once its fight is decided (here, or in real
+## time by Life with losses already written back).
+static func pack_outcome(sim: WorldSim, p: SimParty, s: SimSettlement, won: bool, killed: int, slain: int) -> void:
+	var l: SimLair = sim.lairs.get(p.home)
+	sim.stats_add("battles", 1)
+	sim.stats_add("monster_raids", 1)
 	var eaten_people := 0
 	var eaten_food := 0
 	if won and p.size() > 0:
@@ -687,11 +709,16 @@ static func _raid_settlement(sim: WorldSim, p: SimParty) -> void:
 	var dm := defenders(d)
 	# Raiders want loot, not a last stand; defenders fall back behind doors once hurt.
 	var res := SimCombat.resolve(sim.rng, p.members, dm[0], {"a_break": 0.4, "b_break": 0.35, "b_ac": wall_ac(d)})
-	sim.stats_add("battles", 1)
-	sim.stats_add("settlement_raids", 1)
 	var lost := party_losses(p, res.a_dead)
 	var killed := settlement_losses(d, res.b_dead, dm[1])
-	var won: bool = res.winner == "a" and p.size() > 0
+	raid_outcome(sim, p, d, res.winner == "a" and p.size() > 0, killed, lost)
+
+## The rest of a raid on a settlement once its fight is decided: here, or in real time by
+## Life (losses already written back). Plunder, captives, relations, the chronicle, home.
+static func raid_outcome(sim: WorldSim, p: SimParty, d: SimSettlement, won: bool, killed: int, lost: int) -> void:
+	sim.stats_add("battles", 1)
+	sim.stats_add("settlement_raids", 1)
+	won = won and p.size() > 0
 	var food := 0
 	var coin := 0
 	var captives := 0

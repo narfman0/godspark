@@ -1,0 +1,25 @@
+{
+	"_doc": "Life: what materializes (docs/tracks/life.md). near/keep: a settlement or party appears when a player is within near_tiles (x and y) and folds back past keep_tiles. caps: most actors shown per settlement (guards) and per party. townsfolk: how many people of a settlement are shown, by tier (never more than its civilians). first_roles: the roles of the first shown people by tier; the rest are townsfolk. role_slug: the SRD stat block of a role ('' = the culture's people block); monstrous cultures use their people block for every role. look_role: the look.people role key per role or stat block. hours: the daily round (work from..to, then the square at dusk, home at night). break: the fraction of its starting strength a side may lose before it gives up a real-time fight (the sim's own numbers).",
+	"near_tiles": 80.0,
+	"keep_tiles": 112.0,
+	"scan_s": 1.0,
+	"caps": {"guards": 8, "party": 12, "wagons": 2},
+	"townsfolk": {"hamlet": 4, "village": 8, "town": 16, "city": 24},
+	"first_roles": {
+		"hamlet": ["keeper", "merchant"],
+		"village": ["keeper", "smith", "merchant", "priest"],
+		"town": ["keeper", "smith", "merchant", "priest", "merchant", "keeper"],
+		"city": ["keeper", "smith", "merchant", "priest", "merchant", "keeper", "smith", "merchant", "priest"]
+	},
+	"role_slug": {"townsfolk": "", "keeper": "", "smith": "", "merchant": "", "priest": "priest-acolyte", "drover": "", "migrant": ""},
+	"look_role": {"guard": "guard", "townsfolk": "commoner", "keeper": "commoner", "smith": "commoner", "merchant": "noble",
+		"priest": "priest", "drover": "commoner", "migrant": "commoner", "escort": "guard", "soldier": "guard"},
+	"monstrous_look": {"goblinoid": "goblin", "kobold": "kobold", "gnoll": "gnoll"},
+	"hours": {"work": [6.0, 18.0], "dusk": [18.0, 21.0]},
+	"wagon": "draft-horse",
+	"party_role": {"caravan": "escort", "raid": "raider", "army": "raider", "patrol": "guard", "expedition": "soldier",
+		"migrants": "escort", "settlers": "escort", "pack": "monster"},
+	"civilian_role": {"caravan": "drover", "migrants": "migrant", "settlers": "migrant", "raid": "captive", "army": "levy"},
+	"break": {"raid_attackers": 0.4, "raid_defenders": 0.35, "ambush_attackers": 0.5, "ambush_victims": 0.6},
+	"calm_s": 8.0
+}

@@ -48,7 +48,7 @@ func _torch_category(p: Vector2) -> int:
 	var bright := float(lt.get("player_torch_bright", 8.0))
 	var dim := float(lt.get("player_torch_dim", 16.0))
 	for e: HostEntity in host.entities.values():
-		if not e.is_player():
+		if not e.is_player() and not e.has_meta("torch"):      # Life: guards on night watch
 			continue
 		var torch := e.body.pos + Vector2(0, 1.8)
 		var d := torch.distance_to(p)

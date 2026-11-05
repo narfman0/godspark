@@ -35,6 +35,9 @@ func run(t_: TestLog) -> void:
 	var ms: MonstersSystem = rig.host.system(HostSystem.MONSTERS)
 	ms.director_enabled = 0               # the story spawns its own packs
 	ms.lairs_enabled = false
+	var life := rig.host.system(HostSystem.LIFE)
+	if life != null:
+		life.set("enabled", false)        # the arena story has no townsfolk (Life: tests/test_life.gd)
 	var rules: RulesSystem = rig.host.system(HostSystem.RULES)
 	rules.xp_rate = 10.0
 	_join(["ann", "bob"], ["fighter", "wizard"])
