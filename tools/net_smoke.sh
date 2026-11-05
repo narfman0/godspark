@@ -6,6 +6,7 @@
 # final NETCHECK lines agree on the chunk digest and on the player position (within 0.05).
 #   tools/net_smoke.sh            prints NET SMOKE PASS or what differed; exit 0 on pass
 #   KEEP=1 tools/net_smoke.sh     keep the logs
+#   WORLD="gen=dev seed=3" tools/net_smoke.sh   on a generated world (default gen=test)
 set -u
 cd "$(dirname "$0")/.."
 
@@ -51,8 +52,10 @@ run() {   # run NAME ARGS... : a headless Godot in the background, logging to $L
 }
 
 echo "net smoke: port $PORT, logs $LOGS"
-run host dedicated gen=test port="$PORT" expect=2 world="$LOGS/world"
-sleep 1.5
+WORLD=${WORLD:-gen=test}
+# shellcheck disable=SC2086
+run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world"
+sleep "${HOST_WAIT:-1.5}"
 run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1
 run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=3 places=4 dir=-1 delay=2
 
