@@ -37,6 +37,7 @@ func _initialize() -> void:
 					names.append(sk.get_bone_name(i))
 				print("    bones: ", ", ".join(names), " ...")
 		inst.free()
+	GltfCache.clear()
 	quit()
 
 func _collect(dir: String, out: Array[String]) -> void:

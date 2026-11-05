@@ -47,7 +47,7 @@ def to_local(sp): return LOCAL_PREFIX + sp[len(SERVER_PREFIX):]
 
 def referenced():
     out = set()
-    pat = re.compile(r'res://(assets/meshes/[^"\'\s]+?\.(?:gltf|glb|png))')
+    pat = re.compile(r'res://(assets/meshes/[^"\'\n]+?\.(?:gltf|glb|png))')   # paths may hold spaces
     for base in ("data", "view", "game", "net", "tools"):
         for f in glob.glob(base + "/**/*", recursive=True):
             if os.path.isfile(f) and f.endswith((".gd", ".tscn", ".tres", ".json")):

@@ -11,6 +11,7 @@ class_name GltfCache
 extends RefCounted
 
 static var _states := {}     ## path -> GLTFState, or null when the file is missing or broken
+static var _templates := {}  ## path -> generated scene (never in the tree), or null
 static var last_error := ""
 ## Loads attempted / parsed, for tools.
 static var stats := {"parsed": 0, "missing": 0, "failed": 0, "usec": 0}
@@ -46,16 +47,20 @@ static func state(path: String) -> GLTFState:
 	_states[path] = st
 	return st
 
-## A new scene instance of the file, or null.
+## A new scene instance of the file, or null. generate_scene() runs once per file and the
+## result is kept as a template that is duplicated: running it twice on one GLTFState renames
+## the bones (Hips -> Hips_2), which breaks animation retargeting.
 static func instance(path: String) -> Node3D:
-	var st := state(path)
-	if st == null:
-		return null
-	var doc := GLTFDocument.new()
-	var root := doc.generate_scene(st) as Node3D
-	if root != null:
-		_finish(root)
-	return root
+	if not _templates.has(path):
+		var st := state(path)
+		var root: Node3D = null
+		if st != null:
+			root = GLTFDocument.new().generate_scene(st) as Node3D
+			if root != null:
+				_finish(root)
+		_templates[path] = root
+	var tpl: Node3D = _templates[path]
+	return tpl.duplicate() as Node3D if tpl != null else null
 
 ## generate_scene() can leave ImporterMeshInstance3D nodes (it does under the headless
 ## dummy renderer): swap them for MeshInstance3D. Synty LOD chains (<name>_LOD0.._LOD3 as
@@ -90,6 +95,10 @@ static func _finish(root: Node) -> void:
 ## Forget everything (tests, or after a fetch).
 static func clear() -> void:
 	_states.clear()
+	for n in _templates.values():
+		if n != null:
+			(n as Node).free()
+	_templates.clear()
 
 ## AABB of the visible meshes under n, in n's parent space (n's own transform included).
 ## Skinned meshes are placed where the skin draws them at rest (see mesh_xform), not by their

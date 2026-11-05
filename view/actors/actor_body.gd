@@ -123,7 +123,7 @@ func _build_nameplate(text: String) -> void:
 	nameplate.name = "nameplate"
 	nameplate.text = text
 	nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	nameplate.pixel_size = 0.004
+	nameplate.pixel_size = 0.006
 	nameplate.font_size = 40
 	nameplate.outline_size = 10
 	nameplate.modulate = Color(1, 1, 1, 0.85)

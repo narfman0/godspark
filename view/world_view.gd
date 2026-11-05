@@ -195,6 +195,7 @@ func _exit_tree() -> void:
 	for key: Vector2i in _tasks:
 		WorkerThreadPool.wait_for_task_completion(_tasks[key]["task"])
 	_tasks.clear()
+	GltfCache.clear()   # loaded-model templates live outside the tree
 
 func _collect() -> void:
 	for key: Vector2i in _tasks.keys():

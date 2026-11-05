@@ -34,4 +34,5 @@ func _initialize() -> void:
 		counts[a.kind] = counts.get(a.kind, 0) + 1
 		a.free()
 	print("bodies: %s, total %.1f s; gltf %s" % [counts, total / 1e6, GltfCache.stats])
+	GltfCache.clear()
 	quit()

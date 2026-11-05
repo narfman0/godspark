@@ -1,7 +1,8 @@
 ## Render the view demo and save a PNG. Runs under tools/soft_godot.sh (CPU Vulkan).
 ##   tools/soft_godot.sh -s res://tools/shot.gd -- out=/tmp/x.png [x=.. y=.. zoom=.. sun=..]
 ##     [w=1280 h=720] [still] [gen=seed] [dig=1: dig a shaft into the cave first]
-## Prints chunk build and light timings from the run.
+## Prints chunk build and light timings, the actors' bodies (forge / synty / primitive) and
+## dressing counts. [cave: dig the torch-light test tunnel] [noshow] [nodress] (see demo.gd)
 extends SceneTree
 
 func _initialize() -> void:
@@ -38,6 +39,13 @@ func _initialize() -> void:
 	print("shot: %s %dx%d after %d frames, %d chunks" % [out, img.get_width(), img.get_height(), frames, demo.view.chunk_count()])
 	var centre := Vector2(img.get_width(), img.get_height()) * 0.5
 	print("  pick: screen centre -> tile %s (camera at %s)" % [demo.view.tile_at_screen(centre), demo.rig.pos])
+	var kinds := []
+	for c in demo.view.get_children():
+		if c is ActorBody:
+			kinds.append("%s=%s" % [String((c as ActorBody).plan.get("key", "")) if (c as ActorBody).plan.get("key", "") != "" else (c as ActorBody).plan.get("slug", "?"), (c as ActorBody).kind])
+	print("  actors: ", ", ".join(kinds))
+	if demo.dressing:
+		print("  dressing: ", demo.dressing.counts)
 	for k: String in st:
 		var a: PackedInt32Array = st[k]
 		if a.is_empty():
