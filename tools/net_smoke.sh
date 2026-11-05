@@ -4,9 +4,12 @@
 # bot1's edits). Each bot walks, jumps, digs, places, checks, leaves, rejoins and checks
 # again. Passes only if every process exits 0 and, for each bot, the host's and the bot's
 # final NETCHECK lines agree on the chunk digest and on the player position (within 0.05).
+# The host also spawns $SPAWN (default one goblin warrior), and bot1 must report seeing it
+# with its hit points (a "BOT bot1 vitals ..." line).
 #   tools/net_smoke.sh            prints NET SMOKE PASS or what differed; exit 0 on pass
 #   KEEP=1 tools/net_smoke.sh     keep the logs
 #   WORLD="gen=dev seed=3" tools/net_smoke.sh   on a generated world (default gen=test)
+#   SPAWN=goblin-warrior:1 SEE="Goblin Warrior monster 10/10" tools/net_smoke.sh   (defaults)
 set -u
 cd "$(dirname "$0")/.."
 
@@ -53,11 +56,13 @@ run() {   # run NAME ARGS... : a headless Godot in the background, logging to $L
 
 echo "net smoke: port $PORT, logs $LOGS"
 WORLD=${WORLD:-gen=test}
+SPAWN=${SPAWN:-goblin-warrior:1}
+SEE=${SEE:-Goblin Warrior monster 10/10}
 # shellcheck disable=SC2086
-run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world"
+run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world" spawn="$SPAWN"
 sleep "${HOST_WAIT:-1.5}"
 run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1
-run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=3 places=4 dir=-1 delay=2
+run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=3 places=4 dir=-1 delay=2 class=wizard
 
 fail=()
 names=(host bot1 bot2)
@@ -92,7 +97,12 @@ for bot in bot1 bot2; do
 	echo "  $bot: $hn chunks, digest ${hh:0:16}..., host pos $hp, client pos $cp"
 	grep -h "^BOT $bot " "$LOGS/$bot.log" | sed 's/^/    /'
 done
-grep -h "^HOSTSTATS" -A 12 "$LOGS/host.log" | grep -v "^saved" | sed 's/^/  /'
+if [ -n "$SEE" ] && ! grep -q "^BOT bot1 vitals .*$SEE" "$LOGS/bot1.log"; then
+	fail+=("bot1 never reported seeing \"$SEE\"")
+fi
+grep -h "^spawned" "$LOGS/host.log" | sed 's/^/  host /'
+grep -h "^SRD content\|^\[host\] SRD content" "$LOGS/host.log" | sed 's/^/  /'
+grep -h "^HOSTSTATS" -A 14 "$LOGS/host.log" | grep -v "^saved" | sed 's/^/  /'
 
 sleep 0.2
 strays=$(pgrep -f -- "--path . -- .*127.0.0.1:$PORT|port=$PORT" || true)
