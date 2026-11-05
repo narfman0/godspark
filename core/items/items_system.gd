@@ -482,7 +482,12 @@ func swap_spark(e: HostEntity, star: int, index: int) -> String:
 	var spark: Dictionary = it["spark"].duplicate()
 	ch.inventory.take(index, 1)
 	ch.sparks.swap(star, spark)
-	var left := ch.inventory.add(back)
+	var left := back
+	if ch.inventory.is_empty_slot(index):
+		ch.inventory.put(index, back)     # the old spark takes the new one's place
+		left = {}
+	else:
+		left = ch.inventory.add(back)
 	if not left.is_empty():
 		_spawn(left, e.body.center(), Vector2(0, 4), e.id)
 	refresh(e)

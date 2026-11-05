@@ -2,7 +2,9 @@
 ## world and prints an ASCII picture of the body's path, so jump arcs can be eyeballed
 ## without a renderer.
 ##   godot --headless -s res://tools/trace_run.gd -- scenario=runjump
-## Scenarios: jump, tap, runjump, pit, platforms, stairs, ladder, swim, spider.
+## Scenarios: jump, tap, runjump, pit, platforms, stairs, ladder, swim, spider; with sparks
+## (data/sparks.json): airjump (Skyhook III), dash (Dash II, a double tap), glide
+## (Featherfall III off a ledge).
 ## Legend: # solid  = platform  H ladder  ~ water  o feet each 3rd step  S start  E end
 extends SceneTree
 
@@ -81,6 +83,26 @@ func _initialize() -> void:
 			start = Vector2(mid - 40.5, ground)
 			script = func(i: int, p: PlayerInput) -> void:
 				p.move_x = 1.0
+		"airjump":
+			stats = Sparks.move_stats({"walk": 30}, "medium", [{"id": "skyhook", "rank": 2}])
+			script = func(i: int, p: PlayerInput) -> void:
+				p.move_x = 1.0 if i < 100 else 0.0
+				p.jump = (i >= 5 and i < 40) or (i >= 30 and i < 55) or (i >= 55 and i < 80)
+				p.jump_pressed = i == 5 or i == 30 or i == 55
+		"dash":
+			stats = Sparks.move_stats({"walk": 30}, "medium", [{"id": "dash", "rank": 1}])
+			script = func(i: int, p: PlayerInput) -> void:
+				p.move_x = 1.0 if (i < 3 or (i >= 8 and i < 60)) else 0.0
+		"glide":
+			stats = Sparks.move_stats({"walk": 30}, "medium", [{"id": "featherfall", "rank": 2}])
+			for x in range(mid - 44, mid - 36):
+				for y in range(ground, ground + 12):
+					world.set_fg(x, y, TileDefs.id("stone"), true)
+			start = Vector2(mid - 37.5, ground + 12)
+			script = func(i: int, p: PlayerInput) -> void:
+				p.move_x = 1.0 if i < 30 else 0.0
+				p.jump = i >= 10
+				p.jump_pressed = i == 10
 		_:
 			print("unknown scenario ", scenario)
 			quit(1)
