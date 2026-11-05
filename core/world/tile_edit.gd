@@ -47,7 +47,7 @@ static func dig_time(tile_id: int, tool_power := 1.0) -> float:
 
 ## In reach, inside the world, the cell's foreground is air, it touches something to build
 ## on (a non-air foreground tile in one of the 4 neighbours, or a background wall in the
-## cell), and, if the new tile is solid, no body in `bodies` (Array of Body) overlaps the
+## cell; a stair tread also holds on to a diagonal tread), and, if the new tile is solid, no body in `bodies` (Array of Body) overlaps the
 ## cell. Non-solid tiles (platforms, ladders, torches) may go where bodies stand.
 static func can_place(world: TileWorld, body: Body, x: int, y: int, tile_id: int, bodies: Array, reach := REACH) -> bool:
 	TileDefs.ensure()
@@ -61,6 +61,12 @@ static func can_place(world: TileWorld, body: Body, x: int, y: int, tile_id: int
 	if not anchored:
 		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			if world.get_fg(x + d.x, y + d.y) != TileDefs.AIR:
+				anchored = true
+				break
+	if not anchored and TileDefs.stairs[tile_id] != 0:
+		# a staircase climbs diagonally: the tread below-before or above-after holds it
+		for d: Vector2i in [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
+			if TileDefs.stairs[world.get_fg(x + d.x, y + d.y)] != 0:
 				anchored = true
 				break
 	if not anchored:

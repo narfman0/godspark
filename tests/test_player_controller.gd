@@ -12,6 +12,7 @@ func run(t: TestLog) -> void:
 	_step_up(t)
 	_platforms(t)
 	_ladder(t)
+	_stairs(t)
 	_swim(t)
 	_climb_and_fly(t)
 	_determinism(t)
@@ -280,6 +281,75 @@ func _s_drop(t: TestLog) -> void:
 	TileCollision.update_contacts(world, body)
 	sim(world, body, ms, 60, func(_i): return inp(0, false, false, false, true))
 	t.eq(body.pos.y, 8.0, "a Small body S-drops the same way")
+
+## A staircase rising right from the ground (treads (20+i, 8+i), tops 9..16) to a walkway at
+## row 15 (x 28..40), crossed by a walkway at row 11 (x 12..35; the tread wins the crossing).
+static func stairs_world() -> TileWorld:
+	var w := Col.flat(64, 64)
+	var sr := TileDefs.id("stairs_r")
+	Col.fill(w, 28, 15, 41, 16, TileDefs.id("platform"))
+	Col.fill(w, 12, 11, 36, 12, TileDefs.id("platform"))
+	for i in 8:
+		w.set_fg(20 + i, 8 + i, sr, true)
+	return w
+
+static func run_on(world: TileWorld, x: float, y: float, n: int, script: Callable) -> Body:
+	var stats := MoveStats.player()
+	var body := stats.make_body()
+	body.pos = Vector2(x, y)
+	TileCollision.update_contacts(world, body)
+	sim(world, body, stats, n, script)
+	return body
+
+func _stairs(t: TestLog) -> void:
+	var w := stairs_world()
+	var b := run_on(w, 12.0, 8.0, 90, func(_i): return inp(1.0))
+	t.check(b.pos.y == 8.0 and b.pos.x > 28.0, "running past the foot of a staircase without W stays on the ground (%s)" % b.pos)
+	b = run_on(w, 12.0, 8.0, 90, func(_i): return inp(1.0, false, false, true))
+	t.check(b.pos.y == 16.0 and b.pos.x > 28.0, "holding W takes the staircase up to the walkway at the top (%s)" % b.pos)
+	var stats := MoveStats.player()
+	b = stats.make_body()
+	b.pos = Vector2(18.0, 8.0)
+	var up := sim(w, b, stats, 50, func(i): return inp(1.0, false, false, i < 12))
+	var ys: Array = []
+	for p in up:
+		ys.append(p.y)
+	t.check(16.0 in ys and b.pos.y == 16.0, "W only at the foot: once on the stairs it keeps climbing (%s)" % b.pos)
+	var tops := 0
+	for i in range(1, up.size()):
+		if up[i].y - up[i - 1].y > 1.01:
+			tops += 1
+	t.eq(tops, 0, "one tread at a time")
+	var speed := (up[30].x - up[20].x) / (10 * DT)
+	t.check(absf(speed - stats.run_speed) < 1e-3, "full run speed up the stairs (%.2f t/s)" % speed)
+	b = run_on(w, 16.0, 12.0, 90, func(_i): return inp(1.0))
+	t.check(b.pos.y == 12.0 and b.pos.x > 33.0, "running along a walkway across a staircase stays on the walkway (%s)" % b.pos)
+	b = run_on(w, 16.0, 12.0, 90, func(_i): return inp(1.0, false, false, true))
+	t.check(b.pos.y == 16.0, "holding W where the walkway crosses the stairs takes them up (%s)" % b.pos)
+	b = run_on(w, 36.0, 16.0, 120, func(_i): return inp(-1.0))
+	t.check(b.pos.y == 8.0 and b.pos.x < 18.0, "running off the top walkway down the stairs stays on them through the crossing to the ground (%s)" % b.pos)
+	# S from the lower walkway onto the stairs below it, then down them
+	b = run_on(w, 20.5, 12.0, 40, func(_i): return inp(0, false, false, false, true))
+	t.check(b.pos.y == 10.0 and b.on_stairs, "S on the walkway drops onto the tread below and is on the staircase (%s)" % b.pos)
+	sim(w, b, stats, 60, func(_i): return inp(-1.0))
+	t.check(b.pos.y == 8.0 and b.pos.x < 18.0, "and runs down it (%s)" % b.pos)
+	# S on the stairs: moving, it walks them; standing, it drops
+	b = run_on(w, 18.0, 8.0, 24, func(_i): return inp(1.0, false, false, true))
+	var y0: float = b.pos.y
+	sim(w, b, stats, 6, func(_i): return inp(-1.0, false, false, false, true))
+	t.check(b.on_stairs and b.pos.y < y0 and b.pos.y >= y0 - 2.0, "S while running down the stairs does not drop off them (%.1f -> %.1f)" % [y0, b.pos.y])
+	sim(w, b, stats, 60, func(_i): return inp(0, false, false, false, true))
+	t.check(not b.on_stairs and b.pos.y == 8.0, "S standing on the stairs drops off them (%.1f)" % b.pos.y)
+	# a left-rising staircase mirrors it
+	var m := Col.flat(64, 64)
+	for i in 8:
+		m.set_fg(40 - i, 8 + i, TileDefs.id("stairs_l"), true)
+	Col.fill(m, 20, 15, 33, 16, TileDefs.id("platform"))
+	b = run_on(m, 50.0, 8.0, 90, func(_i): return inp(-1.0, false, false, true))
+	t.check(b.pos.y == 16.0 and b.on_floor, "a left-rising staircase climbs to its top tread (%s)" % b.pos)
+	# stairs are passable from below and from the side
+	b = run_on(w, 24.0, 8.0, 60, func(i): return inp(0, true, i == 0))
+	t.check(b.on_floor and b.pos.y > 9.0, "jumps up through the stairs from below and lands on them (%s)" % b.pos)
 
 func _ladder(t: TestLog) -> void:
 	var world := Col.flat(64)

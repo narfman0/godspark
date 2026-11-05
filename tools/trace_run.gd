@@ -3,12 +3,14 @@
 ## without a renderer.
 ##   godot --headless -s res://tools/trace_run.gd -- scenario=runjump
 ## Scenarios: jump, tap, runjump, pit, platforms, stairs, ladder, swim, spider, sdrop (S
-## drops through walkways), ladderwalk (down a ladder onto a walkway, then S); with sparks
+## drops through walkways), ladderwalk (down a ladder onto a walkway, then S), stairsup
+## (W at a staircase's foot, up through a crossing walkway, back down), stairpass (along a
+## walkway across a staircase, then S onto it and down); with sparks
 ## (data/sparks.json): airjump (Skyhook III), dash (Dash II, a double tap), glide
 ## (Featherfall III off a ledge).
 ## hash=1 prints only a SHA-256 of every step's body state (to prove a change left a
 ## scenario bit-identical).
-## Legend: # solid  = platform  H ladder  ~ water  o feet each 3rd step  S start  E end
+## Legend: # solid  = platform  / \\ stairs  H ladder  ~ water  o feet each 3rd step  S start  E end
 extends SceneTree
 
 func _initialize() -> void:
@@ -88,6 +90,30 @@ func _initialize() -> void:
 			script = func(i: int, p: PlayerInput) -> void:
 				p.down = i < 100 or (i >= 160)
 				p.move_x = 1.0 if i >= 110 and i < 140 else 0.0
+		"stairsup", "stairpass":
+			# A staircase rising right from the ground to a walkway, crossed half way up by a
+			# lower walkway (the tread wins the crossing cell).
+			for x in range(mid - 46, mid - 30):
+				world.set_fg(x, ground + 8, TileDefs.id("platform"), true)
+			for x in range(mid - 66, mid - 40):
+				world.set_fg(x, ground + 4, TileDefs.id("platform"), true)
+			for i in 9:
+				world.set_fg(mid - 55 + i, ground + i, TileDefs.id("stairs_r"), true)
+			if scenario == "stairsup":
+				# W at the foot only; it climbs to the top, turns and runs back down to the ground.
+				start = Vector2(mid - 60.5, ground)
+				script = func(i: int, p: PlayerInput) -> void:
+					p.move_x = 1.0 if i < 75 else (-1.0 if i >= 95 and i < 200 else 0.0)
+					p.up = i >= 20 and i < 30
+			else:
+				# Along the lower walkway past the staircase (no W: stays on it), back, then S
+				# (standing) drops onto the stairs below and it runs down them.
+				start = Vector2(mid - 64.5, ground + 5)
+				script = func(i: int, p: PlayerInput) -> void:
+					p.move_x = 1.0 if i < 70 else (-1.0 if i >= 80 and i < 106 else 0.0)
+					p.down = i >= 120 and i < 140
+					if i >= 160:
+						p.move_x = -1.0
 		"swim":
 			for x in range(mid + 10, mid + 16):
 				for y in range(ground - 5, ground):
@@ -188,6 +214,10 @@ func _draw(world: TileWorld, path: Array[Vector2]) -> void:
 			var id := world.get_fg(x, y)
 			if TileDefs.solid[id]:
 				line += "#"
+			elif TileDefs.stairs[id] == 1:
+				line += "/"
+			elif TileDefs.stairs[id] == 2:
+				line += "\\"
 			elif TileDefs.platform[id]:
 				line += "="
 			elif TileDefs.ladder[id]:

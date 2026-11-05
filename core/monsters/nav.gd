@@ -10,7 +10,10 @@
 ##   JUMP      an arc recorded by running PlayerController itself on an empty world with
 ##             scripted inputs (hold time, when to steer), for this exact MoveStats; valid
 ##             where every cell its box swept is free and the landing node stands
-##   PLATFORM  down + jump through one-way tiles
+##   PLATFORM  down + jump through one-way tiles (onto stairs: one tile is enough)
+##   STAIRS    up a staircase: to the next column one row up where a tread sits at the
+##             feet's row (the follower holds W, as a player must to take stairs); down a
+##             staircase is a one-row DROP the controller steps
 ##   LADDER    up / down a ladder in the box's centre column (anyone)
 ##   CLING     up / down a wall and over its top (bodies with a climb speed)
 ##   FLY       any of the 8 neighbours through open space (bodies with a fly speed)
@@ -28,7 +31,8 @@
 class_name MonsterNav
 extends RefCounted
 
-enum Edge { WALK, DROP, JUMP, PLATFORM, LADDER, CLING, FLY, SWIM }
+enum Edge { WALK, DROP, JUMP, PLATFORM, LADDER, CLING, FLY, SWIM, STAIRS }
+const EDGE_NAMES := ["walk", "drop", "jump", "platform", "ladder", "cling", "fly", "swim", "stairs"]
 
 const WINDOW := 64
 ## Cell flags.
@@ -38,6 +42,7 @@ const LADDER := 4
 const WET := 8          # liquid at least half full
 const SOFT := 16        # diggable by the Tunnelling affix (hardness <= SOFT_HARDNESS)
 const ROCK := 32        # diggable by a burrower (hardness <= ROCK_HARDNESS)
+const STAIR := 64       # a stair tread (also ONEWAY)
 const KNOWN := 128
 const SOFT_HARDNESS := 0.6
 const ROCK_HARDNESS := 2.0
@@ -107,6 +112,8 @@ static func cell_flags(world: TileWorld, x: int, y: int) -> int:
 			f |= ROCK
 	elif TileDefs.platform[id] != 0:
 		f |= ONEWAY
+		if TileDefs.stairs[id] != 0:
+			f |= STAIR
 	elif TileDefs.ladder[id] != 0:
 		f |= LADDER
 		if TileDefs.ladder[world.get_fg(x, y + 1)] == 0:

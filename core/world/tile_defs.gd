@@ -11,6 +11,8 @@ static var names: PackedStringArray = []
 static var solid: PackedByteArray = []       ## blocks movement from every side
 static var platform: PackedByteArray = []    ## one-way: blocks movement only from above (Track C)
 static var ladder: PackedByteArray = []      ## climbable, not solid; top rung acts as a platform (Track C)
+static var rope: PackedByteArray = []        ## a hanging rope: climbable like a ladder (also ladder); one per column run (core/world/rope.gd)
+static var stairs: PackedByteArray = []      ## one-way stair treads: 1 rises to the right, 2 to the left (also platform)
 static var opaque: PackedByteArray = []      ## blocks light
 static var emit: PackedByteArray = []        ## light given off, 0-15
 static var hardness: PackedFloat32Array = [] ## seconds to dig bare-handed; negative = unbreakable
@@ -34,6 +36,8 @@ static func ensure() -> void:
 	solid.resize(n)
 	platform.resize(n)
 	ladder.resize(n)
+	stairs.resize(n)
+	rope.resize(n)
 	opaque.resize(n)
 	emit.resize(n)
 	hardness.resize(n)
@@ -44,6 +48,8 @@ static func ensure() -> void:
 		solid[i] = 1 if row.get("solid", false) else 0
 		platform[i] = 1 if row.get("platform", false) else 0
 		ladder[i] = 1 if row.get("ladder", false) else 0
+		stairs[i] = int(row.get("stairs", 0))
+		rope[i] = 1 if row.get("rope", false) else 0
 		opaque[i] = 1 if row.get("opaque", false) else 0
 		emit[i] = int(row.get("emit", 0))
 		hardness[i] = float(row.get("hardness", 0.0))

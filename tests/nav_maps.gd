@@ -7,7 +7,7 @@ extends RefCounted
 const OX := 8
 const OY := 8
 
-## Build a world from ASCII rows (top first). '#' stone, 'd' dirt, '=' platform, 'H' ladder,
+## Build a world from ASCII rows (top first). '#' stone, 'd' dirt, '=' platform, '/' and '\\' stairs rising right and left, 'H' ladder,
 ## '~' water, 'S' start feet cell, 'G' goal feet cell, anything else air. Everything below the
 ## art is stone. Returns {world, start: Vector2 (feet), goal: Vector2 (feet)}.
 static func build(rows: Array, w := 96, h := 96) -> Dictionary:
@@ -41,6 +41,8 @@ static func build(rows: Array, w := 96, h := 96) -> Dictionary:
 				"d": world.set_fg(x, y, dirt, true)
 				"=": world.set_fg(x, y, plat, true)
 				"H": world.set_fg(x, y, ladder, true)
+				"/": world.set_fg(x, y, TileDefs.id("stairs_r"), true)
+				"\\": world.set_fg(x, y, TileDefs.id("stairs_l"), true)
 				"~": world.set_liquid(x, y, 15, true)
 				"S": start = Vector2(x + 0.5, y)
 				"G": goal = Vector2(x + 0.5, y)

@@ -185,6 +185,7 @@ func _expand(k: int, L: int, y: int) -> void:
 			_ground(k, g0, L, y, dir, st)
 	if st:
 		_platform_drop(k, g0, L, y)
+		_stairs_up(k, g0, L, y)
 		if _jump_worthy(L, y):
 			_jumps(k, g0, L, y)
 	# ladders: in the box's centre column, or the top rung under the feet
@@ -260,9 +261,28 @@ func _platform_drop(k: int, g0: float, L: int, y: int) -> void:
 	for d in range(1, MonsterNav.MAX_FALL + 1):
 		if _clear_at(L, y - d) != 1:
 			return
-		if d >= 2 and _stand_at(L, y - d):
+		if (d >= 2 or _tread_under(L, y - d)) and _stand_at(L, y - d):
 			_relax(k, L, y - d, g0 + 0.15 + sqrt(2.0 * d / maxf(prof.stats.gravity, 1.0)), E.PLATFORM, 0)
 			return
+
+## Up a staircase: a tread at the feet's row in the next node's columns lifts the body one
+## row (PlayerController._stairs), if both columns have the headroom.
+func _stairs_up(k: int, g0: float, L: int, y: int) -> void:
+	for dir: int in [1, -1]:
+		var nl := L + dir
+		var any := false
+		for c in range(nl, nl + prof.cw):
+			if _cf(c, y) & MonsterNav.STAIR:
+				any = true
+				break
+		if any and _clear_at(nl, y + 1) == 1 and _clear_at(L, y + 1) == 1 and _stand_at(nl, y + 1):
+			_relax(k, nl, y + 1, g0 + 1.2 / prof.run, E.STAIRS, 0)
+
+func _tread_under(L: int, y: int) -> bool:
+	for c in range(L, L + prof.cw):
+		if _cf(c, y - 1) & MonsterNav.STAIR:
+			return true
+	return false
 
 ## Jumps are tried where walking does not simply continue (a ledge, a wall, a gap) or where
 ## something to stand on hangs within jumping height.

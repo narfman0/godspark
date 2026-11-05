@@ -7,6 +7,7 @@ extends RefCounted
 func run(t: TestLog) -> void:
 	_jumps_recorded(t)
 	_stairs(t)
+	_stair_tiles(t)
 	_gap(t)
 	_pit(t)
 	_platforms(t)
@@ -46,6 +47,48 @@ func _jumps_recorded(t: TestLog) -> void:
 	for j: Dictionary in slow.jumps:
 		far2 = maxi(far2, absi(int(j["dl"])))
 	t.check(far2 < far, "a slower walker jumps shorter (%d < %d)" % [far2, far])
+
+## Stair tiles (one-way treads): up and down a staircase to a walkway, and S onto stairs from
+## a walkway boxed in so the drop is the only way down.
+static func _stair_world() -> TileWorld:
+	var w := TileWorld.new(96, 96, 7)
+	var stone := TileDefs.id("stone")
+	for x in 96:
+		for y in 8:
+			w.set_fg(x, y, stone, true)
+	for y in range(8, 60):
+		w.set_fg(0, y, stone, true)
+		w.set_fg(95, y, stone, true)
+	for i in 12:
+		w.set_fg(20 + i, 8 + i, TileDefs.id("stairs_r"), true)
+	for x in range(32, 46):
+		w.set_fg(x, 19, TileDefs.id("platform"), true)
+	return w
+
+func _stair_tiles(t: TestLog) -> void:
+	var med := NavMaps.stats("medium")
+	var w := _stair_world()
+	var up := {"world": w, "start": Vector2(10.5, 8), "goal": Vector2(41.5, 20)}
+	_ok(t, "a medium walker takes a staircase up to a walkway", NavMaps.run(up, med), [MonsterNav.Edge.STAIRS])
+	var down := {"world": w, "start": Vector2(41.5, 20), "goal": Vector2(10.5, 8)}
+	_ok(t, "and comes back down it", NavMaps.run(down, med))
+	var small := NavMaps.stats("small")
+	_ok(t, "a small walker takes it too", NavMaps.run(up, small), [MonsterNav.Edge.STAIRS])
+	# a walkway over the lower stairs, walled in: S (a platform drop) is the only way down
+	var b := TileWorld.new(96, 96, 7)
+	var stone := TileDefs.id("stone")
+	for x in 96:
+		for y in 8:
+			b.set_fg(x, y, stone, true)
+	for i in 6:
+		b.set_fg(20 + i, 8 + i, TileDefs.id("stairs_r"), true)
+	for x in range(22, 28):
+		b.set_fg(x, 14, TileDefs.id("platform"), true)
+	for y in range(14, 40):
+		b.set_fg(21, y, stone, true)
+		b.set_fg(28, y, stone, true)
+	var box := {"world": b, "start": Vector2(25.0, 15), "goal": Vector2(10.5, 8)}
+	_ok(t, "from a boxed-in walkway it drops onto the stairs below and walks down", NavMaps.run(box, med), [MonsterNav.Edge.PLATFORM])
 
 func _stairs(t: TestLog) -> void:
 	var m := NavMaps.build([

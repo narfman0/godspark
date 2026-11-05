@@ -82,7 +82,7 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 	else:
 		_since += dt
 	if _since > STUCK_S and jump_t < 0 and _dig_t <= 0.0:
-		return _fail("stuck going %s to %d,%d" % [["walk", "drop", "jump", "platform", "ladder", "cling", "fly", "swim"][edge], tgt.x, tgt.y])
+		return _fail("stuck going %s to %d,%d" % [MonsterNav.EDGE_NAMES[edge], tgt.x, tgt.y])
 	# diggers clear the next node first
 	if prof.dig > 0.0 and edge in [E.WALK, E.DROP]:
 		var cell := _solid_cell(world, prof, tgt)
@@ -108,10 +108,16 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 			inp.move_x = _steer(aim - b.pos.x, 2.5)
 			if b.climbing:                  # stepping off a ladder sideways
 				inp.move_x = signf(tp.x - b.pos.x)
+		E.STAIRS:
+			inp.move_x = _steer(tp.x - b.pos.x, 4.0)
+			inp.up = not b.on_stairs        # W takes a staircase; once on it, it keeps climbing
 		E.DROP:
 			inp.move_x = _steer(tp.x - b.pos.x, 3.0 if b.on_floor else 4.0)
 			if b.clinging:                  # let go of the wall
 				inp.move_x = -float(b.wall_dir)
+			elif b.on_floor and tgt.y < floori(b.pos.y + 0.05) and absf(tp.x - b.pos.x) < 0.6 \
+					and TileCollision.on_platform_only(world, b):
+				inp.down = true             # on a walkway over the stairs going on down: S
 		E.PLATFORM:
 			if b.on_floor and not _dropped:
 				inp.down = true
@@ -195,7 +201,7 @@ func _arrived(prof: NavProfile, b: Body, tgt: Vector2i, edge: int) -> bool:
 			return past and dy <= 0.6 and (b.climbing or b.on_floor) and dx <= 0.75
 		E.CLING:
 			return dy <= 0.35 and dx <= 0.6 and (b.clinging or b.on_floor)
-		E.WALK:
+		E.WALK, E.STAIRS:
 			# keep running: arrived once its box is in the node's columns, on the node's row
 			return MonsterNav.node_of(prof, b.pos) == tgt and (b.on_floor or b.climbing or b.swimming) \
 				or (dx <= 0.3 and dy <= 0.3)
