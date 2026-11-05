@@ -66,6 +66,7 @@ func steps() -> void:
 	await fight()
 	await downed()
 	await rests()
+	await slice()
 
 func place_tile(dx: int, tile: String) -> void:
 	await host(func(h: WorldHost) -> void:
@@ -143,11 +144,137 @@ func downed() -> void:
 		t += 0.1
 	await wait(4.5)
 	await shot("08_downed")
+	# getting up (a heal, as an ally's hand or a potion does): the death pose must let go
+	rules.debug(RulesCodec.Debug.HEAL, 5)
+	await wait(1.2)
+	await shot("08b_got_up")
+	rules.debug(RulesCodec.Debug.HURT, 999)
+	await wait(1.0)
 	rules.debug(RulesCodec.Debug.DIE, 0)
 	await wait(0.8)
 	await shot("09_dead")
 	rules.respawn()
 	await wait(1.5)
+
+## The M2 slice on the generated world, as a player would meet it (integration pass): a ranked
+## pack through the spawn director's path (models, nameplates), killed; a corpse that does not
+## replay its death; the loot picked up; a level and a choice answered; a found sword
+## equipped; down a cave with the carried torch; a fight in the dark.
+func slice() -> void:
+	var rules := cw.system(HostSystem.RULES) as RulesClient
+	var items := cw.system(HostSystem.ITEMS) as ItemsClient
+	var cc := cw.system(HostSystem.COMBAT) as CombatClient
+	pres.rig.zoom = 2.2
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		me.combatant.stats.max_hp = 300
+		me.combatant.stats.current_hp = 300
+		var ms: Variant = h.system(HostSystem.MONSTERS)
+		if ms != null:
+			ms.set("director_enabled", 0)
+			ms.director.spawn_pack([{"slug": "goblin-warrior", "rank": "champion", "leader": true},
+				{"slug": "goblin-warrior", "rank": "standard", "leader": false},
+				{"slug": "goblin-warrior", "rank": "minion", "leader": false},
+				{"slug": "goblin-warrior", "rank": "minion", "leader": false}], h.find_spawn(int(me.body.pos.x) + 14)))
+	await wait(1.6)
+	await shot("20_pack_arrives")
+	var t := 0.0
+	var corpse := false
+	var dead_at := -1.0
+	while t < 25.0:
+		var target: ClientWorld.RemoteEntity = null
+		for r: ClientWorld.RemoteEntity in cw.remotes.values():
+			if r.kind != HostEntity.Kind.PLAYER and r.hp > 0 and (target == null or r.pos.distance_to(cw.body.pos) < target.pos.distance_to(cw.body.pos)):
+				target = r
+		if target == null:
+			break
+		cw.body.facing = 1 if target.pos.x > cw.body.pos.x else -1
+		if absf(target.pos.x - cw.body.pos.x) > 2.5:
+			await host(func(h: WorldHost) -> void:
+				var me := me_host(h)
+				h.teleport(me, Vector2(target.pos.x - 2.0 * cw.body.facing, me.body.pos.y)))
+		cc.attack(target.pos + Vector2(0, 1))
+		if not corpse:
+			for r: ClientWorld.RemoteEntity in cw.remotes.values():
+				if r.kind != HostEntity.Kind.PLAYER and r.max_hp > 0 and r.hp <= 0 and dead_at < 0.0:
+					dead_at = t
+			if dead_at >= 0.0 and t - dead_at >= 1.0:
+				await shot("21_corpse_holds")
+				corpse = true
+		await wait(0.1)
+		t += 0.1
+	await wait(2.0)
+	await shot("22_loot_on_the_ground")
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		var isys := h.system(HostSystem.ITEMS) as ItemsSystem
+		for d: Drops.Drop in isys.drops.list.values():
+			if d.pos.distance_to(me.body.pos) < 30.0:
+				h.teleport(me, d.pos + Vector2(0.5, 0))
+				break)
+	await wait(1.0)
+	await shot("23_picked_up")
+	# a level with a choice, answered through the screen's own call
+	rules.debug(RulesCodec.Debug.LEVEL, rules.level() + 4)
+	await wait(1.0)
+	ui.open("choices")
+	await wait(0.6)
+	await shot("24_choice")
+	for k: String in rules.choices:
+		var ch: Dictionary = rules.choices[k]
+		if String(ch.get("kind", "")) == "knack":
+			rules.pick_knack(String(ch["options"][0]["id"]))
+	await wait(0.6)
+	ui.close("choices")
+	# a found weapon equipped
+	await give([Items.make_magic("weapon-1-2-or-3", 0, "longsword")])
+	await wait(0.4)
+	for i in Inventory.SIZE:
+		if String(items.item(i).get("magic", "")) == "weapon-1-2-or-3":
+			items.equip(i, "main_hand")
+	await wait(0.6)
+	ui.open("inventory")
+	await wait(0.4)
+	await shot("25_sword_equipped")
+	ui.close("inventory")
+	# down into the caves: the carried torch, then something in the dark
+	var cave := Vector2.INF
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		var bands: Variant = h.world.meta.get("bands", {})
+		var cb: Array = bands.get("caves", [0, 0]) if bands is Dictionary else [0, 0]
+		var x0 := int(me.body.pos.x)
+		for dx in range(0, 300):
+			for sx in [1, -1]:
+				var x: int = x0 + dx * sx
+				for y in range(int(cb[1]), int(cb[0]), -1):
+					if x > 2 and x < h.world.width - 3 and not h.world.is_solid(x, y) and not h.world.is_solid(x, y + 1) \
+							and not h.world.is_solid(x, y + 2) and not h.world.is_solid(x + 1, y) and h.world.is_solid(x, y - 1):
+						cave = Vector2(x + 0.5, y)
+						break
+				if cave != Vector2.INF:
+					break
+			if cave != Vector2.INF:
+				break
+		if cave != Vector2.INF:
+			h.teleport(me, cave))
+	await wait(2.5)
+	await shot("26_cave_torch")
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		var ms: Variant = h.system(HostSystem.MONSTERS)
+		if ms != null:
+			var at: Vector2 = ms.director._stand_near(h, me.body.pos + Vector2(5, 0), "wolf")
+			ms.call("spawn", "wolf", at if at != Vector2.INF else me.body.pos + Vector2(3, 0), {"rank": "elite"}))
+	await wait(2.0)
+	t = 0.0
+	while t < 2.0:
+		for r: ClientWorld.RemoteEntity in cw.remotes.values():
+			if r.kind != HostEntity.Kind.PLAYER and r.hp > 0:
+				cc.attack(r.pos + Vector2(0, 1))
+		await wait(0.1)
+		t += 0.1
+	await shot("27_dark_fight")
 
 ## A short rest at a placed campfire (hold E), then a bed and the night passing.
 func rests() -> void:

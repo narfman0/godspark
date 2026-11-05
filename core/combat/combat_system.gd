@@ -166,6 +166,8 @@ func tick(_h: WorldHost) -> void:
 		_step_brainless(a)
 		if a.e.combatant == null:
 			continue
+		if a.e.is_player() and cond_mask(a.e.combatant) != a.cond_mask:
+			_touched[a.e.id] = true      # conditions changed outside combat (rules: down, up): tell the owner
 		_fall(a)
 		_round(a)
 		_prone(a)

@@ -16,6 +16,8 @@ const OPEN := 3
 const TALL := 5
 ## Widening passes (each opens slots one cell further).
 const WIDEN := 3
+## Columns kept between ladders.
+const GAP := 4
 
 static func run(c: GenContext, _rng: RandomNumberGenerator) -> void:
 	for k in WIDEN:
@@ -38,14 +40,34 @@ static func run(c: GenContext, _rng: RandomNumberGenerator) -> void:
 			var y1 := y
 			while y1 < lim and fg[y1 * w + x] == air:
 				y1 += 1
-			var wall_l := fg[y * w + x - 1] != air and fg[(y + 1) * w + x - 1] != air and fg[y * w + x + 1] == air
-			var wall_r := fg[y * w + x + 1] != air and fg[(y + 1) * w + x + 1] != air and fg[y * w + x - 1] == air
-			if y1 - y >= TALL and (wall_l or wall_r) and fg[y * w + x - 1] != ladder and fg[y * w + x - 2] != ladder:
+			# only up a real wall: rock beside the column for most of the run (a stepped cavern
+			# floor is not a shaft), and not within GAP columns of another ladder
+			if y1 - y >= TALL and _walled(fg, w, x, y, y1, air) and not _ladder_near(fg, w, x, y, ladder):
 				# a tall run against a wall on its left: hang a ladder (roots) up the wall
 				for yy in range(y, y1):
 					fg[yy * w + x] = ladder
 			y = y1
 	return
+
+## Rock on one side of column x for at least 80% of rows y0..y1, air on the other at y0.
+static func _walled(fg: PackedByteArray, w: int, x: int, y0: int, y1: int, air: int) -> bool:
+	for side in [-1, 1]:
+		if fg[y0 * w + x - side] != air:
+			continue
+		var n := 0
+		for y in range(y0, y1):
+			if fg[y * w + x + side] != air:
+				n += 1
+		if n * 5 >= (y1 - y0) * 4:
+			return true
+	return false
+
+static func _ladder_near(fg: PackedByteArray, w: int, x: int, y: int, ladder: int) -> bool:
+	for dx in range(-GAP, GAP + 1):
+		var xx := x + dx
+		if xx >= 0 and xx < w and (fg[y * w + xx] == ladder or fg[(y + 1) * w + xx] == ladder):
+			return true
+	return false
 
 ## OPEN air cells from the ledge's other side outward, on its row and the rows above it a
 ## body passes through.
