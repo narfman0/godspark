@@ -35,7 +35,7 @@ func world_ready(world: TileWorld, id: int) -> void:
 	if rig == null:
 		rig = CameraRig.new()
 		add_child(rig)
-	rig.target = cw.body.center()
+	rig.target = cw.view_pos() + Vector2(0, cw.body.size.y * 0.5)
 	rig.snap()
 
 func _clear() -> void:
@@ -79,7 +79,7 @@ func frame(delta: float) -> void:
 	super.frame(delta)
 	if view == null or cw == null:
 		return
-	rig.target = cw.body.center()
+	rig.target = cw.view_pos() + Vector2(0, cw.body.size.y * 0.5)
 	view.view_half = rig.visible_half_extent()
 	view.set_focus(rig.pos)
 	env.background_color = WorldView.sky_color(light.sun)
