@@ -256,3 +256,112 @@ func _standing(t: TestLog) -> void:
 	life2._host = weakref(host)
 	life2.load_player(p, JSON.parse_string(JSON.stringify(saved)))
 	t.eq(life2.standing(p.id, f), v, "standing survives a save and load (%d)" % v)
+
+# --- 3. settlements ------------------------------------------------------------------------------
+
+static func _roles(life: LifeSystem, sid: int) -> Dictionary:
+	var out := {}
+	for e: HostEntity in life.actors_at(sid):
+		var r := String(e.get_meta("sim")["role"])
+		out[r] = int(out.get(r, 0)) + 1
+	return out
+
+static func _guard_slugs(life: LifeSystem, sid: int) -> Dictionary:
+	var out := {}
+	for e: HostEntity in life.actors_at(sid):
+		if e.get_meta("sim")["role"] == "guard":
+			var sl := String(e.look["slug"])
+			out[sl] = int(out.get(sl, 0)) + 1
+	return out
+
+func _town(t: TestLog) -> void:
+	var r := rig()
+	var host: WorldHost = r["host"]
+	var life: LifeSystem = r["life"]
+	var combat: CombatSystem = r["combat"]
+	var sid := town_of(host)
+	var s: SimSettlement = host.sim.settlements[sid]
+	var sp := LifeTown.site_pos(host, sid)
+	var p := put(host, "visitor", sp + Vector2(0, 3))
+	t.check(not s.watched, "not watched before anyone comes")
+	ticks(host, 70)
+	t.check(life.town.active.has(sid) and s.watched, "the settlement materializes and is watched")
+	var cap := int(Life.people_cfg()["caps"]["guards"])
+	var want_g: Dictionary = s.garrison() if s.soldiers <= cap else SimData.allocate(SimData.culture(s.culture).guards, cap)
+	t.eq(_guard_slugs(life, sid), want_g, "guards are the garrison (%d soldiers)" % s.soldiers)
+	var n_folk := mini(int(Life.people_cfg()["townsfolk"][s.tier]), s.workers + s.dependants)
+	var roles := _roles(life, sid)
+	var folk := 0
+	for k: String in roles:
+		if k != "guard":
+			folk += int(roles[k])
+	t.eq(folk, n_folk, "a %s shows %d townsfolk" % [s.tier, n_folk])
+	t.check(roles.has("keeper"), "with a keeper (%s)" % [roles])
+	var any: HostEntity = life.actors_at(sid)[0]
+	t.check(any.get_meta("talk", false) and any.get_meta("friendly", false) and String(any.get_meta("sim")["kind"]) == "settlement",
+		"people carry sim, faction, talk and friendly meta")
+	t.check(String(any.look.get("people", "")) != "" or bool(SimData.culture(s.culture).monstrous), "and a people look (%s)" % any.look.get("people", ""))
+	# night: home, guards with torches
+	host.sleep(fposmod(23.0 - host.clock.hour_of_day(), 24.0))
+	ticks(host, 70)
+	var torch := false
+	for e: HostEntity in life.actors_at(sid):
+		if e.get_meta("sim")["role"] == "guard" and e.has_meta("torch"):
+			torch = true
+	t.check(torch, "guards carry torches at night")
+	var homes := true
+	for e: HostEntity in life.actors_at(sid):
+		if e.brain is LifeBrain and not (e.brain as LifeBrain).fighter:
+			homes = homes and (e.brain as LifeBrain).post == (e.brain as LifeBrain).safe
+	t.check(homes, "townsfolk head home at night")
+	# conservation: kill two guards and a townsperson
+	var soldiers0 := s.soldiers
+	var civ0 := s.workers + s.dependants
+	var killed_names := []
+	var gk := 0
+	var fk := 0
+	for e: HostEntity in life.actors_at(sid):
+		var role := String(e.get_meta("sim")["role"])
+		if role == "guard" and gk < 2:
+			combat.damage(p.id, e, 9999, "force")
+			gk += 1
+		elif role != "guard" and fk < 1:
+			killed_names.append(e.name)
+			combat.damage(p.id, e, 9999, "force")
+			fk += 1
+	ticks(host, 3)
+	t.eq(s.soldiers, soldiers0 - 2, "two guards dead: the garrison is two smaller")
+	t.eq(s.workers + s.dependants, civ0 - 1, "a townsperson dead: one fewer in the sim")
+	# the townsfolk saw it
+	var alarmed := 0
+	for e: HostEntity in life.actors_at(sid):
+		if e.brain is LifeBrain and not (e.brain as LifeBrain).fighter and (e.brain as LifeBrain).alarmed_until > 0.0:
+			alarmed += 1
+	t.check(alarmed > 0, "townsfolk nearby are alarmed (%d)" % alarmed)
+	ticks(host, 200)
+	# fold back and come again
+	p.body.pos = sp + Vector2(400, 0)
+	TileCollision.depenetrate(host.world, p.body)
+	ticks(host, 70)
+	t.check(not life.town.active.has(sid) and not s.watched, "folded back when the player left")
+	t.eq(life.actors_at(sid).size(), 0, "no one left standing there")
+	t.eq(s.soldiers, soldiers0 - 2, "fold-back keeps the garrison")
+	t.eq(s.workers + s.dependants, civ0 - 1, "and the people")
+	p.body.pos = sp + Vector2(0, 3)
+	TileCollision.depenetrate(host.world, p.body)
+	ticks(host, 70)
+	want_g = s.garrison() if s.soldiers <= cap else SimData.allocate(SimData.culture(s.culture).guards, cap)
+	t.eq(_guard_slugs(life, sid), want_g, "re-materialized guards match the sim (%d soldiers)" % s.soldiers)
+	n_folk = mini(int(Life.people_cfg()["townsfolk"][s.tier]), s.workers + s.dependants)
+	roles = _roles(life, sid)
+	folk = 0
+	for k: String in roles:
+		if k != "guard":
+			folk += int(roles[k])
+	t.eq(folk, n_folk, "and the townsfolk")
+	var back := false
+	for e: HostEntity in life.actors_at(sid):
+		if e.name in killed_names:
+			back = true
+	t.check(not back, "the dead do not come back (%s)" % [killed_names])
+	t.eq(host.sim.audit(), [], "the sim's books are sound")
