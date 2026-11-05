@@ -15,8 +15,6 @@ var pres: ViewPresenter
 var ui: GameUi
 var cw: ClientWorld
 var shots: Array[String] = []
-var only := ""
-var fight_usec := PackedInt32Array()
 
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -278,7 +276,10 @@ func fight() -> void:
 	var t := 0.0
 	var shot_tele := false
 	var shot_nums := false
-	fight_usec.clear()
+	ui.frame_usec.clear()
+	pres.fx.frame_usec.clear()
+	var frames0 := Engine.get_process_frames()
+	var t0 := Time.get_ticks_msec()
 	while t < 14.0:
 		var target: ClientWorld.RemoteEntity = null
 		for r: ClientWorld.RemoteEntity in cw.remotes.values():
@@ -296,5 +297,16 @@ func fight() -> void:
 			shot_nums = true
 		await wait(0.1)
 		t += 0.1
-		fight_usec.append_array(ui.frame_usec.slice(-6))
+	var fps := (Engine.get_process_frames() - frames0) * 1000.0 / maxf(1.0, Time.get_ticks_msec() - t0)
+	print("TOUR perf fight: %.0f fps; interface %s; fx %s" % [fps, _stats(ui.frame_usec), _stats(pres.fx.frame_usec)])
 	await shot("07_after_fight")
+
+static func _stats(a: PackedInt32Array) -> String:
+	if a.is_empty():
+		return "-"
+	var s := 0
+	var mx := 0
+	for u in a:
+		s += u
+		mx = maxi(mx, u)
+	return "avg %d us, max %d us over %d frames" % [s / a.size(), mx, a.size()]

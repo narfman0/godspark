@@ -131,7 +131,6 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 			tour.dir = String(opts["ui_tour"])
 			tour.main = self
 			tour.session = session
-			tour.only = String(opts.get("tour_only", ""))
 			add_child(tour)
 
 ## spawn=SLUG[:N]: N monsters a few tiles apart, left of the spawn point. Runs before the
