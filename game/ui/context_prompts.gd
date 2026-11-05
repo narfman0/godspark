@@ -143,8 +143,7 @@ func tick(dt: float) -> void:
 			_holding_rest = true
 		return
 	if Nearby.has(cw, Nearby.BED, 2):
-		var ready := bool(rules.sheet.get("rest_ready", true))
-		hud.prompt = {"text": "E: sleep" if ready else "E: lie down anyway", "sub": _refusal if _refusal_t > 0.0 else ("A long rest. The night passes when everyone sleeps." if ready else "You've had your long rest today.")}
+		hud.prompt = {"text": "E: sleep", "sub": _refusal if _refusal_t > 0.0 else "A long rest. The night passes when everyone sleeps."}
 		if e_down:
 			rules.rest_long()
 		return
