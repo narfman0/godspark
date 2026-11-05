@@ -1,7 +1,11 @@
 ## Fly a camera over a world to watch meshing and light update live.
 ##   WASD / arrows: move    wheel: zoom    left click: dig    right click: place stone
 ##   T: cycle time of day (noon, dusk, night)    L: drop / pick up the walker's torch
-## opts (set before adding to the tree, e.g. by tools/shot.gd): x, y, zoom, sun, gen=seed.
+## opts (set before adding to the tree, e.g. by tools/shot.gd): x, y, zoom, sun, gen=seed,
+##   cave (dig a 22-tile tunnel west of the cave pocket, for torch-light checks),
+##   nodress (no dressing objects), noshow (only the walker and the goblin).
+## Actors go through the looks table (view/actors/looks.gd): Synty / monster-forge models when
+## fetched, tinted primitives with nameplates otherwise. Dressing is scattered over the surface.
 extends Node3D
 
 const SUNS := [1.0, 0.35, 0.0]
@@ -17,6 +21,7 @@ var _sun_i := 0
 var _walker_x := 0.0
 var _walker_dir := 1
 var _walk := true
+var dressing: DressingView
 
 func _ready() -> void:
 	world = _make_world()
@@ -41,12 +46,51 @@ func _ready() -> void:
 	rig.snap()
 	_walker_x = world.width / 2 - 30.0
 	_walk = not opts.has("still")
-	view.add_actor(1, {"kind": "hero", "size": Vector2(1.5, 2.5), "color": Color(0.85, 0.3, 0.25)})
-	view.add_actor(2, {"kind": "goblin", "size": Vector2(1.2, 1.8), "color": Color(0.35, 0.7, 0.3)})
+	view.add_actor(1, {"player": "fighter", "name": "Ash", "kind": "hero", "color": Color(0.85, 0.3, 0.25)})
+	view.add_actor(2, {"slug": "goblin-warrior", "kind": "goblin", "color": Color(0.35, 0.7, 0.3)})
 	_place_walker()
 	var mid := world.width / 2
 	view.move_actor(2, Vector2(mid - 4.5, _ground_y(mid - 4) if opts.has("gen") else world.height / 2 - 14), 1)
+	if opts.has("cave"):
+		_dig_tunnel()
+	if not opts.has("noshow"):
+		_showcase()
+	if not opts.has("nodress"):
+		dressing = DressingView.new()
+		add_child(dressing)
+		dressing.set_objects(DressingView.scatter(world, 0, world.width - 1, 7))
 	_update_view()
+
+## A tunnel 4 high running west from the cave pocket, so the torch's light can be seen to
+## end (bright 8 tiles, dim 16, then dark).
+func _dig_tunnel() -> void:
+	var mid := world.width / 2
+	var floor_y := world.height / 2 - 14
+	for x in range(mid - 32, mid - 8):
+		for y in range(floor_y, floor_y + 4):
+			world.set_fg(x, y, TileDefs.AIR)
+
+## Look stand-ins: people (Synty), a monster-forge monster, a primitive fallback, on the
+## surface; in the cave, three people at increasing distance from the torch.
+func _showcase() -> void:
+	var mid := world.width / 2
+	var g := float(world.height / 2) if not opts.has("gen") else float(_ground_y(mid - 24))
+	var cave := float(world.height / 2 - 14)
+	var cast := [
+		[10, {"people": "human:guard", "name": "Guard"}, Vector2(mid - 22, g), -1, "run", Vector2(-9, 0)],
+		[11, {"people": "elf:drow:raider", "name": "Drow raider"}, Vector2(mid - 17, g + 1.5), 1, "jump", Vector2(3, 6)],
+		[12, {"slug": "wolf"}, Vector2(mid - 1, _ground_y(mid - 1)), -1, "idle"],
+		[13, {"slug": "aboleth", "name": "Aboleth"}, Vector2(mid + 4, _ground_y(mid + 4)), -1, "idle"],
+		[14, {"people": "dwarf", "name": "Dwarf"}, Vector2(mid - 4, cave), 1, "idle"],
+		[15, {"people": "human:bandit", "name": "Bandit"}, Vector2(mid - 13, cave), 1, "idle"],
+		[16, {"slug": "skeleton"}, Vector2(mid - 25, cave), 1, "idle"],
+	]
+	for c: Array in cast:
+		if c[2].y < 1 or world.is_solid(int(c[2].x), int(c[2].y)):
+			continue   # the tunnel was not dug: skip actors that would stand in rock
+		view.add_actor(c[0], c[1])
+		view.move_actor(c[0], c[2], c[3], c[4], c[5] if c.size() > 5 else Vector2.ZERO)
+		(view.get_actor(c[0]) as ActorBody).snap_facing()
 
 func _make_world() -> TileWorld:
 	if opts.has("gen"):
@@ -67,7 +111,8 @@ func _ground_y(x: int) -> int:
 func _place_walker() -> void:
 	var gy := _ground_y(int(_walker_x))
 	var p := Vector2(_walker_x, gy)
-	view.move_actor(1, p, _walker_dir)
+	view.move_actor(1, p, _walker_dir, "run" if _walk and not opts.has("still") else "idle",
+		Vector2(_walker_dir * 4.0, 0) if _walk and not opts.has("still") else Vector2.ZERO)
 	if not light.has_light(1):
 		light.add_light(1, p.x + 0.7 * _walker_dir, p.y + 1.8, LightEngine.TORCH)
 	else:
