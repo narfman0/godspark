@@ -8,7 +8,6 @@ root="$(git rev-parse --show-toplevel)"
 dest="$(dirname "$root")/godspark-wt/$name"
 git -C "$root" worktree add -q "$dest" -b "ws/$name"
 cd "$dest"
-git config -f .git/../.gitmodules --get submodule.vendor/godot-srd-addon.url >/dev/null
 git -c protocol.file.allow=always -c "url.$(dirname "$root")/godot-srd-addon.insteadOf=https://github.com/narfman0/godot-srd-addon.git" submodule update --init -q
 godot --headless --import >/dev/null 2>&1 || true
 echo "$dest"
