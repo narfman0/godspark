@@ -57,6 +57,6 @@
 	"push_tiles_per_5ft": 2.0,
 	"light": {"_comment": "every player carries a torch until the items track has light sources", "player_torch_bright": 8.0, "player_torch_dim": 16.0},
 	"darkvision_species": {"dwarf": 120, "elf": 60, "gnome": 60, "orc": 120, "tiefling": 60, "dragonborn": 60},
-	"aim": {"_comment": "a client's intent carries where it stood; the host keeps that offset from its own copy (lag), at most this far", "max_lag_offset": 2.5},
+	"aim": {"_comment": "players' bodies are led by vel x (one-way delay + half a tick), the delay read from the client clock in each intent", "clock_bias_s": 0.025, "max_lead_s": 0.25, "max_lead_tiles": 2.5},
 	"brain": {"sight_tiles": 32.0, "backoff_s": 0.6, "leash_tiles": 48.0}
 }

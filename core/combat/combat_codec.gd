@@ -3,10 +3,12 @@
 ## truncated payload, or trailing bytes.
 ##
 ## Client -> host
-##   ATTACK  f32 aim.x, f32 aim.y, f32 at.x, f32 at.y, u8 flags (bit0 throw)          17 B
-##   CAST    str slug, u8 slot level, f32 aim.x, f32 aim.y, f32 at.x, f32 at.y         18 + slug
+##   ATTACK  f32 aim.x, f32 aim.y, f32 clock, u8 flags (bit0 throw)                    13 B
+##   CAST    str slug, u8 slot level, f32 aim.x, f32 aim.y, f32 clock                   14 + slug
 ##   CANCEL  (empty)
-##   (`at` is where the client's own body stood when it asked: the host keeps the offset)
+##   (`clock` is the client's estimate of host time, ClientWorld.clock, or -1: the host
+##   reads the round trip from it and leads the attacker's body by its velocity times the
+##   one-way delay, so a running player swings from where it is, not where it was)
 ## Host -> client
 ##   EVENTS  u32 tick, u8 n, n x event                    (send_sys_near, one per chunk per tick)
 ##     event: u8 kind, u32 src, u32 dst, then by kind:
@@ -133,21 +135,21 @@ class R:
 
 # --- client -> host -----------------------------------------------------------------------
 
-static func attack(aim: Vector2, at: Vector2, throw := false) -> PackedByteArray:
-	return W.new().f32(aim.x).f32(aim.y).f32(at.x).f32(at.y).u8(1 if throw else 0).b
+static func attack(aim: Vector2, clock: float, throw := false) -> PackedByteArray:
+	return W.new().f32(aim.x).f32(aim.y).f32(clock).u8(1 if throw else 0).b
 
 static func read_attack(data: PackedByteArray) -> Dictionary:
 	var r := R.new(data)
-	var out := {"aim": Vector2(r.f32(), r.f32()), "at": Vector2(r.f32(), r.f32()), "throw": r.u8() & 1 != 0}
-	return out if r.done() and _finite(out["aim"]) and _finite(out["at"]) else {}
+	var out := {"aim": Vector2(r.f32(), r.f32()), "clock": r.f32(), "throw": r.u8() & 1 != 0}
+	return out if r.done() and _finite(out["aim"]) and is_finite(out["clock"]) else {}
 
-static func cast(slug: String, level: int, aim: Vector2, at: Vector2) -> PackedByteArray:
-	return W.new().text(slug).u8(level).f32(aim.x).f32(aim.y).f32(at.x).f32(at.y).b
+static func cast(slug: String, level: int, aim: Vector2, clock: float) -> PackedByteArray:
+	return W.new().text(slug).u8(level).f32(aim.x).f32(aim.y).f32(clock).b
 
 static func read_cast(data: PackedByteArray) -> Dictionary:
 	var r := R.new(data)
-	var out := {"slug": r.text(), "level": r.u8(), "aim": Vector2(r.f32(), r.f32()), "at": Vector2(r.f32(), r.f32())}
-	return out if r.done() and _finite(out["aim"]) and _finite(out["at"]) else {}
+	var out := {"slug": r.text(), "level": r.u8(), "aim": Vector2(r.f32(), r.f32()), "clock": r.f32()}
+	return out if r.done() and _finite(out["aim"]) and is_finite(out["clock"]) else {}
 
 static func _finite(v: Vector2) -> bool:
 	return is_finite(v.x) and is_finite(v.y)

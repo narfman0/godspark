@@ -43,6 +43,7 @@ func run(t: TestLog) -> void:
 	_conditions(t)
 	_death(t)
 	_brain(t)
+	_sight(t)
 
 # --- helpers --------------------------------------------------------------------------------
 
@@ -590,3 +591,31 @@ func _brain(t: TestLog) -> void:
 	ticks(r, 120)
 	t.check(rolls_against(r, h.id) >= 2, "repeatedly (%d rolls in 6 s)" % rolls_against(r, h.id))
 	t.check(combat.in_combat(h) and combat.in_combat(g), "both are in combat")
+
+func _sight(t: TestLog) -> void:
+	# a sealed room deep in rock: Darkness, no sky
+	var world := flat_world()
+	var air := TileDefs.AIR
+	for x in range(100, 130):
+		for y in range(5, 10):
+			world.set_fg(x, y, air, true)
+	var r := rig(91, world)
+	var combat: CombatSystem = r["combat"]
+	var host: WorldHost = r["host"]
+	var bandit := host.add_srd_monster("bandit", Vector2(102.5, 5), null)
+	var gob := host.add_srd_monster("goblin-warrior", Vector2(112.5, 5), null)   # Darkvision 60 ft = 24 tiles
+	var cult := host.add_srd_monster("cultist", Vector2(127.5, 5), null)
+	ticks(r, 1)
+	t.eq(combat.sight.category_at(center(gob)), LightEngine.Category.DARK, "the sealed room is dark")
+	t.check(not combat.sight.can_see(bandit, gob), "no Darkvision: cannot see into Darkness")
+	t.check(combat.sight.can_see(gob, bandit), "Darkvision 60 ft sees 10 tiles away")
+	t.check(combat.sight.can_see(gob, cult), "and 15")
+	var opts := {}
+	combat._sight_opts(combat.actor(bandit), combat.actor(cult), opts)
+	t.eq(opts, {"disadvantage": true, "advantage": true}, "unseen in both directions: both apply (and cancel)")
+	var h := hero(r, "fighter", 1, 104.5)
+	h.body.pos = Vector2(104.5, 5)
+	t.eq(combat.sight.category_at(center(bandit)), LightEngine.Category.BRIGHT, "a player's torch lights 8 tiles")
+	t.check(combat.sight.can_see(bandit, h), "now the bandit sees the torch-bearer")
+	t.check(not HitShapes.line_to(host.world, CombatSight.eye(bandit), Rect2(102, 30, 1, 1)), "no line of sight through rock")
+	print("  light engine on the host: %d us for the first queries" % combat.sight.light_usec)

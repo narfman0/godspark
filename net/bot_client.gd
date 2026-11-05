@@ -22,6 +22,12 @@ var dir := 1
 var delay := 0.0
 ## SRD class for a new character ("" = the host's default).
 var bot_class := ""
+## Fight first: after joining, walk at the nearest monster and attack it (CombatClient)
+## until no live monster is in sight, then go on as usual. Prints "BOT <name> fight ...".
+var fight := false
+var _kills := 0
+var _clear_t := 0.0
+var _fight_hooked := false
 
 var session: NetSession
 var input := PlayerInput.new()
@@ -115,6 +121,9 @@ func _process(delta: float) -> void:
 				_say("%s area_ms=%d welcome_ms=%d chunks=%d pos=%.2f,%.2f objects=%d clock=%s chronicle=%d" % [phase,
 						roundi(ep.area_at * 1000.0), roundi(ep.welcome_at * 1000.0), c.loaded.size(), c.body.pos.x,
 						c.body.pos.y, objs, WorldClock.describe(c.hours()), c.chronicle.size()])
+				if phase == "join" and fight:
+					_go("fight")
+					return
 				if phase == "rejoin":
 					if c.body.pos.distance_to(_left_at) > 0.6:
 						_fail("came back at %s, left at %s" % [c.body.pos, _left_at])
@@ -124,6 +133,8 @@ func _process(delta: float) -> void:
 					_go("walk")
 			elif _t > 15.0:
 				_fail("no area after 15 s")
+		"fight":
+			_fight_step(delta)
 		"walk":
 			input.move_x = dir
 			if _t > 1.0:
@@ -170,6 +181,31 @@ func _process(delta: float) -> void:
 				session = null
 				_connect()
 				_go("rejoin")
+
+func _fight_step(delta: float) -> void:
+	var cc := cw().system(HostSystem.COMBAT) as CombatClient
+	if cc == null:
+		_fail("no combat client")
+		return
+	if not _fight_hooked:
+		_fight_hooked = true
+		cc.event.connect(func(ev: Dictionary) -> void:
+			if int(ev["kind"]) == CombatCodec.Ev.DEATH:
+				_kills += 1)
+	input = cc.fight_step(input)
+	var live := cw().remotes.values().any(func(r: ClientWorld.RemoteEntity) -> bool:
+		return r.kind != HostEntity.Kind.PLAYER and r.max_hp > 0 and r.hp > 0)
+	_clear_t = 0.0 if live else _clear_t + delta
+	if _clear_t > 1.0 or _t > 40.0:
+		var dmg := cc.events_log.filter(func(ev: Dictionary) -> bool:
+			return int(ev["kind"]) == CombatCodec.Ev.DAMAGE and int(ev["src"]) == cw().my_id)
+		_say("fight killed=%d attacks=%d hits=%d hp=%d/%d %s" % [_kills, cc.sent, dmg.size(), cw().hp, cw().max_hp,
+			"done" if not live else "timeout"])
+		if live:
+			_fail("monsters still standing after 40 s")
+			return
+		input = PlayerInput.new()
+		_go("walk")
 
 func _dig_step() -> void:
 	var c := cw()

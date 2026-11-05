@@ -43,8 +43,9 @@ class Actor:
 	var downed_at := -1.0
 	var prone_at := -1.0
 	var killers: Array[int] = []
-	## Client-reported offset of its own body from the host's copy (lag), for aiming.
-	var lag := Vector2.ZERO
+	## Seconds the host's copy of a player's body trails the player (one-way delay plus a
+	## state's age), estimated from the clock its intents carry; bodies are led by vel * lead.
+	var lead := 0.0
 	var cond_mask := 0
 	var effect_ids := {}
 	var status_sig := ""
@@ -116,21 +117,25 @@ func handle(_h: WorldHost, e: HostEntity, kind: int, data: PackedByteArray) -> v
 			var d := CombatCodec.read_attack(data)
 			if d.is_empty():
 				return
-			_set_lag(a, d["at"])
+			_set_lead(a, d["clock"])
 			if not start_attack(e, -1, d["aim"], d["throw"]):
 				a.last_refusal = "attack: busy or cannot act"
 		CombatCodec.Msg.CAST:
 			var d := CombatCodec.read_cast(data)
 			if d.is_empty():
 				return
-			_set_lag(a, d["at"])
+			_set_lead(a, d["clock"])
 			a.last_refusal = cast(e, d["slug"], d["level"], d["aim"])
 		CombatCodec.Msg.CANCEL:
 			cancel(e)
 
-func _set_lag(a: Actor, at: Vector2) -> void:
-	var off := at - a.e.body.pos
-	a.lag = off.limit_length(float(CombatTempo.section("aim").get("max_lag_offset", 2.5)))
+func _set_lead(a: Actor, clock: float) -> void:
+	if clock < 0.0:
+		return
+	var aim := CombatTempo.section("aim")
+	# now - clock is the snapshot's trip plus the intent's (minus the client clock's own bias)
+	var l := clampf((now - clock + float(aim.get("clock_bias_s", 0.025))) * 0.5 + 0.5 / K.TICK_HZ, 0.0, float(aim.get("max_lead_s", 0.25)))
+	a.lead = l if a.lead <= 0.0 else lerpf(a.lead, l, 0.5)
 
 # --- tick ---------------------------------------------------------------------------------
 
@@ -259,7 +264,6 @@ func _end_seq(a: Actor, canceled: bool) -> void:
 	if canceled and not a.seq.is_empty():
 		_emit(Ev.CANCEL, a.e.id, 0, {})
 	a.seq = {}
-	a.lag = Vector2.ZERO
 
 ## Monster corpses go after their linger; downed players without a rules system respawn.
 ## Returns true when the actor should be removed.
@@ -498,8 +502,8 @@ func damage(src_id: int, dst: HostEntity, amount: int, dtype: Variant, opts := {
 
 func _rect(a: Actor) -> Rect2:
 	var r := a.e.body.rect()
-	if a.e.is_player():
-		r.position += a.lag
+	if a.e.is_player() and a.lead > 0.0:
+		r.position += (a.e.body.vel * a.lead).limit_length(float(CombatTempo.section("aim").get("max_lead_tiles", 2.5)))
 	return r
 
 func _contact(a: Actor, s: Dictionary, i: int) -> void:

@@ -22,6 +22,8 @@ const DRESS_EVERY := 0.3
 var _dress_dirty := false
 var _dress_wait := 0.0
 var _actors := {}
+## id -> [one-shot state, until msec (-1: held)] from combat events.
+var _oneshot := {}
 
 func world_ready(world: TileWorld, id: int) -> void:
 	my_id = id
@@ -78,6 +80,12 @@ func actor_added(id: int, look: Dictionary) -> void:
 func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 	if view == null or not _actors.has(id):
 		return
+	var shot: Array = _oneshot.get(id, [])
+	if not shot.is_empty():
+		if shot[1] < 0 or Time.get_ticks_msec() < int(shot[1]):
+			state = String(shot[0])
+		else:
+			_oneshot.erase(id)
 	view.move_actor(id, pos, facing, state)
 	if id == my_id:
 		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
@@ -104,7 +112,29 @@ func meta_arrived(_meta: Dictionary) -> void:
 	if light != null:
 		light.reset()     # anything lit before the sky line was known
 
+## Combat events drive the actors' existing one-shot clips ("attack", "hit", "death"),
+## held over the movement state for a moment; an actor without art shows nothing new.
+func combat_event(ev: Dictionary) -> void:
+	if view == null:
+		return
+	var now := Time.get_ticks_msec()
+	match int(ev.get("kind", 0)):
+		CombatCodec.Ev.SWING:
+			if _actors.has(int(ev["src"])):
+				_oneshot[int(ev["src"])] = ["attack", now + maxi(250, roundi(float(ev.get("total", 0.4)) * 1000.0))]
+		CombatCodec.Ev.DAMAGE:
+			var d := int(ev["dst"])
+			if _actors.has(d) and String(_oneshot.get(d, [""])[0]) != "death":
+				_oneshot[d] = ["hit", now + 300]
+		CombatCodec.Ev.DEATH, CombatCodec.Ev.DOWNED:
+			if _actors.has(int(ev["dst"])):
+				_oneshot[int(ev["dst"])] = ["death", -1]
+		CombatCodec.Ev.HEAL:
+			if String(_oneshot.get(int(ev["dst"]), [""])[0]) == "death":
+				_oneshot.erase(int(ev["dst"]))
+
 func actor_removed(id: int) -> void:
+	_oneshot.erase(id)
 	if view != null and _actors.erase(id):
 		view.remove_actor(id)
 

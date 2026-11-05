@@ -3,11 +3,12 @@
 ##   dedicated [port=N] [world=DIR] [expect=N]          no local player; with expect=N, exit 0
 ##                                                      after N clients said a final BYE
 ##   join=ADDR[:PORT] [name=X]                          join a host
-##   join=ADDR[:PORT] bot [name=X] [digs=N] [places=M] [dir=1|-1] [delay=S] [rejoin=0|1]
+##   join=ADDR[:PORT] bot [name=X] [digs=N] [places=M] [dir=1|-1] [delay=S] [rejoin=0|1] [fight=1]
 ##   host modes: gen=dev|small|medium|large [seed=N] for a new world, gen=test or size=WxH
 ##             for the fixed test world; a world saved in world=DIR is loaded instead
 ##   host modes: spawn=SLUG[:N] places N (default 1) of an SRD monster near the spawn point,
-##             standing still (no brain), e.g. spawn=goblin-warrior:3
+##             standing still (no brain), e.g. spawn=goblin-warrior:3; spawn_dx=N: the first
+##             one N tiles from the spawn point (default -24)
 ##   client modes: class=SLUG, the SRD class of a new character (default fighter)
 ##   any mode: timeout=S (exit 1 after S seconds),
 ##             offline (host with no ENet port: single-player), view=log (no 3D view),
@@ -132,7 +133,7 @@ func _spawn_monsters(spec: String) -> void:
 	var n := int(parts[1]) if parts.size() > 1 and parts[1].is_valid_int() else 1
 	var h := session.host
 	for i in n:
-		var x := clampi(int(h.spawn.x) - 24 - 3 * i, 2, h.world.width - 3)
+		var x := clampi(int(h.spawn.x) + int(opts.get("spawn_dx", -24)) - 3 * i, 2, h.world.width - 3)
 		var e := h.add_srd_monster(slug, h.find_spawn(x))
 		if e == null:
 			printerr("spawn: no SRD monster %s" % slug)
@@ -181,6 +182,7 @@ func _start_bot() -> void:
 	bot.delay = float(opts.get("delay", 0.0))
 	bot.rejoin = String(opts.get("rejoin", "1")) != "0"
 	bot.bot_class = String(opts.get("class", ""))
+	bot.fight = String(opts.get("fight", "0")) != "0"
 	bot.finished.connect(func(ok: bool) -> void: _quit(0 if ok else 1, 0.3))
 	add_child(bot)
 

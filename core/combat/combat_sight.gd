@@ -28,16 +28,22 @@ func category_at(p: Vector2) -> int:
 	var y := floori(p.y)
 	if not host.world.in_bounds(x, y):
 		return LightEngine.Category.BRIGHT
+	var cat := _torch_category(p)
+	if cat == LightEngine.Category.BRIGHT:
+		return cat          # a player's torch settles it without the light engine
 	if light == null:
 		var t0 := Time.get_ticks_usec()
 		light = LightEngine.new(host.world)
 		light_usec += Time.get_ticks_usec() - t0
 	light.sun = WorldClock.sun_at(host.clock.hours())
 	var t1 := Time.get_ticks_usec()
-	var cat := light.category_at(x, y)
+	cat = maxi(cat, light.category_at(x, y))
 	light_usec += Time.get_ticks_usec() - t1
-	if cat == LightEngine.Category.BRIGHT:
-		return cat
+	return cat
+
+## Light from the torches players carry (analytic, with line of sight).
+func _torch_category(p: Vector2) -> int:
+	var cat: int = LightEngine.Category.DARK
 	var lt := CombatTempo.section("light")
 	var bright := float(lt.get("player_torch_bright", 8.0))
 	var dim := float(lt.get("player_torch_dim", 16.0))
@@ -50,7 +56,7 @@ func category_at(p: Vector2) -> int:
 			continue
 		if d <= bright:
 			return LightEngine.Category.BRIGHT
-		cat = maxi(cat, LightEngine.Category.DIM)
+		cat = LightEngine.Category.DIM
 	return cat
 
 ## Tiles of Darkvision (0 = none): the stat block's senses for monsters, the species table

@@ -81,8 +81,9 @@ func can_attack() -> bool:
 	return busy_s <= 0.0 and _pending <= 0.0 and float(status.get("action", 0.0)) <= 0.0 \
 		and int(status.get("flags", 0)) & (CombatCodec.ST_NO_ACTIONS | CombatCodec.ST_DOWNED) == 0
 
-func _at() -> Vector2:
-	return cw.body.pos if cw != null and cw.body != null else Vector2.ZERO
+## The client's estimate of host time (-1 until a snapshot has synced it).
+func _clock() -> float:
+	return cw.clock if cw != null and bool(cw.get("_clock_synced")) else -1.0
 
 ## Attack toward `aim` (tile units). Rate-limited locally; the host decides.
 func attack(aim: Vector2, throw := false) -> bool:
@@ -90,7 +91,7 @@ func attack(aim: Vector2, throw := false) -> bool:
 		return false
 	_pending = PENDING_S
 	sent += 1
-	cw.send_sys(sys_id(), CombatCodec.Msg.ATTACK, CombatCodec.attack(aim, _at(), throw))
+	cw.send_sys(sys_id(), CombatCodec.Msg.ATTACK, CombatCodec.attack(aim, _clock(), throw))
 	return true
 
 func cast(slug: String, level: int, aim: Vector2) -> bool:
@@ -105,7 +106,7 @@ func cast(slug: String, level: int, aim: Vector2) -> bool:
 	if not reaction:
 		_pending = PENDING_S
 	sent += 1
-	cw.send_sys(sys_id(), CombatCodec.Msg.CAST, CombatCodec.cast(slug, level, aim, _at()))
+	cw.send_sys(sys_id(), CombatCodec.Msg.CAST, CombatCodec.cast(slug, level, aim, _clock()))
 	return true
 
 func cancel() -> void:
@@ -135,21 +136,24 @@ func fight_step(inp: PlayerInput, reach := 3.0) -> PlayerInput:
 	if cw == null or cw.body == null:
 		return inp
 	var best: ClientWorld.RemoteEntity = null
+	var bpos := Vector2.ZERO
 	var bd := 1e9
 	for r: ClientWorld.RemoteEntity in cw.remotes.values():
 		if r.kind == HostEntity.Kind.PLAYER or (r.max_hp > 0 and r.hp <= 0):
 			continue
-		var d := r.pos.distance_to(cw.body.pos)
+		var p: Vector2 = cw.sample_remote(r.id).get("pos", r.pos)    # as drawn (interpolated)
+		var d := p.distance_to(cw.body.pos)
 		if d < bd:
 			bd = d
 			best = r
+			bpos = p
 	inp.move_x = 0.0
 	if best == null:
 		return inp
-	var dx := best.pos.x - cw.body.pos.x
+	var dx := bpos.x - cw.body.pos.x
 	if absf(dx) > reach:
 		inp.move_x = signf(dx)
 	else:
 		cw.body.facing = 1 if dx >= 0.0 else -1
-		attack(best.pos + Vector2(0, best.size.y * 0.5))
+		attack(bpos + Vector2(0, best.size.y * 0.5))
 	return filter_input(inp)
