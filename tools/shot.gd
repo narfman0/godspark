@@ -36,6 +36,8 @@ func _initialize() -> void:
 	img.save_png(out)
 	var st: Dictionary = demo.view.stats
 	print("shot: %s %dx%d after %d frames, %d chunks" % [out, img.get_width(), img.get_height(), frames, demo.view.chunk_count()])
+	var centre := Vector2(img.get_width(), img.get_height()) * 0.5
+	print("  pick: screen centre -> tile %s (camera at %s)" % [demo.view.tile_at_screen(centre), demo.rig.pos])
 	for k: String in st:
 		var a: PackedInt32Array = st[k]
 		if a.is_empty():
