@@ -46,6 +46,8 @@ var _dimmed := false
 var prompt := {}
 ## Downed overlay state, set by GameUi's rest/downed logic: {} hidden.
 var downed := {}
+var _night_t := -1.0
+var _night_h := 0.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -56,12 +58,14 @@ func _ready() -> void:
 	bar.gui_input.connect(_bar_input)
 	bar.tooltip_text = " "
 	prompt_box = _canvas("prompt", _draw_prompt)
+	prompt_box.z_index = 20
 	banner_box = _canvas("banner", _draw_banner)
 	downed_box = _canvas("downed", _draw_downed)
 	toasts = VBoxContainer.new()
 	toasts.name = "toasts"
 	toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	toasts.add_theme_constant_override("separation", 6)
+	toasts.z_index = 20      # over screens too
 	add_child(toasts)
 	resized.connect(_layout)
 	_layout()
@@ -165,8 +169,12 @@ func tick(delta: float) -> void:
 		c.modulate.a = clampf(left / 0.5, 0.0, 1.0)
 		if left <= 0.0:
 			c.queue_free()
-	if not downed.is_empty() or downed_box.visible:
-		downed_box.visible = not downed.is_empty()
+	if _night_t >= 0.0:
+		_night_t += delta
+		if _night_t > 3.2:
+			_night_t = -1.0
+	if not downed.is_empty() or downed_box.visible or _night_t >= 0.0:
+		downed_box.visible = not downed.is_empty() or _night_t >= 0.0
 		downed_box.queue_redraw()
 	prompt_box.visible = not prompt.is_empty()
 	if prompt_box.visible:
@@ -175,7 +183,17 @@ func tick(delta: float) -> void:
 # --- toasts, banner, xp ------------------------------------------------------------------------
 
 func toast(text: String, secs := 3.5, color := UiTheme.INK) -> void:
+	# the same words again: count them instead of stacking copies
+	if toasts.get_child_count() > 0:
+		var last := toasts.get_child(toasts.get_child_count() - 1)
+		if String(last.get_meta("text", "")) == text and float(last.get_meta("left", 0.0)) > 0.3:
+			var n := int(last.get_meta("n", 1)) + 1
+			last.set_meta("n", n)
+			last.set_meta("left", secs)
+			(last.get_child(0) as Label).text = "%s  (x%d)" % [text, n]
+			return
 	var p := PanelContainer.new()
+	p.set_meta("text", text)
 	var box := UiTheme.panel_box(UiTheme.PARCHMENT, color if color != UiTheme.INK else UiTheme.INK, 2, 4)
 	box.set_content_margin_all(6)
 	box.content_margin_left = 10
@@ -532,7 +550,21 @@ func _draw_banner(c: Control) -> void:
 	UiTheme.text(c, Vector2(0, r.position.y + 46), _banner_title, UiTheme.TITLE + 8, UiTheme.VERMILION.darkened(0.15), true, HORIZONTAL_ALIGNMENT_CENTER, c.size.x)
 	UiTheme.text(c, Vector2(0, r.position.y + 74), _banner_line, UiTheme.BODY, UiTheme.INK, false, HORIZONTAL_ALIGNMENT_CENTER, c.size.x)
 
+## The clock jumped `hours` forward (everyone slept, or a debug key): fade through the night.
+func night(hours: float) -> void:
+	_night_t = 0.0
+	_night_h = hours
+
 func _draw_downed(c: Control) -> void:
+	if _night_t >= 0.0:
+		var a := clampf(minf(_night_t / 0.5, (3.2 - _night_t) / 0.8), 0.0, 1.0)
+		c.draw_rect(Rect2(Vector2.ZERO, c.size), Color(UiTheme.NIGHT_DEEP, 0.85 * a))
+		for i in 40:
+			var hsh := hash(i * 7919)
+			var p := Vector2(float(hsh & 0xfff) / 4095.0 * c.size.x, float((hsh >> 12) & 0xfff) / 4095.0 * c.size.y * 0.7)
+			UiTheme.star(c, p, 3.0 + (hsh % 3), 1.0, Color(UiTheme.STARLIGHT, a * 0.8), 4, Color(0, 0, 0, 0))
+		UiTheme.text(c, Vector2(0, c.size.y * 0.45), "The night passes...", UiTheme.TITLE + 6, Color(UiTheme.STARLIGHT, a), true, HORIZONTAL_ALIGNMENT_CENTER, c.size.x)
+		UiTheme.text(c, Vector2(0, c.size.y * 0.45 + 36), "%d hours, give or take a dream." % roundi(_night_h), UiTheme.BODY, Color(UiTheme.STARLIGHT.darkened(0.2), a), false, HORIZONTAL_ALIGNMENT_CENTER, c.size.x)
 	if downed.is_empty():
 		return
 	var s := c.size

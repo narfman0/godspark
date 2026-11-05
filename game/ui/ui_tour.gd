@@ -59,7 +59,95 @@ func steps() -> void:
 	await shot("01_hud")
 	await inventory()
 	await levels()
+	await constellation()
 	await fight()
+	await downed()
+	await rests()
+
+func place_tile(dx: int, tile: String) -> void:
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		h.world.set_fg(floori(me.body.pos.x) + dx, floori(me.body.pos.y), TileDefs.AIR if tile == "air" else TileDefs.id(tile)))
+
+## A shrine beside us; kindle the loose sparks; the sky with a star hovered.
+func constellation() -> void:
+	var items := cw.system(HostSystem.ITEMS) as ItemsClient
+	await place_tile(3, "shrine")
+	await wait(0.4)
+	ui.open("constellation")
+	await wait(0.3)
+	for k in 4:
+		for i in Inventory.SIZE:
+			if items.item(i).has("spark"):
+				items.kindle(i)
+				break
+		await wait(0.35)
+	await give([Items.spark_item("mole", 2), Items.spark_item("owl", 0)])
+	await wait(0.4)
+	var scr := ui.screen("constellation") as ConstellationScreen
+	scr.refresh()
+	var loose := scr.loose_sparks()
+	if not loose.is_empty():
+		scr.chosen = loose[0]
+	scr.refresh()
+	var stars: Array = scr._lay.get("stars", [])
+	if stars.size() > 1:
+		var ev := InputEventMouseMotion.new()
+		ev.position = stars[1]
+		scr._sky_input(ev)
+	await wait(0.3)
+	await shot("14_constellation")
+	ui.close("constellation")
+	await place_tile(3, "air")
+	pres.fx.flash_sigil()
+	await wait(0.25)
+	await shot("15_sigil_flash")
+
+## Down (death saves), then dead (the respawn prompt), then back up.
+func downed() -> void:
+	var rules := cw.system(HostSystem.RULES) as RulesClient
+	if not rules.is_downed():
+		rules.debug(RulesCodec.Debug.HURT, 999)
+	var t := 0.0
+	while not rules.is_downed() and t < 3.0:
+		await wait(0.1)
+		t += 0.1
+	await wait(4.5)
+	await shot("08_downed")
+	rules.debug(RulesCodec.Debug.DIE, 0)
+	await wait(0.8)
+	await shot("09_dead")
+	rules.respawn()
+	await wait(1.5)
+
+## A short rest at a placed campfire (hold E), then a bed and the night passing.
+func rests() -> void:
+	var rules := cw.system(HostSystem.RULES) as RulesClient
+	pres.rig.zoom = 2.0
+	await host(func(h: WorldHost) -> void:
+		for e: HostEntity in h.entities.values().duplicate():
+			if e.kind == HostEntity.Kind.MONSTER:
+				h.remove_entity(e.id))
+	await place_tile(2, "campfire")
+	rules.debug(RulesCodec.Debug.HURT, 6)
+	await wait(1.0)
+	await shot("10_campfire_prompt")
+	Input.action_press("interact")
+	await wait(2.6)
+	await shot("11_resting")
+	await wait(3.0)
+	Input.action_release("interact")
+	await wait(0.3)
+	await place_tile(-2, "bed")
+	await place_tile(2, "air")
+	await wait(0.6)
+	await shot("12_bed_prompt")
+	Input.action_press("interact")
+	await wait(0.1)
+	Input.action_release("interact")
+	await wait(0.9)
+	await shot("13_night_passes")
+	await wait(3.0)
 
 ## Gain levels: the banner, the Knack cards, a class-level choice (ASI) half made.
 func levels() -> void:

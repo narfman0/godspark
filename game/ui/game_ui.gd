@@ -19,6 +19,7 @@ var items: ItemsClient
 var combat: CombatClient
 var monsters: Object
 var quick := QuickSlots.new()
+var prompts := ContextPrompts.new()
 var root: Control
 var hud: Hud
 ## Screens by name (built on first open): inventory, character, constellation, choices, spells.
@@ -94,6 +95,7 @@ func attach(client: ClientWorld, pres: Node) -> void:
 	cw.edit_result.connect(_on_edit_result)
 	cw.world.tile_changed.connect(_on_tile_changed)
 	hud.attach()
+	prompts.attach(self)
 	for s: Control in screens.values():
 		if s.has_method("attach"):
 			s.call("attach")
@@ -130,6 +132,7 @@ func cast_sent(i: int, ok: bool) -> void:
 func register_screens() -> void:
 	factories["inventory"] = func() -> Control: return InventoryScreen.new()
 	factories["choices"] = func() -> Control: return ChoicesScreen.new()
+	factories["constellation"] = func() -> Control: return ConstellationScreen.new()
 
 func screen(name: String) -> Control:
 	if screens.has(name):
@@ -279,6 +282,7 @@ func _process(_delta: float) -> void:
 	var vs := get_viewport().get_visible_rect().size
 	if not is_equal_approx(root.size.x * ui_scale, vs.x) or not is_equal_approx(root.size.y * ui_scale, vs.y):
 		_fit()
+	prompts.tick(_delta)
 	hud.tick(_delta)
 	frame_usec.append(Time.get_ticks_usec() - t0)
 	if frame_usec.size() > 4000:

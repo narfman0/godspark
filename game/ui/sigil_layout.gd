@@ -42,7 +42,22 @@ static func layout(name: String, kindled: Array, slots: int, size: Vector2) -> D
 			var at2: Array = con._spot(n)
 			con.kindled.append({"id": "_ghost%d" % n, "rank": 0, "at": at2})
 			ghosts.append(to_point(Vector2i(int(at2[0]), int(at2[1])), name, size))
+	_fit(stars, ghosts, size)
 	return {"stars": stars, "ghosts": ghosts, "lines": lines, "cells": cells}
+
+## Centre the drawing and let a small one grow (up to 3x) so it fills the sky.
+static func _fit(stars: Array, ghosts: Array, size: Vector2) -> void:
+	var all: Array = stars + ghosts
+	if all.is_empty():
+		return
+	var b := Rect2(all[0], Vector2.ZERO)
+	for p: Vector2 in all:
+		b = b.expand(p)
+	var k := minf(3.0, minf(size.x * 0.78 / maxf(b.size.x, size.x * 0.1), size.y * 0.78 / maxf(b.size.y, size.y * 0.1)))
+	var c := b.get_center()
+	for arr: Array in [stars, ghosts]:
+		for i in arr.size():
+			arr[i] = size * 0.5 + ((arr[i] as Vector2) - c) * k
 
 ## The smallest distance between any two points (stars and ghosts).
 static func min_gap(lay: Dictionary) -> float:
@@ -78,12 +93,22 @@ static func image(sigil: Dictionary, size := 64) -> Image:
 	var pts: Array = []
 	for s: Vector2i in stars:
 		pts.append((Vector2(s) + Vector2(0.5, 0.5)) / GRID * (size * 0.8) + Vector2.ONE * size * 0.1)
+	if not pts.is_empty():
+		var b := Rect2(pts[0], Vector2.ZERO)
+		for p: Vector2 in pts:
+			b = b.expand(p)
+		var k := minf(4.0, size * 0.7 / maxf(1.0, maxf(b.size.x, b.size.y)))
+		for i in pts.size():
+			pts[i] = Vector2.ONE * size * 0.5 + ((pts[i] as Vector2) - b.get_center()) * k
+	var th := maxi(1, size / 48)
+	var rad := maxi(2, size / 24)
 	for l: Array in sigil.get("lines", []):
-		_line(img, pts[l[0]], pts[l[1]], Color(1, 0.95, 0.75, 0.9))
+		for o in range(-th / 2, th / 2 + 1):
+			_line(img, (pts[l[0]] as Vector2) + Vector2(o, 0), (pts[l[1]] as Vector2) + Vector2(o, 0), Color(1, 0.95, 0.75, 0.9))
 	for p: Vector2 in pts:
-		for dy in range(-2, 3):
-			for dx in range(-2, 3):
-				if absi(dx) + absi(dy) <= 2:
+		for dy in range(-rad, rad + 1):
+			for dx in range(-rad, rad + 1):
+				if absi(dx) + absi(dy) <= rad:
 					var q := Vector2i(p) + Vector2i(dx, dy)
 					if q.x >= 0 and q.y >= 0 and q.x < size and q.y < size:
 						img.set_pixelv(q, Color(1, 1, 0.9, 1))
