@@ -82,7 +82,7 @@ static func roll(rng: RandomNumberGenerator, info: Dictionary) -> Array:
 			if rng.randf() < 0.5:
 				out.append(random_spark(rng, String(info.get("band", "surface"))))
 			else:
-				out.append(_gear_or_magic(rng, bi, band, rank))
+				out.append(_gear_or_magic(rng, band, rank, t))
 		"spark_and_magic":
 			out.append(random_spark(rng, String(info.get("band", "surface"))))
 			out.append(random_magic(rng, band))
@@ -106,8 +106,9 @@ static func _drop(rng: RandomNumberGenerator, t: Dictionary, bi: int, band: Dict
 			return random_magic(rng, band)
 	return {}
 
-static func _gear_or_magic(rng: RandomNumberGenerator, bi: int, band: Dictionary, rank: String) -> Dictionary:
-	if rng.randf() < 0.7:
+## Gear 70% of the time (magic for creatures that carry no gear), else an SRD magic item.
+static func _gear_or_magic(rng: RandomNumberGenerator, band: Dictionary, rank: String, t: Dictionary) -> Dictionary:
+	if float(t.get("gear", 0)) > 0.0 and rng.randf() < 0.7:
 		return ItemGen.roll(rng, "", int(band["level"]), rank)
 	return random_magic(rng, band)
 
