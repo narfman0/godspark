@@ -7,12 +7,19 @@
 		{"id": 3, "name": "stone", "solid": true, "opaque": true, "hardness": 1.0, "color": "#7d7f86"},
 		{"id": 4, "name": "wood", "solid": true, "opaque": true, "hardness": 0.6, "color": "#9a6b3f"},
 		{"id": 5, "name": "torch", "solid": false, "opaque": false, "hardness": 0.05, "emit": 15, "color": "#ffcf6b"},
-		{"id": 6, "name": "bedrock", "solid": true, "opaque": true, "hardness": -1, "color": "#2b2b33"}
+		{"id": 6, "name": "bedrock", "solid": true, "opaque": true, "hardness": -1, "color": "#2b2b33"},
+		{"id": 16, "name": "copper_ore", "solid": true, "opaque": true, "hardness": 1.5, "color": "#c8733f"},
+		{"id": 17, "name": "iron_ore", "solid": true, "opaque": true, "hardness": 2.0, "color": "#a5674f"},
+		{"id": 18, "name": "silver_ore", "solid": true, "opaque": true, "hardness": 2.5, "color": "#d4dce6"},
+		{"id": 19, "name": "cobblestone", "solid": true, "opaque": true, "hardness": 1.4, "color": "#9a9284"},
+		{"id": 20, "name": "slate", "solid": true, "opaque": true, "hardness": 1.6, "color": "#545668"}
 	],
 	"walls": [
 		{"id": 0, "name": "none"},
 		{"id": 1, "name": "dirt_wall", "color": "#4a3828"},
 		{"id": 2, "name": "stone_wall", "color": "#4b4d55"},
-		{"id": 3, "name": "wood_wall", "color": "#5e4127"}
+		{"id": 3, "name": "wood_wall", "color": "#5e4127"},
+		{"id": 8, "name": "slate_wall", "color": "#30313c"},
+		{"id": 9, "name": "cobble_wall", "color": "#5a554c"}
 	]
 }

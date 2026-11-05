@@ -1,0 +1,6 @@
+{
+	"_comment": "Surface biomes for the biome strip. Widths in tiles. top/soil/stone are tile names, soil_wall a wall name; hill scales the heightmap amplitude. Add rows to add biomes.",
+	"biomes": [
+		{"name": "meadow", "weight": 1.0, "min_width": 320, "max_width": 900, "top": "grass", "soil": "dirt", "soil_wall": "dirt_wall", "hill": 1.0}
+	]
+}
