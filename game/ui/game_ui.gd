@@ -133,6 +133,7 @@ func register_screens() -> void:
 	factories["inventory"] = func() -> Control: return InventoryScreen.new()
 	factories["choices"] = func() -> Control: return ChoicesScreen.new()
 	factories["constellation"] = func() -> Control: return ConstellationScreen.new()
+	factories["spells"] = func() -> Control: return SpellScreen.new()
 
 func screen(name: String) -> Control:
 	if screens.has(name):

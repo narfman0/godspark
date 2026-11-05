@@ -60,6 +60,7 @@ func steps() -> void:
 	await inventory()
 	await levels()
 	await constellation()
+	await spells()
 	await fight()
 	await downed()
 	await rests()
@@ -102,6 +103,32 @@ func constellation() -> void:
 	pres.fx.flash_sigil()
 	await wait(0.25)
 	await shot("15_sigil_flash")
+
+## The spell list with a slot assigned, then an area spell aimed in play.
+func spells() -> void:
+	var cc := cw.system(HostSystem.COMBAT) as CombatClient
+	ui.open("spells")
+	await wait(0.3)
+	var area := {}
+	for s: Dictionary in cc.spells:
+		if int(s["flags"]) & CombatCodec.SPELL_AREA and int(s["flags"]) & CombatCodec.SPELL_SUPPORTED:
+			area = s
+	if not area.is_empty():
+		ui.quick.assign(1, String(area["slug"]))
+	var scr := ui.screen("spells") as SpellScreen
+	scr.refresh()
+	if not cc.spells.is_empty():
+		scr._show(cc.spells[0], "")
+	await wait(0.3)
+	await shot("16_spells")
+	ui.close("spells")
+	if not area.is_empty():
+		pres.rig.zoom = 2.0
+		await wait(0.5)
+		pres.aim_preview(area, cw.body.center() + Vector2(5, 0))
+		await wait(0.2)
+		await shot("17_aim_preview")
+		pres.aim_preview({}, Vector2.ZERO)
 
 ## Down (death saves), then dead (the respawn prompt), then back up.
 func downed() -> void:

@@ -115,6 +115,7 @@ func set_dimmed(d: bool) -> void:
 	vitals.visible = not d
 	clock.visible = not d
 	banner_box.visible = not d
+	toasts.position.y = 4.0 if d else 100.0
 
 # --- per frame (cheap: redraws only what changed) ----------------------------------------
 
@@ -176,7 +177,7 @@ func tick(delta: float) -> void:
 	if not downed.is_empty() or downed_box.visible or _night_t >= 0.0:
 		downed_box.visible = not downed.is_empty() or _night_t >= 0.0
 		downed_box.queue_redraw()
-	prompt_box.visible = not prompt.is_empty()
+	prompt_box.visible = not prompt.is_empty() and not _dimmed
 	if prompt_box.visible:
 		prompt_box.queue_redraw()
 
