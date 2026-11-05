@@ -239,7 +239,19 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 		var t := input.target
 		var tile := input.place_tile if input.place_tile > 0 else place_tile
 		_place_at = t
-		if has_chunk(t.x >> 5, t.y >> 5) and TileEdit.can_place(world, body, t.x, t.y, tile, [body], edit_reach) \
+		var rope := tile > 0 and tile < TileDefs.rope.size() and TileDefs.rope[tile] != 0
+		if rope and Rope.is_rope(world, t.x, t.y):
+			# A rope used on a rope reels it in: asked, not predicted (the host sends the cells).
+			if has_chunk(t.x >> 5, t.y >> 5) and TileEdit.in_reach(body, t.x, t.y, edit_reach) and _systems_allow_place(tile):
+				_req += 1
+				reqs.append({"op": Op.PLACE, "req": _req, "x": t.x, "y": t.y, "tile": tile})
+		elif rope:
+			# Aimed at rock or a walkway: tied under it. Only the anchor is predicted; the
+			# rest of the rope arrives as the host's tile changes.
+			t = Rope.anchor_cell(world, t)
+		if rope and Rope.is_rope(world, input.target.x, input.target.y):
+			pass
+		elif has_chunk(t.x >> 5, t.y >> 5) and TileEdit.can_place(world, body, t.x, t.y, tile, [body], edit_reach) \
 				and _systems_allow_place(tile):
 			_req += 1
 			reqs.append({"op": Op.PLACE, "req": _req, "x": t.x, "y": t.y, "tile": tile})

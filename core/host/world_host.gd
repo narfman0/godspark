@@ -81,6 +81,8 @@ var _pending_world := {}
 ## The class a player gets when it has no saved character and asks for none.
 var default_class := "fighter"
 var _next_id := 1
+## True while a rope is being taken down (its own tile changes do not make ropes fall).
+var _rope_busy := false
 
 ## One SRD content set per process: building it is expensive (srd_build_usec), and it is
 ## read-only after that. Build it before the host thread starts (warm_srd) or the first
@@ -511,6 +513,14 @@ func request_place(id: int, req: int, x: int, y: int, tile_id: int) -> Reason:
 	var e: HostEntity = entities.get(id)
 	if e == null:
 		return Reason.NO_ENTITY
+	if tile_id > 0 and tile_id < TileDefs.rope.size() and TileDefs.rope[tile_id] != 0 and Rope.is_rope(world, x, y):
+		# A rope placed on a rope reels it back in (one item).
+		var rwhy := Reason.OUT_OF_REACH if not TileEdit.in_reach(e.body, x, y, e.edit_reach) \
+			else (Reason.UNABLE if not can_edit(e) else Reason.OK)
+		if rwhy == Reason.OK:
+			_reel(e, Vector2i(x, y))
+		_result(e, req, rwhy, x, y)
+		return rwhy
 	var why := place_reason(e, x, y, tile_id)
 	if why == Reason.OK:
 		for sys: HostSystem in systems.values():
@@ -521,8 +531,18 @@ func request_place(id: int, req: int, x: int, y: int, tile_id: int) -> Reason:
 		var old := world.get_fg(x, y)
 		world.set_fg(x, y, tile_id)
 		_edited(e, x, y, old, tile_id)
+		if TileDefs.rope[tile_id] != 0:
+			Rope.unroll(world, Vector2i(x, y))
 	_result(e, req, why, x, y)
 	return why
+
+## Take a whole rope down: every cell, one rope item to e (through _edited at its anchor).
+func _reel(e: HostEntity, cell: Vector2i) -> void:
+	_rope_busy = true
+	var top := Rope.remove(world, cell)
+	_rope_busy = false
+	if top != Rope.NONE:
+		_edited(e, top.x, top.y, Rope.id(), TileDefs.AIR)
 
 func dig_reason(e: HostEntity, x: int, y: int) -> Reason:
 	if not world.in_bounds(x, y):
@@ -574,6 +594,10 @@ func _advance_dig(e: HostEntity) -> void:
 	if e.dig.update(at, world.get_fg(at.x, at.y), dt(), e.dig_power):
 		e.dig_target = HostEntity.NO_DIG
 		var old := world.get_fg(at.x, at.y)
+		if TileDefs.rope[old] != 0:
+			_reel(e, at)              # digging any part of a rope reels all of it in
+			_result(e, e.dig_req, Reason.OK, at.x, at.y)
+			return
 		world.set_fg(at.x, at.y, TileDefs.AIR)
 		_edited(e, at.x, at.y, old, TileDefs.AIR)
 		_result(e, e.dig_req, Reason.OK, at.x, at.y)
@@ -589,11 +613,28 @@ func _result(e: HostEntity, req: int, why: Reason, x: int, y: int) -> void:
 
 func _on_tile_changed(x: int, y: int, layer: int, old: int, now: int) -> void:
 	outbox.append({"type": Ev.TILE, "x": x, "y": y, "layer": layer, "value": now})
+	if not _rope_busy and (layer == TileWorld.Layer.BG or (layer == TileWorld.Layer.FG
+			and (TileDefs.solid[old] != 0 or TileDefs.platform[old] != 0))):
+		_drop_loose_ropes(x, y, layer == TileWorld.Layer.BG)
 	if layer == TileWorld.Layer.FG and TileDefs.solid[old] != TileDefs.solid[now]:
 		# Dug out from under a tree, or a block put into a bush: the host decides.
 		for c in Dressing.on_tile_changed(world, x, y):
 			world.objects_changed.emit(c.x, c.y)
 			outbox.append({"type": Ev.OBJECTS, "cx": c.x, "cy": c.y})
+
+## A rope whose anchor lost its hold falls: removed, and one rope item drops at its anchor.
+func _drop_loose_ropes(x: int, y: int, bg: bool) -> void:
+	var tops := Rope.loose_after(world, x, y)
+	if bg and Rope.is_rope(world, x, y) and not Rope.is_rope(world, x, y + 1) and not Rope.held(world, x, y):
+		tops.append(Vector2i(x, y))
+	if tops.is_empty():
+		return
+	_rope_busy = true
+	var items := system(HostSystem.ITEMS)
+	for top in tops:
+		if Rope.remove(world, top) != Rope.NONE and items != null and items.has_method("drop"):
+			items.call("drop", Vector2(top.x + 0.5, top.y), [Items.make("tile:rope", 1)])
+	_rope_busy = false
 
 # --- saving -------------------------------------------------------------------------
 

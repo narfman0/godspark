@@ -161,6 +161,19 @@ static func _ladder(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 	else:
 		body.vel.y = (int(input.up) - int(input.down)) * stats.ladder_speed
 		body.vel.x = input.move_x * stats.ladder_side_speed
+		var rc := floori(body.pos.x)
+		if input.move_x == 0.0 and (TileDefs.rope[world.get_fg(rc, floori(body.pos.y + 0.5))] != 0
+				or TileDefs.rope[world.get_fg(rc, floori(body.pos.y - 0.5))] != 0):
+			# On a rope (often hung beside a wall) the body swings in under it, clear of the
+			# rock beside it, so a wide body that grabbed it from the ledge is not held up.
+			var hw: float = body.size.x * 0.5
+			var aim: float = rc + 0.5
+			if TileCollision._col_solid(world, rc + 1, body.pos.y - 1.0, body.top()):
+				aim = minf(aim, rc + 1 - hw)
+			if TileCollision._col_solid(world, rc - 1, body.pos.y - 1.0, body.top()):
+				aim = maxf(aim, rc + hw)
+			var off: float = aim - body.pos.x
+			body.vel.x = clampf(off / dt, -stats.ladder_side_speed, stats.ladder_side_speed)
 	TileCollision.move(world, body, dt)
 
 static func _swim(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:

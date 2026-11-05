@@ -31,6 +31,10 @@
 		"_comment": "S (down) alone drops through a one-way floor once held this long (s) from a press made while standing; a brush of S shorter than this does nothing. Down + jump still drops at once.",
 		"hold": 0.1
 	},
+	"rope": {
+		"_comment": "Tiles a rope unrolls at most from its anchor (core/world/rope.gd); climbed with the ladder numbers.",
+		"length": 30
+	},
 	"ladder": {
 		"speed": 7.0,
 		"side_speed": 4.0

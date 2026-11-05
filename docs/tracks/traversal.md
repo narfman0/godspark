@@ -79,3 +79,35 @@ down). The twelve original scenarios still hash identically.
 Tests: `_stairs` in `test_player_controller.gd` (13 checks), `_stair_tiles` in
 `test_monster_nav.gd` (up, down, Small, a boxed walkway whose only way down is S onto stairs),
 mesher shapes, diagonal stair placement.
+
+## 3. Ropes
+
+Tile 12 `rope` (`ladder` and `rope` flags: climbed like a ladder, W up, S down, jump off; not
+solid, not opaque; hardness 0.1). Item `tile:rope` (every breakable tile is an item). Logic in
+`core/world/rope.gd` (`Rope`); nothing but tiles is stored, so ropes save with the world and
+reach every client as tile changes.
+
+- **Aim**: at rock, a walkway or a stair, the rope is tied under it (the anchor is the open
+  cell below); at an open cell, that cell is the anchor (`Rope.anchor_cell`, applied by the
+  client before it asks).
+- **Anchor** (`Rope.can_anchor`): air, and held by a solid or one-way tile above, left or
+  right of it, or by a background wall in the cell; not directly under another rope (so each
+  vertical run is one rope).
+- **Unrolls** (`Rope.unroll`) down through air until the next cell is not air or it is
+  `rope.length` = 30 tiles (`data/movement.json`).
+- **Reeling in**: digging any rope cell, or using a rope item on a rope, removes all of it
+  and gives one rope item back.
+- **Falling**: when a solid or one-way tile next to (or above) a rope's top, or the wall
+  behind it, goes, a top no longer held falls: the run is removed and one rope item drops at
+  the anchor (`WorldHost._drop_loose_ropes`; guarded while a rope is being taken down).
+- **Prediction**: only the anchor is predicted (the existing single-cell flow); the rest of
+  the rope arrives as the host's TILE events. A reel is asked, not predicted. No protocol
+  change.
+- **Climbing**: on a rope with no sideways input, the body swings in under it, clear of the
+  rock beside it (`PlayerController._ladder`, rope cells only; ladders unchanged), so a Medium
+  body that grabbed a rope hung against a ledge from the ledge can climb down it.
+- **Monsters**: rope cells carry the LADDER nav flag, so climbing paths use them.
+
+Tests: `tests/test_rope.gd` (placement rules, length to a floor and to 30, run and top,
+falling, climbing with the real controller, the host flow with items, two clients over the
+loopback agreeing, a monster path down a rope, save and load).

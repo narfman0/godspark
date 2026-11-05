@@ -57,6 +57,8 @@ static func can_place(world: TileWorld, body: Body, x: int, y: int, tile_id: int
 		return false
 	if world.get_fg(x, y) != TileDefs.AIR:
 		return false
+	if TileDefs.rope[tile_id] != 0:
+		return Rope.can_anchor(world, x, y)     # x, y is the anchor (Rope.anchor_cell)
 	var anchored := world.get_bg(x, y) != 0
 	if not anchored:
 		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
