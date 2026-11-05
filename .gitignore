@@ -1,0 +1,12 @@
+.godot/
+*.import
+export/
+.screenshots/
+# Fetched art: the asset server and monster-forge are the sources of truth
+assets/meshes/
+assets/monsters/
+assets/props/
+# Saved worlds
+worlds/
+tools/__pycache__/
+tools/.venv/

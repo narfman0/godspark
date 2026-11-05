@@ -1,0 +1,18 @@
+{
+	"_comment": "Ids are stable once a world has been saved: append, never renumber. hardness = seconds to dig bare-handed, negative = unbreakable. emit = light given off, 0-15.",
+	"tiles": [
+		{"id": 0, "name": "air", "solid": false, "opaque": false},
+		{"id": 1, "name": "dirt", "solid": true, "opaque": true, "hardness": 0.4, "color": "#7a5a3c"},
+		{"id": 2, "name": "grass", "solid": true, "opaque": true, "hardness": 0.4, "color": "#5f9a3e"},
+		{"id": 3, "name": "stone", "solid": true, "opaque": true, "hardness": 1.0, "color": "#7d7f86"},
+		{"id": 4, "name": "wood", "solid": true, "opaque": true, "hardness": 0.6, "color": "#9a6b3f"},
+		{"id": 5, "name": "torch", "solid": false, "opaque": false, "hardness": 0.05, "emit": 15, "color": "#ffcf6b"},
+		{"id": 6, "name": "bedrock", "solid": true, "opaque": true, "hardness": -1, "color": "#2b2b33"}
+	],
+	"walls": [
+		{"id": 0, "name": "none"},
+		{"id": 1, "name": "dirt_wall", "color": "#4a3828"},
+		{"id": 2, "name": "stone_wall", "color": "#4b4d55"},
+		{"id": 3, "name": "wood_wall", "color": "#5e4127"}
+	]
+}
