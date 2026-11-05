@@ -88,7 +88,7 @@ static func _worm(c: GenContext, rng: RandomNumberGenerator, x: float, y: float,
 
 static func _worms(c: GenContext, rng: RandomNumberGenerator) -> void:
 	var cb: Array = c.bands["caves"]
-	var n := maxi(3, int(14 * c.sx()))
+	var n := maxi(3, int(14 * c.sx() * c.sy()))
 	for i in n:
 		var x := rng.randf_range(16, c.w - 16)
 		var y := rng.randf_range(cb[0] + 10, cb[1])
@@ -97,7 +97,7 @@ static func _worms(c: GenContext, rng: RandomNumberGenerator) -> void:
 		_worm(c, rng, x, y, ang, steps, rng.randf_range(2.0, 3.2), cb[0] - int(c.band_h("deeps") * 0.3), 16, 0.22, true)
 	# Fewer, longer, wider ones through the deeps.
 	var db: Array = c.bands["deeps"]
-	for i in maxi(2, int(7 * c.sx())):
+	for i in maxi(2, int(7 * c.sx() * c.sy())):
 		var x := rng.randf_range(16, c.w - 16)
 		var y := rng.randf_range(db[0] + 10, db[1] - 10)
 		var ang := rng.randf_range(-0.3, 0.3) + (0.0 if rng.randf() < 0.5 else PI)

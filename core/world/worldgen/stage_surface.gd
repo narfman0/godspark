@@ -10,8 +10,8 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	var big := c.noise(rng, 1.0 / 520.0, 3)
 	var mid := c.noise(rng, 1.0 / 110.0, 2)
 	var fine := c.noise(rng, 1.0 / 22.0, 1)
-	var amp_big := c.h * 0.05
-	var amp_mid := 2.0 + c.h * 0.012
+	var amp_big := minf(c.h * 0.05, 80.0)
+	var amp_mid := 2.0 + minf(c.h * 0.012, 18.0)
 	var amp_fine := 1.3
 	# Per-column hill factor from the biome, box-smoothed so biome edges don't step.
 	var hill := PackedFloat32Array()
@@ -21,15 +21,15 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	hill = _smooth(hill, 32)
 	# Mountains: ridged peaks where a slow mask noise is high.
 	var mask := c.noise(rng, 1.0 / 700.0)
-	var peaks := c.noise(rng, 1.0 / 160.0, 2)
-	var amp_peak := c.h * 0.06
+	var peaks := c.noise(rng, 1.0 / 240.0, 2)
+	var amp_peak := minf(c.h * 0.06, 70.0)
 	var raw := PackedFloat32Array()
 	raw.resize(c.w)
 	for x in c.w:
 		var m := clampf((mask.get_noise_1d(x) - 0.1) * 3.0, 0.0, 1.0)
-		var ridge := 1.0 - absf(peaks.get_noise_1d(x) * 1.6)
+		var peak := smoothstep(0.0, 1.0, clampf(peaks.get_noise_1d(x) * 1.5 + 0.5, 0.0, 1.0))
 		raw[x] = base + hill[x] * (big.get_noise_1d(x) * 2.0 * amp_big + mid.get_noise_1d(x) * 1.8 * amp_mid
-				+ m * maxf(0.0, ridge) * amp_peak) + fine.get_noise_1d(x) * amp_fine
+				+ m * peak * amp_peak) + fine.get_noise_1d(x) * amp_fine
 
 	# Flat stretches, one per slot across the width.
 	var n := maxi(2, c.w / 340)

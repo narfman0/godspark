@@ -18,13 +18,23 @@ static func caverns(c: GenContext, rng: RandomNumberGenerator) -> void:
 	var shape := c.noise(rng, 1.0 / 28.0, 2)
 	var lobes := c.noise(rng, 1.0 / 85.0, 1)
 	c.caverns = []
+	var prev_floor := -1
 	for i in n:
-		var ry := int(bh * rng.randf_range(0.17, 0.27))
+		# Sizes in tiles, not band fractions, so big worlds get more caverns, not taller ones.
+		var ry := int(minf(bh * rng.randf_range(0.17, 0.27), rng.randf_range(48.0, 75.0)))
 		var rx := int(minf(ry * rng.randf_range(2.0, 3.4), slot * 0.42))
 		var cx := slot * i + slot / 2 + rng.randi_range(-slot / 8, slot / 8)
 		cx = clampi(cx, rx + 8, c.w - rx - 9)
-		var cy: int = db[0] + int(bh * rng.randf_range(0.38, 0.62))
+		var cy: int = db[0] + int(bh * rng.randf_range(0.3, 0.7))
+		cy = clampi(cy, db[0] + int(bh * 0.25), db[1] - ry - 8)
 		var floor_y: int = cy - int(ry * 0.55)
+		if prev_floor >= 0:
+			# keep the floor within reach of the deep road (at most 1 tile up per 3 across)
+			var reach := maxi(4, (slot - 2 * rx) / 3)
+			floor_y = clampi(floor_y, prev_floor - reach, prev_floor + reach)
+		floor_y = clampi(floor_y, db[0] + 8, db[1] - int(ry * 1.45) - 8)
+		cy = floor_y + int(ry * 0.55)
+		prev_floor = floor_y
 		_carve_cavern(c, shape, lobes, cx, cy, rx, ry, floor_y)
 		c.caverns.append({"x": cx, "cy": cy, "rx": rx, "ry": ry, "floor": floor_y, "settled": false})
 	# Settle the biggest one or two.
@@ -33,9 +43,8 @@ static func caverns(c: GenContext, rng: RandomNumberGenerator) -> void:
 		var ca: Dictionary = c.caverns[a]
 		var cb: Dictionary = c.caverns[b]
 		return ca["rx"] * ca["ry"] > cb["rx"] * cb["ry"] or (ca["rx"] * ca["ry"] == cb["rx"] * cb["ry"] and a < b))
-	var settle := 2 if n >= 3 else 1
-	if n == 2:
-		settle = 2  # small worlds: two deep sites so a deep road links sites
+	# Two deep settlements (so a deep road links sites), more in big worlds.
+	var settle := maxi(2, n / 4)
 	for k in settle:
 		c.caverns[order[k]]["settled"] = true
 
@@ -118,7 +127,7 @@ static func deep_road(c: GenContext, rng: RandomNumberGenerator) -> void:
 ## (up = -1), with short flat landings; returns the cells of its floor (first open row).
 ## stop(x, y) decides when it has arrived.
 static func _ramp_path(c: GenContext, rng: RandomNumberGenerator, x: int, y: int, dir: int, up: int,
-		stop: Callable, max_steps: int) -> Array:
+		stop: Callable, max_steps: int, landing_p := 0.04) -> Array:
 	var path: Array = []
 	var flat_left := 0
 	for i in max_steps:
@@ -131,7 +140,7 @@ static func _ramp_path(c: GenContext, rng: RandomNumberGenerator, x: int, y: int
 			flat_left -= 1
 		else:
 			y += up
-			if rng.randf() < 0.04:
+			if rng.randf() < landing_p:
 				flat_left = rng.randi_range(3, 7)
 		path.append(Vector2i(x, y))
 	return []
@@ -154,19 +163,20 @@ static func ascent(c: GenContext, rng: RandomNumberGenerator) -> void:
 		var cav: Dictionary = c.caverns[ci]
 		if not cav["settled"]:
 			continue
-		for k in 8:
+		for k in 24:
 			var dir := 1 if k % 2 == 0 else -1
-			var sx: int = cav["x"] + dir * int(cav["rx"] * [0.6, 0.4, 0.2, 0.0][k / 2])
+			var sx: int = cav["x"] + dir * int(cav["rx"] * [0.4, 0.3, 0.15, 0.0][(k / 2) % 4])
+			var landing_p: float = [0.04, 0.15, 0.3][k / 8]  # more landings: the mouth lands farther out
 			var sub := RandomNumberGenerator.new()
-			sub.seed = rng.seed + ci * 16 + k
-			var path := _ramp_path(c, sub, sx, int(cav["floor"]), dir, 1, stop, c.h * 3)
+			sub.seed = rng.seed + ci * 64 + k
+			var path := _ramp_path(c, sub, sx, int(cav["floor"]), dir, 1, stop, c.h * 4, landing_p)
 			if path.is_empty():
 				continue
 			var end: Vector2i = path[-1]
 			var gap := _flat_gap(c, end.x)
 			if gap < 6 or _tail_under_flat(c, path, 16):
 				continue
-			var score: float = float(gap) + path.size() * 0.05
+			var score: float = float(gap) + path.size() * 0.05 + k / 8 * 40.0
 			if score < best_score:
 				best_score = score
 				best = path
@@ -215,7 +225,7 @@ static func portal(c: GenContext, rng: RandomNumberGenerator) -> void:
 	for b in c.bed:
 		bed_max = maxi(bed_max, b)
 	var floor_y := maxi(bed_max + 3, (nb[0] + nb[1]) / 2 - ch / 2)
-	var sx: int = cav["x"] + dir * int(cav["rx"] * 0.6)
+	var sx: int = cav["x"] + dir * int(cav["rx"] * 0.4)  # inside the open plateau
 	var stop := func(_px: int, py: int) -> bool: return py <= floor_y
 	var path := _ramp_path(c, rng, sx, int(cav["floor"]), dir, -1, stop, c.h * 3)
 	if path.is_empty():

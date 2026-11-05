@@ -178,8 +178,8 @@ func survey() -> void:
 ## First open cell at or below (x, y) that has solid ground under it; -1 if none.
 func drop_to_floor(x: int, y: int, limit := 64) -> int:
 	var yy := y
-	while yy > 0 and is_solid(x, yy) and y - yy < limit:
-		yy -= 1  # started inside rock: should not happen, but fail soft
+	if is_solid(x, yy):
+		return -1  # started inside rock
 	for i in limit:
 		if yy <= 0:
 			return -1

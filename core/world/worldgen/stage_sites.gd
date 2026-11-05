@@ -123,9 +123,14 @@ static func sites(c: GenContext, rng: RandomNumberGenerator) -> void:
 			_add(c, "ruin", x, y, 12)
 			break
 	for r: Dictionary in c.buried_rooms:
-		var y := c.drop_to_floor(int(r["x"]), int(r["y"]) + 2)
-		if y > 0:
-			_add(c, "ruin", int(r["x"]), y, int(r["w"]))
+		# the room floor is row r.y; take the column nearest the middle that is clear
+		var rx := int(r["x"])
+		var half := int(r["w"]) / 2
+		for k in range(0, 2 * half):
+			var x := rx + (k + 1) / 2 * (1 if k % 2 == 0 else -1)
+			if _headroom(c, x, int(r["y"]), 3):
+				_add(c, "ruin", x, int(r["y"]), int(r["w"]))
+				break
 	# Cave lairs: open pockets with a floor, spread apart.
 	var cb: Array = c.bands["caves"]
 	var want := maxi(2, int(5 * c.sx()))
