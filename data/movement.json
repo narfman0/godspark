@@ -1,0 +1,54 @@
+{
+	"_comment": "Track C movement tunables. Units: tiles (2.5 ft), seconds. Speeds marked _per_30ft scale linearly with the SRD speed in ft per round (walk 30 = baseline). See docs/tracks/movement.md for the reasoning.",
+	"step_hz": 60,
+	"sizes": {
+		"_comment": "Collision box per SRD size: w x h in tiles (multiples of 1/8 so contact positions are exact in float32); step = tiles of automatic step-up.",
+		"tiny": {"w": 0.75, "h": 0.75, "step": 1},
+		"small": {"w": 1.0, "h": 1.75, "step": 1},
+		"medium": {"w": 1.5, "h": 2.5, "step": 1},
+		"large": {"w": 2.5, "h": 3.5, "step": 1},
+		"huge": {"w": 4.5, "h": 5.0, "step": 2},
+		"gargantuan": {"w": 7.0, "h": 7.0, "step": 3}
+	},
+	"run": {
+		"tiles_per_s_per_30ft": 13.0,
+		"ground_accel": 110.0,
+		"ground_friction": 140.0,
+		"turn_accel": 220.0,
+		"air_accel": 55.0,
+		"air_friction": 12.0
+	},
+	"jump": {
+		"height": 6.75,
+		"time_to_apex": 0.40,
+		"fall_gravity_mult": 1.25,
+		"release_cut": 0.45,
+		"terminal_fall": 40.0,
+		"coyote": 0.10,
+		"buffer": 0.12
+	},
+	"ladder": {
+		"speed": 7.0,
+		"side_speed": 4.0
+	},
+	"climb": {
+		"tiles_per_s_per_30ft": 8.0,
+		"jump_off_mult": 0.8
+	},
+	"swim": {
+		"tiles_per_s_per_30ft": 10.0,
+		"threshold": 0.5,
+		"gravity": 20.0,
+		"buoyancy": 17.0,
+		"drag": 3.0,
+		"accel": 40.0,
+		"max_sink": 4.0,
+		"stroke_mult": 1.0,
+		"leap_below": 0.85,
+		"leap_mult": 0.75
+	},
+	"fly": {
+		"tiles_per_s_per_30ft": 13.0,
+		"accel": 60.0
+	}
+}

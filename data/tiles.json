@@ -1,5 +1,5 @@
 {
-	"_comment": "Ids are stable once a world has been saved: append, never renumber. hardness = seconds to dig bare-handed, negative = unbreakable. emit = light given off, 0-15.",
+	"_comment": "Ids are stable once a world has been saved: append, never renumber. hardness = seconds to dig bare-handed, negative = unbreakable. emit = light given off, 0-15. platform = one-way, solid only from above. ladder = climbable, not solid; its top rung is standable.",
 	"tiles": [
 		{"id": 0, "name": "air", "solid": false, "opaque": false},
 		{"id": 1, "name": "dirt", "solid": true, "opaque": true, "hardness": 0.4, "color": "#7a5a3c"},
@@ -7,7 +7,9 @@
 		{"id": 3, "name": "stone", "solid": true, "opaque": true, "hardness": 1.0, "color": "#7d7f86"},
 		{"id": 4, "name": "wood", "solid": true, "opaque": true, "hardness": 0.6, "color": "#9a6b3f"},
 		{"id": 5, "name": "torch", "solid": false, "opaque": false, "hardness": 0.05, "emit": 15, "color": "#ffcf6b"},
-		{"id": 6, "name": "bedrock", "solid": true, "opaque": true, "hardness": -1, "color": "#2b2b33"}
+		{"id": 6, "name": "bedrock", "solid": true, "opaque": true, "hardness": -1, "color": "#2b2b33"},
+		{"id": 8, "name": "platform", "solid": false, "opaque": false, "platform": true, "hardness": 0.3, "color": "#b0844f"},
+		{"id": 9, "name": "ladder", "solid": false, "opaque": false, "ladder": true, "hardness": 0.3, "color": "#c09a62"}
 	],
 	"walls": [
 		{"id": 0, "name": "none"},
