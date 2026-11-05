@@ -168,8 +168,17 @@ func tile_at_screen(screen_pos: Vector2) -> Vector2i:
 ## Sky colour for a sun value, for the environment background.
 static func sky_color(sun: float) -> Color:
 	var night := Color(0.012, 0.016, 0.04)
-	var dusk := Color(0.55, 0.32, 0.25)
+	var dusk := Color(0.32, 0.3, 0.52)
 	var day := Color(0.36, 0.58, 0.9)
+	if sun < 0.4:
+		return night.lerp(dusk, sun / 0.4)
+	return dusk.lerp(day, (sun - 0.4) / 0.6)
+
+## Colour near the horizon (bottom of the screen) for a sun value.
+static func horizon_color(sun: float) -> Color:
+	var night := Color(0.03, 0.03, 0.07)
+	var dusk := Color(0.95, 0.52, 0.3)
+	var day := Color(0.72, 0.84, 0.95)
 	if sun < 0.4:
 		return night.lerp(dusk, sun / 0.4)
 	return dusk.lerp(day, (sun - 0.4) / 0.6)
@@ -321,4 +330,4 @@ func _apply_sun() -> void:
 	RenderingServer.global_shader_parameter_set("gs_sky_tint", warm)
 	var top := sky_color(s)
 	_backdrop_mat.set_shader_parameter("sky_top", top)
-	_backdrop_mat.set_shader_parameter("sky_low", top.lerp(Color(0.85, 0.85, 0.9) * maxf(s, 0.05), 0.45))
+	_backdrop_mat.set_shader_parameter("sky_low", horizon_color(s))
