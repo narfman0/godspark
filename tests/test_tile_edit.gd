@@ -26,6 +26,17 @@ func run(t: TestLog) -> void:
 
 	t.eq(TileEdit.dig_time(stone), 1.0, "stone takes 1 s bare-handed")
 	t.eq(TileEdit.dig_time(stone, 2.0), 0.5, "a power-2 tool halves it")
+	t.eq(TileEdit.dig_time(TileDefs.id("dirt")), 0.4, "dirt is exactly 0.4 s despite float32 hardness")
+	var dp := TileEdit.DigProgress.new()
+	var steps := 0
+	while not dp.update(Vector2i(1, 1), TileDefs.id("dirt"), 1.0 / 60.0):
+		steps += 1
+	t.eq(steps + 1, 24, "dirt digs in 24 controller steps at 60 Hz")
+	var host_dp := TileEdit.DigProgress.new()
+	var ticks := 1
+	while not host_dp.update(Vector2i(1, 1), TileDefs.id("dirt"), 1.0 / K.TICK_HZ):
+		ticks += 1
+	t.eq(ticks, 12, "and in 12 host ticks at 30 Hz")
 	t.eq(TileEdit.dig_time(TileDefs.id("bedrock")), INF, "bedrock never breaks")
 	t.eq(TileEdit.dig_time(TileDefs.AIR), INF, "air is not dug")
 

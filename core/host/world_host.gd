@@ -35,8 +35,6 @@ const MOVE_MARGIN := 1.5
 const SPEED_MULT := 1.25
 ## A client's box may overlap solid tiles by this much (float noise at contacts).
 const SOLID_SLOP := 0.05
-## Added to each tick's dig time (see _advance_dig).
-const DIG_EPS := 1e-6
 ## Most time (us) one tick may spend catching the sim up with the clock. At least one sim
 ## hour is stepped per tick when behind, so the sim always makes progress.
 const SIM_BUDGET_US := 2000
@@ -356,8 +354,7 @@ func _advance_dig(e: HostEntity) -> void:
 		e.dig.reset()
 		_result(e, e.dig_req, why, at.x, at.y)
 		return
-	# DIG_EPS: tile hardness is float32 (0.4 reads as 0.40000001), which would cost a tick.
-	if e.dig.update(at, world.get_fg(at.x, at.y), dt() + DIG_EPS):
+	if e.dig.update(at, world.get_fg(at.x, at.y), dt()):
 		e.dig_target = HostEntity.NO_DIG
 		world.set_fg(at.x, at.y, TileDefs.AIR)
 		_result(e, e.dig_req, Reason.OK, at.x, at.y)

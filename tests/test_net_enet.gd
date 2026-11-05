@@ -48,7 +48,8 @@ func run(t: TestLog) -> void:
 	inp.target = Vector2i(x + 1, gy)
 	t.check(until.call(func() -> bool: return cw.world.get_fg(x + 1, gy) == TileDefs.AIR, 3.0), "a dig completes and comes back")
 	inp.dig = false
-	t.eq(host.world.get_fg(x + 1, gy), TileDefs.AIR, "on the host too")
+	# The client shows a predicted dig at its own dig time, a moment before the host is done.
+	t.check(until.call(func() -> bool: return host.world.get_fg(x + 1, gy) == TileDefs.AIR and cw.pending_count() == 0, 1.0), "on the host too")
 	var got := []
 	client.check_result.connect(func(tag: String, ok: bool, _line: String) -> void: got.append([tag, ok]))
 	client.request_check("enet")

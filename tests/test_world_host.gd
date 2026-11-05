@@ -54,7 +54,7 @@ func _digging(t: TestLog) -> void:
 		host.tick()
 		ticks += 1
 		done = w.get_fg(x, gy) == TileDefs.AIR
-	var need := ceili(TileEdit.dig_time(TileDefs.id("grass")) * K.TICK_HZ - 1e-6)
+	var need := 12   # grass: 0.4 s at 30 Hz, exactly
 	t.eq(ticks, need, "grass is dug after its dig time (%d ticks)" % need)
 	var evs := host.drain()
 	var tiles := events_of(evs, WorldHost.Ev.TILE)
