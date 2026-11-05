@@ -123,9 +123,7 @@ func _long(t: TestLog) -> void:
 	t.eq(bob.character.bed, b2, "and bob's his")
 	t.eq(ann.character.deeds.get("sleep", 0), 1, "a night slept")
 	t.check(host.clock_jumped, "the clock jump is flagged for the clients")
-	t.eq(rules.start_long_rest(ann), "you slept less than a day ago", "once per day")
-	host.sleep(15.0)
-	t.eq(rules.start_long_rest(ann), "", "a day after the last one began, again")
+	t.eq(rules.start_long_rest(ann), "", "no once-a-day limit: safe means you can sleep again")
 	rules.stand(ann)
 	# solo
 	var r2 := rig()
@@ -346,7 +344,7 @@ func _persist(t: TestLog) -> void:
 	t.eq(back.character.bed, b, "the bed")
 	t.check(rs2.is_downed(back), "still downed")
 	t.eq(back.combatant.death_saves.failures, 1, "with the failure")
-	t.check(not rs2.long_rest_ready(back), "the once-a-day rest clock")
+	t.check(rs2.long_rest_ready(back), "no once-a-day rest limit")
 	var k: Dictionary = rs2.pending(back).filter(func(p: Dictionary) -> bool: return p["kind"] == "knack")[0] \
 			if rs2.pending(back).any(func(p: Dictionary) -> bool: return p["kind"] == "knack") else {}
 	if not k.is_empty():

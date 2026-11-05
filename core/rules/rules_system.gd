@@ -37,8 +37,9 @@ const BED_RANGE := 2
 const HOSTILE_RADIUS := 12.0
 ## Moving this far from where a short rest started interrupts it.
 const REST_MOVE := 0.6
-## SRD: one Long Rest per 24 hours (from the start of the last one).
-const LONG_REST_EVERY_HOURS := 24.0
+## Game hours that must pass between long rests. The SRD says 24; the user dropped the limit
+## (2026-11-05): if it is safe, you can sleep. Kept as a knob.
+const LONG_REST_EVERY_HOURS := 0.0
 ## The night ends at this hour of the day.
 const WAKE_HOUR := 6.0
 const SAVE_SECONDS := 4.0
@@ -761,7 +762,8 @@ func start_short_rest(e: HostEntity) -> String:
 	return ""
 
 ## Lie down in a bed for a long rest: a bed within BED_RANGE, not down, nothing hostile near,
-## at most once per LONG_REST_EVERY_HOURS. The night passes when every living player is in bed.
+## (and LONG_REST_EVERY_HOURS since the last one, which is 0: no limit). The night passes when
+## every living player is in bed.
 func start_long_rest(e: HostEntity) -> String:
 	var ps := _ps(e)
 	if ps == null:
@@ -788,7 +790,9 @@ func start_long_rest(e: HostEntity) -> String:
 
 func long_rest_ready(e: HostEntity) -> bool:
 	var ps := _ps(e)
-	return ps != null and host.clock.hours() - ps.rest_at >= LONG_REST_EVERY_HOURS - 1e-6
+	if ps == null:
+		return false
+	return LONG_REST_EVERY_HOURS <= 0.0 or host.clock.hours() - ps.rest_at >= LONG_REST_EVERY_HOURS - 1e-6
 
 ## Stop resting (short or in bed).
 func stand(e: HostEntity, why := "") -> void:

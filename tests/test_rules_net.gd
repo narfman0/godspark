@@ -84,7 +84,7 @@ func run(t: TestLog) -> void:
 	t.eq(rig.host.clock.day(), day + 1, "both in bed: the night passed")
 	t.check(absf(fposmod(rig.cw(0).hours(), 24.0) - RulesSystem.WAKE_HOUR) < 0.2, "ann's client clock says morning (%s)" % WorldClock.describe(rig.cw(0).hours()))
 	t.eq(rests[-1]["event"], RulesCodec.RestEv.BED_DONE, "BED_DONE")
-	t.check(rc[0].sheet["bed"] != null and not rc[0].sheet["rest_ready"], "a bed to wake at, and no second rest today")
+	t.check(rc[0].sheet["bed"] != null and rc[0].sheet["rest_ready"], "a bed to wake at, and free to sleep again")
 
 	# downed: frozen, seen by bob, revived by bob's client
 	var downs := []
