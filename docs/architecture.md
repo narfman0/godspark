@@ -492,6 +492,39 @@ Presenter.combat_event(ev)     # optional; LogPresenter prints it, ViewPresenter
   CORRECT event with a new epoch (no WorldHost change); pushes on players are a PUSH event
   the owner applies to its own body.
 
+### Monsters (`core/monsters/`)
+
+As built ([tracks/monsters.md](tracks/monsters.md)). `MonstersSystem` (HostSystem.MONSTERS)
+and `MonstersClient`; byte layouts in `MonstersCodec`; data in `data/ecology/`.
+
+```
+monsters.spawn(slug, pos, opts := {}) -> HostEntity   # opts: rank, affixes, home, pack, slot, brain,
+                                                    #   lair, group, combatant (make_npc), people, name, scale
+monsters.request_plan(e, goal, tol)                 # brains; MonsterBrain.on_plan(path) answers
+monsters.director_enabled: -1 auto | 0 | 1          # main.gd host option spawns=0|1
+monsters.on_combat_damage(e, dealt, src)            # combat's damage hook (any system may define it)
+MonsterNav.profile(stats, dig := 0.0) -> NavProfile; MonsterNav.start(world, prof, from, to, tol, partial,
+    max_expand) -> NavSearch; search.step(n, budget_us := 0) -> bool; search.result() -> NavPath
+NavFollow.set_path(p); follow.input(world, body, dt, dig_rate) -> PlayerInput (null: done or failed)
+Ecology.habitats() / spawning() / affixes() / row(slug) / roster(srd, band, biome, night, lo, hi, water)
+# entity meta set at spawn (Object meta): rank, xp_mult, friendly (neutral); look: slug | people,
+#   rank, scale, affixes
+# client
+signal monster_info(id, info), monster_gone(id); mc.info_of(id); mc.look_of(id)
+# addon
+SRDContent.make_npc(role, species, lineage := "", id := 0) -> Combatant; Combatant.senses (ft)
+WorldSim.lair_killed(site_id, slug, by := "adventurers") -> bool
+combat.set_pace(e, mult)
+```
+
+- Ranks: minion (1 HP, xp 0.25), standard, elite (hit dice maximum, 1 affix, xp 2), champion
+  (double, 2 affixes, scale 1.3, xp 4), boss (as written, xp 6). Rules reads `rank`/`xp_mult`
+  meta; Items reads `look.rank`.
+- SYS kinds (host -> client): INFO 1 (rank, slug, people, scale, flags, affixes per monster,
+  sent when it enters a player's interest), GONE 2.
+- Lairs: materialized from `host.sim.lairs` near players, reconciled each second, kills written
+  back with `WorldSim.lair_killed`, survivors folded back; nothing extra saved.
+
 ### Wave 1: who owns what, and how systems call each other
 
 | Track | System id | Owns |
@@ -499,6 +532,7 @@ Presenter.combat_event(ev)     # optional; LogPresenter prints it, ViewPresenter
 | Rules | `HostSystem.RULES` | `core/rules/` (beyond `level_track.gd` and `character.gd`, which it may extend), `data/rules/` |
 | Combat | `HostSystem.COMBAT` | `core/combat/`, `data/combat.json`, attack and cast input actions, `tools/arena.gd` |
 | Items | `HostSystem.ITEMS` | `core/items/`, `data/items/`, `data/loot/`, `data/sparks.json`, tiles 64-95 |
+| Monsters (wave 2) | `HostSystem.MONSTERS` | `core/monsters/`, `data/ecology/`, `tools/ecology_report.gd`, `tools/spawn_sim.gd` |
 
 Systems find each other with `host.system(id)` and must work when the other is absent
 (check for null and `has_method`). The calls each one offers:
