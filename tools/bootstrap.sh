@@ -11,9 +11,11 @@ cd "$(dirname "$0")/.."
 status=0
 echo "== Synty assets (tools/fetch_assets.sh)"
 tools/fetch_assets.sh || { echo "fetch_assets: incomplete (see above)"; status=1; }
+echo "== interface fonts (tools/fetch_fonts.sh)"
+tools/fetch_fonts.sh || { echo "fetch_fonts: incomplete (the engine font is used)"; status=1; }
 if [[ "${1:-}" != "--no-monsters" ]]; then
 	echo "== monster-forge monsters (tools/sync_monsters.py --all)"
 	python3 -I tools/sync_monsters.py --all || { echo "sync_monsters: some monsters failed (see above)"; status=1; }
 fi
-du -sh assets/meshes assets/monsters assets/props 2>/dev/null
+du -sh assets/meshes assets/monsters assets/props assets/fonts 2>/dev/null
 exit $status
