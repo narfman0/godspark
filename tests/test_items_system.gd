@@ -110,6 +110,9 @@ func _inventory(t: TestLog) -> void:
 		full.put(i, Items.make("longsword"))
 	t.eq(full.add(Items.make("dagger")), Items.make("dagger"), "full: the leftover comes back")
 	t.eq(full.add(Items.make("tile:wood", 5)), Items.make("tile:wood", 5), "full: tiles too")
+	var old := Inventory.from_dict({"slots": [[0, {"base": "tile:wood", "count": 30}]], "selected": 0, "kit": true})
+	t.check(old.at(0).is_empty() and Items.count(old.at(old.slots.find(old.slots.filter(func(x: Dictionary) -> bool: return not x.is_empty())[0]))) == 30,
+		"an older save: the slot-1 item moves out of the attack slot")
 	var rt := Inventory.from_dict(JSON.parse_string(JSON.stringify(inv.to_dict())))
 	t.eq(rt.to_dict(), inv.to_dict(), "inventory round trip through JSON")
 	inv.selected = 6

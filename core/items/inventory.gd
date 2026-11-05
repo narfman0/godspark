@@ -185,7 +185,7 @@ func to_dict() -> Dictionary:
 	for i in SIZE:
 		if not slots[i].is_empty():
 			s.append([i, slots[i].duplicate(true)])
-	return {"slots": s, "coin": coin, "selected": selected, "kit": kit_given}
+	return {"slots": s, "coin": coin, "selected": selected, "kit": kit_given, "attack_slot": true}
 
 static func from_dict(d: Variant) -> Inventory:
 	var inv := Inventory.new()
@@ -199,4 +199,11 @@ static func from_dict(d: Variant) -> Inventory:
 		inv.coin = int(d.get("coin", 0))
 		inv.selected = clampi(int(d.get("selected", 0)), 0, HOTBAR - 1)
 		inv.kit_given = bool(d.get("kit", false))
+		if inv.kit_given and not bool(d.get("attack_slot", false)) and not inv.slots[ATTACK_SLOT].is_empty():
+			# a character saved before the attack slot: its slot-1 item moves along, slot 1 is selected
+			var to := inv.first_free()
+			if to >= 0:
+				inv.slots[to] = inv.slots[ATTACK_SLOT]
+				inv.slots[ATTACK_SLOT] = {}
+				inv.selected = ATTACK_SLOT
 	return inv
