@@ -18,6 +18,8 @@ const RULES := 1
 const COMBAT := 2
 const ITEMS := 3
 const MONSTERS := 4
+const LIFE := 5
+const DEALS := 6
 
 ## Unique per system, 1..255.
 func sys_id() -> int:

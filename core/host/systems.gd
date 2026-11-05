@@ -13,6 +13,8 @@ const HOST := {
 	HostSystem.COMBAT: "res://core/combat/combat_system.gd",
 	HostSystem.ITEMS: "res://core/items/items_system.gd",
 	HostSystem.MONSTERS: "res://core/monsters/monsters_system.gd",
+	HostSystem.LIFE: "res://core/life/life_system.gd",
+	HostSystem.DEALS: "res://core/deals/deals_system.gd",
 }
 ## sys id -> script path of the ClientSystem.
 const CLIENT := {
@@ -20,6 +22,8 @@ const CLIENT := {
 	HostSystem.COMBAT: "res://core/combat/combat_client.gd",
 	HostSystem.ITEMS: "res://core/items/items_client.gd",
 	HostSystem.MONSTERS: "res://core/monsters/monsters_client.gd",
+	HostSystem.LIFE: "res://core/life/life_client.gd",
+	HostSystem.DEALS: "res://core/deals/deals_client.gd",
 }
 
 ## Add every host system that exists, in id order. Returns the ids added.

@@ -199,7 +199,7 @@ Each ends in a playable co-op build and green headless suites.
 | M1 | Dig together | Tile world, worldgen v0 (one surface biome plus caves), mesher, lighting, platformer controller, dig and place, 2-player co-op, save and load, Synty hero as the player body, meadow dressing objects |
 | M2 | Fight | Reshaped 2026-11-05 into an ARPG track: levels to 100 with a class level every fifth, sparks, Vigor and Knacks between, real-time d20 combat, ranked monsters in packs, slot-limited gear with no attunement cap. See [m2.md](m2.md) |
 | M3 | Living strip | Headless strategic sim: settlements, food, population, trade, raids, chronicle, `tools/run_history.gd`, debug world map. **Runs in parallel with M1 and M2** (pure core) |
-| M4 | Materialize | Real tile towns and NPCs built from Synty building templates per culture, shops backed by sim stock and prices, caravans on roads, drow raids you can watch or stop, sim-generated quests, settlements that grow and decay in tiles |
+| M4 | The living world on screen | Direction changed 2026-11-05: less building and collecting, more changing world and adventuring. Passable caves with ropes and crisscrossing stairs, real settlements, townsfolk, caravans and raids from the sim, then talk, shops, quests, patrons and standing. See [m4.md](m4.md) |
 | M5 | The Deep | Full Underdark bands and biomes, drow city-states, deep roads, burrowers, aboleth sea, lair bosses, ores and crafting tiers, levels to 10 |
 | M6 | War and dragons | Diplomacy, armies, sieges, dragon lairs and tribute, reputation, player strongholds, levels to 20 |
 | M7 | Planes | Realm framework, portals, Nine Hells first, then Abyss, Elemental, Feywild and Shadowfell |

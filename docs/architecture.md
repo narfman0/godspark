@@ -617,3 +617,65 @@ within 3 tiles; respawn at the bed, else the nearest shrine within 96 tiles, els
 optional no-op method to `Presenter` (the log presenter prints it) and nothing else in
 `game/` or `view/`, except that Combat owns the attack and cast inputs.
 
+## M4 contracts (the living world on screen)
+
+Design: [m4.md](m4.md). New system ids: `HostSystem.LIFE` (5, `core/life/`) and
+`HostSystem.DEALS` (6, `core/deals/`), found by `core/host/systems.gd` like the others.
+
+### Places and routes (`core/world/places.gd`, exists)
+
+Worldgen writes them into `world.meta`; everyone reads them through `Places`.
+
+```
+meta.places: {"<site id>": {site, rect: [x, y, w, h], culture, tier,
+                            buildings: [{kind, rect, door: [x, y], anchors: {role: [[x, y]]}}]}}
+   kind:    home | smithy | market | tavern | shrine | gate | hall | store | ruin
+   anchors: feet cells where a person of that role stands or works
+            (smith, merchant, keeper, priest, guard, townsfolk)
+meta.routes[i].path: [[x, y], ...]   feet cells from site a to site b, walkable by a
+                                     Medium body without digging (and by a wagon on roads)
+Places.place(world, site_id), buildings(world, site_id, kind), anchors(world, site_id, role),
+Places.route_path(world, route_id), route_point(world, route_id, t)
+```
+
+Tiles stay the truth: a building is a tile stamp (walls, floors, doors, platforms) plus
+dressing records for its skin. The sim's settlement tier decides how many buildings stand.
+
+### Life (`core/life/`, system 5)
+
+Turns sim entities into actors while a player is near, and back.
+
+```
+Entity meta set by Life on what it spawns:
+  sim:      {kind: settlement | party | lair, id, role}   role: townsfolk, guard, smith,
+            merchant, keeper, priest, escort, raider, drover, wagon ...
+  faction:  the sim faction id as a string, or "wild"
+  talk:     true when a player can talk to it
+life.stance(a: HostEntity, b: HostEntity) -> int      # Life.HOSTILE, NEUTRAL, FRIENDLY
+life.faction_of(e) -> String                          # players: "players"
+life.standing(entity_id, faction) -> int              # -100..100, the player's standing
+life.add_standing(entity_id, faction, n, why)
+life.actors_at(site_id) -> Array[HostEntity]; life.actors_of(party_id) -> Array[HostEntity]
+```
+
+- Combat and brains pick foes through `life.stance` when Life is installed (monsters fight
+  guards, guards fight raiders); without it, monsters and players are foes as before.
+- While materialized, the sim entity is frozen (the sim skips it); on fold-back its people,
+  cargo and coin are written back. Counts are conserved: a test proves it.
+- Dice for materialized things come from per-entity seeded generators, so looking at the
+  world does not change the sim's own rolls.
+
+### Deals (`core/deals/`, system 6; wave 2)
+
+Talk, trade, quests and patrons. Reads `host.sim`, `Places` and Life's roles; pays out
+through Items (`give`), Rules (`award_xp`, `add_deed`) and Life (`add_standing`).
+
+### Traversal
+
+- `S` (down) drops through a one-way walkway when there is open space below; no jump needed.
+- Ropes: an item anchored at a cell; it hangs down through open cells to the floor or its
+  length, and is climbed like a ladder (W up, S down).
+- Worldgen guarantees: every site, cave region and cavern is reachable on foot from the
+  spawn settlement by a Medium walker without digging.
+- Digging yields `rubble`; ore tiles yield an ore trade good. `supplies` make camp gear.
+
