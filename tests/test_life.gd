@@ -365,3 +365,188 @@ func _town(t: TestLog) -> void:
 			back = true
 	t.check(not back, "the dead do not come back (%s)" % [killed_names])
 	t.eq(host.sim.audit(), [], "the sim's books are sound")
+
+# --- 4. parties on the roads ------------------------------------------------------------------------
+
+static func advance(host: WorldHost, hours: float) -> void:
+	host.sleep(hours)
+	var guard := 0
+	while host.sim_behind() > 0 and guard < 2000:
+		host.tick()
+		guard += 1
+	ticks(host, 65)
+
+## A settlement next to sid by road (its caravans' reach), or -1.
+static func neighbour(host: WorldHost, sid: int) -> int:
+	for e: Array in host.sim.adj.get(sid, []):
+		if host.sim.settlements.has(int(e[0])) and int(e[0]) != sid:
+			return int(e[0])
+	var best := -1
+	for o: int in WorldSim._sorted_keys(host.sim.settlements):
+		if o != sid and not host.sim.path_between(sid, o, WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK).is_empty():
+			if best < 0 or absf(host.sim.settlements[o].x - host.sim.settlements[sid].x) < absf(host.sim.settlements[best].x - host.sim.settlements[sid].x):
+				best = o
+	return best
+
+static func follow(host: WorldHost, life: LifeSystem, p: HostEntity, pid: int) -> void:
+	var sp: SimParty = host.sim.parties.get(pid)
+	if sp == null:
+		return
+	p.body.pos = life.road.ground(host, life.road.party_pos(host, sp)) + Vector2(0, 0.5)
+	TileCollision.depenetrate(host.world, p.body)
+
+func _roads(t: TestLog) -> void:
+	# a) a watched caravan arrives exactly as an unwatched one
+	var ra := rig()
+	var rb := rig()
+	var ha: WorldHost = ra["host"]
+	var hb: WorldHost = rb["host"]
+	var la: LifeSystem = ra["life"]
+	var lb: LifeSystem = rb["life"]
+	var sid := town_of(ha)
+	var to := neighbour(ha, sid)
+	t.check(to >= 0, "a neighbour town (%d -> %d)" % [sid, to])
+	if to < 0:
+		return
+	var pa := la.cheat_party("caravan", sid, to, 0.93)
+	var pb := lb.cheat_party("caravan", sid, to, 0.93)
+	t.check(pa > 0 and pa == pb, "the same caravan on both")
+	var p := put(ha, "watcher", ha.spawn)
+	follow(ha, la, p, pa)
+	ticks(ha, 65)
+	ticks(hb, 65)
+	t.check(la.road.active.has(pa) and ha.sim.parties[pa].watched, "the caravan materializes near the player")
+	var acts := la.actors_of(pa)
+	var wagons := acts.filter(func(e: HostEntity) -> bool: return e.look.get("wagon", false))
+	t.check(acts.size() >= 3 and wagons.size() == 1, "escort, drovers and a wagon (%d actors)" % acts.size())
+	var stock_a0: float = ha.sim.settlements[to].stock["food"]
+	for k in 12:
+		advance(ha, 6.0)
+		advance(hb, 6.0)
+		follow(ha, la, p, pa)
+		if not ha.sim.parties.has(pa) or String(ha.sim.parties[pa].plan.get("leg", "")) == "home":
+			break
+	t.check(ha.sim.parties.has(pa) == false or String(ha.sim.parties[pa].plan.get("leg", "")) == "home", "it arrived")
+	t.check(ha.sim.settlements[to].stock["food"] != stock_a0, "the market's food changed (%.1f -> %.1f)" % [stock_a0, ha.sim.settlements[to].stock["food"]])
+	t.eq(ha.sim.settlements[to].stock, hb.sim.settlements[to].stock, "the stocks are exactly what an unwatched arrival makes")
+	t.eq(ha.sim.settlements[to].wealth, hb.sim.settlements[to].wealth, "and the coin")
+	t.check(ha.sim.to_dict().hash() == hb.sim.to_dict().hash(), "the whole sim is the same")
+
+	# b) a raid intercepted and wiped out by players never happens
+	var r := rig()
+	var host: WorldHost = r["host"]
+	var life: LifeSystem = r["life"]
+	var combat: CombatSystem = r["combat"]
+	var from := neighbour(host, sid)
+	var rid := life.cheat_party("raid", from, sid, 0.5, 5)
+	var hero := put(host, "hero", host.spawn)
+	follow(host, life, hero, rid)
+	ticks(host, 65)
+	t.check(life.road.active.has(rid), "the raid materializes on the road")
+	var f := str(host.sim.settlements[sid].faction)
+	var st0 := life.standing(hero.id, f)
+	var raid_events := 0
+	for e: Dictionary in host.sim.chronicle:
+		if e["kind"] == "raid":
+			raid_events += 1
+	for k in 10:
+		for e: HostEntity in life.actors_of(rid):
+			if e.combatant != null and e.combatant.current_hp > 0:
+				combat.damage(hero.id, e, 9999, "force")
+		ticks(host, 3)
+		if not host.sim.parties.has(rid):
+			break
+		ticks(host, 62)
+	t.check(not host.sim.parties.has(rid), "the raiders are gone from the sim")
+	advance(host, 24.0)
+	var raid_events2 := 0
+	for e: Dictionary in host.sim.chronicle:
+		if e["kind"] == "raid":
+			raid_events2 += 1
+	t.eq(raid_events2, raid_events, "the raid never happens")
+	t.check(life.standing(hero.id, f) > st0, "standing with the town rises (%d -> %d)" % [st0, life.standing(hero.id, f)])
+	t.eq(host.sim.audit(), [], "books sound")
+
+	# c) a raid that wins at a watched town takes cargo in the sim
+	var r2 := rig()
+	var h2: WorldHost = r2["host"]
+	var l2: LifeSystem = r2["life"]
+	var c2: CombatSystem = r2["combat"]
+	var town: SimSettlement = h2.sim.settlements[sid]
+	var watcher := put(h2, "watcher", LifeTown.site_pos(h2, sid) + Vector2(0, 3))
+	watcher.combatant.stats.max_hp = 9999
+	ticks(h2, 65)
+	town.stock["food"] = maxf(town.stock["food"], 500.0)
+	var raid := l2.cheat_party("raid", from, sid, 0.999, 8)
+	var food0: float = town.stock["food"]
+	advance(h2, 6.0)
+	t.check(h2.sim.parties.has(raid) and h2.sim.parties[raid].frozen, "the raid arrives and is handed to real time")
+	t.check(l2.road.active.has(raid) and not (l2.road.active[raid]["raid"] as Dictionary).is_empty(), "Life fights it")
+	var attacker := -1
+	for e: HostEntity in l2.actors_of(raid):
+		attacker = e.id
+	for k in 40:
+		if not h2.sim.parties.has(raid) or not h2.sim.parties[raid].frozen:
+			break
+		for e: HostEntity in l2.actors_at(sid):
+			if e.get_meta("sim")["role"] == "guard" and e.combatant.current_hp > 0:
+				c2.damage(attacker, e, 9999, "force")
+		ticks(h2, 65)
+	var won := false
+	for e: Dictionary in h2.sim.chronicle:
+		if e["kind"] == "raid" and bool(e["won"]):
+			won = true
+	t.check(won, "the raiders won (the chronicle says so)")
+	t.check(h2.sim.parties.has(raid) and not h2.sim.parties[raid].cargo.is_empty(), "and carry the town's goods as cargo")
+	t.check(town.stock["food"] < food0, "the town lost food (%.0f -> %.0f)" % [food0, town.stock["food"]])
+	# players kill the laden raiders: the loot drops
+	var dropped0: int = l2.stats["dropped"]
+	for e: HostEntity in l2.actors_of(raid):
+		if e.combatant != null and e.combatant.current_hp > 0:
+			c2.damage(watcher.id, e, 9999, "force")
+			break
+	ticks(h2, 3)
+	t.check(int(l2.stats["dropped"]) > dropped0, "a laden raider drops its share of the loot")
+	t.eq(h2.sim.audit(), [], "books sound")
+
+	# d) fold-back in the middle keeps position and losses; e) save and load in the middle
+	var r3 := rig()
+	var h3: WorldHost = r3["host"]
+	var l3: LifeSystem = r3["life"]
+	var c3: CombatSystem = r3["combat"]
+	var cid := l3.cheat_party("caravan", sid, to, 0.4, 6)
+	var w3 := put(h3, "w", h3.spawn)
+	follow(h3, l3, w3, cid)
+	ticks(h3, 65)
+	var cp: SimParty = h3.sim.parties[cid]
+	var n0 := cp.size()
+	var victim: HostEntity = null
+	for e: HostEntity in l3.actors_of(cid):
+		if e.brain is LifeBrain and (e.brain as LifeBrain).fighter:
+			victim = e
+	c3.damage(w3.id, victim, 9999, "force")
+	ticks(h3, 3)
+	t.eq(cp.size(), n0 - 1, "a dead escort is one fewer in the sim")
+	ticks(h3, 400)
+	var frac := cp.frac
+	var leg := cp.leg
+	var size_mid := cp.size()
+	# save and load the sim in the middle
+	var saved: Variant = bytes_to_var(var_to_bytes(h3.sim.to_dict()))
+	h3.sim = WorldSim.from_dict(saved)
+	ticks(h3, 65)
+	t.check(l3.road.active.has(cid) and h3.sim.parties[cid].watched, "after a load the caravan materializes again from the sim")
+	t.eq(h3.sim.parties[cid].size(), size_mid, "with its losses")
+	var shown := 0
+	for e: HostEntity in l3.actors_of(cid):
+		if not e.look.get("wagon", false):
+			shown += 1
+	t.eq(shown, mini(size_mid, int(Life.people_cfg()["caps"]["party"])), "and the same people shown")
+	w3.body.pos += Vector2(500, 0)
+	TileCollision.depenetrate(h3.world, w3.body)
+	ticks(h3, 65)
+	var cp2: SimParty = h3.sim.parties[cid]
+	t.check(not l3.road.active.has(cid) and not cp2.watched and not cp2.frozen, "folded back")
+	t.check(cp2.leg == leg and is_equal_approx(cp2.frac, frac), "at the same place on the road")
+	t.eq(cp2.size(), size_mid, "with the same people")
+	t.eq(l3.actors_of(cid).size(), 0, "and no actors left")
