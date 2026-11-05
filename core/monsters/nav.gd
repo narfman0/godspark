@@ -173,6 +173,9 @@ static func _record_jumps(p: NavProfile) -> void:
 	# shortest first, so a search meets cheap arcs first
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["t"] < b["t"])
 	p.jumps = out
+	for j: Dictionary in out:
+		p.jdl.append(int(j["dl"]))
+		p.jdy.append(int(j["dy"]))
 
 static func _sweep_cells(p: NavProfile, cells: Dictionary, b: Body, sx: int, sy: int) -> void:
 	var g := 0.05
@@ -195,6 +198,8 @@ static func _landing(p: NavProfile, best: Dictionary, cells: Dictionary, xc: flo
 		return            # straight down or back where it started: walking covers it
 	if dy < 0 and absi(dl) <= 1:
 		return            # a drop does this
+	if dy < -8:
+		return            # long jumps down: drops and shorter hops do it more simply
 	var foot := cells.duplicate()
 	# the box at the landing spot itself
 	for cy in range(yb, yb + p.ch):
@@ -217,6 +222,8 @@ static func _landing(p: NavProfile, best: Dictionary, cells: Dictionary, xc: flo
 		list = [j]
 	elif ticks < int(list[0]["ticks"]) or (ticks == int(list[0]["ticks"]) and asc.size() + desc.size() < (list[0]["asc"] as PackedInt32Array).size() + (list[0]["desc"] as PackedInt32Array).size()):
 		list[0] = j
+	elif dy < 3:
+		pass              # one way is enough for low landings
 	elif list.size() < 2 and delay > int(list[0]["delay"]):
 		list.append(j)
 	elif list.size() == 2 and delay > int(list[1]["delay"]):

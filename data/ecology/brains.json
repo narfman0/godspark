@@ -10,6 +10,7 @@
 	"flee_hp": 0.25,
 	"flee_s": 6.0,
 	"sense_s": 0.3,
+	"calm_sense_s": 0.5,
 	"far_tiles": 56.0,
 	"far_think_s": 0.5,
 	"replan_s": 2.0,

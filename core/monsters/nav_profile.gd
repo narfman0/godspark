@@ -23,3 +23,6 @@ var max_speed := 13.0
 ## [{dl, dy, hold, delay, dir, ticks, t, asc: PackedInt32Array, desc: PackedInt32Array, xc}]:
 ## offsets packed with MonsterNav._pack, relative to the start node.
 var jumps: Array = []
+## The jumps' landing offsets, packed for the search's inner loop (same order as jumps).
+var jdl := PackedInt32Array()
+var jdy := PackedInt32Array()

@@ -17,9 +17,9 @@ class_name MonstersSystem
 extends HostSystem
 
 ## Microseconds of path search per tick, all monsters together (fair round-robin).
-const NAV_BUDGET_US := 1500
+const NAV_BUDGET_US := 800
 const NAV_SLICE := 250
-const NAV_MAX_EXPAND := 4000
+const NAV_MAX_EXPAND := 1500
 ## Ticks between INFO sweeps.
 const INFO_EVERY := 10
 
@@ -114,6 +114,7 @@ func spawn(slug: String, pos: Vector2, opts := {}) -> HostEntity:
 	brain.rec = rec
 	for a: String in affixes:
 		_affix_setup(a, stats, c, rec, brain)
+	MonsterNav.profile(stats, float(rec["dig"]))      # its jumps are recorded now, not in the planner
 	var e := h.add_monster(stats, pos, brain, look, c)
 	e.set_meta("rank", rank)
 	e.set_meta("xp_mult", float(rd.get("xp_mult", 1.0)))
@@ -204,6 +205,9 @@ func _nav_tick() -> void:
 	var guard := 0
 	while not _queue.is_empty() and Time.get_ticks_usec() - t0 < NAV_BUDGET_US and guard < 64:
 		guard += 1
+		var left0 := NAV_BUDGET_US - (Time.get_ticks_usec() - t0)
+		if left0 < 200:
+			break
 		var q: Dictionary = _queue.pop_front()
 		var e := h.entity(int(q["id"]))
 		var brain: Variant = mons.get(int(q["id"]))
@@ -212,7 +216,8 @@ func _nav_tick() -> void:
 		if q["search"] == null:
 			q["search"] = MonsterNav.start(h.world, profile_of(e), e.body.pos, q["goal"], q["tol"], true, NAV_MAX_EXPAND)
 		var s: NavSearch = q["search"]
-		if s.step(NAV_SLICE):
+		var left := NAV_BUDGET_US - (Time.get_ticks_usec() - t0)
+		if s.step(NAV_SLICE, maxi(left, 50)):
 			stats["plans"] += 1
 			stats["plan_usec"] += s.usec
 			var p := s.result()

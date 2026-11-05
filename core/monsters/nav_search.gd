@@ -92,13 +92,16 @@ func setup(w: TileWorld, p: NavProfile, s: Vector2i, gl: Vector2i, t: Vector2i, 
 	_how[k] = -1
 	_push(k, _h(start.x, start.y))
 
-## Expand up to n nodes. True when finished (found, exhausted or over budget).
-func step(n: int) -> bool:
+## Expand up to n nodes, or until budget_us microseconds have passed (0: no limit). True when
+## finished (found, exhausted or over the expansion cap).
+func step(n: int, budget_us := 0) -> bool:
 	if done:
 		return true
 	var t0 := Time.get_ticks_usec()
 	var i := 0
 	while i < n and not _hk.is_empty():
+		if budget_us > 0 and i > 0 and Time.get_ticks_usec() - t0 >= budget_us:
+			break
 		var k := _pop()
 		if _closed[k] != 0:
 			continue
@@ -277,14 +280,17 @@ func _jump_worthy(L: int, y: int) -> bool:
 
 func _jumps(k: int, g0: float, L: int, y: int) -> void:
 	var js: Array = prof.jumps
-	for i in js.size():
+	var jdl := prof.jdl
+	var jdy := prof.jdy
+	for i in jdl.size():
+		var tl := L + jdl[i]
+		var ty := y + jdy[i]
+		var tk := _key(tl, ty)
+		if tk < 0 or _closed[tk] != 0:
+			continue
+		if _stand[tk] == 2 or _clear[tk] == 2 or _clear_at(tl, ty) != 1 or not _stand_at(tl, ty):
+			continue
 		var j: Dictionary = js[i]
-		var tl := L + int(j["dl"])
-		var ty := y + int(j["dy"])
-		if _key(tl, ty) < 0 or _closed[_key(tl, ty)] != 0:
-			continue
-		if _clear_at(tl, ty) != 1 or not _stand_at(tl, ty):
-			continue
 		var ok := true
 		for o: int in j["asc"]:
 			if _cf(L + (o & 1023) - 512, y + ((o >> 10) & 1023) - 512) & SOLID:

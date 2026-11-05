@@ -57,6 +57,10 @@ var _corner_t := 0.0
 var _lost_t := 0.0
 var _last := PlayerInput.new()
 var _think_at := 0.0
+var _calm_next := 0.0
+var _line_at := -1.0
+var _line_goal := Vector2.INF
+var _line_ok := false
 
 static func cfg() -> Dictionary:
 	if _cfg.is_empty():
@@ -92,6 +96,12 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 	# far from every player: think slowly, stand still
 	if _t < _think_at:
 		return combat.filter_input(e, _hold(_last))
+	# calm monsters (idle, wandering, lurking) think at 10 Hz; anything that engages them
+	# (provoke, a packmate's alert) changes the state at once
+	if state in [State.IDLE, State.WANDER, State.LURK]:
+		if _t < _calm_next:
+			return combat.filter_input(e, _hold(_last))
+		_calm_next = _t + 0.1
 	var near := _nearest_player_dist(host, e)
 	if near > _num("far_tiles", 56.0) and state != State.RETURN and state != State.FLEE:
 		_think_at = _t + _num("far_think_s", 0.5)
@@ -99,7 +109,7 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 		return _last
 	# senses
 	if _t >= _sense_at:
-		_sense_at = _t + _num("sense_s", 0.3)
+		_sense_at = _t + (_num("sense_s", 0.3) if state == State.CHASE else _num("calm_sense_s", 0.5))
 		var seen := _sense(host, combat, e)
 		if seen != null and (foe == null or seen.id != foe.id and _d(e, seen) + 3.0 < _d(e, foe)):
 			if foe == null:
@@ -182,19 +192,19 @@ func _fight(host: WorldHost, combat: CombatSystem, e: HostEntity, foe: HostEntit
 	var ranged := _ranged_action(acts)
 	var keep: Array = arch().get("keep", [])
 	if archetype in ["archer", "caster"] and ranged >= 0 and not keep.is_empty():
-		if foe in combat.targets_in_reach(e, ranged) and dist >= 2.5 and combat.start_attack(e, ranged, aim):
+		if _reaches(host, e, foe, acts, ranged, dist) and dist >= 2.5 and combat.start_attack(e, ranged, aim):
 			attacks += 1
 			return inp
 		if dist < float(keep[0]):
 			# too close: melee if it can, else step away
-			if foe in combat.targets_in_reach(e) and combat.start_attack(e, -1, aim):
+			if _reaches(host, e, foe, acts, _first_attack(acts), dist) and combat.start_attack(e, -1, aim):
 				attacks += 1
 				return inp
 			return _go(host, e, e.body.pos + Vector2(-signf(dx) * 6.0, 0.0), dt, 1.0, Vector2i(2, 3))
 		if dist <= float(keep[1]):
 			e.body.facing = 1 if dx >= 0.0 else -1
 			return inp
-	if foe in combat.targets_in_reach(e) and combat.start_attack(e, -1, aim):
+	if _reaches(host, e, foe, acts, _first_attack(acts), dist) and combat.start_attack(e, -1, aim):
 		attacks += 1
 		return inp
 	# close in: spread around the target; flankers take the far side
@@ -208,6 +218,29 @@ func _fight(host: WorldHost, combat: CombatSystem, e: HostEntity, foe: HostEntit
 	if archetype == "flier" and e.stats.fly_speed > 0.0 and dist > 3.0:
 		goal.y += float(arch().get("hover", 4.0))
 	return _go(host, e, goal, dt, float(arch().get("speed", 1.0)), Vector2i(1, 2), foe)
+
+## Would action i touch foe now (melee reach, or normal range for ranged), with a line to it?
+## The same test as combat.targets_in_reach, for one target (no loop over every creature).
+func _reaches(host: WorldHost, e: HostEntity, foe: HostEntity, acts: Array, i: int, gap: float) -> bool:
+	var reach := 2.0
+	var rng := 0.0
+	if i >= 0 and i < acts.size():
+		var act: Dictionary = acts[i]
+		if act["kind"] == "ranged":
+			reach = 0.0
+			rng = K.ft(float(act.get("range_ft", 0.0)))
+		else:
+			reach = K.ft(float(act.get("reach_ft", 5.0)))
+	if gap > maxf(reach + HitShapes.EPS, rng):
+		return false
+	return HitShapes.line_to(host.world, e.body.rect().get_center(), foe.body.rect())
+
+## The action Multiattack starts with, else the default attack (as combat picks it).
+func _first_attack(acts: Array) -> int:
+	for i in acts.size():
+		if acts[i]["kind"] == "melee":
+			return i
+	return 0 if not acts.is_empty() else -1
 
 func _ranged_action(acts: Array) -> int:
 	for i in acts.size():
@@ -223,8 +256,14 @@ func _go(host: WorldHost, e: HostEntity, goal: Vector2, dt: float, speed: float,
 	var b := e.body
 	var d := goal - b.pos
 	var mid_jump := follow.active() and follow.jump_t >= 0
-	var direct: bool = not mid_jump and (b.on_floor or b.swimming) and absf(d.x) <= _num("direct_tiles", 10.0) and absf(d.y) <= 1.5 and e.stats.fly_speed <= 0.0 \
-		and not TileCollision.raycast(host.world, b.pos + Vector2(0, 1.2), goal + Vector2(0, 1.2))["hit"]
+	var direct: bool = not mid_jump and (b.on_floor or b.swimming) and absf(d.x) <= _num("direct_tiles", 10.0) and absf(d.y) <= 1.5 and e.stats.fly_speed <= 0.0
+	if direct:
+		# the line check is cached for a moment (it is the costly part)
+		if _t >= _line_at or _line_goal.distance_to(goal) > 1.0:
+			_line_at = _t + 0.2
+			_line_goal = goal
+			_line_ok = not TileCollision.raycast(host.world, b.pos + Vector2(0, 1.2), goal + Vector2(0, 1.2))["hit"]
+		direct = _line_ok
 	if direct and not b.swimming:
 		follow.path = null
 		var inp := PlayerInput.new()
@@ -234,8 +273,11 @@ func _go(host: WorldHost, e: HostEntity, goal: Vector2, dt: float, speed: float,
 			inp.jump_pressed = true
 		return inp
 	var sys: Variant = host.system(HostSystem.MONSTERS)
-	var stale := follow.path == null or follow.failed or not follow.active() \
-		or plan_goal.distance_to(goal) > _num("goal_moved_tiles", 4.0) or _t - plan_at > _num("replan_s", 2.0)
+	# replan: no path (not more than once a second; after a failed plan, wait replan_s), the
+	# goal moved, or the path is old
+	var since := _t - plan_at
+	var stale := ((follow.path == null or follow.failed or not follow.active()) and since > (_num("replan_s", 2.0) if plan_fail > 0 else 1.0)) \
+		or (plan_goal.distance_to(goal) > _num("goal_moved_tiles", 4.0) and since > 0.5) or since > _num("replan_s", 2.0) * 1.5
 	if stale and not mid_jump and not plan_pending and sys != null and sys.has_method("request_plan"):
 		if follow.failed:
 			plan_fail += 1
