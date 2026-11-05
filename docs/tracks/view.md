@@ -14,7 +14,7 @@ Branch `ws/view`. Everything here runs with no art present.
 | `view/demo.tscn`, `view/demo.gd` | fly over `TileWorld.make_test()`: WASD/arrows, wheel zoom, LMB dig, RMB place stone, T time of day, L toggle the walker's torch |
 | `tools/shot.gd` | renders the demo to a PNG under `tools/soft_godot.sh`, prints timings and a picking check |
 | `tools/bench_view.gd` | headless timings for meshing and light |
-| `tests/test_light.gd`, `test_chunk_mesher.gd`, `test_world_view.gd` | 49 checks between them |
+| `tests/test_light.gd`, `test_chunk_mesher.gd`, `test_world_view.gd` | light anchor, walls, sun, incremental-vs-fresh, carried lights; mesher arrays; view bookkeeping |
 
 `project.godot` gained a `[shader_globals]` section (the six `gs_*` globals below). That is
 the only change outside the track's files.
