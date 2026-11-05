@@ -110,6 +110,7 @@ func set_dimmed(d: bool) -> void:
 	bar.modulate.a = 0.55 if d else 1.0
 	vitals.visible = not d
 	clock.visible = not d
+	banner_box.visible = not d
 
 # --- per frame (cheap: redraws only what changed) ----------------------------------------
 

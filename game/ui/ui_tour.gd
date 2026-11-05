@@ -58,7 +58,34 @@ func _run() -> void:
 func steps() -> void:
 	await shot("01_hud")
 	await inventory()
+	await levels()
 	await fight()
+
+## Gain levels: the banner, the Knack cards, a class-level choice (ASI) half made.
+func levels() -> void:
+	var rules := cw.system(HostSystem.RULES) as RulesClient
+	rules.debug(RulesCodec.Debug.LEVEL, 4)
+	await wait(0.9)
+	await shot("03_levelup_banner")
+	ui.open("choices")
+	await wait(0.5)
+	await shot("04_knack_cards")
+	var ch: Dictionary = rules.choices.get("knack:4", {})
+	if not ch.is_empty():
+		rules.pick_knack(String(ch["options"][0]["id"]))
+	await wait(0.4)
+	rules.debug(RulesCodec.Debug.LEVEL, 15)
+	await wait(1.2)
+	var scr := ui.screen("choices") as ChoicesScreen
+	for k: String in rules.choices:
+		if String(rules.choices[k].get("kind", "")) == "asi":
+			scr.current = k
+			scr.picked = ["ability-score-improvement"]
+			scr.details = ["str"]
+	scr.refresh()
+	await wait(0.4)
+	await shot("04b_choices_asi")
+	ui.close("choices")
 
 func give(list: Array) -> void:
 	await host(func(h: WorldHost) -> void:
