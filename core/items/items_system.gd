@@ -100,8 +100,8 @@ static func give_kit(ch: Character) -> void:
 	inv.add(Items.make("tile:wood", 30))
 	inv.add(Items.make("tile:torch", 10))
 	inv.add(Items.make("tile:campfire", 1))
-	inv.add(Items.make("tile:bed", 1))
 	inv.add(Items.make_magic("potions-of-healing", 0).merged({"count": 2}, true))
+	inv.add(Items.make("tile:bed", 1))
 	inv.kit_given = true
 
 static func _plain(base: String) -> Dictionary:
