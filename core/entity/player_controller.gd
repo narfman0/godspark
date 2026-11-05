@@ -144,6 +144,8 @@ static func _swim(world: TileWorld, body: Body, input: PlayerInput, stats: MoveS
 		body.vel.y += (body.in_liquid * stats.buoyancy - stats.water_gravity) * dt
 		body.vel.y *= maxf(0.0, 1.0 - stats.water_drag * dt)
 		body.vel.y = maxf(body.vel.y, -stats.max_sink)
+	if body.vel.y < -stats.swim_speed:
+		body.vel.y = move_toward(body.vel.y, -stats.swim_speed, stats.water_brake * dt)
 	_move(world, body, stats, dt, false)
 
 static func _cling(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:

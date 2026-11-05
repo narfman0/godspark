@@ -70,7 +70,7 @@ static func can_place(world: TileWorld, body: Body, x: int, y: int, tile_id: int
 ##   var dig := TileEdit.DigProgress.new()
 ##   if dig.update(target, world.get_fg(target.x, target.y), dt): world.set_fg(target.x, target.y, 0)
 class DigProgress extends RefCounted:
-	var target := Vector2i(-1 << 30, -1 << 30)
+	var target := Vector2i(-(1 << 30), -(1 << 30))
 	var tile_id := -1
 	var elapsed := 0.0
 	var needed := INF
@@ -96,7 +96,7 @@ class DigProgress extends RefCounted:
 		return clampf(elapsed / needed, 0.0, 1.0)
 
 	func reset() -> void:
-		target = Vector2i(-1 << 30, -1 << 30)
+		target = Vector2i(-(1 << 30), -(1 << 30))
 		tile_id = -1
 		elapsed = 0.0
 		needed = INF

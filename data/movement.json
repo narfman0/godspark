@@ -43,6 +43,7 @@
 		"drag": 3.0,
 		"accel": 40.0,
 		"max_sink": 4.0,
+		"brake": 150.0,
 		"stroke_mult": 1.0,
 		"leap_below": 0.85,
 		"leap_mult": 0.75

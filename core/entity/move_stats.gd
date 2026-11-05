@@ -54,6 +54,8 @@ var buoyancy := 17.0
 var water_drag := 3.0
 var swim_accel := 40.0
 var max_sink := 4.0
+## Deceleration (t/s^2) of a body entering water faster than it can swim down.
+var water_brake := 150.0
 var stroke_mult := 1.0
 var leap_below := 0.85
 var leap_mult := 0.75
@@ -139,6 +141,7 @@ static func from_srd(speeds: Dictionary, size_name_in := "medium") -> MoveStats:
 	s.water_drag = float(sw["drag"])
 	s.swim_accel = float(sw["accel"])
 	s.max_sink = float(sw["max_sink"])
+	s.water_brake = float(sw["brake"])
 	s.stroke_mult = float(sw["stroke_mult"])
 	s.leap_below = float(sw["leap_below"])
 	s.leap_mult = float(sw["leap_mult"])
