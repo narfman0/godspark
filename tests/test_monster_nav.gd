@@ -19,6 +19,7 @@ func run(t: TestLog) -> void:
 	_digger(t)
 	_drop(t)
 	_window_and_partial(t)
+	_caves(t)
 
 static func _ok(t: TestLog, name: String, r: Dictionary, want_edges := []) -> void:
 	t.check(r["planned"], "%s: a path is found" % name)
@@ -278,3 +279,86 @@ func _window_and_partial(t: TestLog) -> void:
 	while not b.step(100000):
 		pass
 	t.eq(a.result().describe(), b.result().describe(), "sliced and whole searches find the same path")
+
+## Generated cave terrain: a Medium walker and a Large climber try to reach spots ~40 tiles
+## away in the caves band. Pairs are random standing spots (not known to be connected).
+func _caves(t: TestLog) -> void:
+	var world := WorldGen.generate(1024, 512, 11)
+	var band: Array = world.meta.get("bands", {}).get("caves", [100, 200])
+	var r := RandomNumberGenerator.new()
+	r.seed = 5
+	for spec: Array in [["medium", {"walk": 30}], ["large", {"walk": 30, "climb": 30}]]:
+		var st := NavMaps.stats(spec[0], spec[1])
+		var ok := 0
+		var planned := 0
+		var n := 0
+		var usec := 0
+		var tries := 0
+		while n < 24 and tries < 5000:
+			tries += 1
+			var a := _spot(world, st, r, int(band[0]), int(band[1]))
+			if a == Vector2.INF:
+				continue
+			# a spot 35-45 tiles away in the same open cave (air-connected cells)
+			var b := Vector2.INF
+			var cands := _connected_spots(world, st, a)
+			if not cands.is_empty():
+				b = cands[r.randi_range(0, cands.size() - 1)]
+			if b == Vector2.INF:
+				continue
+			n += 1
+			var res := NavMaps.run({"world": world, "start": a, "goal": b}, st, 900)
+			if OS.has_environment("NAVDBG") and not res["planned"]:
+				print("   miss %s -> %s expanded %d" % [a, b, res["expanded"]])
+			usec += int(res["usec"])
+			if res["planned"]:
+				planned += 1
+			if res["reached"]:
+				ok += 1
+		print("  cave nav %s: %d/%d reached (%d planned), %.1f ms per plan" % [spec[0], ok, n, planned, usec / 1000.0 / maxf(n, 1)])
+		t.check(n >= 20, "enough cave pairs for %s (%d)" % [spec[0], n])
+		# Noise caves are often cramped shafts a 2x3 or 3x4 body cannot climb without digging;
+		# when the search finds a way, the real body must take it.
+		t.check(planned > 0 and ok * 10 >= planned * 8, "%s: the real body follows found cave paths (%d of %d)" % [spec[0], ok, planned])
+		t.check(ok * 4 >= n, "%s reaches at least a quarter of air-connected cave spots 40 tiles away (%d/%d)" % [spec[0], ok, n])
+
+static func _connected_spots(world: TileWorld, st: MoveStats, a: Vector2) -> Array:
+	var seen := {}
+	var q: Array[Vector2i] = [Vector2i(floori(a.x), int(a.y))]
+	seen[q[0]] = true
+	var out := []
+	var head := 0
+	while head < q.size() and q.size() < 20000:
+		var c: Vector2i = q[head]
+		head += 1
+		var d := Vector2(c).distance_to(a)
+		if d >= 35.0 and d <= 45.0 and _stands(world, st, Vector2(c.x + 0.5, c.y)):
+			out.append(Vector2(c.x + 0.5, c.y))
+		for o: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var n := c + o
+			if seen.has(n) or world.is_solid(n.x, n.y) or Vector2(n).distance_to(a) > 46.0:
+				continue
+			seen[n] = true
+			q.append(n)
+	return out
+
+static func _spot(world: TileWorld, st: MoveStats, r: RandomNumberGenerator, y0: int, y1: int) -> Vector2:
+	for k in 400:
+		var p := Vector2(r.randi_range(40, world.width - 40) + 0.5, r.randi_range(y0, y1))
+		if _stands(world, st, p):
+			return p
+	return Vector2.INF
+
+static func _stands(world: TileWorld, st: MoveStats, p: Vector2) -> bool:
+	var cw := ceili(st.size.x - 1e-3)
+	var ch := ceili(st.size.y - 1e-3)
+	var L := floori(p.x - cw * 0.5 + 0.5)
+	var y := int(p.y)
+	var floor_ok := false
+	for c in range(L, L + cw):
+		for rr in range(y, y + ch):
+			if world.is_solid(c, rr):
+				return false
+		if world.is_solid(c, y - 1):
+			floor_ok = true
+	return floor_ok
