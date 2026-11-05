@@ -1,0 +1,161 @@
+{
+	"_comment": "Building templates for settlements (core/world/place_styles.gd). rows: the body, top row first; the bottom row is the ground storey's feet row (y0 = the street row). A foundation row is laid under the body and the style's roof over its top row. Legend: '#' wall, '=' floor or ceiling, '+' masonry, '-' walkway (one-way), 'H' ladder over the back wall, '.' room (air, back wall), ',' open air (no back wall), 'd' doorway (air, back wall), 'D' the door cell (a doorway cell; recorded as the building's door), '*' lamp over the back wall, '!' lamp in open air, '^' awning (one-way) in open air. Anchors (feet cells): s smith, m merchant, k keeper, p priest, g guard, t townsfolk over the back wall; the capitals S M K P G T the same in open air. Every storey a person uses has 3 clear rows; doorways are 4 rows tall so a wagon passes through ground floors (the street runs through every building). pieces: [role, dx, dy] from the body's bottom-left; the style's kit maps a role to a dressing id (missing ones are skipped). roof: false for no roof. Ladders stand in for the Traversal track's stairs tile: replace H with stairs after the merge.",
+	"templates": {
+		"home": {
+			"kind": "home",
+			"rows": [
+				"==========",
+				"#..*.....#",
+				"d........d",
+				"d........d",
+				"d........d",
+				"D.t....t.d"
+			],
+			"pieces": [["bed", 6, 0], ["table", 2, 0], ["chair", 4, 0], ["door", 0, 0], ["window", 4, 2]]
+		},
+		"home_tall": {
+			"kind": "home",
+			"rows": [
+				"===========",
+				"#..*......#",
+				"#.........#",
+				"#.t.......#",
+				"===-HHH-===",
+				"#...HHH.*.#",
+				"d...HHH...d",
+				"d...HHH...d",
+				"d...HHH...d",
+				"D.t.HHH...d"
+			],
+			"pieces": [["bed", 6, 6], ["table", 1, 0], ["shelf", 7, 0], ["door", 0, 0], ["window", 1, 7]]
+		},
+		"smithy": {
+			"kind": "smithy",
+			"rows": [
+				"============",
+				"#.....*....#",
+				"d..........d",
+				"d..........d",
+				"d..........d",
+				"D..s.......d"
+			],
+			"pieces": [["forge", 6, 0], ["anvil", 1, 0], ["tools", 9, 0], ["sign_smith", 1, 4]]
+		},
+		"store": {
+			"kind": "store",
+			"rows": [
+				"==========",
+				"#...*....#",
+				"d........d",
+				"d........d",
+				"d........d",
+				"D...m....d"
+			],
+			"pieces": [["counter", 2, 0], ["shelf", 6, 0], ["crate", 8, 0], ["sign_store", 1, 4]]
+		},
+		"store_tall": {
+			"kind": "store",
+			"rows": [
+				"===========",
+				"#....*....#",
+				"#.........#",
+				"#.t.......#",
+				"====-HHH-==",
+				"#..*.HHH..#",
+				"d....HHH..d",
+				"d....HHH..d",
+				"d....HHH..d",
+				"D.m..HHH..d"
+			],
+			"pieces": [["counter", 1, 0], ["shelf", 7, 0], ["bed", 7, 6], ["sign_store", 1, 4]]
+		},
+		"tavern": {
+			"kind": "tavern",
+			"rows": [
+				"=================",
+				"#...*.......*...#",
+				"#...............#",
+				"#.t..........t..#",
+				"====-HHH-========",
+				"#....HHH...*....#",
+				"d....HHH........d",
+				"d....HHH........d",
+				"d....HHH........d",
+				"D.t..HHH...k..t.d"
+			],
+			"pieces": [["bar", 9, 0], ["barrel", 13, 0], ["table", 1, 0], ["bed", 1, 6], ["bed", 11, 6], ["sign_tavern", 1, 4]]
+		},
+		"hall": {
+			"kind": "hall",
+			"rows": [
+				"==================",
+				"#.......*........#",
+				"#................#",
+				"#................#",
+				"d................d",
+				"d................d",
+				"d................d",
+				"D..g..t....t..g..d"
+			],
+			"pieces": [["banner", 4, 4], ["banner", 13, 4], ["throne", 8, 0], ["table", 2, 0]]
+		},
+		"shrine": {
+			"kind": "shrine",
+			"rows": [
+				"========",
+				"#..*...#",
+				"#......#",
+				"#......#",
+				"d......d",
+				"d......d",
+				"d......d",
+				"D..p...d"
+			],
+			"pieces": [["statue", 4, 0], ["candles", 1, 0]]
+		},
+		"square": {
+			"kind": "shrine",
+			"roof": false,
+			"rows": [
+				",,,,,,,,,,,,,,",
+				",,,,,,,,,,,,,,",
+				",,,,,,,,,,,,,,",
+				",,,,,,,,,,,,,,",
+				",T,,,,!P,,,,T,"
+			],
+			"pieces": [["well", 3, 0], ["post_shrine", 8, 0]]
+		},
+		"market": {
+			"kind": "market",
+			"roof": false,
+			"rows": [
+				",,,,,,,,,,,,,,",
+				"^^^^,,,,,,^^^^",
+				",,,,,,,,,,,,,,",
+				",,,,,,,,,,,,,,",
+				",,,,,,,,,,,,,,",
+				",M,,,,!T,,,,M,"
+			],
+			"pieces": [["stall", 0, 0], ["stall", 10, 0], ["crate", 5, 0], ["well", 8, 0]]
+		},
+		"gate": {
+			"kind": "gate",
+			"roof": false,
+			"rows": [
+				"+,+,,,+,+",
+				"+++++++++",
+				"+.......+",
+				"+.......+",
+				"+.......+",
+				"+g......+",
+				"++-HHHH-+",
+				"d..HHHH.d",
+				"d..HHHH.d",
+				"d*.HHHH.d",
+				"d..HHHH.d",
+				"D.gHHHH.d"
+			],
+			"pieces": [["banner", 1, 7], ["torch_wall", 5, 2]]
+		}
+	}
+}

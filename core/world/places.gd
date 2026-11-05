@@ -69,3 +69,20 @@ static func route_point(world: TileWorld, route_id: int, t: float) -> Vector2i:
 	if path.is_empty():
 		return Vector2i.ZERO
 	return path[clampi(roundi(t * (path.size() - 1)), 0, path.size() - 1)]
+
+## The street row under column x if x is on a place's street: Vector2i(site id, feet row),
+## else (-1, -1).
+static func street_at(world: TileWorld, x: int) -> Vector2i:
+	for k: String in all(world):
+		var st: Array = all(world)[k].get("street", [])
+		if st.size() == 3 and x >= int(st[0]) and x <= int(st[1]):
+			return Vector2i(int(k), int(st[2]))
+	return Vector2i(-1, -1)
+
+## The place whose rect holds cell (x, y) (its site id), or -1.
+static func place_at(world: TileWorld, x: int, y: int) -> int:
+	for k: String in all(world):
+		var r: Array = all(world)[k].get("rect", [])
+		if r.size() == 4 and x >= int(r[0]) and x < int(r[0]) + int(r[2]) and y >= int(r[1]) - 2 and y < int(r[1]) + int(r[3]):
+			return int(k)
+	return -1

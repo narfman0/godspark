@@ -181,8 +181,12 @@ func drain() -> Array[Dictionary]:
 
 # --- entities ---------------------------------------------------------------------
 
-## Top of the ground near column x: the spot a Medium body stands on.
+## Top of the ground near column x: the spot a Medium body stands on. Inside a place it is
+## the street (not a roof).
 func find_spawn(x: int) -> Vector2:
+	var street := Places.street_at(world, x)
+	if street.y >= 0:
+		return Vector2(x + 0.5, street.y)
 	var top := 0
 	for cx in range(x - 1, x + 2):
 		for y in range(world.height - 1, -1, -1):

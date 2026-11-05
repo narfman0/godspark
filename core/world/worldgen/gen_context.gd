@@ -34,6 +34,7 @@ var buried_rooms: Array = []       ## [{x, y, w}]
 var sites: Array = []
 var routes: Array = []
 var objects := PackedInt32Array()  ## dressing records, flat (id, x, y, variant)
+var places := {}                   ## meta.places: site id (String) -> place (PlaceBuilder)
 
 var AIR := 0
 var BEDROCK: int
@@ -220,5 +221,6 @@ func to_world() -> TileWorld:
 		"bands": bands.duplicate(true),
 		"sites": sites.duplicate(true),
 		"routes": routes.duplicate(true),
+		"places": places.duplicate(true),
 	}
 	return world

@@ -18,7 +18,6 @@ const CAVE_DENSITY := 0.35
 
 static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	Dressing.ensure()
-	c.objects = PackedInt32Array()
 	var taken := {}
 	var surface: Array = []
 	var cave: Array = []
@@ -39,7 +38,11 @@ static func _surface(c: GenContext, rng: RandomNumberGenerator, ids: Array, take
 	for s: Dictionary in c.sites:
 		if s.get("kind") == "settlement" and s.get("band") in ["surface", "sky"]:
 			var half := int(s.get("size", 40)) / 2 + 4
-			settled.append(Vector2i(int(s["x"]) - half, int(s["x"]) + half))
+			var p: Dictionary = c.places.get(str(s["id"]), {})
+			if p.is_empty():
+				settled.append(Vector2i(int(s["x"]) - half, int(s["x"]) + half))
+			else:   # a laid-out place: its street and a margin
+				settled.append(Vector2i(int(p["street"][0]) - 4, int(p["street"][1]) + 4))
 	var x := 0
 	while x < c.w:
 		var top := c.surface[x]

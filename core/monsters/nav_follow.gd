@@ -113,7 +113,9 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 			if b.clinging:                  # let go of the wall
 				inp.move_x = -float(b.wall_dir)
 		E.PLATFORM:
-			if b.on_floor and not _dropped:
+			if b.climbing:                  # caught on a ladder dropping past it: climb on down
+				inp.down = true
+			elif b.on_floor and not _dropped:
 				inp.down = true
 				inp.jump = true
 				inp.jump_pressed = true
