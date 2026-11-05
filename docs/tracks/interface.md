@@ -139,7 +139,7 @@ passing. It prints `TOUR shot <path>` for each picture and a frame-cost line for
 | Tests | 2673 checks, ALL PASS (2558 before; +115 `test_interface.gd`) |
 | Smoke | `tools/net_smoke.sh`, `FIGHT=1 SPAWN=goblin-warrior:2`, `RULES=1`: NET SMOKE PASS |
 | Icon raster | about 6 ms per (category, colour) the first time, cached after |
-| Interface + FX frame cost, tour fight under CPU rendering | see the tour's `TOUR perf` line (below) |
+| Frame cost in the tour's fight (3 goblins, numbers, plates, telegraphs, drops; CPU Vulkan under Xvfb, 1280x720, 96 fps) | interface (GameUi + HUD) avg 74 us, max 321 us; FX avg 78 us, max 440 us (1467 frames) |
 
 ## Known rough edges
 
