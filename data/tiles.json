@@ -14,7 +14,10 @@
 		{"id": 17, "name": "iron_ore", "solid": true, "opaque": true, "hardness": 2.0, "color": "#a5674f"},
 		{"id": 18, "name": "silver_ore", "solid": true, "opaque": true, "hardness": 2.5, "color": "#d4dce6"},
 		{"id": 19, "name": "cobblestone", "solid": true, "opaque": true, "hardness": 1.4, "color": "#9a9284"},
-		{"id": 20, "name": "slate", "solid": true, "opaque": true, "hardness": 1.6, "color": "#545668"}
+		{"id": 20, "name": "slate", "solid": true, "opaque": true, "hardness": 1.6, "color": "#545668"},
+		{"id": 64, "name": "campfire", "solid": false, "opaque": false, "hardness": 0.3, "emit": 15, "color": "#ff9a3c"},
+		{"id": 65, "name": "bed", "solid": false, "opaque": false, "hardness": 0.3, "color": "#a8423f"},
+		{"id": 66, "name": "shrine", "solid": false, "opaque": false, "hardness": 2.0, "color": "#d9c8ff"}
 	],
 	"walls": [
 		{"id": 0, "name": "none"},

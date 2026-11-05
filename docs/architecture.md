@@ -441,3 +441,39 @@ AttackResolver.weapon_attack and every spell through SpellResolver.cast; the gam
 positional facts (cover from TileCollision.raycast, within_5ft, light from LightEngine).
 ```
 
+### Wave 1: who owns what, and how systems call each other
+
+| Track | System id | Owns |
+|---|---|---|
+| Rules | `HostSystem.RULES` | `core/rules/` (beyond `level_track.gd` and `character.gd`, which it may extend), `data/rules/` |
+| Combat | `HostSystem.COMBAT` | `core/combat/`, `data/combat.json`, attack and cast input actions, `tools/arena.gd` |
+| Items | `HostSystem.ITEMS` | `core/items/`, `data/items/`, `data/loot/`, `data/sparks.json`, tiles 64-95 |
+
+Systems find each other with `host.system(id)` and must work when the other is absent
+(check for null and `has_method`). The calls each one offers:
+
+```gdscript
+# Rules
+rules.on_kill(victim: HostEntity, killers: Array[int])   # XP to nearby players, deeds
+rules.add_deed(entity_id, counter: String, n := 1)
+rules.refresh(e: HostEntity)          # rebuild the combatant and move stats after gear, sparks
+                                      # or a level change; keeps current HP in range; resyncs
+rules.player_dropped(e)               # combat reports 0 HP; rules runs downed, saves, death
+rules.is_downed(e) -> bool
+# Items
+items.gear_mods(e) -> Array           # ItemEffects mods of everything worn
+items.wielded(e) -> Dictionary        # the main-hand item record, {} if none
+items.apply_sparks(e, stats: MoveStats, out: Dictionary)
+items.give(entity_id, item: Dictionary) -> Dictionary     # leftover, {} when it all fit
+items.drop(pos: Vector2, items: Array)                     # loot on the ground
+items.on_kill(victim: HostEntity)     # roll the loot table and drop it
+# Combat
+combat.damage(src_id, dst: HostEntity, amount, dtype, opts := {})   # for traps, falls, effects
+combat.in_combat(e) -> bool           # hostile activity within the last few seconds
+```
+
+Campfire, bed and shrine are tiles (64, 65, 66), so rests and kindling test for a tile near
+the player and need no other system. Presentation is wave 2: in wave 1 a track may add one
+optional no-op method to `Presenter` (the log presenter prints it) and nothing else in
+`game/` or `view/`, except that Combat owns the attack and cast inputs.
+
