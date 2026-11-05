@@ -11,6 +11,8 @@ const TILE_M := 0.75
 const CHUNK := 32
 ## Host simulation ticks per second.
 const TICK_HZ := 30
+## Real seconds in one game day (24 game hours): 20 minutes, so a game hour is 50 s.
+const DAY_SECONDS := 1200
 ## Real seconds in one combat round (an SRD round is 6 s of game time).
 const ROUND_SECONDS := 2.0
 

@@ -123,6 +123,14 @@ func _handle(bytes: PackedByteArray) -> void:
 			if cw == null:
 				return
 			match type:
+				Protocol.T.META:
+					cw.apply_meta(m["meta"])
+				Protocol.T.CLOCK:
+					cw.apply_clock(m["ticks"])
+				Protocol.T.OBJECTS:
+					cw.apply_objects(m["cx"], m["cy"], m["records"])
+				Protocol.T.CHRONICLE:
+					cw.apply_chronicle(m["lines"])
 				Protocol.T.CHUNK:
 					cw.apply_chunk(m["cx"], m["cy"], m["blob"])
 				Protocol.T.UNLOAD:

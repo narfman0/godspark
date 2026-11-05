@@ -27,6 +27,8 @@ var snapshot_every := 2
 var chunk_bytes_per_tick := 96 * 1024
 var chunks_per_peer_tick := 16
 var handshake_timeout := 5.0
+## Host ticks between CLOCK messages (clients run the clock locally in between).
+var clock_every := 10 * K.TICK_HZ
 ## Host time, seconds (ticks / TICK_HZ).
 var time := 0.0
 var peers := {}           ## peer id -> PeerState
@@ -35,12 +37,14 @@ var sent_by_type := {}
 var tick_usec := PackedInt32Array()
 var log_fn := Callable()
 var _blob_cache := {}     ## Vector2i -> PackedByteArray
+var _meta_msg := PackedByteArray()
 var _round_robin := 0
 
 func _init(h: WorldHost, t: NetTransport) -> void:
 	host = h
 	transport = t
 	host.world.chunk_changed.connect(_on_chunk_changed)
+	_meta()   # built now (a world with no meta.surface scans one): never inside a tick
 
 func _on_chunk_changed(cx: int, cy: int) -> void:
 	_blob_cache.erase(Vector2i(cx, cy))
@@ -61,6 +65,12 @@ func tick() -> void:
 		for p: PeerState in peers.values():
 			if p.phase == PeerPhase.PLAYING:
 				_snapshot(p)
+	if host.clock_jumped or host.tick_count % clock_every == 0:
+		host.clock_jumped = false
+		var msg := Protocol.clock(host.clock.ticks)
+		for p: PeerState in peers.values():
+			if p.phase == PeerPhase.PLAYING:
+				_send(p.id, msg)
 	_timeouts()
 	tick_usec.append(Time.get_ticks_usec() - t0)
 
@@ -168,9 +178,24 @@ func _hello(p: PeerState, m: Dictionary) -> void:
 	p.since = time
 	_send(p.id, Protocol.welcome(e.id, host.world.width, host.world.height, host.world.world_seed,
 			e.body.pos, e.epoch, K.TICK_HZ, K.TICK_HZ / snapshot_every, radius))
+	_send(p.id, _meta())
+	_send(p.id, Protocol.clock(host.clock.ticks))
+	var recent := host.recent_chronicle()
+	if not recent.is_empty():
+		_send(p.id, Protocol.chronicle(recent))
 	_update_interest(p)
 	_log("join peer %d as %s (entity %d) at %s" % [p.id, name, e.id, e.body.pos])
 	player_joined.emit(p.id, name)
+
+## META for joining clients, built once (a world without meta.surface, like the test world,
+## gets one scanned from its tiles).
+func _meta() -> PackedByteArray:
+	if _meta_msg.is_empty():
+		var m := host.world.meta.duplicate()
+		if not m.has("surface"):
+			m["surface"] = Array(host.world.scan_surface())
+		_meta_msg = Protocol.meta(m)
+	return _meta_msg
 
 func _drop_peer(id: int, reason: int) -> void:
 	var p: PeerState = peers.get(id)
@@ -209,6 +234,21 @@ func _route(events: Array[Dictionary]) -> void:
 				if peers.has(int(ev["owner"])):
 					_send(ev["owner"], Protocol.correct(ev["epoch"], ev["pos"], ev["vel"]))
 					_log("correct entity %d (%s) to %s" % [ev["id"], WorldHost.StateCheck.find_key(ev["why"]), ev["pos"]])
+			WorldHost.Ev.OBJECTS:
+				var oc := Vector2i(int(ev["cx"]), int(ev["cy"]))
+				_blob_cache.erase(oc)
+				var msg := Protocol.objects(oc.x, oc.y, host.world.chunk_at(oc.x, oc.y).objects)
+				for p: PeerState in peers.values():
+					if p.sent.has(oc):
+						_flush_deltas(p)      # the tile change lands before the object goes
+						_send(p.id, msg)
+			WorldHost.Ev.CHRONICLE:
+				var lines: PackedStringArray = ev["lines"]
+				for i in range(0, lines.size(), 32):
+					var msg := Protocol.chronicle(lines.slice(i, i + 32))
+					for p: PeerState in peers.values():
+						if p.phase == PeerPhase.PLAYING:
+							_send(p.id, msg)
 			WorldHost.Ev.EDIT_RESULT:
 				if peers.has(int(ev["owner"])):
 					_flush_deltas(peers[ev["owner"]])     # the tile change lands before its result

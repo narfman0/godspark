@@ -44,10 +44,16 @@ static func snapshot(world: TileWorld, cx: int, cy: int) -> Dictionary:
 				fgs.append(1)
 			elif y >= world.chunks_y:
 				fgs.append(0)
+			elif not world.has_chunk(x, y):
+				# Unloaded (sparse client world): open sky above the surface line, else rock.
+				fgs.append(0 if world.unloaded_is_sky(x, y) else 1)
 			else:
 				fgs.append(world.chunk_at(x, y).fg.duplicate())
-	return {"cx": cx, "cy": cy, "fgs": fgs, "bg": world.chunk_at(cx, cy).bg.duplicate(),
-		"bedrock": TileDefs.id("bedrock")}
+	var own := world.chunk_at(cx, cy)
+	var bg := own.bg.duplicate() if own != null else PackedByteArray()
+	if own == null:
+		bg.resize(K.CHUNK * K.CHUNK)
+	return {"cx": cx, "cy": cy, "fgs": fgs, "bg": bg, "bedrock": TileDefs.id("bedrock")}
 
 static func build(world: TileWorld, cx: int, cy: int) -> Array:
 	return build_arrays(snapshot(world, cx, cy))

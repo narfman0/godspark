@@ -18,6 +18,7 @@ const Caves := preload("stage_caves.gd")
 const Deeps := preload("stage_deeps.gd")
 const Ores := preload("stage_ores.gd")
 const Sites := preload("stage_sites.gd")
+const DressingStage := preload("stage_dressing.gd")
 
 ## [name, script, static method]. Append new stages where they belong; names are the RNG
 ## keys, so renaming a stage changes every world.
@@ -35,6 +36,7 @@ const STAGES := [
 	["finish", Sites, "finish"],
 	["sites", Sites, "sites"],
 	["routes", Sites, "routes"],
+	["dressing", DressingStage, "run"],
 ]
 
 const SIZES := {
@@ -57,7 +59,7 @@ static func generate(width: int, height: int, world_seed: int, opts := {}) -> Ti
 		last_timings[st[0]] = (Time.get_ticks_usec() - t0) / 1000
 		if st[0] == stop:
 			break
-	if stop != "" and stop != "routes":
+	if stop != "" and stop != "routes" and stop != "dressing":
 		c.survey()
 	var t1 := Time.get_ticks_usec()
 	var world := c.to_world()

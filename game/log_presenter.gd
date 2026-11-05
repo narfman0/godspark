@@ -28,6 +28,10 @@ func edit_result(req: int, reason: int, at: Vector2i, _tile: int) -> void:
 	if reason != 0:
 		_say("edit %d at %s refused: %s" % [req, at, WorldHost.Reason.find_key(reason)])
 
+func chronicle_lines(lines: PackedStringArray) -> void:
+	for l in lines:
+		print("[chronicle] ", l)
+
 func corrected(pos: Vector2) -> void:
 	_say("corrected to %s" % pos)
 

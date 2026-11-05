@@ -33,6 +33,7 @@ var portal := {}                   ## {cavern, x, y, w, steps, x0}
 var buried_rooms: Array = []       ## [{x, y, w}]
 var sites: Array = []
 var routes: Array = []
+var objects := PackedInt32Array()  ## dressing records, flat (id, x, y, variant)
 
 var AIR := 0
 var BEDROCK: int
@@ -209,6 +210,10 @@ func to_world() -> TileWorld:
 			var c := world.chunk_at(cx, cy)
 			c.fg = fimg.get_region(r).get_data()
 			c.bg = bimg.get_region(r).get_data()
+	for i in range(0, objects.size(), 4):
+		var ox := objects[i + 1]
+		var oy := objects[i + 2]
+		world.chunk_at(ox >> 5, oy >> 5).add_object(objects[i], ox & 31, oy & 31, objects[i + 3])
 	world.meta = {
 		"surface": Array(surface),
 		"biomes": biomes.duplicate(true),

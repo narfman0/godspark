@@ -38,7 +38,7 @@ func _join_and_spawn(t: TestLog) -> void:
 	t.eq(a2.body.pos, Vector2(40.5, ground), "rejoining restores the recorded position")
 	t.check(a2.id != a.id, "with a fresh entity id")
 	host.records["bob"] = {"name": "bob", "pos": [40.5, ground - 3]}
-	t.eq(host.add_player("bob", 9).body.pos, host.spawn, "a record inside rock falls back to spawn")
+	t.eq(host.add_player("bob", 9).body.pos, Vector2(40.5, ground), "a record inside rock steps out to the nearest free spot")
 
 func _digging(t: TestLog) -> void:
 	var host := WorldHost.new(TileWorld.make_test())
@@ -54,7 +54,7 @@ func _digging(t: TestLog) -> void:
 		host.tick()
 		ticks += 1
 		done = w.get_fg(x, gy) == TileDefs.AIR
-	var need := ceili(TileEdit.dig_time(TileDefs.id("grass")) * K.TICK_HZ - 1e-6)
+	var need := 12   # grass: 0.4 s at 30 Hz, exactly
 	t.eq(ticks, need, "grass is dug after its dig time (%d ticks)" % need)
 	var evs := host.drain()
 	var tiles := events_of(evs, WorldHost.Ev.TILE)

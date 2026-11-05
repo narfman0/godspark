@@ -12,6 +12,10 @@ extends RefCounted
 ## rather than SRD melee reach (5 ft = 2 tiles), which would make building fiddly. Measured
 ## from the box, so larger creatures reach further.
 const REACH := 4.0
+## Hardness values are read to this precision (seconds).
+const DIG_QUANTUM := 0.0001
+## Accumulated step times may fall short of a dig time by float error; this much is forgiven.
+const DIG_SLACK := 1e-6
 
 ## True if the tile is within reach of the body.
 static func in_reach(body: Body, x: int, y: int) -> bool:
@@ -28,12 +32,14 @@ static func can_dig(world: TileWorld, body: Body, x: int, y: int) -> bool:
 	return id != TileDefs.AIR and TileDefs.hardness[id] >= 0.0
 
 ## Seconds to dig a tile with a tool of `tool_power` (1 = bare hands; 2 digs twice as fast).
-## INF for unbreakable tiles and air.
+## INF for unbreakable tiles and air. Hardness is stored as float32 (0.4 reads back as
+## 0.40000001), so it is snapped to DIG_QUANTUM: dirt takes exactly 0.4 s, which is 12 host
+## ticks or 24 controller steps, not one more.
 static func dig_time(tile_id: int, tool_power := 1.0) -> float:
 	TileDefs.ensure()
 	if tile_id == TileDefs.AIR or tile_id < 0 or tile_id >= TileDefs.hardness.size():
 		return INF
-	var h := TileDefs.hardness[tile_id]
+	var h := snappedf(TileDefs.hardness[tile_id], DIG_QUANTUM)
 	if h < 0.0 or tool_power <= 0.0:
 		return INF
 	return h / tool_power
@@ -84,7 +90,7 @@ class DigProgress extends RefCounted:
 			elapsed = 0.0
 			needed = TileEdit.dig_time(id, tool_power)
 		elapsed += dt
-		if elapsed + 1e-9 >= needed:
+		if elapsed + TileEdit.DIG_SLACK >= needed:
 			reset()
 			return true
 		return false

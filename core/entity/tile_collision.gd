@@ -18,6 +18,9 @@ extends RefCounted
 ## Contact tolerance in tiles. Positions are Vector2 (float32): at x = 8192 one ulp is
 ## ~0.001, so this is the floor for worlds up to 16384 wide.
 const EPS := 1e-3
+## A falling body blocked sideways by a ledge whose top is at most this far above its feet,
+## beyond the distance it falls this step, is lifted onto it (see move()).
+const LEDGE_SLACK := 0.05
 
 ## Move `body` by `body.vel * dt`, stopping at blocking tiles. Zeroes the velocity
 ## component that hit something, then refreshes on_floor / on_wall / on_ceiling.
@@ -29,6 +32,16 @@ static func move(world: TileWorld, body: Body, dt: float) -> void:
 	var dy: float = body.vel.y * dt
 	if dx != 0.0:
 		var r := _sweep_x(world, x - hw, x + hw, y, y + body.size.y, dx)
+		if r[0] and dy < 0.0:
+			# Corner snag: falling diagonally with the feet just under a ledge top. Moving x
+			# before y makes it hit the side and slide down. If the top is within this step's
+			# fall, lift onto it (the body crossed the corner between two steps) and go on.
+			var lift := _ledge_lift(world, x - hw, x + hw, y, body.size.y, dx, r[1], -dy + LEDGE_SLACK)
+			if lift > 0.0:
+				y += lift
+				dy = 0.0
+				body.vel.y = 0.0
+				r = _sweep_x(world, x - hw, x + hw, y, y + body.size.y, dx)
 		if r[0]:
 			body.vel.x = 0.0
 			# place the stopped edge exactly on the tile boundary
@@ -44,6 +57,23 @@ static func move(world: TileWorld, body: Body, dt: float) -> void:
 			y += dy
 	body.pos = Vector2(x, y)
 	update_contacts(world, body)
+
+## How far up a body blocked sideways at column boundary `edge` must go to clear that
+## column (its top), if that is at most `limit` and the lifted box is free; else 0.
+static func _ledge_lift(world: TileWorld, l: float, r: float, b: float, h: float, dx: float,
+		edge: float, limit: float) -> float:
+	var c := int(edge) if dx > 0.0 else int(edge) - 1
+	var top := ceilf(b - EPS)
+	if top - b > limit or top - b < EPS:
+		top = floorf(b) + 1.0
+	var lift := top - b
+	if lift <= 0.0 or lift > limit:
+		return 0.0
+	if _col_solid(world, c, top, top + h):
+		return 0.0              # the column is taller than that: a wall, not a ledge
+	if overlaps_solid(world, Rect2(l, top, r - l, h)):
+		return 0.0
+	return lift
 
 ## Recompute on_floor, on_ceiling, on_wall and wall_dir from the tiles touching the box
 ## (within EPS). on_floor needs vel.y <= 0: a body rising past a platform is not on it.
@@ -117,6 +147,42 @@ static func overlaps_solid(world: TileWorld, rect: Rect2) -> bool:
 			if world.is_solid(x, y):
 				return true
 	return false
+
+## Push a body that overlaps solid tiles out to the nearest free spot: the feet go onto a
+## whole row, x moves by whole tiles, the smallest move wins (ties go up, then left). Searches
+## `radius` tiles each way. Velocity is zeroed and contacts refreshed. Returns true if it
+## moved; false if it was already free or nothing free was found.
+static func depenetrate(world: TileWorld, body: Body, radius := 12) -> bool:
+	if not overlaps_solid(world, body.rect()):
+		return false
+	var base := Vector2(body.pos.x, floorf(body.pos.y))
+	for o: Vector2i in _offsets(radius):
+		var p := base + Vector2(o)
+		var r := Rect2(p.x - body.size.x * 0.5, p.y, body.size.x, body.size.y)
+		if not overlaps_solid(world, r):
+			body.pos = p
+			body.vel = Vector2.ZERO
+			update_contacts(world, body)
+			return true
+	return false
+
+static var _offset_cache := {}
+static func _offsets(radius: int) -> Array:
+	if not _offset_cache.has(radius):
+		var out: Array = []
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				out.append(Vector2i(dx, dy))
+		out.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+			var la := a.length_squared()
+			var lb := b.length_squared()
+			if la != lb:
+				return la < lb
+			if a.y != b.y:
+				return a.y > b.y
+			return a.x < b.x)
+		_offset_cache[radius] = out
+	return _offset_cache[radius]
 
 ## A one-way tile: a platform, or a ladder's top rung.
 static func is_one_way(world: TileWorld, x: int, y: int) -> bool:

@@ -20,6 +20,10 @@ signal chunk_dropped(cx: int, cy: int)
 ## reason: WorldHost.Reason (0 = OK). tile: the cell's foreground id on the host now.
 signal edit_result(req: int, reason: int, at: Vector2i, tile: int)
 signal corrected(pos: Vector2)
+## The host's world meta arrived (biomes, bands, sites, surface): world.meta is set.
+signal meta_arrived(meta: Dictionary)
+## New lines of world history from the host.
+signal chronicle_lines(lines: PackedStringArray)
 
 ## Edit request ops (wire values).
 enum Op { DIG_START, DIG_STOP, PLACE }
@@ -32,6 +36,13 @@ const MAX_EXTRAPOLATE := 0.1
 const FREEZE_MARGIN := 3.0
 ## Samples kept per remote entity.
 const MAX_SAMPLES := 32
+## A predicted edit with no RESULT after this long (s, client time) is rolled back to the
+## host's value. The channel is reliable, so this only fires on a lost connection.
+const PREDICT_TIMEOUT := 3.0
+## Host corrections of the own player are blended in the view over about this long (s);
+## jumps longer than CORRECT_SNAP tiles are not blended.
+const CORRECT_BLEND := 0.05
+const CORRECT_SNAP := 8.0
 
 var world: TileWorld
 var my_id := 0
@@ -60,10 +71,27 @@ var _dig_at := Vector2i.ZERO
 var _dig_req := 0
 var _place_prev := false
 var _place_at := Vector2i.ZERO
+## Local dig progress (prediction) on _dig_at.
+var _dig_prog := TileEdit.DigProgress.new()
+## req of a dig predicted complete whose RESULT has not arrived; 0 = none. While set, no
+## DIG_START or DIG_STOP goes out, so the host's dig of that tile is never abandoned.
+var _dig_await := 0
+## Predicted cells: Vector2i -> {auth: host's fg value as last seen in the stream, reqs: [req]}
+var _pending := {}
+## req -> {cell: Vector2i, t: client time when predicted}
+var _pending_reqs := {}
+var _time := 0.0
+## The host's game clock (WorldClock ticks, fractional), run locally between CLOCK messages.
+var clock_ticks := float(WorldClock.START_HOUR * WorldClock.TICKS_PER_HOUR)
+## View-only offset of the own player after a correction (decays to zero).
+var view_offset := Vector2.ZERO
+## Edits predicted and rolled back (host refused or timed out).
+var predicted := 0
+var rolled_back := 0
 
 func setup(width: int, height: int, seed_value: int, id: int, name_: String, pos: Vector2,
 		epoch_: int, radius_: int) -> void:
-	world = TileWorld.new(width, height, seed_value)
+	world = TileWorld.new(width, height, seed_value, true)    # sparse: chunks as they arrive
 	my_id = id
 	player_name = name_
 	stats = MoveStats.player()
@@ -82,15 +110,29 @@ func is_ready() -> bool:
 func apply_chunk(cx: int, cy: int, blob: PackedByteArray) -> bool:
 	if cx < 0 or cy < 0 or cx >= world.chunks_x or cy >= world.chunks_y:
 		return false
-	var c := world.chunk_at(cx, cy)
-	c.from_bytes(blob)
-	if c.fg.size() != Chunk.CELLS * 2 or c.bg.size() != Chunk.CELLS or c.liquid.size() != Chunk.CELLS:
-		_clear_chunk(c)
+	var raw := Chunk.new(cx, cy)
+	raw.from_bytes(blob)
+	if raw.fg.size() != Chunk.CELLS * 2 or raw.bg.size() != Chunk.CELLS or raw.liquid.size() != Chunk.CELLS:
 		return false
+	_forget_predictions(cx, cy)        # a whole chunk from the host is the truth
+	var c := world.ensure_chunk(cx, cy)
+	c.fg = raw.fg
+	c.bg = raw.bg
+	c.liquid = raw.liquid
+	c.objects = raw.objects
 	loaded[Vector2i(cx, cy)] = true
 	world.chunk_changed.emit(cx, cy)
 	chunk_arrived.emit(cx, cy)
 	return true
+
+## World meta from the host. Its surface line becomes world.sky_line, so unloaded chunks
+## above the ground read as open sky to light (see TileWorld).
+func apply_meta(m: Dictionary) -> void:
+	world.meta = m
+	var surf: Array = m.get("surface", [])
+	if surf.size() == world.width:
+		world.sky_line = PackedInt32Array(surf)
+	meta_arrived.emit(m)
 
 ## The host has stopped sending this chunk's changes: forget it.
 func drop_chunk(cx: int, cy: int) -> void:
@@ -98,17 +140,9 @@ func drop_chunk(cx: int, cy: int) -> void:
 	if not loaded.has(at):
 		return
 	loaded.erase(at)
-	_clear_chunk(world.chunk_at(cx, cy))
-	world.chunk_changed.emit(cx, cy)
+	_forget_predictions(cx, cy)
+	world.unload_chunk(cx, cy)      # frees it and emits chunk_changed
 	chunk_dropped.emit(cx, cy)
-
-func _clear_chunk(c: Chunk) -> void:
-	c.fg = PackedByteArray()
-	c.fg.resize(Chunk.CELLS * 2)
-	c.bg = PackedByteArray()
-	c.bg.resize(Chunk.CELLS)
-	c.liquid = PackedByteArray()
-	c.liquid.resize(Chunk.CELLS)
 
 ## One tile delta. Ignored for chunks not held (the host never sends those).
 func apply_tile(x: int, y: int, layer: int, value: int) -> void:
@@ -116,11 +150,22 @@ func apply_tile(x: int, y: int, layer: int, value: int) -> void:
 		return
 	match layer:
 		TileWorld.Layer.FG:
+			var p: Dictionary = _pending.get(Vector2i(x, y), {})
+			if not p.is_empty():
+				p["auth"] = value      # shown when the prediction settles
+				return
 			world.set_fg(x, y, value)
 		TileWorld.Layer.BG:
 			world.set_bg(x, y, value)
 		TileWorld.Layer.LIQUID:
 			world.set_liquid(x, y, value)
+
+## A held chunk's dressing list from the host (after a dig removed something).
+func apply_objects(cx: int, cy: int, records: PackedByteArray) -> void:
+	if not loaded.has(Vector2i(cx, cy)) or records.size() % Chunk.OBJ_BYTES != 0:
+		return
+	world.chunk_at(cx, cy).objects = records
+	world.objects_changed.emit(cx, cy)
 
 func has_chunk(cx: int, cy: int) -> bool:
 	return loaded.has(Vector2i(cx, cy))
@@ -146,8 +191,13 @@ func area_ready(r := -1) -> bool:
 ## local world already says are impossible are not sent.
 func step(input: PlayerInput) -> Array[Dictionary]:
 	seq += 1
+	var step_dt := 1.0 / MoveStats.step_hz()
+	_time += step_dt
+	_expire_predictions()
 	var reqs: Array[Dictionary] = []
-	if input.dig:
+	if _dig_await != 0:
+		pass   # a predicted dig waits for the host's word; nothing about digging goes out
+	elif input.dig:
 		var t := input.target
 		if not _digging or t != _dig_at:
 			if TileEdit.can_dig(world, body, t.x, t.y) and has_chunk(t.x >> 5, t.y >> 5):
@@ -156,8 +206,18 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 				reqs.append({"op": Op.DIG_START, "req": _req, "x": t.x, "y": t.y, "tile": 0})
 				_digging = true
 				_dig_at = t
+				_dig_prog.reset()
 			elif _digging:
 				reqs.append({"op": Op.DIG_STOP, "req": 0, "x": t.x, "y": t.y, "tile": 0})
+				_digging = false
+		if _digging:
+			if not TileEdit.can_dig(world, body, _dig_at.x, _dig_at.y):
+				reqs.append({"op": Op.DIG_STOP, "req": 0, "x": _dig_at.x, "y": _dig_at.y, "tile": 0})
+				_digging = false
+			elif _dig_prog.update(_dig_at, world.get_fg(_dig_at.x, _dig_at.y), step_dt):
+				# Done by our clock: show it now. The host finishes about one trip later.
+				_predict(_dig_at, TileDefs.AIR, _dig_req)
+				_dig_await = _dig_req
 				_digging = false
 	elif _digging:
 		reqs.append({"op": Op.DIG_STOP, "req": 0, "x": _dig_at.x, "y": _dig_at.y, "tile": 0})
@@ -169,6 +229,7 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 		if has_chunk(t.x >> 5, t.y >> 5) and TileEdit.can_place(world, body, t.x, t.y, tile, [body]):
 			_req += 1
 			reqs.append({"op": Op.PLACE, "req": _req, "x": t.x, "y": t.y, "tile": tile})
+			_predict(t, tile, _req)
 	_place_prev = input.place
 	frozen = not _body_area_loaded()
 	if not frozen:
@@ -187,9 +248,12 @@ func make_state() -> Dictionary:
 	return {"epoch": epoch, "seq": seq, "pos": body.pos, "vel": body.vel,
 			"flags": HostEntity.body_flags(body, _digging)}
 
-## The host refused our movement: go where it says and adopt its epoch.
+## The host refused our movement: go where it says and adopt its epoch. The body snaps; the
+## picture blends (view_offset).
 func apply_correction(new_epoch: int, pos: Vector2, vel: Vector2) -> void:
 	epoch = new_epoch
+	var off := body.pos + view_offset - pos
+	view_offset = off if off.length() < CORRECT_SNAP else Vector2.ZERO
 	body.pos = pos
 	body.vel = vel
 	body.jumping = false
@@ -203,9 +267,76 @@ func apply_correction(new_epoch: int, pos: Vector2, vel: Vector2) -> void:
 	corrected.emit(pos)
 
 func apply_edit_result(req: int, reason: int, at: Vector2i, tile: int) -> void:
-	if reason != 0 and req == _dig_req and _digging:
-		_digging = false    # refused: a held button will ask again when it can
+	if req == _dig_req and _digging:
+		_digging = false    # done or refused: a held button will ask again when it can
+		_dig_prog.reset()
+	if req == _dig_await:
+		_dig_await = 0
+	var pr: Dictionary = _pending_reqs.get(req, {})
+	if not pr.is_empty():
+		var cell: Vector2i = pr["cell"]
+		if cell == at:
+			_pending[cell]["auth"] = tile   # the host's value as of this point in the stream
+		if reason != 0:
+			rolled_back += 1
+		_settle(req)
 	edit_result.emit(req, reason, at, tile)
+
+## Where the view should draw the own player: the body plus the fading correction offset.
+func view_pos() -> Vector2:
+	return body.pos + view_offset
+
+## Number of edits shown but not yet confirmed.
+func pending_count() -> int:
+	return _pending_reqs.size()
+
+# --- prediction ---------------------------------------------------------------------
+
+func _predict(cell: Vector2i, value: int, req: int) -> void:
+	var p: Dictionary = _pending.get(cell, {})
+	if p.is_empty():
+		p = {"auth": world.get_fg(cell.x, cell.y), "reqs": []}
+		_pending[cell] = p
+	(p["reqs"] as Array).append(req)
+	_pending_reqs[req] = {"cell": cell, "t": _time}
+	predicted += 1
+	world.set_fg(cell.x, cell.y, value)
+
+## Drop one prediction; when none is left on its cell, show the host's value.
+func _settle(req: int) -> void:
+	var pr: Dictionary = _pending_reqs.get(req, {})
+	if pr.is_empty():
+		return
+	_pending_reqs.erase(req)
+	var cell: Vector2i = pr["cell"]
+	var p: Dictionary = _pending.get(cell, {})
+	if p.is_empty():
+		return
+	(p["reqs"] as Array).erase(req)
+	if (p["reqs"] as Array).is_empty():
+		_pending.erase(cell)
+		world.set_fg(cell.x, cell.y, int(p["auth"]))
+
+func _expire_predictions() -> void:
+	if _pending_reqs.is_empty():
+		return
+	for req: int in _pending_reqs.keys():
+		if _time - float(_pending_reqs[req]["t"]) > PREDICT_TIMEOUT:
+			rolled_back += 1
+			if req == _dig_await:
+				_dig_await = 0
+			_settle(req)
+
+func _forget_predictions(cx: int, cy: int) -> void:
+	if _pending.is_empty():
+		return
+	for cell: Vector2i in _pending.keys():
+		if cell.x >> 5 == cx and cell.y >> 5 == cy:
+			for req: int in _pending[cell]["reqs"]:
+				_pending_reqs.erase(req)
+				if req == _dig_await:
+					_dig_await = 0
+			_pending.erase(cell)
 
 # --- remote entities ----------------------------------------------------------------
 
@@ -257,9 +388,32 @@ func apply_snapshot(tick: int, entries: Array) -> void:
 		if r.samples.size() > MAX_SAMPLES:
 			r.samples.pop_front()
 
-## Advance local time by a frame.
+## Most recent chronicle lines kept (oldest first).
+const CHRONICLE_KEEP := 50
+var chronicle := PackedStringArray()
+
+func apply_chronicle(lines: PackedStringArray) -> void:
+	chronicle.append_array(lines)
+	if chronicle.size() > CHRONICLE_KEEP:
+		chronicle = chronicle.slice(chronicle.size() - CHRONICLE_KEEP)
+	chronicle_lines.emit(lines)
+
+## The host's game clock arrived (join, periodically, after a jump).
+func apply_clock(ticks: int) -> void:
+	clock_ticks = float(ticks)
+
+## Game hours (WorldClock time) as this client sees it.
+func hours() -> float:
+	return clock_ticks / WorldClock.TICKS_PER_HOUR
+
+## Advance local time by a frame (also the game clock and the correction offset).
 func advance(frame_dt: float) -> void:
 	clock += frame_dt
+	clock_ticks += frame_dt * K.TICK_HZ
+	if view_offset != Vector2.ZERO:
+		view_offset *= exp(-frame_dt / CORRECT_BLEND)
+		if view_offset.length() < 0.01:
+			view_offset = Vector2.ZERO
 
 ## Interpolated state of a remote at the render time: {pos, vel, flags}.
 func sample_remote(id: int) -> Dictionary:
@@ -288,7 +442,7 @@ func sample_remote(id: int) -> Dictionary:
 func present() -> void:
 	if world == null:
 		return
-	actor_moved.emit(my_id, body.pos, body.facing, HostEntity.state_name(HostEntity.body_flags(body, _digging), body.vel))
+	actor_moved.emit(my_id, view_pos(), body.facing, HostEntity.state_name(HostEntity.body_flags(body, _digging), body.vel))
 	for id: int in remotes:
 		var st := sample_remote(id)
 		var r: RemoteEntity = remotes[id]

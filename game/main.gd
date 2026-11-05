@@ -8,6 +8,9 @@
 ##             for the fixed test world; a world saved in world=DIR is loaded instead
 ##   any mode: timeout=S (exit 1 after S seconds),
 ##             offline (host with no ENet port: single-player), view=log (no 3D view),
+##             sleep=HOURS (host: advance the world clock at start),
+##             frame_delay=MS (sleep every frame: a slow renderer, for testing),
+##             host_thread=0 (tick the host in the render loop instead of on its thread),
 ##             shot=PATH.png [shot_after=S]: save a screenshot after S seconds and quit
 ## Headless processes (and bots) use the log presenter; windowed ones the 3D view.
 extends Node
@@ -22,6 +25,11 @@ var _exit_code := -1
 var _quit_in := -1.0
 var _elapsed := 0.0
 var _timeout := 0.0
+var _frames := 0
+var _world_loaded := false
+var _shut_down := false
+var _frame_delay := 0
+var _worst_frame := 0.0
 
 func _ready() -> void:
 	opts = parse_args(OS.get_cmdline_user_args())
@@ -29,6 +37,7 @@ func _ready() -> void:
 	if headless:
 		Engine.max_fps = 120
 	_timeout = float(opts.get("timeout", 0))
+	_frame_delay = int(opts.get("frame_delay", 0))
 	if opts.has("bot"):
 		_start_bot()
 	elif opts.has("join"):
@@ -67,6 +76,7 @@ func world_source() -> TileWorld:
 		return TileWorld.make_test(w, h)
 	var saved := WorldSave.load(ProjectSettings.globalize_path(world_dir))
 	if saved != null:
+		_world_loaded = true
 		print("loaded world %dx%d seed %d from %s" % [saved.width, saved.height, saved.world_seed, world_dir])
 		return saved
 	var world_seed := int(opts["seed"]) if opts.has("seed") else int(Time.get_unix_time_from_system())
@@ -87,6 +97,7 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	var port := 0 if opts.has("offline") else int(opts.get("port", NetSession.DEFAULT_PORT))
 	var local_name := "" if dedicated else String(opts.get("name", "host"))
 	session = NetSession.new()
+	session.threaded = String(opts.get("host_thread", "1")) != "0"
 	add_child(session)
 	var err := session.start_host(world_source(), port, local_name)
 	if err != OK:
@@ -96,8 +107,14 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	session.host.world_saver = WorldSave.save
 	session.host.spawn = spawn_for(session.host.world, session.host.spawn)
 	var n := session.host.load_players(ProjectSettings.globalize_path(world_dir))
+	if _world_loaded and session.host.load_state(ProjectSettings.globalize_path(world_dir)):
+		print("world clock: %s" % WorldClock.describe(session.host.clock.hours()))
+	if opts.has("sleep"):
+		session.host.sleep(float(opts["sleep"]))
+		print("slept %s h: %s" % [opts["sleep"], WorldClock.describe(session.host.clock.hours())])
 	print("hosting on port %d (%s), %d saved players in %s" % [port, "dedicated" if dedicated else "listen", n, world_dir])
-	session.host_ep.player_left.connect(_on_player_left)
+	# Emitted on the host thread: handle it on the main thread.
+	session.host_ep.player_left.connect(_on_player_left, CONNECT_DEFERRED)
 	if not dedicated:
 		_make_client_side(headless)
 
@@ -153,6 +170,10 @@ func _on_player_left(_peer: int, player_name: String, reason: int) -> void:
 
 func _process(delta: float) -> void:
 	_elapsed += delta
+	_frames += 1
+	if _frame_delay > 0:
+		OS.delay_msec(_frame_delay)    # debug: simulate a slow renderer
+	_worst_frame = maxf(_worst_frame, delta) if _frames > 10 else 0.0
 	if presenter != null:
 		presenter.frame(delta)
 	if opts.has("shot") and _exit_code < 0 and _elapsed > float(opts.get("shot_after", 6.0)):
@@ -176,7 +197,13 @@ func _quit(code: int, wait := 0.0) -> void:
 	_quit_in = wait
 
 func _shutdown_and_exit() -> void:
+	if _shut_down:
+		return
+	_shut_down = true
+	print("FRAMES %d in %.1f s (%.1f fps, worst frame %.0f ms after the first 10)" % [_frames, _elapsed,
+			_frames / maxf(0.001, _elapsed), _worst_frame * 1000.0])
 	if session != null and session.host != null:
+		session.halt_host()
 		_report()
 		if world_dir != "":
 			var err := session.host.save(ProjectSettings.globalize_path(world_dir))
@@ -196,7 +223,30 @@ func _report() -> void:
 		sum += u
 		mx = maxi(mx, u)
 	print("HOSTSTATS ticks=%d tick_avg_us=%.1f tick_max_us=%d host_time=%.1f" % [ticks.size(), float(sum) / maxi(1, ticks.size()), mx, ep.time])
+	var h := session.host
+	if h.sim != null:
+		var su := h.sim_usec
+		var ssum := 0
+		var smax := 0
+		for u in su:
+			ssum += u
+			smax = maxi(smax, u)
+		print("HOSTSTATS sim: %d ticks stepped it, avg %.0f us, max %d us; sim hour %d, %d behind, %d chronicle entries; clock %s" % [
+				su.size(), float(ssum) / maxi(1, su.size()), smax, h.sim.t, h.sim_behind(), h.sim.chronicle.size(),
+				WorldClock.describe(h.clock.hours())])
 	print("HOSTSTATS traffic by message type:\n" + ep.traffic_report())
+
+## Debug keys on a host with a local player: F6 one game hour, F7 one game day.
+func _unhandled_input(event: InputEvent) -> void:
+	if session == null or session.host == null:
+		return
+	var h := 0.0
+	if event.is_action_pressed("debug_hour"):
+		h = 1.0
+	elif event.is_action_pressed("debug_day"):
+		h = 24.0
+	if h > 0.0:
+		session.host_call(func(host: WorldHost) -> void: host.sleep(h))
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and _exit_code < 0:

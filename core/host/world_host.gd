@@ -20,7 +20,9 @@ enum Reason { OK, OUT_OF_BOUNDS, OUT_OF_REACH, NOTHING_THERE, UNBREAKABLE, OCCUP
 ##   LEAVE        id                                     (an entity is gone)
 ##   CORRECT      id, owner, epoch, pos, vel, why        (a client's state was refused)
 ##   EDIT_RESULT  id, owner, req, reason, x, y, tile     (tile = the cell's fg id now)
-enum Ev { TILE, JOIN, LEAVE, CORRECT, EDIT_RESULT }
+##   CHRONICLE    lines: PackedStringArray               (new world-history lines)
+##   OBJECTS      cx, cy                                 (a chunk's dressing list changed)
+enum Ev { TILE, JOIN, LEAVE, CORRECT, EDIT_RESULT, CHRONICLE, OBJECTS }
 ## What submit_state decided.
 enum StateCheck { OK, STALE, NO_ENTITY, OUT_OF_BOUNDS, TOO_FAST, IN_SOLID }
 
@@ -33,8 +35,11 @@ const MOVE_MARGIN := 1.5
 const SPEED_MULT := 1.25
 ## A client's box may overlap solid tiles by this much (float noise at contacts).
 const SOLID_SLOP := 0.05
-## Added to each tick's dig time (see _advance_dig).
-const DIG_EPS := 1e-6
+## Most time (us) one tick may spend catching the sim up with the clock. At least one sim
+## hour is stepped per tick when behind, so the sim always makes progress.
+const SIM_BUDGET_US := 2000
+## Lines of history a joining player is sent.
+const CHRONICLE_ON_JOIN := 5
 
 var world: TileWorld
 var tick_count := 0
@@ -50,6 +55,18 @@ var spawn := Vector2.ZERO
 ## Seam for world saving until Track A's WorldSave lands: func(world: TileWorld, dir: String)
 ## -> Error. Empty: save() writes players only.
 var world_saver := Callable()
+## Game time. Advances one tick per tick; saved with the world (host.json).
+var clock := WorldClock.new()
+## Set when the clock jumped (sleep), so the net layer tells clients at once.
+var clock_jumped := false
+## The living world (null for worlds without sites, like the test world). Its hour 0 is
+## clock hour `sim_origin`; it follows the clock, a budget per tick.
+var sim: WorldSim
+var sim_origin := 0
+## Chronicle entries already turned into CHRONICLE events.
+var chronicle_sent := 0
+## Per tick that stepped the sim: microseconds spent (for HOSTSTATS and tests).
+var sim_usec := PackedInt32Array()
 var _next_id := 1
 
 func _init(w: TileWorld) -> void:
@@ -58,6 +75,10 @@ func _init(w: TileWorld) -> void:
 	Dice.rng = rng
 	spawn = find_spawn(w.width / 2)
 	world.tile_changed.connect(_on_tile_changed)
+	if not (w.meta.get("sites", []) as Array).is_empty():
+		sim = WorldSim.from_meta(w.meta, w.world_seed)
+		sim_origin = clock.whole_hours()
+		chronicle_sent = sim.chronicle.size()   # founding entries are history, not news
 
 func dt() -> float:
 	return 1.0 / K.TICK_HZ
@@ -65,6 +86,9 @@ func dt() -> float:
 ## One host step. Advances held digs and host-simulated bodies.
 func tick() -> void:
 	tick_count += 1
+	clock.advance(1)
+	if sim != null:
+		_step_sim()
 	var step_dt := 1.0 / MoveStats.step_hz()
 	var steps := maxi(1, MoveStats.step_hz() / K.TICK_HZ)
 	for e: HostEntity in entities.values():
@@ -78,6 +102,37 @@ func tick() -> void:
 				PlayerController.step(world, e.body, e.input, e.stats, step_dt)
 				e.input.jump_pressed = false
 			e.flags = HostEntity.body_flags(e.body, e.digging())
+
+## Step the sim toward the clock within SIM_BUDGET_US, then queue its new chronicle lines.
+func _step_sim() -> void:
+	var target := clock.whole_hours() - sim_origin
+	if sim.t >= target:
+		return
+	var t0 := Time.get_ticks_usec()
+	while sim.t < target:
+		sim.step(1)
+		if Time.get_ticks_usec() - t0 >= SIM_BUDGET_US:
+			break
+	sim_usec.append(Time.get_ticks_usec() - t0)
+	if sim.chronicle.size() > chronicle_sent:
+		var lines := PackedStringArray()
+		for i in range(chronicle_sent, sim.chronicle.size()):
+			lines.append(sim.describe(sim.chronicle[i]))
+		chronicle_sent = sim.chronicle.size()
+		outbox.append({"type": Ev.CHRONICLE, "lines": lines})
+
+## Sim hours still to catch up with the clock (0 when it is current or there is no sim).
+func sim_behind() -> int:
+	return 0 if sim == null else maxi(0, clock.whole_hours() - sim_origin - sim.t)
+
+## The last n chronicle lines already sent (for a joining player).
+func recent_chronicle(n := CHRONICLE_ON_JOIN) -> PackedStringArray:
+	var out := PackedStringArray()
+	if sim == null:
+		return out
+	for i in range(maxi(0, chronicle_sent - n), chronicle_sent):
+		out.append(sim.describe(sim.chronicle[i]))
+	return out
 
 ## Take this tick's events.
 func drain() -> Array[Dictionary]:
@@ -110,10 +165,13 @@ func add_player(player_name: String, owner: int) -> HostEntity:
 	var rec: Dictionary = records.get(player_name, {})
 	if rec.has("pos"):
 		var p := Vector2(float(rec["pos"][0]), float(rec["pos"][1]))
-		var probe := e.body.duplicate_body()
-		probe.pos = p
-		if world.in_bounds(floori(p.x), floori(p.y)) and not _in_solid(probe):
+		if world.in_bounds(floori(p.x), floori(p.y)):
 			e.body.pos = p
+	# Someone built where they left (or the spawn is in rock): step out to the nearest gap.
+	if _in_solid(e.body):
+		TileCollision.depenetrate(world, e.body)
+		if _in_solid(e.body):
+			e.body.pos = spawn
 	TileCollision.update_contacts(world, e.body)
 	e.flags = HostEntity.body_flags(e.body)
 	e.last_state_tick = tick_count
@@ -130,6 +188,7 @@ func add_monster(stats: MoveStats, pos: Vector2, brain: Object, look := {}) -> H
 	e.stats = stats
 	e.body = stats.make_body()
 	e.body.pos = pos
+	TileCollision.depenetrate(world, e.body)
 	e.brain = brain
 	e.look = look if not look.is_empty() else {"kind": "monster", "size": stats.size, "color": Color(0.6, 0.2, 0.2)}
 	entities[e.id] = e
@@ -299,8 +358,7 @@ func _advance_dig(e: HostEntity) -> void:
 		e.dig.reset()
 		_result(e, e.dig_req, why, at.x, at.y)
 		return
-	# DIG_EPS: tile hardness is float32 (0.4 reads as 0.40000001), which would cost a tick.
-	if e.dig.update(at, world.get_fg(at.x, at.y), dt() + DIG_EPS):
+	if e.dig.update(at, world.get_fg(at.x, at.y), dt()):
 		e.dig_target = HostEntity.NO_DIG
 		world.set_fg(at.x, at.y, TileDefs.AIR)
 		_result(e, e.dig_req, Reason.OK, at.x, at.y)
@@ -309,18 +367,76 @@ func _result(e: HostEntity, req: int, why: Reason, x: int, y: int) -> void:
 	outbox.append({"type": Ev.EDIT_RESULT, "id": e.id, "owner": e.owner, "req": req,
 			"reason": why, "x": x, "y": y, "tile": world.get_fg(x, y)})
 
-func _on_tile_changed(x: int, y: int, layer: int, _old: int, now: int) -> void:
+func _on_tile_changed(x: int, y: int, layer: int, old: int, now: int) -> void:
 	outbox.append({"type": Ev.TILE, "x": x, "y": y, "layer": layer, "value": now})
+	if layer == TileWorld.Layer.FG and TileDefs.solid[old] != TileDefs.solid[now]:
+		# Dug out from under a tree, or a block put into a bush: the host decides.
+		for c in Dressing.on_tile_changed(world, x, y):
+			world.objects_changed.emit(c.x, c.y)
+			outbox.append({"type": Ev.OBJECTS, "cx": c.x, "cy": c.y})
 
 # --- saving -------------------------------------------------------------------------
 
-## World (through `world_saver`, when set) and players.
+## Jump the world clock ahead (sleeping; the sleep=HOURS option and debug keys).
+func sleep(h: float) -> void:
+	clock.sleep(h)
+	clock_jumped = true
+
+## World (through `world_saver`, when set), host state (clock) and players.
 func save(dir: String) -> Error:
 	if world_saver.is_valid():
 		var err: Error = world_saver.call(world, dir)
 		if err != OK:
 			return err
+	var e2 := save_state(dir)
+	if e2 != OK:
+		return e2
 	return save_players(dir)
+
+## dir/host.json: {format, clock}. Written atomically.
+func save_state(dir: String) -> Error:
+	var err := DirAccess.make_dir_recursive_absolute(dir)
+	if err != OK:
+		return err
+	var d := {"format": 1, "clock": clock.to_dict()}
+	if sim != null:
+		# Exact save and resume needs var_to_bytes (JSON loses float bits): docs/tracks/sim.md.
+		var blob := var_to_bytes({"origin": sim_origin, "sent": chronicle_sent, "sim": sim.to_dict()})
+		var sf := FileAccess.open(dir.path_join("sim.bin.tmp"), FileAccess.WRITE)
+		if sf == null:
+			return FileAccess.get_open_error()
+		sf.store_buffer(blob.compress(FileAccess.COMPRESSION_ZSTD))
+		sf.close()
+		var e3 := DirAccess.rename_absolute(dir.path_join("sim.bin.tmp"), dir.path_join("sim.bin"))
+		if e3 != OK:
+			return e3
+		d["sim_raw"] = blob.size()
+	var tmp := dir.path_join("host.json.tmp")
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null:
+		return FileAccess.get_open_error()
+	f.store_string(JSON.stringify(d, "\t"))
+	f.close()
+	return DirAccess.rename_absolute(tmp, dir.path_join("host.json"))
+
+## Read dir/host.json if present. True if it was read.
+func load_state(dir: String) -> bool:
+	var path := dir.path_join("host.json")
+	if not FileAccess.file_exists(path):
+		return false
+	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not d is Dictionary:
+		return false
+	clock.from_dict(d.get("clock", {}))
+	var sp := dir.path_join("sim.bin")
+	if d.has("sim_raw") and FileAccess.file_exists(sp):
+		var raw := FileAccess.get_file_as_bytes(sp).decompress(int(d["sim_raw"]), FileAccess.COMPRESSION_ZSTD)
+		var s: Variant = bytes_to_var(raw) if raw.size() == int(d["sim_raw"]) else null
+		if s is Dictionary and (s as Dictionary).get("sim") is Dictionary:
+			sim = WorldSim.from_dict(s["sim"])
+			sim_origin = int(s.get("origin", 0))
+			chronicle_sent = mini(int(s.get("sent", 0)), sim.chronicle.size())
+	return true
 
 ## One JSON file per player under dir/players/, keyed by name.
 func save_players(dir: String) -> Error:

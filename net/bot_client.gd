@@ -105,8 +105,12 @@ func _process(delta: float) -> void:
 			var c := cw()
 			if c != null and c.area_ready():
 				var ep := session.client_ep
-				_say("%s area_ms=%d welcome_ms=%d chunks=%d pos=%.2f,%.2f" % [phase, roundi(ep.area_at * 1000.0),
-						roundi(ep.welcome_at * 1000.0), c.loaded.size(), c.body.pos.x, c.body.pos.y])
+				var objs := 0
+				for k: Vector2i in c.loaded:
+					objs += c.world.chunk_at(k.x, k.y).object_count()
+				_say("%s area_ms=%d welcome_ms=%d chunks=%d pos=%.2f,%.2f objects=%d clock=%s chronicle=%d" % [phase,
+						roundi(ep.area_at * 1000.0), roundi(ep.welcome_at * 1000.0), c.loaded.size(), c.body.pos.x,
+						c.body.pos.y, objs, WorldClock.describe(c.hours()), c.chronicle.size()])
 				if phase == "rejoin":
 					if c.body.pos.distance_to(_left_at) > 0.6:
 						_fail("came back at %s, left at %s" % [c.body.pos, _left_at])

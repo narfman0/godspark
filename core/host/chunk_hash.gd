@@ -28,7 +28,12 @@ static func raw(world: TileWorld, coords: Array) -> PackedByteArray:
 		if c.x < 0 or c.y < 0 or c.x >= world.chunks_x or c.y >= world.chunks_y:
 			continue
 		var ch := world.chunk_at(c.x, c.y)
+		if ch == null:
+			ctx.update(PackedByteArray([0xff]))   # unloaded: never equal to a held chunk
+			continue
 		ctx.update(ch.fg)
 		ctx.update(ch.bg)
 		ctx.update(ch.liquid)
+		if not ch.objects.is_empty():
+			ctx.update(ch.objects)
 	return ctx.finish()

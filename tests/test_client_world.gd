@@ -45,10 +45,12 @@ func _chunks_and_freeze(t: TestLog) -> void:
 	cw.chunk_dropped.connect(func(cx: int, cy: int) -> void: dropped.append(Vector2i(cx, cy)))
 	cw.drop_chunk(c0.x, c0.y)
 	t.eq(dropped, [c0], "drop_chunk forgets it")
-	t.eq(cw.world.chunk_at(c0.x, c0.y).fg.count(0) == Chunk.CELLS * 2, true, "and clears its tiles")
+	t.check(not cw.world.has_chunk(c0.x, c0.y), "and frees it (sparse world)")
+	t.eq(cw.world.get_fg(c0.x * K.CHUNK, c0.y * K.CHUNK), TileDefs.id("bedrock"), "an unloaded cell reads as bedrock")
+	t.check(cw.world.is_solid(c0.x * K.CHUNK + 3, c0.y * K.CHUNK + 3), "and is solid for collision")
 	# far tile deltas are ignored
 	cw.apply_tile(0, 0, TileWorld.Layer.FG, 3)
-	t.eq(cw.world.get_fg(0, 0), 0, "a delta for a chunk not held is ignored")
+	t.eq(cw.world.get_fg(0, 0), TileDefs.id("bedrock"), "a delta for a chunk not held is ignored (still unloaded)")
 
 func _edits(t: TestLog) -> void:
 	var src := TileWorld.make_test()

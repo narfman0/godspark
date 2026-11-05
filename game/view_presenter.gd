@@ -15,12 +15,19 @@ var rig: CameraRig
 var env: Environment
 var my_id := 0
 var sun := 1.0
+var chronicle: ChronicleOverlay
+var dressing: DressingView
+## Seconds between dressing rebuilds while chunks or objects keep changing.
+const DRESS_EVERY := 0.3
+var _dress_dirty := false
+var _dress_wait := 0.0
 var _actors := {}
 
 func world_ready(world: TileWorld, id: int) -> void:
 	my_id = id
 	_clear()
 	light = LightEngine.new(world)
+	light.deferred = true     # chunk arrivals and cold chunks are spread over frames
 	light.sun = sun
 	if env == null:
 		env = Environment.new()
@@ -32,14 +39,22 @@ func world_ready(world: TileWorld, id: int) -> void:
 	view = WorldView.new()
 	add_child(view)
 	view.setup(world, light)
+	dressing = DressingView.new()
+	view.add_child(dressing)
+	world.objects_changed.connect(func(_cx: int, _cy: int) -> void: _dress_dirty = true)
+	_dress_dirty = true
 	if rig == null:
 		rig = CameraRig.new()
 		add_child(rig)
-	rig.target = cw.body.center()
+	rig.target = cw.view_pos() + Vector2(0, cw.body.size.y * 0.5)
 	rig.snap()
+	if chronicle == null:
+		chronicle = ChronicleOverlay.new()
+		add_child(chronicle)
 
 func _clear() -> void:
 	_actors.clear()
+	dressing = null
 	if view != null:
 		view.queue_free()
 		view = null
@@ -67,6 +82,28 @@ func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 	if id == my_id:
 		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
 
+func chunk_arrived(_cx: int, _cy: int) -> void:
+	_dress_dirty = true
+
+func chunk_dropped(_cx: int, _cy: int) -> void:
+	_dress_dirty = true
+
+## Every dressing record in the chunks held, for DressingView ({id: name, x, y}).
+func _dress() -> void:
+	var recs: Array = []
+	for c: Vector2i in cw.loaded:
+		for r: Dictionary in Dressing.records_in(cw.world, c.x, c.y):
+			recs.append({"id": Dressing.name_of(int(r["id"])), "x": r["x"], "y": r["y"]})
+	dressing.set_objects(recs)
+
+func chronicle_lines(lines: PackedStringArray) -> void:
+	if chronicle != null:
+		chronicle.add_lines(lines)
+
+func meta_arrived(_meta: Dictionary) -> void:
+	if light != null:
+		light.reset()     # anything lit before the sky line was known
+
 func actor_removed(id: int) -> void:
 	if view != null and _actors.erase(id):
 		view.remove_actor(id)
@@ -75,7 +112,15 @@ func frame(delta: float) -> void:
 	super.frame(delta)
 	if view == null or cw == null:
 		return
-	rig.target = cw.body.center()
+	rig.target = cw.view_pos() + Vector2(0, cw.body.size.y * 0.5)
+	_dress_wait -= delta
+	if _dress_dirty and _dress_wait <= 0.0 and dressing != null:
+		_dress_dirty = false
+		_dress_wait = DRESS_EVERY
+		_dress()
+	var s := WorldClock.sun_at(cw.hours())
+	if absf(s - light.sun) > 0.002 or (s != light.sun and (s <= WorldClock.MOON or s >= 1.0)):
+		light.sun = s
 	view.view_half = rig.visible_half_extent()
 	view.set_focus(rig.pos)
 	env.background_color = WorldView.sky_color(light.sun)

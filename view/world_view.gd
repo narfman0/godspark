@@ -21,9 +21,15 @@ const ACTOR_SHADER := preload("res://view/shaders/actor.gdshader")
 const T := K.TILE_M
 ## The backdrop plane sits this far (metres) behind the background walls.
 const BACKDROP_Z := -1.2
+## The least sun factor the picture uses for the sky field (moonlight); see _apply_sun.
+const NIGHT_VISUAL := 0.25
+const MOON_TINT := Color(0.52, 0.64, 1.0)
 
 ## Mesh builds in flight at once.
 @export var max_tasks := 3
+## Main-thread microseconds per frame for light work when the LightEngine is deferred
+## (chunk arrivals and cold chunks; at least one chunk's worth is always done).
+@export var light_budget_us := 3000
 ## Half-size, in tiles, of the area to keep meshed and lit around the focus. CameraRig
 ## keeps this in step with what it can see.
 var view_half := Vector2(40, 24)
@@ -188,6 +194,8 @@ func _process(_delta: float) -> void:
 	_collect()
 	_launch()
 	_apply_sun()
+	if light.deferred and light.backlog() > 0:
+		_light_dirty = true
 	if _light_dirty:
 		_refill_light()
 
@@ -243,6 +251,13 @@ func _launch() -> void:
 		if _tasks.has(key):
 			continue  # rebuild after the one in flight lands
 		_dirty.erase(key)
+		if not world.has_chunk(key.x, key.y):
+			# Unloaded on a sparse client world: nothing to draw until it arrives.
+			var old: MeshInstance3D = _chunks.get(key)
+			if old != null:
+				old.queue_free()
+			_chunks[key] = null
+			continue
 		var t0 := Time.get_ticks_usec()
 		var snap := ChunkMesher.snapshot(world, key.x, key.y)
 		stats["snapshot"].append(Time.get_ticks_usec() - t0)
@@ -290,8 +305,12 @@ func _on_light_changed(rect: Rect2i) -> void:
 
 func _refill_light() -> void:
 	var t0 := Time.get_ticks_usec()
-	light.ensure_region(_light_rect)
-	_light_dirty = false
+	if light.deferred:
+		# What is not lit yet reads dark for a frame or two; the nearest chunks come first.
+		_light_dirty = not light.process(light_budget_us, _light_rect)
+	else:
+		light.ensure_region(_light_rect)
+		_light_dirty = false
 	var size := _light_rect.size
 	var blk := light.region_bytes(_light_rect, false)
 	var sky := light.region_bytes(_light_rect, true)
@@ -313,8 +332,13 @@ func _refill_light() -> void:
 
 func _apply_sun() -> void:
 	var s := light.sun
-	RenderingServer.global_shader_parameter_set("gs_sun", s)
+	# Moonlight: the rules sun at night (WorldClock.MOON) leaves open ground in Darkness, as
+	# the SRD has it, but a black screen is unplayable, so the picture draws the sky field at
+	# no less than NIGHT_VISUAL (about 15% brightness through gs_curve), tinted blue. Caves
+	# have no sky field and stay black.
+	RenderingServer.global_shader_parameter_set("gs_sun", maxf(s, NIGHT_VISUAL))
 	var warm := Color(1.0, 0.62, 0.42).lerp(Color(1.0, 0.97, 0.92), clampf((s - 0.2) / 0.6, 0.0, 1.0))
+	warm = warm.lerp(MOON_TINT, 1.0 - smoothstep(0.05, 0.3, s))
 	RenderingServer.global_shader_parameter_set("gs_sky_tint", warm)
 	var top := sky_color(s)
 	_backdrop_mat.set_shader_parameter("sky_top", top)
