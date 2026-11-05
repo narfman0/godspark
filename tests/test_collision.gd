@@ -3,6 +3,7 @@ extends RefCounted
 const DT := 1.0 / 60.0
 
 func run(t: TestLog) -> void:
+	_corner(t)
 	_depenetrate(t)
 	_rest(t)
 	_tunnelling(t)
@@ -220,3 +221,32 @@ func _depenetrate(t: TestLog) -> void:
 	host.spawn = Vector2(40.5, g - 5)
 	var p := host.add_player("ann", 2)
 	t.check(not TileCollision.overlaps_solid(world, p.body.rect()), "a player spawned in rock starts free (%s)" % p.body.pos)
+
+## The corner snag: a fast diagonal fall whose feet are just under a ledge top lands on it
+## instead of sliding down its side. A tall wall still stops the body.
+func _corner(t: TestLog) -> void:
+	var world := TileWorld.new(64, 64)
+	var stone := TileDefs.id("stone")
+	for x in range(20, 30):
+		for y in range(0, 10):
+			world.set_fg(x, y, stone, true)     # a ledge, top at y = 10, left side at x = 20
+	for x in range(0, 64):
+		world.set_fg(x, 0, stone, true)
+	var b := Body.for_size("medium")
+	b.pos = Vector2(19.15, 9.8)               # right edge 0.1 short of the side, feet 0.2 under the top
+	b.vel = Vector2(13.0, -30.0)
+	TileCollision.move(world, b, 1.0 / 60.0)
+	t.eq(b.pos.y, 10.0, "a diagonal fall just under a ledge top lands on it (%s)" % b.pos)
+	t.check(b.on_floor and b.pos.x > 19.36, "standing on it, having kept its full move right (%s)" % b.pos)
+	var c := Body.for_size("medium")
+	c.pos = Vector2(19.15, 8.0)               # feet 2 under the top: that is the side
+	c.vel = Vector2(13.0, -30.0)
+	TileCollision.move(world, c, 1.0 / 60.0)
+	t.check(c.pos.y < 8.0 and c.pos.x <= 19.25 + 0.001, "lower down it still hits the side (%s)" % c.pos)
+	for y in range(10, 20):
+		world.set_fg(20, y, stone, true)        # make the ledge a tall wall
+	var d := Body.for_size("medium")
+	d.pos = Vector2(19.15, 9.8)
+	d.vel = Vector2(13.0, -30.0)
+	TileCollision.move(world, d, 1.0 / 60.0)
+	t.check(d.pos.y < 9.8 and absf(d.pos.x - 19.25) < 0.001, "a tall wall is not climbed (%s)" % d.pos)
