@@ -25,7 +25,7 @@ var max_players := 4
 var snapshot_every := 2
 ## Chunk stream budget per tick: bytes over all peers, and chunks per peer.
 var chunk_bytes_per_tick := 96 * 1024
-var chunks_per_peer_tick := 6
+var chunks_per_peer_tick := 16
 var handshake_timeout := 5.0
 ## Host time, seconds (ticks / TICK_HZ).
 var time := 0.0

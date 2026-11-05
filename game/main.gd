@@ -5,7 +5,8 @@
 ##   join=ADDR[:PORT] [name=X]                          join a host
 ##   join=ADDR[:PORT] bot [name=X] [digs=N] [places=M] [dir=1|-1] [delay=S] [rejoin=0|1]
 ##   any mode: timeout=S (exit 1 after S seconds), size=WxH (test world size),
-##             offline (host with no ENet port: single-player), view=log (no 3D view)
+##             offline (host with no ENet port: single-player), view=log (no 3D view),
+##             shot=PATH.png [shot_after=S]: save a screenshot after S seconds and quit
 ## Headless processes (and bots) use the log presenter; windowed ones the 3D view.
 extends Node
 
@@ -131,6 +132,11 @@ func _process(delta: float) -> void:
 	_elapsed += delta
 	if presenter != null:
 		presenter.frame(delta)
+	if opts.has("shot") and _exit_code < 0 and _elapsed > float(opts.get("shot_after", 6.0)):
+		var img := get_viewport().get_texture().get_image()
+		var err := img.save_png(String(opts["shot"]))
+		print("screenshot %s: %s" % [opts["shot"], error_string(err)])
+		_quit(0 if err == OK else 1)
 	if _timeout > 0.0 and _elapsed > _timeout and _exit_code < 0:
 		printerr("TIMEOUT after %.0f s" % _timeout)
 		_quit(1)
