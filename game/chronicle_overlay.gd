@@ -1,5 +1,5 @@
 ## A small log of world history at the bottom left of the screen: new chronicle lines appear,
-## stay for SHOW seconds and fade out over FADE. The toggle_chronicle action (C) hides it, or
+## stay for SHOW seconds and fade out over FADE. The toggle_chronicle action (L) hides it, or
 ## shows the last few lines again.
 class_name ChronicleOverlay
 extends CanvasLayer
@@ -7,7 +7,7 @@ extends CanvasLayer
 const SHOW := 12.0
 const FADE := 3.0
 const MAX_LINES := 4
-const WIDTH := 700.0
+var width := 700.0
 
 var visible_log := true
 var _box: VBoxContainer
@@ -20,13 +20,22 @@ func _ready() -> void:
 	_box.anchor_top = 1.0
 	_box.anchor_bottom = 1.0
 	_box.offset_left = 16.0
-	_box.offset_right = 16.0 + WIDTH
+	_box.offset_right = 16.0 + width
 	_box.offset_top = -16.0
 	_box.offset_bottom = -16.0
 	_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_box.add_theme_constant_override("separation", 2)
 	_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_box)
+
+## Lift the log above the HUD's bottom bar and narrow it (virtual pixels at 1280x720).
+func set_margin(bottom: float, w: float) -> void:
+	_box.offset_bottom = -bottom
+	_box.offset_top = -bottom
+	_box.offset_right = 16.0 + w
+	width = w
+	for l: Dictionary in _lines:
+		(l["label"] as Label).custom_minimum_size.x = w
 
 func add_lines(lines: PackedStringArray) -> void:
 	for l in lines:
@@ -40,7 +49,7 @@ func _add(text: String) -> void:
 	var lab := Label.new()
 	lab.text = text
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lab.custom_minimum_size.x = WIDTH
+	lab.custom_minimum_size.x = width
 	lab.add_theme_font_size_override("font_size", 13)
 	lab.add_theme_color_override("font_color", Color(0.93, 0.89, 0.78))
 	lab.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))

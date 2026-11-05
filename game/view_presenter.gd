@@ -16,6 +16,12 @@ var env: Environment
 var my_id := 0
 var sun := 1.0
 var chronicle: ChronicleOverlay
+## The interface (HUD and screens): windowed clients only.
+var ui: GameUi
+## In-world feedback: numbers, nameplates, telegraphs, drops, projectiles.
+var fx: FxView
+## Carried light strength last set (the Lantern spark and light gear widen it).
+var _torch := LightEngine.TORCH
 var dressing: DressingView
 ## Seconds between dressing rebuilds while chunks or objects keep changing.
 const DRESS_EVERY := 0.3
@@ -53,9 +59,18 @@ func world_ready(world: TileWorld, id: int) -> void:
 	if chronicle == null:
 		chronicle = ChronicleOverlay.new()
 		add_child(chronicle)
+		chronicle.set_margin(150.0, 460.0)
+	fx = FxView.new()
+	view.add_child(fx)
+	fx.setup(cw, view)
+	if ui == null:
+		ui = GameUi.new()
+		add_child(ui)
+	ui.attach(cw, self)
 
 func _clear() -> void:
 	_actors.clear()
+	fx = null
 	dressing = null
 	if view != null:
 		view.queue_free()
@@ -64,6 +79,8 @@ func _clear() -> void:
 
 func detach() -> void:
 	super.detach()
+	if ui != null:
+		ui.detach()
 	_clear()
 
 func actor_added(id: int, look: Dictionary) -> void:
@@ -74,6 +91,8 @@ func actor_added(id: int, look: Dictionary) -> void:
 		look["slug"] = "player"  # data/looks.json decides the body; a primitive without art
 	view.add_actor(id, look)
 	_actors[id] = true
+	if fx != null:
+		fx.actor_added(id, look)
 	if id == my_id:
 		light.add_light(OWN_LIGHT, cw.body.pos.x, cw.body.pos.y + 1.8, LightEngine.TORCH)
 
@@ -89,6 +108,10 @@ func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 	view.move_actor(id, pos, facing, state)
 	if id == my_id:
 		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
+		var want := torch_strength()
+		if want != _torch:
+			_torch = want
+			light.add_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8, want)
 
 func chunk_arrived(_cx: int, _cy: int) -> void:
 	_dress_dirty = true
@@ -117,6 +140,8 @@ func meta_arrived(_meta: Dictionary) -> void:
 func combat_event(ev: Dictionary) -> void:
 	if view == null:
 		return
+	if fx != null:
+		fx.combat_event(ev)
 	var now := Time.get_ticks_msec()
 	match int(ev.get("kind", 0)):
 		CombatCodec.Ev.SWING:
@@ -135,6 +160,8 @@ func combat_event(ev: Dictionary) -> void:
 
 func actor_removed(id: int) -> void:
 	_oneshot.erase(id)
+	if fx != null:
+		fx.actor_removed(id)
 	if view != null and _actors.erase(id):
 		view.remove_actor(id)
 
@@ -158,11 +185,38 @@ func frame(delta: float) -> void:
 func tile_at_screen(screen_pos: Vector2) -> Vector2i:
 	return view.tile_at_screen(screen_pos) if view != null else Vector2i.ZERO
 
+## The own carried light: a torch, widened by the items client's `light` tag (Lantern spark,
+## glowing gear): each point of light is one more tile of reach.
+func torch_strength() -> int:
+	var items := cw.system(HostSystem.ITEMS) as ItemsClient if cw != null else null
+	var extra := float(items.tags().get("light", 0.0)) if items != null and items.live else 0.0
+	return mini(LightEngine.MAX, LightEngine.TORCH + roundi(extra * LightEngine.STEP))
+
+## Aiming preview of a quick spell (LocalInput, while its key is held); {} clears it.
+func aim_preview(spell: Dictionary, aim: Vector2) -> void:
+	if fx != null:
+		fx.aim_preview(spell, aim)
+
+## Wheel: zoom, or with Ctrl held a hotbar slot (over the hotbar the HUD takes the wheel).
+## Zoom keys: = and - (and the keypad's + and -).
 func _unhandled_input(event: InputEvent) -> void:
-	if rig == null or not (event is InputEventMouseButton) or not event.pressed:
+	if rig == null:
 		return
-	match (event as InputEventMouseButton).button_index:
-		MOUSE_BUTTON_WHEEL_UP:
-			rig.zoom *= 1.12
-		MOUSE_BUTTON_WHEEL_DOWN:
-			rig.zoom /= 1.12
+	if event.is_action_pressed("zoom_in"):
+		rig.zoom *= 1.12
+	elif event.is_action_pressed("zoom_out"):
+		rig.zoom /= 1.12
+	if not (event is InputEventMouseButton) or not event.pressed:
+		return
+	var mb := event as InputEventMouseButton
+	if mb.button_index != MOUSE_BUTTON_WHEEL_UP and mb.button_index != MOUSE_BUTTON_WHEEL_DOWN:
+		return
+	var up := mb.button_index == MOUSE_BUTTON_WHEEL_UP
+	if InputLogic.wheel_target(mb.ctrl_pressed, false) == "hotbar":
+		var items := cw.system(HostSystem.ITEMS) as ItemsClient if cw != null else null
+		if items != null:
+			items.select_hotbar(InputLogic.next_hotbar(items.selected(), -1 if up else 1))
+	elif up:
+		rig.zoom *= 1.12
+	else:
+		rig.zoom /= 1.12

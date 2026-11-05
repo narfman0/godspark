@@ -15,7 +15,9 @@
 ##             sleep=HOURS (host: advance the world clock at start),
 ##             frame_delay=MS (sleep every frame: a slow renderer, for testing),
 ##             host_thread=0 (tick the host in the render loop instead of on its thread),
-##             shot=PATH.png [shot_after=S]: save a screenshot after S seconds and quit
+##             shot=PATH.png [shot_after=S]: save a screenshot after S seconds and quit,
+##             ui_tour=DIR: (offline host with cheats, windowed) drive the interface through
+##             its screens and save a screenshot of each to DIR (game/ui/ui_tour.gd)
 ## Headless processes (and bots) use the log presenter; windowed ones the 3D view.
 extends Node
 
@@ -124,6 +126,13 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	session.host_ep.player_left.connect(_on_player_left, CONNECT_DEFERRED)
 	if not dedicated:
 		_make_client_side(headless)
+		if opts.has("ui_tour") and not headless:
+			var tour := UiTour.new()
+			tour.dir = String(opts["ui_tour"])
+			tour.main = self
+			tour.session = session
+			tour.only = String(opts.get("tour_only", ""))
+			add_child(tour)
 
 ## spawn=SLUG[:N]: N monsters a few tiles apart, left of the spawn point. Runs before the
 ## host thread starts (the first _process), so it may touch the host directly.
