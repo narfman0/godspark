@@ -22,3 +22,30 @@ window/size/viewport_height=900
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/srd/plugin.cfg")
+
+[shader_globals]
+
+gs_light_block={
+"type": "sampler2D",
+"value": ""
+}
+gs_light_sky={
+"type": "sampler2D",
+"value": ""
+}
+gs_light_rect={
+"type": "vec4",
+"value": Vector4(0, 0, 1, 1)
+}
+gs_sun={
+"type": "float",
+"value": 1.0
+}
+gs_sky_tint={
+"type": "color",
+"value": Color(1, 1, 1, 1)
+}
+gs_tile_m={
+"type": "float",
+"value": 0.75
+}

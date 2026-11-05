@@ -1,0 +1,30 @@
+extends RefCounted
+
+## WorldView bookkeeping, headless: which chunks it wants and which an edit dirties.
+func run(t: TestLog) -> void:
+	var world := TileWorld.make_test()
+	var light := LightEngine.new(world)
+	var view := WorldView.new()
+	view.setup(world, light)
+	view.view_half = Vector2(20, 12)
+	view.set_focus(Vector2(128, 64))
+	t.check(view._wanted.has(Vector2i(4, 2)), "the focus chunk is wanted")
+	t.check(not view._wanted.has(Vector2i(0, 0)), "far chunks are not")
+	t.eq(view._dirty.size(), view._wanted.size(), "every wanted chunk is queued once")
+	view._dirty.clear()
+	world.set_fg(128 + 5, 64 + 5, TileDefs.id("stone"))
+	t.eq(view._dirty.keys(), [Vector2i(4, 2)], "an inner edit dirties its own chunk")
+	view._dirty.clear()
+	world.set_fg(127, 63, TileDefs.AIR)   # chunk (3, 1), its top-right corner tile
+	var d := view._dirty.keys()
+	d.sort()
+	t.eq(d, [Vector2i(3, 1), Vector2i(3, 2), Vector2i(4, 1), Vector2i(4, 2)], "a corner edit dirties the 3 neighbours too")
+	view._dirty.clear()
+	world.set_bg(127, 63, 0)
+	t.eq(view._dirty.keys(), [Vector2i(3, 1)], "a wall edit only dirties its own chunk")
+	view._dirty.clear()
+	view.set_focus(Vector2(16, 16))
+	t.check(view._dirty.has(Vector2i(0, 0)), "moving the focus queues the new chunks")
+	t.check(not view._wanted.has(Vector2i(4, 2)), "and stops wanting the old ones")
+	t.eq(WorldView.sky_color(1.0), Color(0.36, 0.58, 0.9), "sky colour at noon")
+	view.free()
