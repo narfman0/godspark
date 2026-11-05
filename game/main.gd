@@ -8,6 +8,8 @@
 ##             for the fixed test world; a world saved in world=DIR is loaded instead
 ##   any mode: timeout=S (exit 1 after S seconds),
 ##             offline (host with no ENet port: single-player), view=log (no 3D view),
+##             frame_delay=MS (sleep every frame: a slow renderer, for testing),
+##             host_thread=0 (tick the host in the render loop instead of on its thread),
 ##             shot=PATH.png [shot_after=S]: save a screenshot after S seconds and quit
 ## Headless processes (and bots) use the log presenter; windowed ones the 3D view.
 extends Node
@@ -22,6 +24,10 @@ var _exit_code := -1
 var _quit_in := -1.0
 var _elapsed := 0.0
 var _timeout := 0.0
+var _frames := 0
+var _shut_down := false
+var _frame_delay := 0
+var _worst_frame := 0.0
 
 func _ready() -> void:
 	opts = parse_args(OS.get_cmdline_user_args())
@@ -29,6 +35,7 @@ func _ready() -> void:
 	if headless:
 		Engine.max_fps = 120
 	_timeout = float(opts.get("timeout", 0))
+	_frame_delay = int(opts.get("frame_delay", 0))
 	if opts.has("bot"):
 		_start_bot()
 	elif opts.has("join"):
@@ -87,6 +94,7 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	var port := 0 if opts.has("offline") else int(opts.get("port", NetSession.DEFAULT_PORT))
 	var local_name := "" if dedicated else String(opts.get("name", "host"))
 	session = NetSession.new()
+	session.threaded = String(opts.get("host_thread", "1")) != "0"
 	add_child(session)
 	var err := session.start_host(world_source(), port, local_name)
 	if err != OK:
@@ -97,7 +105,8 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	session.host.spawn = spawn_for(session.host.world, session.host.spawn)
 	var n := session.host.load_players(ProjectSettings.globalize_path(world_dir))
 	print("hosting on port %d (%s), %d saved players in %s" % [port, "dedicated" if dedicated else "listen", n, world_dir])
-	session.host_ep.player_left.connect(_on_player_left)
+	# Emitted on the host thread: handle it on the main thread.
+	session.host_ep.player_left.connect(_on_player_left, CONNECT_DEFERRED)
 	if not dedicated:
 		_make_client_side(headless)
 
@@ -153,6 +162,10 @@ func _on_player_left(_peer: int, player_name: String, reason: int) -> void:
 
 func _process(delta: float) -> void:
 	_elapsed += delta
+	_frames += 1
+	if _frame_delay > 0:
+		OS.delay_msec(_frame_delay)    # debug: simulate a slow renderer
+	_worst_frame = maxf(_worst_frame, delta) if _frames > 10 else 0.0
 	if presenter != null:
 		presenter.frame(delta)
 	if opts.has("shot") and _exit_code < 0 and _elapsed > float(opts.get("shot_after", 6.0)):
@@ -176,7 +189,13 @@ func _quit(code: int, wait := 0.0) -> void:
 	_quit_in = wait
 
 func _shutdown_and_exit() -> void:
+	if _shut_down:
+		return
+	_shut_down = true
+	print("FRAMES %d in %.1f s (%.1f fps, worst frame %.0f ms after the first 10)" % [_frames, _elapsed,
+			_frames / maxf(0.001, _elapsed), _worst_frame * 1000.0])
 	if session != null and session.host != null:
+		session.halt_host()
 		_report()
 		if world_dir != "":
 			var err := session.host.save(ProjectSettings.globalize_path(world_dir))
