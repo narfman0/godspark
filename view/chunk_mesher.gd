@@ -25,11 +25,12 @@ const N := K.CHUNK
 const PAD := K.CHUNK + 2
 const FRONT := 0.5
 const BACK := -0.5
-const BEVEL := 0.14
+const BEVEL := 0.2
 const WALL_Z := -0.5
 const KIND_BLOCK := 0.0
 const KIND_EMIT := 1.0
 const KIND_WALL := 2.0
+const STICK := Color("#6b4a2b")
 
 ## What a worker needs: copies (packed arrays are shared by reference, so duplicated) of the 3x3 chunks' foreground arrays (or a marker for outside
 ## the world: 0 air above it, 1 bedrock elsewhere) and this chunk's walls.
@@ -225,10 +226,12 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) ->
 			if id == 0 or sol[c] != 0:
 				continue
 			var col := colors[id].srgb_to_linear()
-			var kind := KIND_EMIT if emit[id] > 0 else KIND_BLOCK
-			var a := Vector3(lx + 0.4, ly, -0.1)
-			var b := Vector3(lx + 0.6, ly + 0.6, 0.1)
-			buf.box(a, b, col, id, kind)
+			if emit[id] > 0:
+				# A stick with a glowing head.
+				buf.box(Vector3(lx + 0.44, ly, -0.06), Vector3(lx + 0.56, ly + 0.5, 0.06), STICK.srgb_to_linear(), id, KIND_BLOCK)
+				buf.box(Vector3(lx + 0.36, ly + 0.5, -0.12), Vector3(lx + 0.64, ly + 0.82, 0.12), col, id, KIND_EMIT)
+			else:
+				buf.box(Vector3(lx + 0.4, ly, -0.1), Vector3(lx + 0.6, ly + 0.6, 0.1), col, id, KIND_BLOCK)
 
 ## Growing vertex arrays. Quads take four corners in order around the face and fix the
 ## winding to match the normal (Godot's front faces are clockwise).

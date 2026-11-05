@@ -14,7 +14,9 @@
 ## Spreading is a Dijkstra flood over 8 neighbours: an orthogonal step costs STEP levels, a
 ## diagonal step DIAG (STEP * 1.4, so distances are octile, close to Euclidean). A
 ## diagonal step needs both orthogonal cells it squeezes between to be clear. Opaque tiles
-## receive light (so the faces of cave walls are lit) but never pass it on.
+## receive light and pass it on only to other opaque tiles, orthogonally, at SOLID_STEP per
+## tile: never back out into open cells. So light never crosses a wall, but the view can show
+## the first few tiles of rock under a lit surface or around a lit cave.
 ##
 ## Levels: a torch is DIM_MIN + 16 * STEP = 85. It reads BRIGHT (>= 45) within 8 tiles,
 ## DIM (>= 5) out to 16 tiles, DARK beyond. That is the SRD torch: 20 ft bright, 20 ft more
@@ -29,6 +31,8 @@ enum Category { DARK, DIM, BRIGHT }
 
 const STEP := 5
 const DIAG := 7
+## Level lost per tile inside opaque tiles.
+const SOLID_STEP := 22
 const MAX := 125
 const DIM_MIN := 5
 const BRIGHT_MIN := 45
@@ -117,25 +121,32 @@ func sky_at(x: int, y: int) -> int:
 ## unscaled sky field, false the block field. Outside the world reads 0 (sky: SUN above it).
 ## Does not compute anything: call ensure_region(rect) first.
 func region_bytes(rect: Rect2i, sky: bool) -> PackedByteArray:
-	var out := PackedByteArray()
-	out.resize(rect.size.x * rect.size.y)
 	var src := _sky if sky else _block
-	var x0 := maxi(rect.position.x, 0)
-	var x1 := mini(rect.end.x, _w)
+	var x0 := clampi(rect.position.x, 0, _w)
+	var x1 := clampi(rect.end.x, 0, _w)
+	var left := PackedByteArray()
+	left.resize(x0 - rect.position.x)
+	var right := PackedByteArray()
+	right.resize(rect.end.x - x1)
+	var blank := PackedByteArray()
+	blank.resize(rect.size.x)
+	var above := blank
+	if sky:
+		above = blank.duplicate()
+		above.fill(0)
+		for x in range(x0, x1):
+			above[x - rect.position.x] = SUN
+	var out := PackedByteArray()
 	for r in rect.size.y:
 		var y := rect.position.y + r
-		var o := r * rect.size.x
-		if y >= _h:
-			if sky:
-				for x in range(x0, x1):
-					out[o + x - rect.position.x] = SUN
-			continue
 		if y < 0 or x1 <= x0:
-			continue
-		var row := src.slice(x0 + y * _w, x1 + y * _w)
-		var at := o + x0 - rect.position.x
-		for k in row.size():
-			out[at + k] = row[k]
+			out.append_array(blank)
+		elif y >= _h:
+			out.append_array(above)
+		else:
+			out.append_array(left)
+			out.append_array(src.slice(x0 + y * _w, x1 + y * _w))
+			out.append_array(right)
 	return out
 
 ## Lowest y in column x that sees open sky (nothing opaque at or above it).
@@ -319,8 +330,7 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 					src = maxi(src, stored[x + y * _w])
 			if src > 0:
 				lv[i] = src
-				if op[i] == 0:
-					buckets[src].append(i)
+				buckets[src].append(i)
 	if not sky:
 		for l: Vector3i in _lights.values():
 			var k := l.x - gx
@@ -338,10 +348,21 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 			continue
 		var o := l - STEP
 		var d := l - DIAG
+		var so := l - SOLID_STEP
 		var ob: Array = buckets[o] if o > 0 else []
 		var db: Array = buckets[d] if d > 0 else []
+		var sb: Array = buckets[so] if so > 0 else []
 		for i: int in b:
 			if lv[i] != l:
+				continue
+			if op[i] != 0:
+				# Inside rock: only on to other rock, slowly.
+				if so <= 0:
+					continue
+				for m: int in [i - 1, i + 1, i - gw, i + gw]:
+					if op[m] == 1 and lv[m] < so:
+						lv[m] = so
+						sb.append(m)
 				continue
 			if o <= 0:
 				continue
@@ -355,20 +376,16 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 			var cu := op[nu] == 0
 			if op[nl] < 2 and lv[nl] < o:
 				lv[nl] = o
-				if cl:
-					ob.append(nl)
+				ob.append(nl)
 			if op[nr] < 2 and lv[nr] < o:
 				lv[nr] = o
-				if cr:
-					ob.append(nr)
+				ob.append(nr)
 			if op[nd] < 2 and lv[nd] < o:
 				lv[nd] = o
-				if cd:
-					ob.append(nd)
+				ob.append(nd)
 			if op[nu] < 2 and lv[nu] < o:
 				lv[nu] = o
-				if cu:
-					ob.append(nu)
+				ob.append(nu)
 			if d <= 0:
 				continue
 			var m: int
@@ -376,26 +393,22 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 				m = nd - 1
 				if op[m] < 2 and lv[m] < d:
 					lv[m] = d
-					if op[m] == 0:
-						db.append(m)
+					db.append(m)
 			if cr and cd:
 				m = nd + 1
 				if op[m] < 2 and lv[m] < d:
 					lv[m] = d
-					if op[m] == 0:
-						db.append(m)
+					db.append(m)
 			if cl and cu:
 				m = nu - 1
 				if op[m] < 2 and lv[m] < d:
 					lv[m] = d
-					if op[m] == 0:
-						db.append(m)
+					db.append(m)
 			if cr and cu:
 				m = nu + 1
 				if op[m] < 2 and lv[m] < d:
 					lv[m] = d
-					if op[m] == 0:
-						db.append(m)
+					db.append(m)
 	return lv
 
 func _on_tile_changed(x: int, y: int, layer: int, old: int, now: int) -> void:

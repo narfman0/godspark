@@ -8,6 +8,7 @@ func run(t: TestLog) -> void:
 	_sun_and_caves(t)
 	_incremental(t)
 	_carried(t)
+	_region_bytes_check(t)
 
 ## SRD torch: bright to 20 ft (8 tiles), dim another 20 ft (to 16 tiles), dark beyond.
 func _torch_anchor(t: TestLog) -> void:
@@ -39,8 +40,14 @@ func _walls_and_corners(t: TestLog) -> void:
 		world.set_fg(70, y, stone, true)        # a full-height wall right of the torch
 	for y in range(60, 69):
 		world.set_fg(58, y, stone, true)        # a short wall left of it
+	for y in range(63, 66):
+		for x in range(60, 63):
+			if x != 61 or y != 64:
+				world.set_fg(x, y, stone, true)  # a sealed one-tile pocket at (61, 64)
 	world.set_fg(64, 64, TileDefs.id("torch"), true)
 	var light := LightEngine.new(world)
+	t.check(light.level_at(62, 64) > 0 and light.level_at(60, 64) > 0, "the pocket's rock is lit")
+	t.eq(light.level_at(61, 64), 0, "light seeping through rock never comes out into a sealed pocket")
 	light.sun = 0.0
 	t.check(light.level_at(70, 64) > 0, "an opaque wall face is lit")
 	t.eq(light.level_at(71, 64), 0, "no light through an unbroken opaque wall")
@@ -59,7 +66,8 @@ func _sun_and_caves(t: TestLog) -> void:
 	t.eq(light.category_at(mid + 12, g - 5), Cat.BRIGHT, "sun falls to the bottom of the pit")
 	t.eq(light.level_at(10, g - 20), 0, "deep rock is dark")
 	t.eq(light.category_at(mid + 3, g - 10), Cat.BRIGHT, "the cave pocket is lit by its torch")
-	t.eq(light.level_at(mid, g - 7), 0, "rock between the cave and the surface is dark")
+	t.eq(light.level_at(mid, g - 3), LightEngine.SUN - LightEngine.STEP - 2 * LightEngine.SOLID_STEP,
+		"sunlight seeps into rock at SOLID_STEP per tile")
 	light.sun = 0.0
 	t.eq(light.category_at(10, g), Cat.DARK, "night: the open sky is dark")
 	t.eq(light.category_at(mid - 2, g - 13), Cat.BRIGHT, "night: the cave torch still burns")
@@ -137,3 +145,20 @@ func _diff(light: LightEngine, r: Rect2i, world: TileWorld) -> int:
 					print("    differs at %d,%d: %d/%d vs %d/%d" % [x, y, light.block_at(x, y), light.sky_at(x, y), fresh.block_at(x, y), fresh.sky_at(x, y)])
 				bad += 1
 	return bad
+
+func _region_bytes_check(t: TestLog) -> void:
+	var world := TileWorld.make_test(64, 64)
+	var light := LightEngine.new(world)
+	var r := Rect2i(-3, 20, 70, 50)
+	light.ensure_region(r)
+	var sky := light.region_bytes(r, true)
+	var blk := light.region_bytes(r, false)
+	t.eq(sky.size(), r.size.x * r.size.y, "region_bytes size")
+	var bad := 0
+	for j in r.size.y:
+		for i in r.size.x:
+			var x := r.position.x + i
+			var y := r.position.y + j
+			if sky[i + j * r.size.x] != light.sky_at(x, y) or blk[i + j * r.size.x] != light.block_at(x, y):
+				bad += 1
+	t.eq(bad, 0, "region_bytes matches sky_at / block_at, padding included")
