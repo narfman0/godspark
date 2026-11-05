@@ -73,10 +73,10 @@ func play(c: String, speed := 1.0) -> void:
 	if _oneshot and clip != "jump" and not one and not want in HOLDS:
 		_loop_clip = want
 		return
-	if want == clip and anim.is_playing():
+	if want == clip and (anim.is_playing() or want in HOLDS):
 		if not one:
 			anim.speed_scale = speed
-		return
+		return   # a held clip (death) plays once and keeps its last pose
 	if want == "jump" and clip == "fall":
 		return   # a jump that already turned into a fall stays a fall
 	if not one and not want in HOLDS:

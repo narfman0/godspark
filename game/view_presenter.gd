@@ -158,6 +158,12 @@ func combat_event(ev: Dictionary) -> void:
 			if String(_oneshot.get(int(ev["dst"]), [""])[0]) == "death":
 				_oneshot.erase(int(ev["dst"]))
 
+## Back on their feet (revived, stabilised, healed, respawned): let go of the death pose.
+func actor_vitals(id: int, hp: int, max_hp: int) -> void:
+	super.actor_vitals(id, hp, max_hp)
+	if hp > 0 and String(_oneshot.get(id, [""])[0]) == "death":
+		_oneshot.erase(id)
+
 func actor_removed(id: int) -> void:
 	_oneshot.erase(id)
 	if fx != null:
