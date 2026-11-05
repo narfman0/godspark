@@ -76,8 +76,13 @@ func step(cam: Camera3D, hovered: int) -> void:
 			continue
 		var sp := cam.unproject_position(top)
 		var inf: Dictionary = info.get(r.id, {})
-		var d := {"id": r.id, "name": r.name, "hp": r.hp, "max": r.max_hp, "rank": String(inf.get("rank", "")),
-			"affixes": inf.get("affixes", []), "player": r.kind == HostEntity.Kind.PLAYER,
+		var affs: Array = inf.get("affixes", [])
+		var nm := r.name
+		var pre := " ".join(PackedStringArray(affs)) + " "
+		if not affs.is_empty() and nm.begins_with(pre):
+			nm = nm.substr(pre.length())    # the host's name leads with the affixes: they sit under it here
+		var d := {"id": r.id, "name": nm, "hp": r.hp, "max": r.max_hp, "rank": String(inf.get("rank", "")),
+			"affixes": affs, "player": r.kind == HostEntity.Kind.PLAYER,
 			"downed": rules != null and rules.is_downed(r.id)}
 		c.scale = Vector2(sc, sc)
 		var pos := sp - Vector2(W * 0.5, 44) * sc

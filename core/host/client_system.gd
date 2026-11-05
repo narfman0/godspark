@@ -26,6 +26,11 @@ func allow_place(_tile_id: int) -> bool:
 	return true
 
 ## Edit flow (items): the client predicted a place (request `req`) and sent it.
+## A remote entity is being added (or its look changed): add what this system knows of its
+## body to `look` (monsters: rank, slug, people, scale from INFO) before actor_added goes out.
+func decorate_look(_id: int, _look: Dictionary) -> void:
+	pass
+
 ## May the own player dig or place now (prediction gate; Rules: not while down)?
 func allow_edit() -> bool:
 	return true

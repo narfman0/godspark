@@ -25,6 +25,7 @@ var downs: Array = [[], []]
 var levels: Array = [[], []]
 var xp_in: Array = [0, 0]
 var gone_drops: Array = [[], []]
+var kit_count := 0
 
 func run(t_: TestLog) -> void:
 	t = t_
@@ -41,6 +42,7 @@ func run(t_: TestLog) -> void:
 	t.check(ok, "both players joined with every system")
 	if not ok:
 		return
+	kit_count = _bag_count(0)
 	_fight(t)
 	_loot_and_gear(t)
 	_spark(t)
@@ -51,18 +53,22 @@ func run(t_: TestLog) -> void:
 # --- setup ---------------------------------------------------------------------------------
 
 ## A generated world (dev-sized, seed 5) with a flat open arena dug at the middle of the
-## surface: 90 columns, floor of dirt, 16 rows of air above.
+## surface: 118 columns between stone walls, floor of dirt, 16 rows of air above.
 func _arena_world() -> TileWorld:
 	var w := WorldGen.generate(1024, 512, 5)
 	cx = w.width / 2
 	var surf: Array = w.meta.get("surface", [])
 	floor_y = int(surf[cx]) if surf.size() == w.width else w.height / 2
-	for x in range(cx - 45, cx + 45):
+	for x in range(cx - 60, cx + 60):
 		for y in range(floor_y - 4, floor_y):
 			w.set_fg(x, y, TileDefs.id("dirt"))
 		for y in range(floor_y, floor_y + 16):
 			w.set_fg(x, y, TileDefs.AIR)
 			w.set_bg(x, y, 0)
+	# walls at both ends: nobody chases or flees off into the caves
+	for x in [cx - 61, cx - 60, cx + 59, cx + 60]:
+		for y in range(floor_y, floor_y + 16):
+			w.set_fg(x, y, TileDefs.id("stone"))
 	return w
 
 func _join(names: Array, classes: Array) -> void:
@@ -223,7 +229,6 @@ func _loot_and_gear(t: TestLog) -> void:
 	var items: ItemsSystem = sys(HostSystem.ITEMS)
 	var drops: Array = items.drops.list.values()
 	t.check(not drops.is_empty(), "the pack dropped loot (%d piles; a champion always drops)" % drops.size())
-	var before := _bag_count(0)
 	var picked := 0
 	for d: Drops.Drop in drops:
 		if not items.drops.list.has(d.id):
@@ -233,7 +238,7 @@ func _loot_and_gear(t: TestLog) -> void:
 			picked += 1
 	rig.run(0.5)
 	t.check(picked > 0, "ann walked over the loot and picked up %d piles" % picked)
-	t.check(_bag_count(0) > before, "her inventory mirror grew (%d -> %d)" % [before, _bag_count(0)])
+	t.check(_bag_count(0) > kit_count, "her inventory mirror holds the loot (kit %d, now %d)" % [kit_count, _bag_count(0)])
 	t.check(not gone_drops[1].is_empty() and gone_drops[1].any(func(g: Array) -> bool: return g[1] == he(0).id),
 		"bob saw the piles go to ann")
 	# a +2 longsword: equip it through the client

@@ -365,8 +365,10 @@ func _forget_predictions(cx: int, cy: int) -> void:
 
 # --- remote entities ----------------------------------------------------------------
 
+## look: the compact look ENT_ADD carries ({slug?, people?, rank?, scale?}); actor_added
+## gets it merged into {kind, size, color, name}, so the view builds the right body at once.
 func add_remote(id: int, kind: int, name_: String, size: Vector2, pos: Vector2, flags: int,
-		hp_ := 0, max_hp_ := 0) -> void:
+		hp_ := 0, max_hp_ := 0, look := {}) -> void:
 	if id == my_id:
 		return
 	var r: RemoteEntity = remotes.get(id)
@@ -386,10 +388,15 @@ func add_remote(id: int, kind: int, name_: String, size: Vector2, pos: Vector2, 
 	var had := Vector2i(r.hp, r.max_hp)
 	r.hp = hp_ if max_hp_ > 0 else -1
 	r.max_hp = max_hp_ if max_hp_ > 0 else -1
-	if fresh:
-		actor_added.emit(id, {"kind": "player" if kind == HostEntity.Kind.PLAYER else "monster",
-				"size": size, "color": Color(0.45, 0.6, 0.9) if kind == HostEntity.Kind.PLAYER else Color(0.6, 0.2, 0.2),
-				"name": name_})
+	var full := {"kind": "player" if kind == HostEntity.Kind.PLAYER else "monster",
+			"size": size, "color": Color(0.45, 0.6, 0.9) if kind == HostEntity.Kind.PLAYER else Color(0.6, 0.2, 0.2),
+			"name": name_}
+	full.merge(look, true)
+	for sys: ClientSystem in systems.values():
+		sys.decorate_look(id, full)
+	if fresh or full != r.look:
+		r.look = full
+		actor_added.emit(id, full)
 	if r.max_hp > 0 and (fresh or had != Vector2i(r.hp, r.max_hp)):
 		vitals_changed.emit(id, r.hp, r.max_hp)
 
@@ -549,3 +556,5 @@ class RemoteEntity extends RefCounted:
 	## Hit points as last heard; -1 when it has none.
 	var hp := -1
 	var max_hp := -1
+	## The look actor_added was last emitted with (kind, size, color, name, slug, people, rank, scale).
+	var look := {}

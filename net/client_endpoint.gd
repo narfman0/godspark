@@ -146,7 +146,7 @@ func _handle(bytes: PackedByteArray) -> void:
 					for i in range(0, d.size(), 4):
 						cw.apply_tile(d[i], d[i + 1], d[i + 2], d[i + 3])
 				Protocol.T.ENT_ADD:
-					cw.add_remote(m["id"], m["kind"], m["name"], m["size"], m["pos"], m["flags"], m["hp"], m["max_hp"])
+					cw.add_remote(m["id"], m["kind"], m["name"], m["size"], m["pos"], m["flags"], m["hp"], m["max_hp"], m["look"])
 				Protocol.T.ENT_REMOVE:
 					cw.remove_remote(m["id"])
 				Protocol.T.SNAPSHOT:

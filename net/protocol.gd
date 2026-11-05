@@ -24,8 +24,11 @@
 ##   UNLOAD     u16 n, n x (s16 cx, s16 cy)                         3 + 4n
 ##   TILES      u16 n, n x (u16 x, u16 y, u8 layer, u16 value)      3 + 7n
 ##   ENT_ADD    u32 id, u8 kind, f32 w, f32 h, f32 x, f32 y,
-##              u8 flags, u16 hp, u16 max_hp, str name            28 + name
-##              max_hp 0: the entity has no hit points (no combatant).
+##              u8 flags, u16 hp, u16 max_hp, str name,
+##              str slug, str people, u8 rank, u8 scale*20         32 + strings
+##              max_hp 0: the entity has no hit points (no combatant). The rest is the
+##              compact look (protocol 7): SRD slug or "player:<class>", people key, rank
+##              (index in RANKS), body scale; "" / 0 when it has none.
 ##   ENT_REMOVE u32 id                                              5
 ##   SNAPSHOT * u32 tick, u8 n, n x (u32 id, f32 x, f32 y,
 ##              s16 vx*64, s16 vy*64, u8 flags)                     6 + 17n
@@ -52,7 +55,9 @@ class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 6
+const VERSION := 7
+## ENT_ADD rank byte: index into this list.
+const RANKS := ["standard", "minion", "elite", "champion", "boss"]
 const MAX_STR := 64
 const VEL_SCALE := 64.0
 
@@ -198,8 +203,9 @@ static func tiles(deltas: PackedInt32Array) -> PackedByteArray:
 	return b
 
 ## hp, max_hp: max_hp 0 for an entity without hit points.
+## look: the entity's look; only slug, people, rank and scale travel (compact_look).
 static func ent_add(id: int, kind: int, size: Vector2, pos: Vector2, flags: int, name: String,
-		hp := 0, max_hp := 0) -> PackedByteArray:
+		hp := 0, max_hp := 0, look := {}) -> PackedByteArray:
 	var w := Writer.new(T.ENT_ADD)
 	w.u32(id)
 	w.u8(kind)
@@ -209,7 +215,27 @@ static func ent_add(id: int, kind: int, size: Vector2, pos: Vector2, flags: int,
 	w.u16(clampi(hp, 0, 0xffff))
 	w.u16(clampi(max_hp, 0, 0xffff))
 	w.str8(name)
+	w.str8(String(look.get("slug", "")))
+	w.str8(String(look.get("people", "")))
+	w.u8(maxi(0, RANKS.find(String(look.get("rank", "standard")))))
+	w.u8(clampi(roundi(float(look.get("scale", 0.0)) * 20.0), 0, 255))
 	return w.b
+
+## What of a look ENT_ADD carries, as decode gives it back: {slug?, people?, rank?, scale?}
+## (keys only when set; rank only when not standard).
+static func compact_look(look: Dictionary) -> Dictionary:
+	var out := {}
+	if String(look.get("slug", "")) != "":
+		out["slug"] = String(look["slug"]).left(MAX_STR)
+	if String(look.get("people", "")) != "":
+		out["people"] = String(look["people"]).left(MAX_STR)
+	var r := RANKS.find(String(look.get("rank", "standard")))
+	if r > 0:
+		out["rank"] = RANKS[r]
+	var sc := clampi(roundi(float(look.get("scale", 0.0)) * 20.0), 0, 255)
+	if sc > 0:
+		out["scale"] = sc / 20.0
+	return out
 
 static func ent_remove(id: int) -> PackedByteArray:
 	var w := Writer.new(T.ENT_REMOVE)
@@ -415,6 +441,20 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			m["hp"] = r.u16()
 			m["max_hp"] = r.u16()
 			m["name"] = r.str8()
+			var look := {}
+			var slug := r.str8()
+			var people := r.str8()
+			var rank := r.u8()
+			var scale := r.u8()
+			if slug != "":
+				look["slug"] = slug
+			if people != "":
+				look["people"] = people
+			if rank > 0 and rank < RANKS.size():
+				look["rank"] = RANKS[rank]
+			if scale > 0:
+				look["scale"] = scale / 20.0
+			m["look"] = look
 		T.ENT_REMOVE:
 			m["id"] = r.u32()
 		T.SNAPSHOT:

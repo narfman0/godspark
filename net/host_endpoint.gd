@@ -367,7 +367,7 @@ func _snapshot(p: PeerState) -> void:
 			if d > radius:
 				continue
 			p.visible[e.id] = true
-			_send(p.id, Protocol.ent_add(e.id, e.kind, e.body.size, e.body.pos, e.flags, e.name, maxi(0, hv.x), maxi(0, hv.y)))
+			_send(p.id, Protocol.ent_add(e.id, e.kind, e.body.size, e.body.pos, e.flags, e.name, maxi(0, hv.x), maxi(0, hv.y), e.look))
 			p.vitals[e.id] = hv
 		elif d > radius + 1:
 			p.visible.erase(e.id)

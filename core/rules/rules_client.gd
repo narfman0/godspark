@@ -61,6 +61,7 @@ func handle(kind: int, data: PackedByteArray) -> void:
 				if not keys.has(k):
 					choices.erase(k)
 			_own_state(int(s["state"]))
+			_own_look(String(s.get("class", "")))
 			sheet_changed.emit(s)
 		RulesCodec.K.CHOICE:
 			var c := RulesCodec.decode_choice(data)
@@ -159,6 +160,17 @@ func pending_keys() -> Array:
 func _send(kind: int, data: PackedByteArray) -> void:
 	if cw != null:
 		cw.send_sys(sys_id(), kind, data)
+
+var _look_class := ""
+
+## The own body is drawn by class (looks.json "player:<class>"): re-add it once the class is
+## known (setup() adds it before any sheet).
+func _own_look(cls: String) -> void:
+	if cw == null or cls == "" or cls == _look_class or cw.body == null:
+		return
+	_look_class = cls
+	cw.actor_added.emit(cw.my_id, {"kind": "player", "size": cw.stats.size, "color": Color(0.85, 0.75, 0.55),
+			"name": cw.player_name, "own": true, "slug": "player:" + cls})
 
 ## Freeze local movement while down or dead; restore it when up.
 func _own_state(state: int) -> void:

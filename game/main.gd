@@ -9,6 +9,8 @@
 ##   host modes: spawn=SLUG[:N] places N (default 1) of an SRD monster near the spawn point,
 ##             standing still (no brain), e.g. spawn=goblin-warrior:3; spawn_dx=N: the first
 ##             one N tiles from the spawn point (default -24)
+##   host modes: pack=SLUG|SLUG:RANK|raiders:CULTURE[,...] ranked packs with brains through the
+##             spawn director's path (pack_step=N tiles apart); xp=N multiplies kill XP
 ##   host modes: spawns=0|1 turns the monsters' spawn director off or on (default: on for
 ##             generated worlds, off for the fixed test world)
 ##   client modes: class=SLUG, the SRD class of a new character (default fighter)
@@ -158,19 +160,35 @@ func _spawn_monsters(spec: String) -> void:
 		var v := e.vitals()
 		print("spawned %s (entity %d) at %.1f,%.1f hp %d/%d" % [e.name, e.id, e.body.pos.x, e.body.pos.y, v.x, v.y])
 
-## pack=SLUG: a ranked pack through the spawn director's own path (a champion leading a
-## standard and two minions), spawn_dx tiles from the spawn point, with brains. Before the
-## host thread starts.
-func _spawn_pack(slug: String) -> void:
+## pack=A[,B...]: packs through the spawn director's own path, with brains, the first
+## spawn_dx tiles from the spawn point and each next pack_step tiles further (default 10).
+## Each entry: SLUG (a champion leading a standard and two minions), SLUG:RANK (one
+## monster), raiders:CULTURE (a people raider party, e.g. raiders:bandit). Before the host
+## thread starts.
+func _spawn_pack(spec: String) -> void:
 	var h := session.host
 	var ms: Variant = h.system(HostSystem.MONSTERS)
 	if ms == null:
 		printerr("pack: no monsters system")
 		return
-	var x := clampi(int(h.spawn.x) + int(opts.get("spawn_dx", -24)), 2, h.world.width - 3)
-	var pack: Array = ms.director.spawn_pack([{"slug": slug, "rank": "champion", "leader": true},
-		{"slug": slug, "rank": "standard", "leader": false}, {"slug": slug, "rank": "minion", "leader": false},
-		{"slug": slug, "rank": "minion", "leader": false}], h.find_spawn(x))
+	var entries := spec.split(",", false)
+	for i in entries.size():
+		var x := clampi(int(h.spawn.x) + int(opts.get("spawn_dx", -24)) + i * int(opts.get("pack_step", 10)), 2, h.world.width - 3)
+		_one_pack(ms, String(entries[i]), h.find_spawn(x))
+
+func _one_pack(ms: Variant, entry: String, at: Vector2) -> void:
+	var parts := entry.split(":")
+	var slug := parts[0]
+	var list: Array = []
+	if slug == "raiders" and parts.size() > 1:
+		var r: Dictionary = SpawnDirector.cfg().get("raiders", {}).get(parts[1], {})
+		list = ms.director.raider_pack(session.host, String(r.get("culture", parts[1])), r, 99.0)
+	elif parts.size() > 1:
+		list = [{"slug": slug, "rank": parts[1], "leader": true}]
+	else:
+		list = [{"slug": slug, "rank": "champion", "leader": true}, {"slug": slug, "rank": "standard", "leader": false},
+			{"slug": slug, "rank": "minion", "leader": false}, {"slug": slug, "rank": "minion", "leader": false}]
+	var pack: Array = ms.director.spawn_pack(list, at)
 	for e: HostEntity in pack:
 		var v := e.vitals()
 		print("spawned %s %s (entity %d) at %.1f,%.1f hp %d/%d" % [e.get_meta("rank", ""), e.name, e.id, e.body.pos.x, e.body.pos.y, v.x, v.y])

@@ -65,7 +65,9 @@ func setup(client: ClientWorld, v: WorldView) -> void:
 		_refresh_sigil()
 	var mons := cw.system(HostSystem.MONSTERS)
 	if mons != null and mons.has_signal("monster_info"):
-		mons.connect("monster_info", func(id: int, inf: Dictionary) -> void: plates.set_info(id, inf))
+		# shown names ("Lantern-Eater"), not ids ("lantern_eater")
+		mons.connect("monster_info", func(id: int, inf: Dictionary) -> void:
+			plates.set_info(id, {"rank": inf.get("rank", ""), "affixes": inf.get("names", inf.get("affixes", []))}))
 
 func _refresh_sigil() -> void:
 	var items := cw.system(HostSystem.ITEMS) as ItemsClient

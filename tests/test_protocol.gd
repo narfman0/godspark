@@ -103,7 +103,21 @@ func run(t: TestLog) -> void:
 	var h5 := Protocol.hello("ann")
 	t.eq(Protocol.decode(h5.slice(0, h5.size() - 1)).get("class"), "", "a hello without the class field decodes (old clients reach the version check)")
 	var ea := Protocol.ent_add(7, HostEntity.Kind.MONSTER, Vector2(1, 1), Vector2(2, 3), 1, "Goblin Warrior", 4, 10)
-	t.eq(ea.size(), 28 + "Goblin Warrior".length(), "entity add: 28 + name")
+	t.eq(ea.size(), 32 + "Goblin Warrior".length(), "entity add: 32 + name without a look")
+	# protocol 7: the compact look
+	var look := {"slug": "goblin-warrior", "people": "human:raider", "rank": "champion", "scale": 1.3, "color": Color.RED, "name": "x"}
+	var el := Protocol.decode(Protocol.ent_add(7, HostEntity.Kind.MONSTER, Vector2(1, 1), Vector2(2, 3), 1, "Gob", 4, 10, look))
+	t.eq(el.get("look"), {"slug": "goblin-warrior", "people": "human:raider", "rank": "champion", "scale": 1.3}, "entity add carries the compact look")
+	t.eq(el.get("look"), Protocol.compact_look(look), "compact_look is what decodes")
+	t.eq(Protocol.decode(Protocol.ent_add(7, 0, Vector2.ONE, Vector2.ZERO, 0, "x")).get("look"), {}, "no look: empty")
+	t.eq(Protocol.decode(Protocol.ent_add(7, 1, Vector2.ONE, Vector2.ZERO, 0, "x", 0, 0, {"slug": "player:wizard"})).get("look"),
+		{"slug": "player:wizard"}, "a player's class look")
+	var full := Protocol.ent_add(7, 1, Vector2.ONE, Vector2.ZERO, 0, "x", 0, 0, look)
+	var refused := 0
+	for n in full.size():
+		if Protocol.decode(full.slice(0, n)).is_empty():
+			refused += 1
+	t.eq(refused, full.size(), "every truncated ENT_ADD is refused")
 	m = Protocol.decode(ea)
 	t.eq([m.get("hp"), m.get("max_hp"), m.get("name")], [4, 10, "Goblin Warrior"], "entity add carries hit points")
 	t.eq(Protocol.decode(Protocol.ent_add(7, 0, Vector2.ONE, Vector2.ZERO, 0, "x")).get("max_hp"), 0, "no hit points: max 0")
