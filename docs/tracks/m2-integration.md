@@ -152,9 +152,9 @@ grow walls of ladders.
 
 | What | Measured |
 |---|---|
-| Tests | 3070+ checks, ALL PASS (2863 before) |
+| Tests | 3070 checks, ALL PASS (2863 before) |
 | Host tick, ALL smoke (2 bots, director on, dev world) | avg 1.0-1.2 ms, p99 2.5-3.0 ms |
-| Host tick, 60 monsters (`spawn_sim perf=60 seconds=30`) | PERF60 |
+| Host tick, 60 monsters (`spawn_sim perf=60 seconds=30`) | avg 3.88 ms, p99 5.93 ms, max 8.3 ms (monsters track: 3.90 / 8.14 / 11.2) |
 | Movement traces (nine scenarios) | core/entity untouched since 947f933; trace output identical |
 
 ## Deviations and notes
