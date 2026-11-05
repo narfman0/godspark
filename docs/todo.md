@@ -62,3 +62,48 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
   down. Combat ignores spells, breath weapons and regeneration. No alliances or revolts.
 - Invented names come from `data/sim/names.json`; `data/setting/names.json` is still empty.
   One should become the single source.
+
+## M2 integration (gaps between the M2 tracks; `docs/tracks/` has the detail)
+
+Wiring
+- Monster `look` (slug, people, rank, scale) is not sent to clients: remote monsters draw as
+  plain capsules. ENT_ADD or a monsters SYS message should carry it.
+- Longarm (reach) and Mole (dig speed) are tags nobody reads: `TileEdit`, the host dig and
+  the client's predicted dig still use the fixed reach and dig time.
+- Tempo sparks and affix tags (swing recovery, cast while moving, no slowdown when hit) are
+  not read by combat. Featherfall should reduce fall damage, not only fall speed.
+- Combat should call `rules.player_dropped(e, crit)` for every hit on a player at 0 HP and
+  `rules.heal(e, amount)` for healing at 0 HP; spell slots spent on the combatant must
+  reach `Character.slots_left` so they survive saves and show on the sheet.
+- When Rules rebuilds a combatant it must end with `items.outfit(e)`.
+- `Character.capture` caps saved HP at the max without gear: gear that raises Constitution
+  loses its extra hit points on save.
+- A downed player can still place tiles. Movement limits from conditions (speed 0, prone,
+  frightened) are enforced only by the player's own client.
+- Rules and combat move players by pushing CORRECT events themselves; add
+  `WorldHost.teleport(e, pos)`.
+
+Mirrors the interface is missing
+- Deeds are not sent to the client (the sheet and Knack cards count this session only).
+- Answered choices (feats, fighting style, skills) are not mirrored, so the character
+  sheet's AC, attacks and skills can differ from the host's.
+- Temporary hit points are not mirrored. Cast refusals from the host are silent.
+- Quick-spell assignments are saved locally (`user://ui.cfg`), not on the host.
+
+Content and rules gaps
+- 168 of 258 SRD magic items are text only; 63 more apply their main number all the time.
+- 225 of 339 spells are refused (217 have no mechanics in the addon). No monster
+  spellcasting, bonus actions, reactions or legendary actions. Shield is manual.
+- No opportunity attacks, two-weapon fighting, grapple, thrown-weapon key, or class
+  features such as Second Wind and Action Surge.
+- Epic Boons and tool and language Knacks are recorded only. Nothing reads Bonds.
+  Species and background are stored but not applied. The one SRD subclass per class is
+  taken at class level 3 without asking.
+- The XP scale (15) rests on an assumed kills-per-minute table: re-fit with
+  `tools/xp_pacing.gd` once the spawn director's real rates are known.
+
+Never played
+- Nothing in M2 has had a hand on the controls: attack feel, telegraph dodging at real
+  latency, hold-to-rest and revive timing, inventory drag, spell aiming, HUD at 1080p,
+  whether three goblins should be this deadly at level 1.
+
