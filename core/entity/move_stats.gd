@@ -42,6 +42,8 @@ var release_cut := 0.45
 var terminal_fall := 40.0
 var coyote_time := 0.1
 var buffer_time := 0.12
+## Seconds S must be held, from a press made while standing, to drop through a one-way floor.
+var drop_hold := 0.1
 var ladder_speed := 7.0
 var ladder_side_speed := 4.0
 ## Wall climbing speed; 0 = cannot climb walls (ladders still work).
@@ -135,6 +137,7 @@ static func from_srd(speeds: Dictionary, size_name_in := "medium") -> MoveStats:
 	s.terminal_fall = float(jump["terminal_fall"])
 	s.coyote_time = float(jump["coyote"])
 	s.buffer_time = float(jump["buffer"])
+	s.drop_hold = float((d.get("drop", {}) as Dictionary).get("hold", 0.1))
 
 	var ladder: Dictionary = d["ladder"]
 	s.ladder_speed = float(ladder["speed"])

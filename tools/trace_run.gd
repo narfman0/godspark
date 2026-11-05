@@ -2,9 +2,12 @@
 ## world and prints an ASCII picture of the body's path, so jump arcs can be eyeballed
 ## without a renderer.
 ##   godot --headless -s res://tools/trace_run.gd -- scenario=runjump
-## Scenarios: jump, tap, runjump, pit, platforms, stairs, ladder, swim, spider; with sparks
+## Scenarios: jump, tap, runjump, pit, platforms, stairs, ladder, swim, spider, sdrop (S
+## drops through walkways), ladderwalk (down a ladder onto a walkway, then S); with sparks
 ## (data/sparks.json): airjump (Skyhook III), dash (Dash II, a double tap), glide
 ## (Featherfall III off a ledge).
+## hash=1 prints only a SHA-256 of every step's body state (to prove a change left a
+## scenario bit-identical).
 ## Legend: # solid  = platform  H ladder  ~ water  o feet each 3rd step  S start  E end
 extends SceneTree
 
@@ -63,6 +66,28 @@ func _initialize() -> void:
 			script = func(i: int, p: PlayerInput) -> void:
 				p.move_x = 1.0 if i < 22 else (1.0 if i > 110 else 0.0)
 				p.up = i >= 22 and i < 110
+		"sdrop":
+			# Walk along a walkway, brush S (4 steps: nothing), then hold S: drop to the
+			# walkway below (S held through the landing: stays), press again: to the ground.
+			for x in range(mid - 44, mid - 20):
+				world.set_fg(x, ground + 12, TileDefs.id("platform"), true)
+			for x in range(mid - 40, mid - 26):
+				world.set_fg(x, ground + 6, TileDefs.id("platform"), true)
+			start = Vector2(mid - 42.5, ground + 13)
+			script = func(i: int, p: PlayerInput) -> void:
+				p.move_x = 0.5 if i < 40 else 0.0
+				p.down = (i >= 15 and i < 19) or (i >= 50 and i < 120) or (i >= 140 and i < 200)
+		"ladderwalk":
+			# Climb down a ladder that ends on a walkway with S held: it stops there; walk
+			# off it, then a fresh S drops to the ground.
+			for x in range(mid - 36, mid - 24):
+				world.set_fg(x, ground + 6, TileDefs.id("platform"), true)
+			for y in range(ground + 7, ground + 16):
+				world.set_fg(mid - 30, y, TileDefs.id("ladder"), true)
+			start = Vector2(mid - 29.5, ground + 16)
+			script = func(i: int, p: PlayerInput) -> void:
+				p.down = i < 100 or (i >= 160)
+				p.move_x = 1.0 if i >= 110 and i < 140 else 0.0
 		"swim":
 			for x in range(mid + 10, mid + 16):
 				for y in range(ground - 5, ground):
@@ -111,12 +136,22 @@ func _initialize() -> void:
 	var dt := 1.0 / MoveStats.step_hz()
 	var path: Array[Vector2] = [body.pos]
 	var peak := body.pos.y
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
 	for i in 240:
 		var p := PlayerInput.new()
 		script.call(i, p)
 		PlayerController.step(world, body, p, stats, dt)
 		path.append(body.pos)
 		peak = maxf(peak, body.pos.y)
+		ctx.update(var_to_bytes([body.pos, body.vel, body.on_floor, body.on_wall, body.on_ceiling,
+				body.climbing, body.swimming, body.clinging, body.flying, body.jumping, body.drop_y,
+				body.coyote, body.jump_buffer, body.stepped, body.facing]))
+	var digest := ctx.finish().hex_encode()
+	if args.has("hash"):
+		print("HASH %s %s" % [scenario, digest])
+		quit(0)
+		return
 	_draw(world, path)
 	print("scenario %s: start %s end %s, peak feet %.2f (%.2f above start), run speed %.2f t/s" % [
 			scenario, start, body.pos, peak, peak - start.y, stats.run_speed])

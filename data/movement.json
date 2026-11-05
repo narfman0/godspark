@@ -27,6 +27,10 @@
 		"coyote": 0.10,
 		"buffer": 0.12
 	},
+	"drop": {
+		"_comment": "S (down) alone drops through a one-way floor once held this long (s) from a press made while standing; a brush of S shorter than this does nothing. Down + jump still drops at once.",
+		"hold": 0.1
+	},
 	"ladder": {
 		"speed": 7.0,
 		"side_speed": 4.0

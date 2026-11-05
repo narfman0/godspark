@@ -194,8 +194,9 @@ func _platforms(t: TestLog) -> void:
 	t.eq(body.pos.y, 13.0, "jumps up through a platform from below and lands on it")
 	sim(world, body, stats, 120, func(_i): return inp())
 	t.eq(body.pos.y, 13.0, "rests on the platform")
-	sim(world, body, stats, 10, func(_i): return inp(0, false, false, false, true))
-	t.eq(body.pos.y, 13.0, "down alone does not drop through")
+	sim(world, body, stats, 5, func(_i): return inp(0, false, false, false, true))
+	t.eq(body.pos.y, 13.0, "a brush of down (5 steps) does not drop through")
+	sim(world, body, stats, 10, func(_i): return inp())
 	sim(world, body, stats, 60, func(i): return inp(0, i == 0, i == 0, false, true))
 	t.eq(body.pos.y, 8.0, "down + jump drops through to the ground")
 	t.eq(body.drop_y, Body.NO_DROP, "drop state clears on landing")
@@ -210,6 +211,75 @@ func _platforms(t: TestLog) -> void:
 	body.pos = Vector2(25, 13)
 	sim(mixed, body, stats, 30, func(i): return inp(0, i == 0, i == 0, false, true))
 	t.check(body.pos.y >= 13.0, "down + jump half on stone jumps instead of dropping")
+	_s_drop(t)
+
+## S alone drops through a walkway once held drop_hold (0.1 s = 6 steps) from a press made
+## standing; never off a ladder or after a landing with S still held; never off solid ground.
+func _s_drop(t: TestLog) -> void:
+	var stats := MoveStats.player()
+	var world := Col.flat(64)
+	Col.fill(world, 20, 12, 30, 13, TileDefs.id("platform"))   # top at y = 13
+	Col.fill(world, 20, 20, 30, 21, TileDefs.id("platform"))   # a second walkway, top at 21
+	var body := stats.make_body()
+	body.pos = Vector2(25, 13)
+	TileCollision.update_contacts(world, body)
+	var path := sim(world, body, stats, 6, func(_i): return inp(0, false, false, false, true))
+	t.check(path[4].y == 13.0 and path[5].y < 13.0, "S held 6 steps (0.1 s) drops through the walkway (%.3f, %.3f)" % [path[4].y, path[5].y])
+	sim(world, body, stats, 60, func(_i): return inp(0, false, false, false, true))
+	t.eq(body.pos.y, 8.0, "and falls to the ground with no jump")
+	t.eq(body.drop_y, Body.NO_DROP, "drop state clears on landing")
+	sim(world, body, stats, 30, func(_i): return inp(0, false, false, false, true))
+	t.eq(body.pos.y, 8.0, "S on solid ground does nothing")
+	# walking along a walkway brushing S
+	body = stats.make_body()
+	body.pos = Vector2(21, 13)
+	TileCollision.update_contacts(world, body)
+	sim(world, body, stats, 30, func(i): return inp(0.5, false, false, false, i >= 10 and i < 14))
+	t.eq(body.pos.y, 13.0, "walking along a walkway brushing S (4 steps) stays on it")
+	# landing on a walkway with S held: no drop until S is let go and pressed again
+	body = stats.make_body()
+	body.pos = Vector2(25, 26)
+	sim(world, body, stats, 60, func(_i): return inp(0, false, false, false, true))
+	t.eq(body.pos.y, 21.0, "landing on a walkway with S held does not drop through")
+	sim(world, body, stats, 1, func(_i): return inp())
+	sim(world, body, stats, 40, func(_i): return inp(0, false, false, false, true))
+	t.eq(body.pos.y, 13.0, "pressed again: drops to the walkway below, and stops there")
+	# a ladder that ends on a walkway: climbing down with S held lands on it and stays
+	var lw := Col.flat(64)
+	Col.fill(lw, 20, 12, 30, 13, TileDefs.id("platform"))
+	Col.fill(lw, 25, 13, 26, 22, TileDefs.id("ladder"))         # rungs 13..21, on the walkway
+	body = stats.make_body()
+	body.pos = Vector2(25.5, 22)
+	TileCollision.update_contacts(lw, body)
+	sim(lw, body, stats, 120, func(_i): return inp(0, false, false, false, true))
+	t.check(body.pos.y == 13.0 and body.on_floor, "climbing down a ladder onto a walkway with S held stops on the walkway (%.2f)" % body.pos.y)
+	sim(lw, body, stats, 30, func(_i): return inp(1.0))
+	t.check(body.pos.y == 13.0 and not body.climbing, "and walks off the ladder along it")
+	sim(lw, body, stats, 1, func(_i): return inp())
+	sim(lw, body, stats, 60, func(_i): return inp(0, false, false, false, true))
+	t.eq(body.pos.y, 8.0, "a fresh S then drops through")
+	# down + jump still drops at once
+	body = stats.make_body()
+	body.pos = Vector2(22, 13)
+	TileCollision.update_contacts(lw, body)
+	path = sim(lw, body, stats, 2, func(i): return inp(0, i == 0, i == 0, false, true))
+	t.check(path[0].y < 13.0, "down + jump still drops on the first step")
+	# half on stone: S does not drop
+	var mixed := Col.flat(64)
+	Col.fill(mixed, 20, 12, 25, 13, TileDefs.id("platform"))
+	Col.fill(mixed, 25, 12, 30, 13, TileDefs.id("stone"))
+	body = stats.make_body()
+	body.pos = Vector2(25, 13)
+	TileCollision.update_contacts(mixed, body)
+	sim(mixed, body, stats, 30, func(_i): return inp(0, false, false, false, true))
+	t.eq(body.pos.y, 13.0, "S half on stone does not drop")
+	# a host-simulated (monster) body follows the same rule
+	var ms := MoveStats.from_srd({"walk": 30}, "small")
+	body = ms.make_body()
+	body.pos = Vector2(25, 13)
+	TileCollision.update_contacts(world, body)
+	sim(world, body, ms, 60, func(_i): return inp(0, false, false, false, true))
+	t.eq(body.pos.y, 8.0, "a Small body S-drops the same way")
 
 func _ladder(t: TestLog) -> void:
 	var world := Col.flat(64)

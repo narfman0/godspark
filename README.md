@@ -73,7 +73,8 @@ first attack.
 | Action | Keys |
 |---|---|
 | Move left / right | A / D, or Left / Right |
-| Climb up / down (ladders, walls), drop through platforms (with Jump) | W / S, or Up / Down |
+| Climb up / down (ladders, ropes, walls) | W / S, or Up / Down |
+| Drop through a walkway (or stairs, a ladder top) to what is below: hold S a moment (a brush does nothing; after climbing down onto a walkway, press S again), or S + Jump at once | S |
 | Jump (hold for higher) | Space |
 | Use the selected hotbar item toward the mouse: a weapon (or an empty slot) attacks and keeps attacking while held, a block places, a potion is drunk | Left mouse button |
 | Dig the tile under the mouse (hold) | **Right mouse button** |

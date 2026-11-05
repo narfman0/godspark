@@ -16,8 +16,9 @@
 ##           jump kicks off the wall
 ##   ground  everything else: run with accel/friction, air control, gravity with
 ##           terminal velocity, coyote time, jump buffer, variable height, one-way
-##           platforms (down + jump drops through), step-up and step-down of
-##           stats.step_tiles
+##           platforms (down + jump drops through at once; down alone drops through
+##           once held stats.drop_hold from a press made while standing: see
+##           _track_down), step-up and step-down of stats.step_tiles
 ## Burrow is a stub: burrowers move as walkers until digging-while-moving lands (see
 ## docs/tracks/movement.md).
 class_name PlayerController
@@ -39,6 +40,7 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 		if body.pos.y > body.drop_y + TileCollision.EPS or (body.on_floor and body.pos.y < body.drop_y - TileCollision.EPS):
 			body.drop_y = Body.NO_DROP
 
+	_track_down(body, input, dt)
 	if stats.dash_speed > 0.0:
 		_dash_input(body, input, stats, dt)
 	if body.on_floor:
@@ -107,6 +109,14 @@ static func _ground(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 		body.on_floor = false
 		body.jump_buffer = 0.0
 		body.coyote = 0.0
+		dropped = true
+	elif input.down and body.down_t >= stats.drop_hold - T_EPS and body.on_floor \
+			and TileCollision.on_platform_only(world, body):
+		# S-drop: S held on a walkway (or a ladder top) with nothing solid under the feet.
+		body.drop_y = roundi(body.pos.y)
+		body.on_floor = false
+		body.coyote = 0.0
+		body.down_t = -1.0
 		dropped = true
 	elif body.jump_buffer > T_EPS and body.coyote > T_EPS:
 		body.vel.y = stats.jump_velocity
@@ -203,6 +213,20 @@ static func _fly(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 	TileCollision.move(world, body, dt)
 
 # --- shared ----------------------------------------------------------------------------
+
+## The S-drop timer. Holding S counts up only while standing (and not on a ladder); S held
+## in the air, on a ladder or in water disarms it (-1) until S is let go. So climbing down a
+## ladder onto a walkway, or landing on one with S held, never drops through: press S again.
+## A brush of S shorter than stats.drop_hold does nothing either.
+static func _track_down(body: Body, input: PlayerInput, dt: float) -> void:
+	if not input.down:
+		body.down_t = 0.0
+	elif body.down_t < 0.0:
+		pass
+	elif body.on_floor and not body.climbing and not body.swimming:
+		body.down_t += dt
+	else:
+		body.down_t = -1.0
 
 ## Dash triggers (only with stats.dash_speed > 0): PlayerInput.dash, or a direction tapped
 ## twice within stats.dash_window. Starts body.dash_left when the cooldown allows.

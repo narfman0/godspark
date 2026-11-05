@@ -38,6 +38,9 @@ var flying := false
 var swimming := false
 ## Platform tops at or above this y are ignored (dropped through). NO_DROP when unset.
 var drop_y := NO_DROP
+## Seconds S (down) has been held while standing, toward an S-drop through a one-way floor;
+## -1 when S was already held off the floor (on a ladder, in the air): it must be let go first.
+var down_t := 0.0
 ## Tiles stepped up (positive) or snapped down (negative) on the last step, for view smoothing.
 var stepped := 0.0
 # Spark abilities (MoveStats.air_jumps, dash_*): untouched while those are off.
@@ -94,6 +97,7 @@ func duplicate_body() -> Body:
 	b.flying = flying
 	b.swimming = swimming
 	b.drop_y = drop_y
+	b.down_t = down_t
 	b.stepped = stepped
 	b.air_jumps_left = air_jumps_left
 	b.dash_left = dash_left
