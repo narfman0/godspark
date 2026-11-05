@@ -123,6 +123,7 @@ func spark_slots() -> int:
 ## SRDProgression.auto_answer and the class's preference lists. Returns how many it answered.
 func auto_choices(srd: SRDContent) -> int:
 	var n := 0
+	var old_max := max_hp()
 	var prefs: Dictionary = build.get("prefs", DEFAULTS.get(class_slug, {}).get("prefs", {}))
 	var choices: Dictionary = build.get("choices", {})
 	build["choices"] = choices
@@ -137,7 +138,22 @@ func auto_choices(srd: SRDContent) -> int:
 				n += 1
 		if answers.is_empty():
 			choices.erase(key)
+	_max_changed(old_max)
 	return n
+
+## Record the answer to one SRD choice (choice id from pending_choices) at a class level.
+## Current hit points follow a changed maximum (an ASI to Constitution).
+func answer_choice(class_lvl: int, choice_id: String, answer: Array) -> void:
+	var old_max := max_hp()
+	var choices: Dictionary = build.get("choices", {})
+	build["choices"] = choices
+	var answers: Dictionary = choices.get(str(class_lvl), {})
+	answers[choice_id] = answer.duplicate()
+	choices[str(class_lvl)] = answers
+	_max_changed(old_max)
+
+func _max_changed(old_max: int) -> void:
+	hp = clampi(hp + max_hp() - old_max, 0, max_hp())
 
 ## Choices the SRD asks for at class levels 1..class_level() that the build has not answered:
 ## [{class_level, choice}] (choice as SRDProgression.choices gives it).
