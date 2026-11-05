@@ -1,0 +1,514 @@
+{
+	"_doc": "Syllable generator for invented names: start + optional mid + end. Original syllables only; no published-setting names. Each culture has a set; 'place' names routes and lairs.",
+	"human": {
+		"start": [
+			"Ash",
+			"Bren",
+			"Cal",
+			"Dun",
+			"Ell",
+			"Fen",
+			"Gar",
+			"Hal",
+			"Kest",
+			"Lin",
+			"Mar",
+			"Nor",
+			"Oak",
+			"Pell",
+			"Rad",
+			"Stan",
+			"Tarn",
+			"Wex",
+			"Yar"
+		],
+		"mid": [
+			"a",
+			"e",
+			"i",
+			"o",
+			"ing",
+			"er",
+			"en"
+		],
+		"end": [
+			"ford",
+			"ton",
+			"wick",
+			"by",
+			"stead",
+			"mere",
+			"bridge",
+			"holm",
+			"field",
+			"gate",
+			"well",
+			"march"
+		],
+		"mid_chance": 0.25
+	},
+	"dwarf": {
+		"start": [
+			"Bar",
+			"Dur",
+			"Grom",
+			"Kar",
+			"Khel",
+			"Mor",
+			"Thar",
+			"Dol",
+			"Brun",
+			"Gund",
+			"Haz",
+			"Vor"
+		],
+		"mid": [
+			"a",
+			"u",
+			"i",
+			"ak",
+			"um"
+		],
+		"end": [
+			"dun",
+			"grim",
+			"hold",
+			"forge",
+			"rak",
+			"dek",
+			"mor",
+			"thum",
+			"garth",
+			"zad"
+		],
+		"mid_chance": 0.3
+	},
+	"elf": {
+		"start": [
+			"Ael",
+			"Cael",
+			"Ith",
+			"Lor",
+			"Mel",
+			"Syl",
+			"Tha",
+			"Vae",
+			"Eri",
+			"Lua",
+			"Nyr",
+			"Shae"
+		],
+		"mid": [
+			"a",
+			"e",
+			"i",
+			"ia",
+			"el",
+			"an"
+		],
+		"end": [
+			"thil",
+			"wen",
+			"lith",
+			"ria",
+			"dor",
+			"nael",
+			"siel",
+			"vanna",
+			"loth",
+			"riel"
+		],
+		"mid_chance": 0.45
+	},
+	"halfling": {
+		"start": [
+			"Bram",
+			"Clover",
+			"Dimble",
+			"Fern",
+			"Hob",
+			"Mill",
+			"Pip",
+			"Tum",
+			"Wil",
+			"Bun",
+			"Hazel",
+			"Sorrel"
+		],
+		"mid": [
+			"",
+			"le",
+			"by"
+		],
+		"end": [
+			"bottom",
+			"burrow",
+			"hill",
+			"brook",
+			"dale",
+			"end",
+			"wold",
+			"green",
+			"hollow"
+		],
+		"mid_chance": 0.2
+	},
+	"gnome": {
+		"start": [
+			"Bim",
+			"Fizz",
+			"Glim",
+			"Nack",
+			"Quill",
+			"Tock",
+			"Wiz",
+			"Zib",
+			"Pock",
+			"Rink"
+		],
+		"mid": [
+			"a",
+			"o",
+			"le",
+			"er",
+			"it"
+		],
+		"end": [
+			"burrow",
+			"spring",
+			"cog",
+			"nook",
+			"warren",
+			"glen",
+			"wheel",
+			"lamp"
+		],
+		"mid_chance": 0.4
+	},
+	"orc": {
+		"start": [
+			"Gor",
+			"Kra",
+			"Mug",
+			"Ruk",
+			"Shag",
+			"Thok",
+			"Urz",
+			"Grak",
+			"Bol",
+			"Durg",
+			"Nak"
+		],
+		"mid": [
+			"a",
+			"u",
+			"ra",
+			"ug",
+			"ok"
+		],
+		"end": [
+			"gash",
+			"rok",
+			"mak",
+			"thul",
+			"grub",
+			"dush",
+			"kar",
+			"ruz",
+			"zog"
+		],
+		"mid_chance": 0.3
+	},
+	"dragonborn": {
+		"start": [
+			"Ar",
+			"Bal",
+			"Dra",
+			"Ghe",
+			"Kri",
+			"Med",
+			"Nad",
+			"Qar",
+			"Sor",
+			"Tor",
+			"Vrax"
+		],
+		"mid": [
+			"a",
+			"e",
+			"ash",
+			"ok",
+			"ix"
+		],
+		"end": [
+			"thas",
+			"rakh",
+			"kesh",
+			"verr",
+			"jhan",
+			"doun",
+			"vex",
+			"ar",
+			"zarr"
+		],
+		"mid_chance": 0.35
+	},
+	"goliath": {
+		"start": [
+			"Aun",
+			"Eg",
+			"Gae",
+			"Kav",
+			"Lo",
+			"Maveth",
+			"Pav",
+			"Tha",
+			"Uth",
+			"Vau"
+		],
+		"mid": [
+			"a",
+			"i",
+			"u",
+			"la"
+		],
+		"end": [
+			"kal",
+			"rak",
+			"thi",
+			"gath",
+			"vak",
+			"nal",
+			"pek",
+			"tor"
+		],
+		"mid_chance": 0.3
+	},
+	"tiefling": {
+		"start": [
+			"Aka",
+			"Bal",
+			"Cari",
+			"Dam",
+			"Ekem",
+			"Kal",
+			"Mor",
+			"Nem",
+			"Ska",
+			"Vel",
+			"Zer"
+		],
+		"mid": [
+			"a",
+			"e",
+			"i",
+			"ah",
+			"eth"
+		],
+		"end": [
+			"kos",
+			"thai",
+			"mon",
+			"ria",
+			"vos",
+			"nix",
+			"loth",
+			"sar",
+			"deth"
+		],
+		"mid_chance": 0.35
+	},
+	"drow": {
+		"start": [
+			"Vel",
+			"Xal",
+			"Zaer",
+			"Phyx",
+			"Nhyr",
+			"Qel",
+			"Thyss",
+			"Kyr",
+			"Ssil",
+			"Orv",
+			"Myr"
+		],
+		"mid": [
+			"a",
+			"i",
+			"ae",
+			"y",
+			"ys"
+		],
+		"end": [
+			"rak",
+			"rith",
+			"vyn",
+			"zhar",
+			"nyth",
+			"dril",
+			"quor",
+			"lyx",
+			"thaun",
+			"issa",
+			"esh"
+		],
+		"mid_chance": 0.35
+	},
+	"goblinoid": {
+		"start": [
+			"Gub",
+			"Nik",
+			"Skr",
+			"Snag",
+			"Grib",
+			"Bol",
+			"Hruk",
+			"Mek",
+			"Rag",
+			"Zit"
+		],
+		"mid": [
+			"a",
+			"i",
+			"ug",
+			"it"
+		],
+		"end": [
+			"nob",
+			"gut",
+			"rot",
+			"bash",
+			"snik",
+			"gob",
+			"rag",
+			"mire"
+		],
+		"mid_chance": 0.35
+	},
+	"kobold": {
+		"start": [
+			"Ik",
+			"Kir",
+			"Meep",
+			"Sik",
+			"Trak",
+			"Vix",
+			"Yip",
+			"Zek",
+			"Rik"
+		],
+		"mid": [
+			"a",
+			"i",
+			"ik"
+		],
+		"end": [
+			"tik",
+			"sss",
+			"rak",
+			"kik",
+			"zak",
+			"nip",
+			"tsk"
+		],
+		"mid_chance": 0.4
+	},
+	"gnoll": {
+		"start": [
+			"Gnar",
+			"Kruu",
+			"Hrr",
+			"Skaa",
+			"Vrr",
+			"Ghaa",
+			"Rruk"
+		],
+		"mid": [
+			"a",
+			"ra",
+			"u"
+		],
+		"end": [
+			"gnaw",
+			"rak",
+			"ghul",
+			"rip",
+			"khaa",
+			"rend"
+		],
+		"mid_chance": 0.3
+	},
+	"bandit": {
+		"start": [
+			"Black",
+			"Crook",
+			"Dead",
+			"Grey",
+			"Red",
+			"Rook",
+			"Scar",
+			"Thorn",
+			"Wolf",
+			"Crow",
+			"Rust"
+		],
+		"mid": [
+			""
+		],
+		"end": [
+			"hollow",
+			"camp",
+			"gulch",
+			"den",
+			"ridge",
+			"rest",
+			"fell"
+		],
+		"mid_chance": 0.0
+	},
+	"place": {
+		"start": [
+			"Amber",
+			"Bitter",
+			"Cold",
+			"Dusk",
+			"Ember",
+			"Flint",
+			"Grey",
+			"Iron",
+			"Long",
+			"Moss",
+			"Old",
+			"Salt",
+			"Shade",
+			"Still",
+			"Thorn",
+			"Umber",
+			"Weep",
+			"Wyrm",
+			"Hollow",
+			"Ash"
+		],
+		"mid": [
+			""
+		],
+		"end": [
+			"vale",
+			"reach",
+			"way",
+			"water",
+			"wood",
+			"stone",
+			"fall",
+			"dark",
+			"march",
+			"barrow",
+			"crag",
+			"deep",
+			"fen",
+			"mire",
+			"shaft"
+		],
+		"mid_chance": 0.0
+	}
+}

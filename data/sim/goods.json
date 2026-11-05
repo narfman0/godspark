@@ -1,0 +1,8 @@
+{
+	"_doc": "Goods traded and stockpiled by settlements. base: reference price in coin per unit. need: units one person wants per year (stock target is need * target_years). spoil: fraction lost per year. carry: units one wagon holds.",
+	"food":     {"base": 1.0,  "need": 36.5, "target_years": 0.25, "spoil": 0.25, "carry": 120},
+	"timber":   {"base": 2.0,  "need": 1.0,  "target_years": 1.0,  "spoil": 0.05, "carry": 60},
+	"ore":      {"base": 4.0,  "need": 0.4,  "target_years": 1.0,  "spoil": 0.0,  "carry": 40},
+	"tools":    {"base": 10.0, "need": 0.3,  "target_years": 1.0,  "spoil": 0.15, "carry": 30},
+	"luxuries": {"base": 30.0, "need": 0.06, "target_years": 1.0,  "spoil": 0.10, "carry": 20}
+}

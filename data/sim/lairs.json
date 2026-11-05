@@ -1,0 +1,38 @@
+{
+	"_doc": "Monster lairs by depth band, all SRD 5.2.1 stat blocks. members: [slug, min, max]. grow: slug that breeds when the lair is fed; max: lair head-count cap. hunger: how fast it gets hungry (1 = normal). apex: demands tribute from nearby settlements. words: name endings for the lair.",
+	"surface": [
+		{"id": "wolves",   "name": "wolf pack",      "w": 4, "members": [["wolf", 4, 8], ["dire-wolf", 0, 1]], "grow": "wolf", "max": 14, "hunger": 1.0, "words": ["Den", "Hollow", "Run"]},
+		{"id": "ogres",    "name": "ogre clan",      "w": 3, "members": [["ogre", 2, 3]], "grow": "ogre", "max": 5, "hunger": 1.2, "words": ["Hold", "Barrow", "Rocks"]},
+		{"id": "owlbears", "name": "owlbear brood",  "w": 3, "members": [["owlbear", 1, 2]], "grow": "owlbear", "max": 4, "hunger": 1.0, "words": ["Thicket", "Hollow"]},
+		{"id": "trolls",   "name": "troll lair",     "w": 2, "members": [["troll", 1, 2]], "grow": "troll", "max": 3, "hunger": 1.3, "words": ["Bridge", "Mire", "Fen"]},
+		{"id": "manticore","name": "manticore eyrie","w": 1.5, "members": [["manticore", 1, 2]], "grow": "manticore", "max": 3, "hunger": 1.0, "words": ["Crag", "Eyrie"]},
+		{"id": "giants",   "name": "hill giant steading", "w": 1.2, "members": [["hill-giant", 1, 2], ["ogre", 0, 2]], "grow": "ogre", "max": 5, "hunger": 1.4, "words": ["Steading", "Mound"]},
+		{"id": "wyvern",   "name": "wyvern roost",   "w": 1, "members": [["wyvern", 1, 2]], "grow": "wyvern", "max": 3, "hunger": 1.0, "words": ["Roost", "Spire"]},
+		{"id": "undead",   "name": "barrow of the restless dead", "w": 1.5, "members": [["skeleton", 4, 8], ["zombie", 2, 6], ["wight", 0, 1]], "grow": "zombie", "max": 16, "hunger": 0.6, "words": ["Barrow", "Tombs"]},
+		{"id": "red_dragon",   "name": "red dragon lair",   "w": 0.35, "apex": true, "members": [["young-red-dragon", 1, 1]], "grow": "", "max": 1, "hunger": 0.8, "words": ["Mount", "Caldera"]},
+		{"id": "green_dragon", "name": "green dragon lair", "w": 0.35, "apex": true, "members": [["young-green-dragon", 1, 1]], "grow": "", "max": 1, "hunger": 0.8, "words": ["Wood", "Tangle"]}
+	],
+	"caves": [
+		{"id": "spiders",    "name": "spider nest",    "w": 4, "members": [["giant-spider", 3, 6], ["ettercap", 0, 1]], "grow": "giant-spider", "max": 10, "hunger": 1.0, "words": ["Webs", "Nest"]},
+		{"id": "gricks",     "name": "grick nest",     "w": 3, "members": [["grick", 2, 4]], "grow": "grick", "max": 6, "hunger": 1.0, "words": ["Pit", "Burrow"]},
+		{"id": "darkmantles","name": "darkmantle roost","w": 3, "members": [["darkmantle", 4, 8]], "grow": "darkmantle", "max": 12, "hunger": 1.0, "words": ["Vault", "Ceiling"]},
+		{"id": "oozes",      "name": "ooze pit",       "w": 2, "members": [["ochre-jelly", 1, 2], ["grayooze", 1, 3], ["gelatinous-cube", 0, 1]], "grow": "grayooze", "max": 6, "hunger": 0.7, "words": ["Seep", "Sink"]},
+		{"id": "rust",       "name": "rust monster warren", "w": 1.5, "members": [["rust-monster", 2, 4]], "grow": "rust-monster", "max": 6, "hunger": 0.8, "words": ["Warren", "Gallery"]},
+		{"id": "ghouls",     "name": "ghoul warren",   "w": 1.5, "members": [["ghoul", 3, 6], ["ghast", 0, 1]], "grow": "ghoul", "max": 10, "hunger": 1.2, "words": ["Crypt", "Warren"]},
+		{"id": "trolls_c",   "name": "cave troll lair","w": 1, "members": [["troll", 1, 2]], "grow": "troll", "max": 3, "hunger": 1.3, "words": ["Grotto", "Hole"]},
+		{"id": "black_dragon","name": "black dragon lair", "w": 0.3, "apex": true, "members": [["young-black-dragon", 1, 1]], "grow": "", "max": 1, "hunger": 0.8, "words": ["Mere", "Sump"]}
+	],
+	"deeps": [
+		{"id": "ropers",     "name": "roper gallery",  "w": 3, "members": [["roper", 1, 3]], "grow": "roper", "max": 4, "hunger": 0.9, "words": ["Gallery", "Teeth"]},
+		{"id": "cloakers",   "name": "cloaker roost",  "w": 2, "members": [["cloaker", 1, 2], ["darkmantle", 2, 4]], "grow": "darkmantle", "max": 7, "hunger": 1.0, "words": ["Shroud", "Dark"]},
+		{"id": "driders",    "name": "drider web",     "w": 2, "members": [["drider", 1, 2], ["giant-spider", 2, 4]], "grow": "giant-spider", "max": 8, "hunger": 1.0, "words": ["Web", "Snare"]},
+		{"id": "puddings",   "name": "pudding sump",   "w": 2, "members": [["black-pudding", 1, 2], ["ochre-jelly", 0, 2]], "grow": "ochre-jelly", "max": 5, "hunger": 0.7, "words": ["Sump", "Drain"]},
+		{"id": "otyughs",    "name": "otyugh midden",  "w": 1.5, "members": [["otyugh", 1, 2], ["gibbering-mouther", 0, 1]], "grow": "otyugh", "max": 3, "hunger": 0.8, "words": ["Midden", "Pool"]},
+		{"id": "chuuls",     "name": "chuul pool",     "w": 1.5, "members": [["chuul", 2, 3]], "grow": "chuul", "max": 4, "hunger": 1.0, "words": ["Pool", "Shallows"]},
+		{"id": "purple_worm","name": "purple worm tunnels", "w": 0.6, "apex": true, "members": [["purple-worm", 1, 1]], "grow": "", "max": 1, "hunger": 1.0, "words": ["Bore", "Tunnels"]},
+		{"id": "aboleth",    "name": "aboleth sea",    "w": 0.6, "apex": true, "members": [["aboleth", 1, 1], ["chuul", 1, 3]], "grow": "chuul", "max": 4, "hunger": 0.8, "words": ["Sea", "Deep"]}
+	],
+	"portal": [
+		{"id": "fiends",     "name": "fiendish breach", "w": 1, "members": [["lemure", 3, 6], ["imp", 1, 2], ["dretch", 2, 4]], "grow": "lemure", "max": 12, "hunger": 0.9, "words": ["Breach", "Rift"]}
+	]
+}
