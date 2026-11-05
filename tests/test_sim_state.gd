@@ -79,7 +79,7 @@ func run(t: TestLog) -> void:
 	# JSON (sorted keys): same structure and types; Godot's JSON may drop the last bit of a float.
 	var j := WorldSim.from_dict(JSON.parse_string(_js(d))).to_dict()
 	var drift := _float_drift(j, d)
-	t.check(drift >= 0.0 and drift < 1e-9, "JSON round trip keeps structure, types and values (max relative drift %g)" % drift)
+	t.check(drift >= 0.0 and drift < 1e-9, "JSON round trip keeps structure, types and values (max relative drift %s)" % drift)
 	a.step(WorldSim.YEAR_H * 15 + 37)
 	c.step(WorldSim.YEAR_H * 15 + 37)
 	_same(t, c.to_dict(), a.to_dict(), "restored sim stays identical after 15 more years")

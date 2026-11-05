@@ -44,6 +44,7 @@ func _init(h: WorldHost, t: NetTransport) -> void:
 	host = h
 	transport = t
 	host.world.chunk_changed.connect(_on_chunk_changed)
+	_meta()   # built now (a world with no meta.surface scans one): never inside a tick
 
 func _on_chunk_changed(cx: int, cy: int) -> void:
 	_blob_cache.erase(Vector2i(cx, cy))

@@ -118,7 +118,8 @@ ChunkMesher.build(world, cx, cy) -> ...        # thread-safe, runs on WorkerThre
   about 0.9 ms per chunk. All shaders are unshaded and read the light textures through
   global uniforms (`gs_*` in project.godot): any actor material must include
   `view/shaders/light.gdshaderinc` and call `gs_light_at()` or it will ignore cave darkness.
-- Known gap: light for a newly seen chunk is computed on the main thread (about 8 ms).
+- Light for newly seen chunks is spread over frames (`LightEngine.deferred`); one cold
+  chunk is still an 8 ms flood on the main thread.
 
 ## Track C: bodies, movement, tile interaction
 
@@ -166,6 +167,45 @@ player is an ordinary client over an in-process link. `game/main.gd` boots every
 (see its header) and takes the world from `WorldSave.load`, else `WorldGen.generate_named`.
 Interest is a square of chunks (radius 2, dropped past 3). Open issues: [todo.md](todo.md).
 
+## Hardening (M1 close)
+
+As built ([tracks/hardening.md](tracks/hardening.md)). Changes to the contracts above:
+
+- **Host thread.** `NetSession` ticks the host on its own thread at a fixed `K.TICK_HZ`.
+  Touch a running host only through `session.host_call(f)` (runs on the host thread) or
+  `session.with_host(f)`; `halt_host()` before saving. HostEndpoint signals fire on the host
+  thread (connect them deferred). `LoopbackHub` is thread-safe.
+- **Sparse worlds.** `TileWorld.new(w, h, seed, sparse := true)` is a client mirror.
+  - Chunks exist between `ensure_chunk` and `unload_chunk`, and `chunk_at` may return
+    null.
+  - An unloaded cell reads as bedrock (solid, unbreakable) and ignores writes.
+  - Light reads it through `light_fg`: air above `world.sky_line` (meta.surface), rock
+    below. The view draws nothing for it.
+  - Hosts, worldgen and saves stay dense.
+- **LightEngine** stores a 2 KB page per computed chunk. With `deferred = true` (the view)
+  whole-chunk changes queue up, and `process(budget_us, want)` works through them and cold
+  chunks within a budget.
+- **Protocol 5** adds META, CLOCK, CHRONICLE and OBJECTS. CHUNK blobs may carry dressing
+  records.
+- **Client prediction.** `ClientWorld` shows digs and places before the host answers and
+  settles each cell to the host's value from the ordered stream (RESULT carries it). Own
+  corrections blend in the view (`view_pos()`).
+- **Time.** `WorldClock` (core) counts host ticks; a day is `K.DAY_SECONDS` = 1200 s. The
+  host owns it, saves it in `host.json` and replicates it. `WorldClock.sun_at(hours)` drives
+  `LightEngine.sun`; at night it is `MOON` = 0.04, SRD Darkness on open ground. The view
+  draws it moonlit.
+- **Living world.** `WorldHost.sim` = `WorldSim.from_meta(world.meta, seed)` for worlds
+  with sites. It follows the clock under `SIM_BUDGET_US` per tick, is saved exactly in
+  `sim.bin`, and its new chronicle entries go to clients as text lines.
+- **Dressing.** `Dressing` (core) holds the id table, from `data/dressing.json`'s
+  append-only `ids`, and the rules. Records `(id, x, y, variant)` live in their anchor
+  chunk (`Chunk.objects`). The worldgen stage `dressing` places them; they are saved and
+  sent with chunks. The host removes an object whose support is dug or whose footprint gets
+  a solid tile, and sends OBJECTS. Objects never block movement.
+- `TileCollision.depenetrate(world, body)` pushes a body out of solid tiles (used at spawn).
+  `TileCollision.move` lands a fast diagonal fall on a ledge corner. `TileEdit.dig_time`
+  is exact (WorldHost has no dig epsilon).
+
 ## Track E: the strategic simulation
 
 Owns `core/sim/`, `data/sim/`, `tools/run_history.gd`.
@@ -211,4 +251,4 @@ Owns `tools/fetch_assets.sh`, `tools/sync_monsters.py`, `tools/bootstrap.sh`,
   Standard Synty building kits have a 3 m storey (4 tiles) and 3.75 m wall bays (5 tiles);
   castle and dungeon kits need scale 0.75, Kingdom house pieces 0.9.
 - `DressingView` instances tile-anchored objects (`data/dressing.json`) from `{id, x, y}`
-  records. Worldgen does not place them yet.
+  records. Worldgen places them and the host replicates them (see Hardening).
