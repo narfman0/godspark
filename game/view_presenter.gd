@@ -67,6 +67,10 @@ func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 	if id == my_id:
 		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
 
+func meta_arrived(_meta: Dictionary) -> void:
+	if light != null:
+		light.reset()     # anything lit before the sky line was known
+
 func actor_removed(id: int) -> void:
 	if view != null and _actors.erase(id):
 		view.remove_actor(id)

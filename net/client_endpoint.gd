@@ -123,6 +123,8 @@ func _handle(bytes: PackedByteArray) -> void:
 			if cw == null:
 				return
 			match type:
+				Protocol.T.META:
+					cw.apply_meta(m["meta"])
 				Protocol.T.CHUNK:
 					cw.apply_chunk(m["cx"], m["cy"], m["blob"])
 				Protocol.T.UNLOAD:

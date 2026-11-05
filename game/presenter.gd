@@ -16,6 +16,7 @@ func attach(client: ClientWorld) -> void:
 	cw.world.tile_changed.connect(tile_changed)
 	cw.edit_result.connect(edit_result)
 	cw.corrected.connect(corrected)
+	cw.meta_arrived.connect(meta_arrived)
 	world_ready(cw.world, cw.my_id)
 	# the own player was announced in setup(), before we were listening
 	actor_added(cw.my_id, {"kind": "player", "size": cw.stats.size, "color": Color(0.85, 0.75, 0.55), "name": cw.player_name, "own": true})
@@ -26,7 +27,7 @@ func detach() -> void:
 		return
 	for sig: Array in [[cw.actor_added, actor_added], [cw.actor_moved, actor_moved], [cw.actor_removed, actor_removed],
 			[cw.chunk_arrived, chunk_arrived], [cw.chunk_dropped, chunk_dropped], [cw.world.tile_changed, tile_changed],
-			[cw.edit_result, edit_result], [cw.corrected, corrected]]:
+			[cw.edit_result, edit_result], [cw.corrected, corrected], [cw.meta_arrived, meta_arrived]]:
 		if (sig[0] as Signal).is_connected(sig[1]):
 			(sig[0] as Signal).disconnect(sig[1])
 	cw = null
@@ -65,4 +66,7 @@ func edit_result(_req: int, _reason: int, _at: Vector2i, _tile: int) -> void:
 	pass
 
 func corrected(_pos: Vector2) -> void:
+	pass
+
+func meta_arrived(_meta: Dictionary) -> void:
 	pass

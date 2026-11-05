@@ -24,6 +24,11 @@
 ##
 ## Background walls do not affect light: a cell is sunlit when nothing opaque is above it
 ## (wall or not), and a covered cell gets only what spreads to it.
+##
+## Storage is one page per computed chunk (block then sky, a byte per tile), so only what
+## has been looked at costs memory. Tiles are read through `world.light_fg`: on a sparse
+## (client) world an unloaded cell is air above the world's sky_line and opaque below it,
+## and pages of unloaded chunks with no loaded neighbour are freed.
 class_name LightEngine
 extends RefCounted
 
@@ -56,10 +61,15 @@ var sun := 1.0:
 			sun = value
 			light_changed.emit(Rect2i(0, 0, _w, _h))
 
+## Bytes per field in a page.
+const PAGE := K.CHUNK * K.CHUNK
+
 var _w: int
 var _h: int
-var _block := PackedByteArray()
-var _sky := PackedByteArray()
+var _cxn: int
+## Per chunk: PAGE block bytes then PAGE sky bytes, or empty when not computed.
+var _pages: Array[PackedByteArray] = []
+var _zeros := PackedByteArray()
 var _top := PackedInt32Array()   ## per column: lowest y that sees the sky, -1 = not scanned
 var _done := PackedByteArray()   ## per chunk: 1 once computed
 var _lights := {}                ## id -> Vector3i(x, y, strength)
@@ -69,8 +79,9 @@ func _init(w: TileWorld) -> void:
 	world = w
 	_w = w.width
 	_h = w.height
-	_block.resize(_w * _h)
-	_sky.resize(_w * _h)
+	_cxn = w.chunks_x
+	_pages.resize(w.chunks_x * w.chunks_y)
+	_zeros.resize(K.CHUNK)
 	_top.resize(_w)
 	_top.fill(-1)
 	_done.resize(w.chunks_x * w.chunks_y)
@@ -102,26 +113,38 @@ func level_at(x: int, y: int) -> int:
 		return int(SUN * sun + 0.5) if y >= _h and x >= 0 and x < _w else 0
 	if _done[(x >> 5) + (y >> 5) * world.chunks_x] == 0:
 		ensure_region(Rect2i(x, y, 1, 1))
-	var i := x + y * _w
-	return maxi(_block[i], int(_sky[i] * sun + 0.5))
+	return maxi(_cell(x, y, 0), int(_cell(x, y, PAGE) * sun + 0.5))
 
 func category_at(x: int, y: int) -> Category:
 	return category_of(level_at(x, y))
 
 ## The raw fields, for the view (sky is unscaled by sun). Ensure the region first.
 func block_at(x: int, y: int) -> int:
-	return _block[x + y * _w] if world.in_bounds(x, y) else 0
+	return _cell(x, y, 0) if world.in_bounds(x, y) else 0
 
 func sky_at(x: int, y: int) -> int:
 	if world.in_bounds(x, y):
-		return _sky[x + y * _w]
+		return _cell(x, y, PAGE)
 	return SUN if y >= _h and x >= 0 and x < _w else 0
+
+## Stored value of one field (off 0 block, PAGE sky) at an in-bounds cell; 0 if not computed.
+func _cell(x: int, y: int, off: int) -> int:
+	var p := _pages[(x >> 5) + (y >> 5) * _cxn]
+	return 0 if p.is_empty() else p[(x & 31) + ((y & 31) << 5) + off]
+
+## Chunks with a light page (memory: 2 KB each).
+func page_count() -> int:
+	var n := 0
+	for p in _pages:
+		if not p.is_empty():
+			n += 1
+	return n
 
 ## One byte per tile of `rect`, rows bottom to top, for an R8 texture. sky = true gives the
 ## unscaled sky field, false the block field. Outside the world reads 0 (sky: SUN above it).
 ## Does not compute anything: call ensure_region(rect) first.
 func region_bytes(rect: Rect2i, sky: bool) -> PackedByteArray:
-	var src := _sky if sky else _block
+	var off := PAGE if sky else 0
 	var x0 := clampi(rect.position.x, 0, _w)
 	var x1 := clampi(rect.end.x, 0, _w)
 	var left := PackedByteArray()
@@ -145,7 +168,17 @@ func region_bytes(rect: Rect2i, sky: bool) -> PackedByteArray:
 			out.append_array(above)
 		else:
 			out.append_array(left)
-			out.append_array(src.slice(x0 + y * _w, x1 + y * _w))
+			var x := x0
+			var row := (y >> 5) * _cxn
+			var base := ((y & 31) << 5) + off
+			while x < x1:
+				var e := mini(x1, ((x >> 5) + 1) << 5)
+				var p := _pages[(x >> 5) + row]
+				if p.is_empty():
+					out.append_array(_zeros.slice(0, e - x))
+				else:
+					out.append_array(p.slice(base + (x & 31), base + (x & 31) + e - x))
+				x = e
 			out.append_array(right)
 	return out
 
@@ -208,8 +241,8 @@ func is_computed(cx: int, cy: int) -> bool:
 
 ## Forget everything (a whole new world was loaded into the same TileWorld).
 func reset() -> void:
-	_block.fill(0)
-	_sky.fill(0)
+	for i in _pages.size():
+		_pages[i] = PackedByteArray()
 	_top.fill(-1)
 	_done.fill(0)
 	light_changed.emit(Rect2i(0, 0, _w, _h))
@@ -221,8 +254,15 @@ func _around(p: Vector2i) -> Rect2i:
 
 func _scan_top(x: int, from_y: int) -> int:
 	var y := from_y
+	var opaque := TileDefs.opaque
+	var line := world.sky_line[x] if x < world.sky_line.size() else _h
 	while y >= 0:
-		if world.is_opaque(x, y):
+		if world.sparse and not world.is_loaded(x, y):
+			if y <= line:
+				return y + 1
+			y = maxi(line + 1, (y >> 5) << 5) - 1   # skip the unloaded air in this chunk
+			continue
+		if opaque[world.light_fg(x, y)] != 0:
 			return y + 1
 		y -= 1
 	return 0
@@ -272,14 +312,27 @@ func _update(box: Rect2i, block: bool, sky: bool) -> void:
 
 func _write(box: Rect2i, blk: PackedByteArray, sky: PackedByteArray, area: Rect2i, wb: bool, ws: bool) -> void:
 	var gw := box.size.x + 4
-	for y in range(area.position.y, area.end.y):
-		var g := (area.position.x - box.position.x + 2) + (y - box.position.y + 2) * gw
-		var i := area.position.x + y * _w
-		for k in area.size.x:
-			if wb:
-				_block[i + k] = blk[g + k]
-			if ws:
-				_sky[i + k] = sky[g + k]
+	for cy in range(area.position.y >> 5, ((area.end.y - 1) >> 5) + 1):
+		for cx in range(area.position.x >> 5, ((area.end.x - 1) >> 5) + 1):
+			var xa := maxi(area.position.x, cx << 5)
+			var xb := mini(area.end.x, (cx + 1) << 5)
+			var ya := maxi(area.position.y, cy << 5)
+			var yb := mini(area.end.y, (cy + 1) << 5)
+			var ci := cx + cy * _cxn
+			var p := _pages[ci]
+			if p.is_empty():
+				p.resize(PAGE * 2)
+			var n := xb - xa
+			for y in range(ya, yb):
+				var g := (xa - box.position.x + 2) + (y - box.position.y + 2) * gw
+				var i := (xa & 31) + ((y & 31) << 5)
+				if wb:
+					for k in n:
+						p[i + k] = blk[g + k]
+				if ws:
+					for k in n:
+						p[PAGE + i + k] = sky[g + k]
+			_pages[ci] = p
 
 ## Flood one field over box. The grid is box grown by 2: the outer ring is a barrier, the
 ## next ring (the frame) is seeded from the stored field, so a small box continues the light
@@ -300,7 +353,7 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 		buckets[l] = []
 	var opaque := TileDefs.opaque
 	var emit := TileDefs.emit
-	var stored := _sky if sky else _block
+	var off := PAGE if sky else 0
 	for j in gh:
 		var y := gy + j
 		for k in gw:
@@ -317,7 +370,7 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 				if sky:
 					src = SUN
 			else:
-				var id := world.get_fg(x, y)
+				var id := world.light_fg(x, y)
 				var e := emit[id]
 				if e > 0:
 					if not sky:
@@ -327,7 +380,7 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 				if sky and op[i] == 0 and y >= sky_top(x):
 					src = SUN
 				if j == 1 or k == 1 or j == gh - 2 or k == gw - 2:
-					src = maxi(src, stored[x + y * _w])
+					src = maxi(src, _cell(x, y, off))
 			if src > 0:
 				lv[i] = src
 				buckets[src].append(i)
@@ -445,11 +498,34 @@ func _on_tile_changed(x: int, y: int, layer: int, old: int, now: int) -> void:
 	_update(span.grow(_reach), false, true)
 
 func _on_chunk_changed(cx: int, cy: int) -> void:
-	# Whole chunk rewritten: rescan its columns and recompute everything it can reach.
-	for x in range(cx * K.CHUNK, (cx + 1) * K.CHUNK):
-		_top[x] = -1
+	# Whole chunk rewritten (arrived, dropped, loaded): recompute everything it can reach.
+	# Direct sun changes only between each column's old and new sky top, so the sun update
+	# spans from the lowest of those up to the chunk. A column nobody has scanned has no
+	# computed light depending on it and is left for later.
 	var r := Rect2i(cx * K.CHUNK, cy * K.CHUNK, K.CHUNK, K.CHUNK)
-	# Sun can now fall anywhere below this chunk in these columns.
-	var tall := Rect2i(r.position.x, 0, K.CHUNK, r.end.y)
+	var lo := r.position.y
+	for x in range(r.position.x, r.end.x):
+		var old := _top[x]
+		if old < 0:
+			continue
+		_top[x] = _scan_top(x, _h - 1)
+		lo = mini(lo, mini(old, _top[x]))
 	_update(r.grow(_reach), true, false)
-	_update(tall.grow(_reach), false, true)
+	_update(Rect2i(r.position.x, lo, K.CHUNK, r.end.y - lo).grow(_reach), false, true)
+	if world.sparse and not world.has_chunk(cx, cy):
+		_trim_around(cx, cy)
+
+## Free the pages of unloaded chunks near (cx, cy) that have no loaded neighbour.
+func _trim_around(cx: int, cy: int) -> void:
+	for qy in range(cy - 1, cy + 2):
+		for qx in range(cx - 1, cx + 2):
+			if qx < 0 or qy < 0 or qx >= _cxn or qy >= world.chunks_y or world.has_chunk(qx, qy):
+				continue
+			var near := false
+			for ny in range(qy - 1, qy + 2):
+				for nx in range(qx - 1, qx + 2):
+					if world.has_chunk(nx, ny):
+						near = true
+			if not near:
+				_pages[qx + qy * _cxn] = PackedByteArray()
+				_done[qx + qy * _cxn] = 0

@@ -243,6 +243,13 @@ func _launch() -> void:
 		if _tasks.has(key):
 			continue  # rebuild after the one in flight lands
 		_dirty.erase(key)
+		if not world.has_chunk(key.x, key.y):
+			# Unloaded on a sparse client world: nothing to draw until it arrives.
+			var old: MeshInstance3D = _chunks.get(key)
+			if old != null:
+				old.queue_free()
+			_chunks[key] = null
+			continue
 		var t0 := Time.get_ticks_usec()
 		var snap := ChunkMesher.snapshot(world, key.x, key.y)
 		stats["snapshot"].append(Time.get_ticks_usec() - t0)

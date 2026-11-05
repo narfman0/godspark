@@ -28,13 +28,16 @@
 ##   CHECK      str tag, u16 n, n x (s16 cx, s16 cy), 32 B sha256,
 ##              f32 x, f32 y                                       44 + tag + 4n
 ##   KICK       u8 reason, str text                                3 + text
+##   META       u32 raw size, zstd(var_to_bytes({surface: PackedInt32Array of column
+##              deltas, biomes, bands, sites}))                     5 + blob
+##              Sent once, right after WELCOME and before any chunk.
 ## (* = unreliable, sequenced; everything else reliable and ordered on one channel, so a
 ## chunk blob always precedes the tile deltas for that chunk.)
 class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 1
+const VERSION := 2
 const MAX_STR := 64
 const VEL_SCALE := 64.0
 
@@ -42,7 +45,12 @@ enum T {
 	HELLO = 1, STATE = 2, EDIT = 3, BYE = 4, CHECK_REQ = 5,
 	WELCOME = 16, REJECT = 17, CHUNK = 18, UNLOAD = 19, TILES = 20, ENT_ADD = 21,
 	ENT_REMOVE = 22, SNAPSHOT = 23, CORRECT = 24, RESULT = 25, CHECK = 26, KICK = 27,
+	META = 28,
 }
+## Largest decompressed META body accepted.
+const MAX_META := 8 * 1024 * 1024
+## The world.meta keys a client gets.
+const META_KEYS := ["biomes", "bands", "sites"]
 
 ## REJECT / KICK / BYE reasons.
 enum Why { NONE, VERSION, FULL, NAME_TAKEN, BAD_NAME, TIMEOUT, MALFORMED, SHUTDOWN, LEAVING, FINAL }
@@ -215,6 +223,52 @@ static func check(tag: String, coords: Array, digest: PackedByteArray, pos: Vect
 	w.vec(pos)
 	return w.b
 
+## The parts of world.meta a client needs. surface: the highest solid tile per column
+## (sent as deltas so it compresses to a few hundred bytes).
+static func meta(m: Dictionary) -> PackedByteArray:
+	var d := {}
+	for k: String in META_KEYS:
+		if m.has(k):
+			d[k] = m[k]
+	var surf: Array = m.get("surface", [])
+	var deltas := PackedInt32Array()
+	deltas.resize(surf.size())
+	var prev := 0
+	for i in surf.size():
+		deltas[i] = int(surf[i]) - prev
+		prev = int(surf[i])
+	d["surface"] = deltas
+	var raw := var_to_bytes(d)
+	var w := Writer.new(T.META)
+	w.u32(raw.size())
+	w.b.append_array(raw.compress(FileAccess.COMPRESSION_ZSTD))
+	return w.b
+
+static func _decode_meta(r: Reader) -> Variant:
+	var n := r.u32()
+	var blob := r.rest()
+	if not r.ok or n <= 0 or n > MAX_META or blob.is_empty():
+		return null
+	var raw := blob.decompress(n, FileAccess.COMPRESSION_ZSTD)
+	if raw.size() != n:
+		return null
+	var d: Variant = bytes_to_var(raw)
+	if not d is Dictionary or not (d as Dictionary).get("surface") is PackedInt32Array:
+		return null
+	var out := {}
+	for k: String in META_KEYS:
+		if d.has(k):
+			out[k] = d[k]
+	var deltas: PackedInt32Array = d["surface"]
+	var surf: Array = []
+	surf.resize(deltas.size())
+	var acc := 0
+	for i in deltas.size():
+		acc += deltas[i]
+		surf[i] = acc
+	out["surface"] = surf
+	return out
+
 static func _vq(v: float) -> int:
 	return clampi(roundi(v * VEL_SCALE), -32768, 32767)
 
@@ -306,6 +360,11 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			m["x"] = r.s16()
 			m["y"] = r.s16()
 			m["tile"] = r.u16()
+		T.META:
+			var d: Variant = _decode_meta(r)
+			if d == null:
+				return {}
+			m["meta"] = d
 		T.CHECK:
 			m["tag"] = r.str8()
 			var n := r.u16()
@@ -317,7 +376,7 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			m["pos"] = r.vec()
 		_:
 			return {}
-	if not r.ok or (type != T.CHUNK and not r.at_end()):
+	if not r.ok or (type != T.CHUNK and type != T.META and not r.at_end()):
 		return {}
 	return m
 

@@ -48,12 +48,12 @@ func run(t: TestLog) -> void:
 	rig.inputs[0].dig = false
 	rig.run(0.3)
 	t.eq(_count(carl, Protocol.T.TILES), far_tiles, "a far player's edit is not sent to carl")
-	t.check(not carl.cw.has_chunk(mid >> 5, (ground - 1) >> 5), "carl does not hold ann's chunk")
+	t.check(not carl.cw.has_chunk((mid - 1) >> 5, (ground - 1) >> 5), "carl does not hold ann's chunk")
 	t.check(not carl.cw.remotes.has(ann.cw.my_id), "nor see ann")
 	t.check(not ann.cw.remotes.has(carl.cw.my_id), "nor ann him")
 	# carl walks to the others
 	rig.inputs[2].move_x = -1.0
-	var met := rig.until(func() -> bool: return carl.cw.remotes.has(ann.cw.my_id) and carl.cw.has_chunk(mid >> 5, (ground - 1) >> 5), 15.0)
+	var met := rig.until(func() -> bool: return carl.cw.remotes.has(ann.cw.my_id) and carl.cw.has_chunk((mid - 1) >> 5, (ground - 1) >> 5), 15.0)
 	t.check(met >= 0.0, "walking over, carl gets ann's chunk and sees her (%.1f s)" % met)
 	rig.inputs[2].move_x = 0.0
 	rig.run(0.3)

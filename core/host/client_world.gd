@@ -20,6 +20,8 @@ signal chunk_dropped(cx: int, cy: int)
 ## reason: WorldHost.Reason (0 = OK). tile: the cell's foreground id on the host now.
 signal edit_result(req: int, reason: int, at: Vector2i, tile: int)
 signal corrected(pos: Vector2)
+## The host's world meta arrived (biomes, bands, sites, surface): world.meta is set.
+signal meta_arrived(meta: Dictionary)
 
 ## Edit request ops (wire values).
 enum Op { DIG_START, DIG_STOP, PLACE }
@@ -63,7 +65,7 @@ var _place_at := Vector2i.ZERO
 
 func setup(width: int, height: int, seed_value: int, id: int, name_: String, pos: Vector2,
 		epoch_: int, radius_: int) -> void:
-	world = TileWorld.new(width, height, seed_value)
+	world = TileWorld.new(width, height, seed_value, true)    # sparse: chunks as they arrive
 	my_id = id
 	player_name = name_
 	stats = MoveStats.player()
@@ -82,15 +84,27 @@ func is_ready() -> bool:
 func apply_chunk(cx: int, cy: int, blob: PackedByteArray) -> bool:
 	if cx < 0 or cy < 0 or cx >= world.chunks_x or cy >= world.chunks_y:
 		return false
-	var c := world.chunk_at(cx, cy)
-	c.from_bytes(blob)
-	if c.fg.size() != Chunk.CELLS * 2 or c.bg.size() != Chunk.CELLS or c.liquid.size() != Chunk.CELLS:
-		_clear_chunk(c)
+	var raw := Chunk.new(cx, cy)
+	raw.from_bytes(blob)
+	if raw.fg.size() != Chunk.CELLS * 2 or raw.bg.size() != Chunk.CELLS or raw.liquid.size() != Chunk.CELLS:
 		return false
+	var c := world.ensure_chunk(cx, cy)
+	c.fg = raw.fg
+	c.bg = raw.bg
+	c.liquid = raw.liquid
 	loaded[Vector2i(cx, cy)] = true
 	world.chunk_changed.emit(cx, cy)
 	chunk_arrived.emit(cx, cy)
 	return true
+
+## World meta from the host. Its surface line becomes world.sky_line, so unloaded chunks
+## above the ground read as open sky to light (see TileWorld).
+func apply_meta(m: Dictionary) -> void:
+	world.meta = m
+	var surf: Array = m.get("surface", [])
+	if surf.size() == world.width:
+		world.sky_line = PackedInt32Array(surf)
+	meta_arrived.emit(m)
 
 ## The host has stopped sending this chunk's changes: forget it.
 func drop_chunk(cx: int, cy: int) -> void:
@@ -98,17 +112,8 @@ func drop_chunk(cx: int, cy: int) -> void:
 	if not loaded.has(at):
 		return
 	loaded.erase(at)
-	_clear_chunk(world.chunk_at(cx, cy))
-	world.chunk_changed.emit(cx, cy)
+	world.unload_chunk(cx, cy)      # frees it and emits chunk_changed
 	chunk_dropped.emit(cx, cy)
-
-func _clear_chunk(c: Chunk) -> void:
-	c.fg = PackedByteArray()
-	c.fg.resize(Chunk.CELLS * 2)
-	c.bg = PackedByteArray()
-	c.bg.resize(Chunk.CELLS)
-	c.liquid = PackedByteArray()
-	c.liquid.resize(Chunk.CELLS)
 
 ## One tile delta. Ignored for chunks not held (the host never sends those).
 func apply_tile(x: int, y: int, layer: int, value: int) -> void:

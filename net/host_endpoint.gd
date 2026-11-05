@@ -35,6 +35,7 @@ var sent_by_type := {}
 var tick_usec := PackedInt32Array()
 var log_fn := Callable()
 var _blob_cache := {}     ## Vector2i -> PackedByteArray
+var _meta_msg := PackedByteArray()
 var _round_robin := 0
 
 func _init(h: WorldHost, t: NetTransport) -> void:
@@ -168,9 +169,20 @@ func _hello(p: PeerState, m: Dictionary) -> void:
 	p.since = time
 	_send(p.id, Protocol.welcome(e.id, host.world.width, host.world.height, host.world.world_seed,
 			e.body.pos, e.epoch, K.TICK_HZ, K.TICK_HZ / snapshot_every, radius))
+	_send(p.id, _meta())
 	_update_interest(p)
 	_log("join peer %d as %s (entity %d) at %s" % [p.id, name, e.id, e.body.pos])
 	player_joined.emit(p.id, name)
+
+## META for joining clients, built once (a world without meta.surface, like the test world,
+## gets one scanned from its tiles).
+func _meta() -> PackedByteArray:
+	if _meta_msg.is_empty():
+		var m := host.world.meta.duplicate()
+		if not m.has("surface"):
+			m["surface"] = Array(host.world.scan_surface())
+		_meta_msg = Protocol.meta(m)
+	return _meta_msg
 
 func _drop_peer(id: int, reason: int) -> void:
 	var p: PeerState = peers.get(id)
