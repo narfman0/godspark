@@ -39,6 +39,8 @@ var _applied := {}
 var _tags := {}
 ## Queued drop messages per entity id: {add: [], gone: [], moved: []}
 var _out := {}
+## Entities inside rules.refresh (re-entry guard).
+var _refreshing := {}
 
 func sys_id() -> int:
 	return HostSystem.ITEMS
@@ -148,8 +150,10 @@ func refresh(e: HostEntity) -> void:
 		return
 	e.character.sparks.slots = e.character.spark_slots()
 	var rules := host.system(HostSystem.RULES) if host != null else null
-	if rules != null and rules.has_method("refresh"):
+	if rules != null and rules.has_method("refresh") and not _refreshing.has(e.id):
+		_refreshing[e.id] = true      # rules.refresh may call back into items.refresh
 		rules.call("refresh", e)
+		_refreshing.erase(e.id)
 	else:
 		outfit(e)
 	_tags[e.id] = _compute_tags(e)

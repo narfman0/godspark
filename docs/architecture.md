@@ -273,6 +273,9 @@ HostSystem (core/host/host_system.gd): RefCounted, every hook a no-op by default
   entity_added(host, e: HostEntity)           # players (after load_player) and monsters
   entity_removed(host, e: HostEntity)         # still in host.entities; players after save_player
   handle(host, e: HostEntity, kind: int, data: PackedByteArray)   # SYS from e's owner
+  allow_place(host, e, tile_id) -> bool       # false refuses a place (Reason.NO_ITEM)
+  tile_edited(host, e, x, y, old, now)        # after a player's dig (now == AIR) or place,
+                                              # before its EDIT_RESULT
   save_player(e) -> Dictionary                # stored in the player record: rec.systems["<id>"]
   load_player(e, d: Dictionary)               # on join, {} for a new player
   save_world() -> Dictionary                  # stored in host.json: systems["<id>"]
@@ -290,6 +293,7 @@ ClientSystem (core/host/client_system.gd)
   attach(cw: ClientWorld)
   handle(kind: int, data: PackedByteArray)
   frame(dt: float)                            # every client frame, from cw.advance
+  allow_place(tile_id) -> bool; placed(req, tile_id)   # place prediction gate (items)
 cw.add_system(sys); cw.system(sys_id) -> ClientSystem
 cw.send_sys(sys_id, kind, data)               # queued; the endpoint sends it the same frame
 
@@ -412,22 +416,40 @@ Presenter.actor_vitals(id, hp, max_hp)  # optional; LogPresenter prints it
 
 ### Items (`core/items/`)
 
+As built ([tracks/items.md](tracks/items.md)).
+
 ```
 Item record (a Dictionary, JSON-safe):
-  {base, count, material?, quality?, affixes?: [id], magic?: slug, spark?: {id, rank}}
-  base      a row id in data/items/*.json: SRD weapons and armour by slug, tiles by name
-            ("tile:stone"), materials, consumables, campfire, bed
-  magic     an SRD magic item slug (addon magic_items.json)
-Items.mods(item) -> [Dictionary]      ItemEffects mods (addon format) from base, material,
-                                      quality, affixes and magic
-Inventory   slots, stacking, hotbar; add(item) -> leftover, take(slot, n), to_dict()
-Equipment   slots: head, neck, cloak, armour, hands, belt, feet, main_hand, off_hand,
-            ring_1 .. ring_10; can_equip(item, slot); mods_list() for ItemEffects.apply
-Constellation   slots: int, kindled: [{id, rank}]; kindle(spark), swap(i, spark)
-Sparks.apply(kindled, stats: MoveStats, out: Dictionary)   movement and living only; a test
-                                                            proves no spark changes an attack
-                                                            roll, AC, save DC or damage die
+  {base, count, material?, quality?, affixes?: [id or "id:tier"], magic?: slug, tier?: int,
+   spark?: {id, rank}, bonded?: true}
+  base      SRD weapon/armour slug, "tile:<name>", a data/items/base.json row (coin, spark,
+            ingot:iron, cloth ...), or an SRD magic item slug (non-weapon magic: base == magic)
+  magic     an SRD magic item slug (addon magic_items.json); tier: its variant (+N - 1, damage
+            type, giant, potion potency); bonded: attuned at a campfire (cleared when dropped)
+Items.mods(item, active_only := false) -> Array   base, material, quality, affixes, magic;
+                                       the +3 to-hit/AC budget applied here (Items.BUDGET)
+Items.tags(item) -> Dictionary         game effects (dig_speed, light, pickup_radius, ...)
+ItemGen.roll(rng, base, level_hint, rank) -> item; ItemGen.name(item)
+Inventory   10 hotbar + 40 bag slots, stacking, coin: int, selected; add(item) -> leftover,
+            take(slot, n), move(a, b), tile_slot(tile), to_dict()
+Equipment   head, neck, cloak, armor, hands, belt, feet, main_hand, off_hand, ring_1..ring_10;
+            can_equip(item, slot) -> "" or reason; mods_list(); tags(); dress(c, character, srd)
+Constellation   slots (from LevelTrack.spark_slots), kindled: [{id, rank, at}]; kindle(spark),
+            swap(i, spark) -> old; sigil()
+Sparks.apply(kindled, stats: MoveStats, out: Dictionary); Sparks.move_stats(speeds, size, kindled)
+Loot.roll(rng, info) -> [item]; Drops (loot on the ground, owned by the items system)
+Character.inventory / equipment / sparks are Inventory / Equipment / Constellation (saved there)
 ```
+
+- Unified slot indices (wire and UI): 0-9 hotbar, 10-49 bag, 50-68 `Equipment.SLOTS`.
+- The edit flow: `HostSystem.allow_place(host, e, tile_id) -> bool` and
+  `HostSystem.tile_edited(host, e, x, y, old, now)`; `WorldHost.Reason.NO_ITEM`;
+  `ClientSystem.allow_place(tile_id) -> bool` and `ClientSystem.placed(req, tile_id)`.
+  Digging gives the tile's item, placing takes one; the client predicts only what it holds.
+- Spark movement: `MoveStats.air_jumps / air_jump_mult / dash_* / glide_fall` (off by
+  default), the matching `Body` state, `PlayerInput.dash` (flag bit 7). Players' `e.stats`
+  is set by the items system (base speeds + sparks); the owner gets the same inputs (STARS)
+  and computes the same `cw.stats`.
 
 ### Combat (`core/combat/`)
 
@@ -461,12 +483,17 @@ rules.refresh(e: HostEntity)          # rebuild the combatant and move stats aft
 rules.player_dropped(e)               # combat reports 0 HP; rules runs downed, saves, death
 rules.is_downed(e) -> bool
 # Items
-items.gear_mods(e) -> Array           # ItemEffects mods of everything worn
+items.gear_mods(e) -> Array           # ItemEffects mods of everything worn (unbonded magic out)
 items.wielded(e) -> Dictionary        # the main-hand item record, {} if none
+items.outfit(e, c := e.combatant)     # weapon, armour, shield, mods; max HP from LevelTrack
 items.apply_sparks(e, stats: MoveStats, out: Dictionary)
+items.tags(e) -> Dictionary           # gear + spark tags (swing_recovery, reach, light ...)
 items.give(entity_id, item: Dictionary) -> Dictionary     # leftover, {} when it all fit
-items.drop(pos: Vector2, items: Array)                     # loot on the ground
-items.on_kill(victim: HostEntity)     # roll the loot table and drop it
+items.drop(pos: Vector2, items: Array, from := 0)          # loot on the ground
+items.on_kill(victim: HostEntity) -> Array   # roll the loot table and drop it; rank from
+                                      # victim.meta.rank or victim.look.rank
+items.refresh(e)                      # calls rules.refresh(e) if present (which should call
+                                      # items.outfit), else outfit; then sets e.stats
 # Combat
 combat.damage(src_id, dst: HostEntity, amount, dtype, opts := {})   # for traps, falls, effects
 combat.in_combat(e) -> bool           # hostile activity within the last few seconds

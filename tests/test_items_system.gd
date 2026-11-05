@@ -26,6 +26,40 @@ func run(t: TestLog) -> void:
 	_shrine(t)
 	_use_and_craft(t)
 	_persistence(t)
+	_with_rules(t)
+
+## A stand-in rules system: refresh rebuilds the combatant and asks items to dress it, the
+## way the contract says (and calls back into items.refresh, which must not loop).
+class FakeRules extends HostSystem:
+	var calls := 0
+	var host: WorldHost
+	func sys_id() -> int:
+		return HostSystem.RULES
+	func attach(h: WorldHost) -> void:
+		host = h
+	func refresh(e: HostEntity) -> void:
+		calls += 1
+		e.combatant = e.character.make_combatant(host.srd)
+		var items: HostSystem = host.system(HostSystem.ITEMS)
+		items.call("outfit", e)
+		items.call("refresh", e)
+		e.stats = e.character.move_stats(e.combatant)     # unsparked: items puts the sparks back
+
+func _with_rules(t: TestLog) -> void:
+	host = WorldHost.new(TileWorld.make_test())
+	var rules := FakeRules.new()
+	host.add_system(rules)
+	sys = ItemsSystem.new()
+	host.add_system(sys)
+	var e := host.add_player("ruled", 1)
+	t.check(rules.calls >= 1, "items.refresh goes through rules.refresh when it exists")
+	e.character.sparks.slots = 1
+	e.character.sparks.kindle({"id": "fleet", "rank": 1})
+	var n := rules.calls
+	sys.refresh(e)
+	t.eq(rules.calls, n + 1, "once per refresh (no loop)")
+	t.check(is_equal_approx(e.stats.run_speed, MoveStats.player().run_speed * 1.2), "the sparks end up on e.stats")
+	t.eq(e.combatant.weapon.slug, "longsword", "and the gear on the combatant")
 
 func _kit(t: TestLog) -> void:
 	_fresh()
