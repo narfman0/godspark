@@ -57,6 +57,8 @@ class Actor:
 	var fear_src := 0
 	var last_refusal := ""
 	var spells_sent := false
+	## Action pace multiplier (Monsters' Frenzied affix): >1 shortens what follows the wind-up.
+	var pace := 1.0
 
 ## The host, held weakly (the host holds its systems: a strong reference both ways would
 ## never be freed).
@@ -465,6 +467,8 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 					mode = Mode.RANGED
 		what = ", ".join(names)
 	var tl := CombatTempo.timeline(tempo, steps.size())
+	if a.pace != 1.0 and a.pace > 0.0:
+		tl = _paced(tl, a.pace)
 	a.seq = {"kind": "attack", "t0": now, "contacts": tl["contacts"], "total": tl["total"], "idx": 0,
 		"steps": steps, "aim": aim, "sweep": int(tempo.get("sweep", 0))}
 	a.action_ready = now + float(tl["total"])
@@ -474,6 +478,24 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 	_emit(Ev.SWING, e.id, 0, {"mode": mode, "swings": steps.size(), "windup": tl["windup"], "total": tl["total"],
 		"aim": aim, "what": what})
 	return true
+
+## Faster (pace > 1) or slower actions: the wind-up (the readable telegraph) is kept, what
+## comes after it (follow-up contacts, recovery) is divided by pace. Used by the Monsters
+## track's Frenzied affix through set_pace.
+static func _paced(tl: Dictionary, pace: float) -> Dictionary:
+	var w := float(tl["windup"])
+	var out := tl.duplicate()
+	var cs: Array = []
+	for c: float in tl["contacts"]:
+		cs.append(w + (c - w) / pace)
+	out["contacts"] = cs
+	out["total"] = w + (float(tl["total"]) - w) / pace
+	return out
+
+func set_pace(e: HostEntity, mult: float) -> void:
+	var a := actor(e)
+	if a != null:
+		a.pace = maxf(mult, 0.1)
 
 ## Stop a sequence still in its wind-up (nothing has rolled): the action is not spent.
 func cancel(e: HostEntity) -> void:
@@ -651,6 +673,11 @@ func _foe_adjacent(a: Actor) -> bool:
 
 func _after_damage(b: Actor, dealt: int, src: int) -> void:
 	var c := b.e.combatant
+	# Other systems hear of every hit taken (and of misses: dealt 0) before the 0 HP check, so
+	# they may still change hit points (Monsters: wards, tethers, minions, thorns, provocation).
+	for sys: HostSystem in host.systems.values():
+		if sys != self and sys.has_method("on_combat_damage"):
+			sys.call("on_combat_damage", b.e, dealt, src)
 	if dealt > 0:
 		b.last_hostile = now
 		_touched[b.e.id] = true

@@ -1,0 +1,44 @@
+{
+	"_doc": "Spawn director and rank rules (core/monsters). Tiles, seconds, SRD CR. Bands come from world meta.bands; time from the world clock (night: sun below 0.5). budget: total CR (CR 0 counts as 0.125) kept alive around one player group; cr: [min, max] CR of a creature that may spawn there; pack_cr: most CR one pack may add. ranks: what each rank does (hp: as_written | one | max | max2; xp_mult: the XP multiplier the rules track reads from meta xp_mult). rank_roll: weights per band for the leader and standards of a pack; followers of minion-capable kinds become minions with minion_share. Players closer than group_tiles share one budget. view: half the visible rectangle (plus margin) around each player, where nothing spawns.",
+	"ranks": {
+		"minion":   {"hp": "one", "xp_mult": 0.25, "affixes": 0},
+		"standard": {"hp": "as_written", "xp_mult": 1.0, "affixes": 0},
+		"elite":    {"hp": "max", "xp_mult": 2.0, "affixes": 1, "scale": 1.12},
+		"champion": {"hp": "max2", "xp_mult": 4.0, "affixes": 2, "scale": 1.3},
+		"boss":     {"hp": "as_written", "xp_mult": 6.0, "affixes": 0, "scale": 1.15}
+	},
+	"rank_roll": {
+		"surface": {"standard": 90, "elite": 9, "champion": 1},
+		"sky":     {"standard": 90, "elite": 9, "champion": 1},
+		"caves":   {"standard": 84, "elite": 13, "champion": 3},
+		"deeps":   {"standard": 78, "elite": 17, "champion": 5},
+		"nadir":   {"standard": 70, "elite": 22, "champion": 8}
+	},
+	"minion_share": 0.6,
+	"bands": {
+		"sky":     {"day": {"cr": [0, 1], "budget": 3.0, "pack_cr": 1.5}, "night": {"cr": [0, 3], "budget": 6.0, "pack_cr": 3.0}},
+		"surface": {"day": {"cr": [0, 1], "budget": 3.0, "pack_cr": 1.5}, "night": {"cr": [0, 3], "budget": 7.0, "pack_cr": 4.0}},
+		"caves":   {"any": {"cr": [0.5, 5], "budget": 10.0, "pack_cr": 6.0}},
+		"deeps":   {"any": {"cr": [3, 11], "budget": 26.0, "pack_cr": 16.0}},
+		"nadir":   {"any": {"cr": [8, 17], "budget": 48.0, "pack_cr": 30.0}}
+	},
+	"biome_fallback": {
+		"_doc": "Surface biomes worldgen has now, and which ecology biomes they stand in for until worldgen grows more.",
+		"meadow": ["meadow", "forest", "hills"]
+	},
+	"band_biome": {"caves": "caves", "deeps": "underdark", "nadir": "underdark"},
+	"caps": {"per_player": 24, "global": 120},
+	"view": {"half_w": 32, "half_h": 18, "margin": 6},
+	"ring": {"min": 40, "max": 62},
+	"safe": {"settlement_tiles": 72, "campfire_tiles": 20, "bed_tiles": 20},
+	"despawn": {"far_tiles": 96, "after_s": 20.0},
+	"group_tiles": 64,
+	"period_s": 1.5,
+	"attempts": 10,
+	"prefer_dark": 0.75,
+	"raiders": {
+		"_doc": "People packs from data/sim/cultures.json raider recipes, as SRD NPCs with species (make_npc). bandits: surface at night near roads; drow: near deep-road exits (sites with a deep_road route) in the caves and deeps.",
+		"bandit": {"culture": "bandit", "bands": ["surface"], "time": "night", "chance": 0.12, "pack": [3, 6], "people": "human"},
+		"drow":   {"culture": "drow", "bands": ["caves", "deeps"], "time": "any", "chance": 0.1, "pack": [3, 5], "people": "elf:drow", "near_deep_road": 160}
+	}
+}

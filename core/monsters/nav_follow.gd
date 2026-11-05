@@ -199,7 +199,7 @@ func _arrived(prof: NavProfile, b: Body, tgt: Vector2i, edge: int) -> bool:
 			# keep running: arrived once its box is in the node's columns, on the node's row
 			return MonsterNav.node_of(prof, b.pos) == tgt and (b.on_floor or b.climbing or b.swimming) \
 				or (dx <= 0.3 and dy <= 0.3)
-	return (b.on_floor or b.swimming or b.climbing) and dx <= 0.55 and dy <= 0.3
+	return (b.on_floor or b.swimming or b.climbing) and dx <= 0.65 and dy <= 0.3
 
 static func _steer(d: float, gain: float) -> float:
 	if absf(d) < 0.04:
