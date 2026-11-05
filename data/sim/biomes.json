@@ -1,0 +1,28 @@
+{
+	"_doc": "Resource capacity per site size unit. food: farm (or fungus) yield cap; timber, ore: extraction caps. seasonal: surface farming follows the seasons; underground does not. Unknown biomes fall back to the band default.",
+	"plains":      {"food": 1.0,  "timber": 0.3, "ore": 0.1, "seasonal": true},
+	"grassland":   {"food": 1.0,  "timber": 0.3, "ore": 0.1, "seasonal": true},
+	"meadow":      {"food": 1.0,  "timber": 0.4, "ore": 0.1, "seasonal": true},
+	"coast":       {"food": 0.85, "timber": 0.3, "ore": 0.0, "seasonal": true},
+	"forest":      {"food": 0.6,  "timber": 1.2, "ore": 0.1, "seasonal": true},
+	"jungle":      {"food": 0.55, "timber": 1.2, "ore": 0.1, "seasonal": true},
+	"hills":       {"food": 0.65, "timber": 0.4, "ore": 0.8, "seasonal": true},
+	"mountains":   {"food": 0.3,  "timber": 0.3, "ore": 1.4, "seasonal": true},
+	"alpine":      {"food": 0.3,  "timber": 0.4, "ore": 1.2, "seasonal": true},
+	"desert":      {"food": 0.25, "timber": 0.0, "ore": 0.5, "seasonal": true},
+	"swamp":       {"food": 0.45, "timber": 0.6, "ore": 0.0, "seasonal": true},
+	"tundra":      {"food": 0.3,  "timber": 0.3, "ore": 0.4, "seasonal": true},
+	"snow":        {"food": 0.25, "timber": 0.2, "ore": 0.4, "seasonal": true},
+	"cavern":      {"food": 0.35, "timber": 0.05, "ore": 1.0, "seasonal": false},
+	"fungal":      {"food": 0.6,  "timber": 0.35, "ore": 0.6, "seasonal": false},
+	"crystal":     {"food": 0.25, "timber": 0.0, "ore": 1.5, "seasonal": false},
+	"deep_lake":   {"food": 0.6, "timber": 0.1, "ore": 0.4, "seasonal": false},
+	"magma":       {"food": 0.2,  "timber": 0.0, "ore": 1.6, "seasonal": false},
+	"_band_default": {
+		"sky":     "plains",
+		"surface": "plains",
+		"caves":   "cavern",
+		"deeps":   "fungal",
+		"nadir":   "magma"
+	}
+}
