@@ -186,8 +186,21 @@ sim.chronicle                                                  # [{t, kind, ...}
 - `tools/run_history.gd -- seed=N years=200` prints the chronicle and writes a population
   CSV. This is how the sim is judged.
 
-## Track G: assets (starts after M1's first merge)
+## Track G: assets
 
-Owns `tools/fetch_assets.sh`, `tools/bootstrap.sh`, `data/looks.json`, `view/actors/`.
-Synty fetch, the pack survey that fixes `K.TILE_M`, the looks table (forge GLB, Synty
-model, primitive), the modular hero as the player body.
+Owns `tools/fetch_assets.sh`, `tools/sync_monsters.py`, `tools/bootstrap.sh`,
+`data/looks.json`, `data/dressing.json`, `view/actors/`. As built
+([tracks/assets.md](tracks/assets.md), [assets/survey.md](assets/survey.md)):
+
+- `tools/bootstrap.sh` fetches the Synty files the project references (about 57 MB) and
+  syncs finished monster-forge monsters. Everything loads at runtime (no editor import),
+  and with nothing fetched every actor is a primitive with a nameplate.
+- `WorldView.add_actor(id, look)`: `look` may carry `slug` (an SRD monster slug, or
+  `player`, `player:<class>`) or `people` (`human:guard`, `elf:drow:raider`). `Looks`
+  resolves it: monster-forge GLB, then Synty model, then primitive.
+  `move_actor(id, pos, facing, state, vel)` drives idle, run, jump and fall.
+- `K.TILE_M` stays 0.75: a 1.8 m Synty human is 2.4 tiles in the 2.5-tile Medium box.
+  Standard Synty building kits have a 3 m storey (4 tiles) and 3.75 m wall bays (5 tiles);
+  castle and dungeon kits need scale 0.75, Kingdom house pieces 0.9.
+- `DressingView` instances tile-anchored objects (`data/dressing.json`) from `{id, x, y}`
+  records. Worldgen does not place them yet.

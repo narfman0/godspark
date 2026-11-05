@@ -52,6 +52,9 @@ func detach() -> void:
 func actor_added(id: int, look: Dictionary) -> void:
 	if view == null:
 		return
+	if look.get("kind") == "player" and not look.has("slug"):
+		look = look.duplicate()
+		look["slug"] = "player"  # data/looks.json decides the body; a primitive without art
 	view.add_actor(id, look)
 	_actors[id] = true
 	if id == my_id:

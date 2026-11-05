@@ -33,3 +33,13 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 ## Rendering
 - No textures, parallax, liquids or real lights. Blocks read flat.
 - Sources combine by max; only torch-strength lights match SRD radii exactly.
+
+## Art
+- Modular hero gear swapping is not built: part files carry only the bones they use, so
+  parts need re-skinning onto a master skeleton (plan at the end of assets/survey.md).
+- No pack has a climb, ladder or swim clip. Attack, hit and death clips load but have not
+  been looked at. Feet slide a little at full run speed.
+- Dressing objects are scattered by the demo only; worldgen should place them and the host
+  should replicate them (record format proposed in tracks/assets.md).
+- The Meadow pack's trees are broken as cooked on the server (leaf materials lost).
+- Exported builds need `assets/*` in the export filter (untested).
