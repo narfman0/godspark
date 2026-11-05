@@ -107,6 +107,14 @@ ChunkMesher.build(world, cx, cy) -> ...        # thread-safe, runs on WorkerThre
 - Chunk meshes rebuild on `tile_changed` / `chunk_changed`. Light reaches the shader as a
   texture with one texel per tile, not as vertex data, so light edits never remesh.
 - `view/demo.tscn` flies a camera over a world; `tools/shot.gd` saves a picture of it.
+- As built ([tracks/view.md](tracks/view.md)): light levels are 0..`LightEngine.MAX` with a
+  torch at 85 (bright from 45, dim from 5); the reading is `max(block, sky * sun)`, so time
+  of day recomputes nothing. Sources combine by max. Meshing is split into
+  `ChunkMesher.snapshot` (main thread), `build_arrays` (worker) and `to_mesh` (main thread);
+  about 0.9 ms per chunk. All shaders are unshaded and read the light textures through
+  global uniforms (`gs_*` in project.godot): any actor material must include
+  `view/shaders/light.gdshaderinc` and call `gs_light_at()` or it will ignore cave darkness.
+- Known gap: light for a newly seen chunk is computed on the main thread (about 8 ms).
 
 ## Track C: bodies, movement, tile interaction
 
