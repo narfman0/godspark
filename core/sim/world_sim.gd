@@ -663,6 +663,23 @@ func party_position(p: SimParty) -> Dictionary:
 func remove_party(p: SimParty) -> void:
 	parties.erase(p.id)
 
+## Materialization write-back (Monsters track): players killed one `slug` of the lair at
+## site_id. When nothing is left at home and no hunting pack is out, the lair is gone as if an
+## expedition had cleared it, with a chronicle line. False if the lair has no such creature.
+func lair_killed(site_id: int, slug: String, by := "adventurers") -> bool:
+	var l: SimLair = lairs.get(site_id)
+	if l == null or int(l.monsters.get(slug, 0)) <= 0:
+		return false
+	l.monsters[slug] = int(l.monsters[slug]) - 1
+	if int(l.monsters[slug]) <= 0:
+		l.monsters.erase(slug)
+	stats_add("lair_player_kills", 1)
+	if l.count() == 0 and l.out == 0:
+		stats_add("lairs_cleared", 1)
+		log_event("lair_cleared_players", {"lair": l.name, "what": SimConflict._lair_what(l), "by": by})
+		SimConflict._lair_gone(self, l, "players")
+	return true
+
 # ── Queries ──────────────────────────────────────────────────────────────────
 
 ## Settlements, lairs and parties whose x lies in [x0, x1]: what a player's interest

@@ -1,0 +1,14 @@
+{
+	"_doc": "Elite and champion affixes (original). They act through real-time and tile mechanics, never attack bonus, AC or save DCs. id: stable key (wire and saves); name: shown on the nameplate. Numbers: tiles, seconds, hit points. not_for: archetypes or medium that cannot use it.",
+	"frenzied":     {"name": "Frenzied", "pace": 1.6},
+	"shielded":     {"name": "Bubble-Warded", "ward_per_cr": 6, "ward_min": 8, "regen_after_s": 6.0, "regen_per_s": 0.2},
+	"splitting":    {"name": "Mitotic", "children": 2},
+	"tunnelling":   {"name": "Tunnelling", "hardness": 0.6, "not_for": ["flier", "ambusher"]},
+	"lantern_eater":{"name": "Lantern-Eater", "radius": 6, "every_s": 1.5},
+	"tethered":     {"name": "Tethered", "share": 0.5, "range": 24},
+	"gilded":       {"name": "Gilded", "coin_per_hit": [1, 6], "max_coins": 60},
+	"magnetic":     {"name": "Magpie", "radius": 10, "pull": 4.0, "every_s": 0.5},
+	"howling":      {"name": "Howling", "calls": [2, 4], "once": true},
+	"thorned":      {"name": "Bramblehide", "dice": "1d6", "dtype": "piercing", "reach": 3.0},
+	"skittering":   {"name": "Skittering", "move_mult": 1.35}
+}

@@ -9,6 +9,8 @@
 ##   host modes: spawn=SLUG[:N] places N (default 1) of an SRD monster near the spawn point,
 ##             standing still (no brain), e.g. spawn=goblin-warrior:3; spawn_dx=N: the first
 ##             one N tiles from the spawn point (default -24)
+##   host modes: spawns=0|1 turns the monsters' spawn director off or on (default: on for
+##             generated worlds, off for the fixed test world)
 ##   client modes: class=SLUG, the SRD class of a new character (default fighter)
 ##   any mode: timeout=S (exit 1 after S seconds),
 ##             offline (host with no ENet port: single-player), view=log (no 3D view),
@@ -121,6 +123,11 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 		print("slept %s h: %s" % [opts["sleep"], WorldClock.describe(session.host.clock.hours())])
 	if opts.has("spawn"):
 		_spawn_monsters(String(opts["spawn"]))
+	# spawns=0|1: the monsters' spawn director (default: on for generated worlds, which have
+	# depth bands; off on the fixed test world)
+	var ms: Variant = session.host.system(HostSystem.MONSTERS)
+	if ms != null and opts.has("spawns"):
+		ms.set("director_enabled", 1 if String(opts["spawns"]) != "0" else 0)
 	print("hosting on port %d (%s), %d saved players in %s" % [port, "dedicated" if dedicated else "listen", n, world_dir])
 	# Emitted on the host thread: handle it on the main thread.
 	session.host_ep.player_left.connect(_on_player_left, CONNECT_DEFERRED)
@@ -268,6 +275,11 @@ func _report() -> void:
 		print("HOSTSTATS sim: %d ticks stepped it, avg %.0f us, max %d us; sim hour %d, %d behind, %d chronicle entries; clock %s" % [
 				su.size(), float(ssum) / maxi(1, su.size()), smax, h.sim.t, h.sim_behind(), h.sim.chronicle.size(),
 				WorldClock.describe(h.clock.hours())])
+	var ms: Variant = h.system(HostSystem.MONSTERS)
+	if ms != null:
+		print("HOSTSTATS monsters: director %s, spawned %d, alive %d, packs %d, despawned %d, plans %d, lairs %s" % [
+				ms.call("director_on"), ms.stats["spawned"], ms.call("alive_count"), ms.director.stats["packs"],
+				ms.director.stats["despawned"], ms.stats["plans"], ms.lairs.stats])
 	print("HOSTSTATS traffic by message type:\n" + ep.traffic_report())
 
 ## Debug keys on a host with a local player: F6 one game hour, F7 one game day.
