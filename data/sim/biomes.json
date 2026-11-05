@@ -18,6 +18,8 @@
 	"crystal":     {"food": 0.25, "timber": 0.0, "ore": 1.5, "seasonal": false},
 	"deep_lake":   {"food": 0.6, "timber": 0.1, "ore": 0.4, "seasonal": false},
 	"magma":       {"food": 0.2,  "timber": 0.0, "ore": 1.6, "seasonal": false},
+	"caves":       {"food": 0.35, "timber": 0.05, "ore": 1.0, "seasonal": false},
+	"underdark":   {"food": 0.6,  "timber": 0.35, "ore": 0.8, "seasonal": false},
 	"_band_default": {
 		"sky":     "plains",
 		"surface": "plains",

@@ -1166,10 +1166,13 @@ static func _maybe_outlaws(sim: WorldSim) -> void:
 		var chance := 0.04 * misery * (3.0 if not any_raider else 1.0)
 		if sim.rng.randf() > chance:
 			continue
-		var reach := 10.0 * WorldSim.DAY_H
+		var reach := 16.0 * WorldSim.DAY_H
 		var site := -1
 		for oid in sim.within(sid, WorldSim.ROAD | WorldSim.LINK, reach):
-			if SimEconomy.free_site(sim, oid, "bandit"):
+			var os: Dictionary = sim.site_by_id[oid]
+			var empty_den: bool = os.kind == "lair" and not sim.lairs.has(oid) and not sim.settlements.has(oid) \
+				and SimData.band_family(os.band) == "surface"
+			if SimEconomy.free_site(sim, oid, "bandit") or empty_den:
 				site = oid
 				break
 		if site < 0:
