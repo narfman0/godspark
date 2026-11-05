@@ -197,7 +197,7 @@ Each ends in a playable co-op build and green headless suites.
 |---|---|---|
 | M0 | Foundations | Repo, addon submodule, harness and screenshot tools, architecture doc with stub APIs, seedable `Dice` in the addon, asset fetch plus a Synty survey (contact sheets, module sizes, tile metric decided) |
 | M1 | Dig together | Tile world, worldgen v0 (one surface biome plus caves), mesher, lighting, platformer controller, dig and place, 2-player co-op, save and load, Synty hero as the player body, meadow dressing objects |
-| M2 | Fight | Characters level 1 to 3 (Fighter, Rogue, Wizard, Cleric first), real-time d20 combat, ecology-driven spawns in 2 biomes plus caves, inventory and loot, death and rests, the looks table (forge, Synty, primitive), visible gear on the modular hero |
+| M2 | Fight | Reshaped 2026-11-05 into an ARPG track: levels to 100 with a class level every fifth, sparks, Vigor and Knacks between, real-time d20 combat, ranked monsters in packs, slot-limited gear with no attunement cap. See [m2.md](m2.md) |
 | M3 | Living strip | Headless strategic sim: settlements, food, population, trade, raids, chronicle, `tools/run_history.gd`, debug world map. **Runs in parallel with M1 and M2** (pure core) |
 | M4 | Materialize | Real tile towns and NPCs built from Synty building templates per culture, shops backed by sim stock and prices, caravans on roads, drow raids you can watch or stop, sim-generated quests, settlements that grow and decay in tiles |
 | M5 | The Deep | Full Underdark bands and biomes, drow city-states, deep roads, burrowers, aboleth sea, lair bosses, ores and crafting tiers, levels to 10 |

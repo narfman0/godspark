@@ -252,3 +252,102 @@ Owns `tools/fetch_assets.sh`, `tools/sync_monsters.py`, `tools/bootstrap.sh`,
   castle and dungeon kits need scale 0.75, Kingdom house pieces 0.9.
 - `DressingView` instances tile-anchored objects (`data/dressing.json`) from `{id, x, y}`
   records. Worldgen places them and the host replicates them (see Hardening).
+
+## M2 contracts (leveling and combat)
+
+Design: [m2.md](m2.md). These are the shapes the M2 tracks share. Tracks own their own
+directories and reach the host and the wire only through systems, so they do not edit
+`world_host.gd`, `protocol.gd` or the endpoints.
+
+### Systems
+
+```gdscript
+HostSystem (core/host/host_system.gd), one per feature area, added with host.add_system(sys)
+  sys_id() -> int                       # 1 rules, 2 combat, 3 items, 4 monsters
+  attach(host: WorldHost)
+  tick(host)                            # every host tick, after movement
+  entity_added(host, e: HostEntity); entity_removed(host, e)
+  handle(host, e: HostEntity, kind: int, data: PackedByteArray)   # from e's owner
+  save_player(e) -> Dictionary; load_player(e, d: Dictionary)     # merged into the player record
+  save_world() -> Dictionary; load_world(d: Dictionary)
+host.send_sys(sys_id, kind, data, to_entity := ALL)   # ALL: every player; or one entity id
+host.send_sys_near(sys_id, kind, data, pos: Vector2)  # players whose interest covers pos
+host.system(sys_id) -> HostSystem
+
+ClientSystem (core/host/client_system.gd), the client-side half
+  sys_id() -> int
+  attach(cw: ClientWorld)
+  handle(kind: int, data: PackedByteArray)
+  frame(dt: float)
+cw.send_sys(sys_id, kind, data); cw.system(sys_id) -> ClientSystem
+```
+
+On the wire both directions use one message, `SYS`: u8 system id, u8 kind, payload. Each
+system defines its own kinds and byte layouts in its own codec file with round-trip tests.
+
+### Level track (`core/rules/level_track.gd`, pure functions)
+
+```gdscript
+LevelTrack.MAX_LEVEL = 100
+LevelTrack.class_level(level) -> int        # min(20, 1 + level / 5)
+LevelTrack.reward(level) -> Reward          # SPARK_SLOT (level % 5 in 1, 3), VIGOR (2), KNACK (4), CLASS_LEVEL (0)
+LevelTrack.spark_slots(level) -> int        # 40 at level 100
+LevelTrack.vigor_steps(level) -> int; LevelTrack.knacks(level) -> int
+LevelTrack.xp_for_level(level) -> int       # SRD gap between class levels split in five, times XP_SCALE
+LevelTrack.max_hp(level, hit_die, con_mod) -> int   # SRD total at each class level, a fifth of the
+                                                    # next gain per level between, plus Vigor
+```
+
+### Character (`core/rules/character.gd`)
+
+One per player, owned by the host, saved in the player record, mirrored to its owner.
+
+```
+name, class_slug, subclass, species, background
+level (1..100), xp
+build            the addon's SRDProgression build: {class, scores, skills, spells?, choices}
+knacks: [id]; deeds: {counter: n}
+sparks           Constellation (items track): slots from the level, kindled sparks in order
+inventory        Inventory (items track); equipment: Equipment (items track)
+hp, hit_dice_left, slots_left, uses_left      state that rests restore
+bed: Vector2i or none                         where death and long rests return you
+to_dict() / Character.from_dict(d)            JSON-safe
+make_combatant(srd: SRDContent) -> Combatant  the addon Combatant at class_level(level), with
+                                              track hit points, gear mods and nothing from sparks
+move_stats() -> MoveStats                     SRD speeds plus spark and gear changes
+```
+
+`HostEntity.character` (players) and `HostEntity.combatant` (players and monsters) hold
+them. Snapshots carry hit points and max hit points for every entity with a combatant.
+
+### Items (`core/items/`)
+
+```
+Item record (a Dictionary, JSON-safe):
+  {base, count, material?, quality?, affixes?: [id], magic?: slug, spark?: {id, rank}}
+  base      a row id in data/items/*.json: SRD weapons and armour by slug, tiles by name
+            ("tile:stone"), materials, consumables, campfire, bed
+  magic     an SRD magic item slug (addon magic_items.json)
+Items.mods(item) -> [Dictionary]      ItemEffects mods (addon format) from base, material,
+                                      quality, affixes and magic
+Inventory   slots, stacking, hotbar; add(item) -> leftover, take(slot, n), to_dict()
+Equipment   slots: head, neck, cloak, armour, hands, belt, feet, main_hand, off_hand,
+            ring_1 .. ring_10; can_equip(item, slot); mods_list() for ItemEffects.apply
+Constellation   slots: int, kindled: [{id, rank}]; kindle(spark), swap(i, spark)
+Sparks.apply(kindled, stats: MoveStats, out: Dictionary)   movement and living only; a test
+                                                            proves no spark changes an attack
+                                                            roll, AC, save DC or damage die
+```
+
+### Combat (`core/combat/`)
+
+```
+Intent, from a client: {kind: ATTACK | CAST | USE, aim: Vector2 (tile units), what: slot or spell}
+CombatEvent, host to clients near it:
+  {t: tick, kind: SWING | HIT | MISS | CRIT | SAVE | DAMAGE | HEAL | CONDITION | DOWNED | DEATH | XP,
+   src: entity id, dst: entity id, amount, dtype, roll?, what?}
+Tempo and durations come from data/combat.json. Every weapon hit goes through the addon's
+AttackResolver.weapon_attack and every spell through SpellResolver.cast; the game supplies
+positional facts (cover from TileCollision.raycast, within_5ft, light from LightEngine).
+```
+
