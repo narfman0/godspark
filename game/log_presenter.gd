@@ -32,6 +32,9 @@ func chronicle_lines(lines: PackedStringArray) -> void:
 	for l in lines:
 		print("[chronicle] ", l)
 
+func actor_vitals(id: int, hp: int, max_hp: int) -> void:
+	_say("vitals %d %d/%d" % [id, hp, max_hp])
+
 func corrected(pos: Vector2) -> void:
 	_say("corrected to %s" % pos)
 

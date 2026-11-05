@@ -15,6 +15,8 @@ enum Phase { CONNECTING, HELLO_SENT, PLAYING, CLOSED }
 
 var transport: NetTransport
 var player_name: String
+## SRD class slug for a new character, sent in HELLO ("" = the host's default).
+var player_class := ""
 var phase := Phase.CONNECTING
 var cw: ClientWorld
 ## 60 Hz steps per STATE message: 2 = 30 Hz.
@@ -28,6 +30,7 @@ var received_by_type := {}
 var _acc := 0.0
 var _started := false
 var _last_check_line := ""
+var _unknown_sys := {}
 
 func _init(t: NetTransport, name_: String) -> void:
 	transport = t
@@ -46,6 +49,7 @@ func frame(dt: float, input: PlayerInput) -> int:
 	if phase != Phase.PLAYING:
 		return 0
 	cw.advance(dt)
+	_send_sys()
 	var step_dt := 1.0 / MoveStats.step_hz()
 	_acc = minf(_acc + dt, step_dt * 8)   # a long hitch does not turn into a burst
 	var steps := 0
@@ -60,6 +64,7 @@ func frame(dt: float, input: PlayerInput) -> int:
 			_send(Protocol.state(s["epoch"], s["seq"], s["pos"], s["vel"], s["flags"]))
 		steps += 1
 	input.jump_pressed = pressed
+	_send_sys()
 	if area_at < 0.0 and cw.area_ready():
 		area_at = time
 	return steps
@@ -88,7 +93,7 @@ func _pump() -> void:
 		match ev[0]:
 			NetTransport.CONNECT:
 				if phase == Phase.CONNECTING:
-					_send(Protocol.hello(player_name))
+					_send(Protocol.hello(player_name, player_class))
 					phase = Phase.HELLO_SENT
 			NetTransport.DISCONNECT:
 				_close(Protocol.Why.TIMEOUT, "connection lost")
@@ -141,7 +146,7 @@ func _handle(bytes: PackedByteArray) -> void:
 					for i in range(0, d.size(), 4):
 						cw.apply_tile(d[i], d[i + 1], d[i + 2], d[i + 3])
 				Protocol.T.ENT_ADD:
-					cw.add_remote(m["id"], m["kind"], m["name"], m["size"], m["pos"], m["flags"])
+					cw.add_remote(m["id"], m["kind"], m["name"], m["size"], m["pos"], m["flags"], m["hp"], m["max_hp"])
 				Protocol.T.ENT_REMOVE:
 					cw.remove_remote(m["id"])
 				Protocol.T.SNAPSHOT:
@@ -152,6 +157,12 @@ func _handle(bytes: PackedByteArray) -> void:
 					cw.apply_edit_result(m["req"], m["reason"], Vector2i(m["x"], m["y"]), m["tile"])
 				Protocol.T.CHECK:
 					_on_check(m)
+				Protocol.T.VITALS:
+					cw.apply_vitals(m["entries"])
+				Protocol.T.SYS:
+					if not cw.receive_sys(m["sys"], m["kind"], m["data"]) and not _unknown_sys.has(m["sys"]):
+						_unknown_sys[m["sys"]] = true
+						print("[client] ignored SYS for unknown system %d (kind %d)" % [m["sys"], m["kind"]])
 
 func _on_check(m: Dictionary) -> void:
 	var coords: Array = m["coords"]
@@ -172,6 +183,13 @@ func _on_check(m: Dictionary) -> void:
 			player_name, m["tag"], coords.size(), mine.hex_encode(), cw.body.pos.x, cw.body.pos.y,
 			theirs.hex_encode(), hp.x, hp.y, same_set]
 	check_result.emit(m["tag"], ok, _last_check_line)
+
+## What the client's systems queued (cw.send_sys) goes out, in order.
+func _send_sys() -> void:
+	for m: Array in cw.take_sys_out():
+		var msg := Protocol.sys(m[0], m[1], m[2])
+		if not msg.is_empty():
+			_send(msg)
 
 func _send(msg: PackedByteArray) -> void:
 	transport.send(NetTransport.SERVER, msg, not Protocol.unreliable(msg[0]))

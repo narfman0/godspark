@@ -18,6 +18,7 @@ func attach(client: ClientWorld) -> void:
 	cw.corrected.connect(corrected)
 	cw.meta_arrived.connect(meta_arrived)
 	cw.chronicle_lines.connect(chronicle_lines)
+	cw.vitals_changed.connect(actor_vitals)
 	world_ready(cw.world, cw.my_id)
 	# the own player was announced in setup(), before we were listening
 	actor_added(cw.my_id, {"kind": "player", "size": cw.stats.size, "color": Color(0.85, 0.75, 0.55), "name": cw.player_name, "own": true})
@@ -29,7 +30,7 @@ func detach() -> void:
 	for sig: Array in [[cw.actor_added, actor_added], [cw.actor_moved, actor_moved], [cw.actor_removed, actor_removed],
 			[cw.chunk_arrived, chunk_arrived], [cw.chunk_dropped, chunk_dropped], [cw.world.tile_changed, tile_changed],
 			[cw.edit_result, edit_result], [cw.corrected, corrected], [cw.meta_arrived, meta_arrived],
-			[cw.chronicle_lines, chronicle_lines]]:
+			[cw.chronicle_lines, chronicle_lines], [cw.vitals_changed, actor_vitals]]:
 		if (sig[0] as Signal).is_connected(sig[1]):
 			(sig[0] as Signal).disconnect(sig[1])
 	cw = null
@@ -74,4 +75,8 @@ func meta_arrived(_meta: Dictionary) -> void:
 	pass
 
 func chronicle_lines(_lines: PackedStringArray) -> void:
+	pass
+
+## An actor's hit points (the own player too: id == cw.my_id). Optional.
+func actor_vitals(_id: int, _hp: int, _max_hp: int) -> void:
 	pass

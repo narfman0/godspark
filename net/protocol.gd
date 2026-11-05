@@ -4,12 +4,17 @@
 ## garbage where the size is fixed). Strings are u8 length + UTF-8, at most 64 bytes.
 ##
 ## Client to host                                             bytes
-##   HELLO      u32 magic "GSPK", u16 version, str name          7 + 1 + name
+##   HELLO      u32 magic "GSPK", u16 version, str name,
+##              [str class]                                       8 + name (+ 1 + class)
+##              class: an SRD class slug for a new character ("" or absent: the host's
+##              default). Ignored when the player has a saved character.
 ##   STATE   *  u16 epoch, u32 seq, f32 x, f32 y,                  20
 ##              s16 vx*64, s16 vy*64, u8 flags
 ##   EDIT       u32 req, u8 op, s16 x, s16 y, u16 tile             12
 ##   BYE        u8 reason                                           2
 ##   CHECK_REQ  str tag                                             2 + tag
+##   SYS        u8 system id, u8 kind, payload (rest, <= MAX_SYS)    3 + payload
+##              (both directions; see HostSystem / ClientSystem)
 ## Host to client
 ##   WELCOME    u16 version, u32 your_id, u32 width, u32 height,
 ##              s64 seed, f32 x, f32 y, u16 epoch, u8 tick_hz,
@@ -19,7 +24,8 @@
 ##   UNLOAD     u16 n, n x (s16 cx, s16 cy)                         3 + 4n
 ##   TILES      u16 n, n x (u16 x, u16 y, u8 layer, u16 value)      3 + 7n
 ##   ENT_ADD    u32 id, u8 kind, f32 w, f32 h, f32 x, f32 y,
-##              u8 flags, str name                                 24 + name
+##              u8 flags, u16 hp, u16 max_hp, str name            28 + name
+##              max_hp 0: the entity has no hit points (no combatant).
 ##   ENT_REMOVE u32 id                                              5
 ##   SNAPSHOT * u32 tick, u8 n, n x (u32 id, f32 x, f32 y,
 ##              s16 vx*64, s16 vy*64, u8 flags)                     6 + 17n
@@ -37,13 +43,16 @@
 ##              New world-history lines (WorldSim.describe), and a few on join.
 ##   OBJECTS    s16 cx, s16 cy, u16 n, n x 5 B (Chunk.objects)     7 + 5n
 ##              A held chunk's whole dressing list, after a change (CHUNK carries it too).
+##   VITALS     u8 n, n x (u32 id, u16 hp, u16 max_hp)               2 + 8n
+##              Hit points that changed since the peer last heard, for entities it sees
+##              and its own; sent on snapshot ticks. ENT_ADD carries the first value.
 ## (* = unreliable, sequenced; everything else reliable and ordered on one channel, so a
 ## chunk blob always precedes the tile deltas for that chunk.)
 class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 5
+const VERSION := 6
 const MAX_STR := 64
 const VEL_SCALE := 64.0
 
@@ -51,8 +60,10 @@ enum T {
 	HELLO = 1, STATE = 2, EDIT = 3, BYE = 4, CHECK_REQ = 5,
 	WELCOME = 16, REJECT = 17, CHUNK = 18, UNLOAD = 19, TILES = 20, ENT_ADD = 21,
 	ENT_REMOVE = 22, SNAPSHOT = 23, CORRECT = 24, RESULT = 25, CHECK = 26, KICK = 27,
-	META = 28, CLOCK = 29, CHRONICLE = 30, OBJECTS = 31,
+	META = 28, CLOCK = 29, CHRONICLE = 30, OBJECTS = 31, SYS = 32, VITALS = 33,
 }
+## Largest SYS payload in bytes.
+const MAX_SYS := 32768
 ## Largest decompressed META body accepted.
 const MAX_META := 8 * 1024 * 1024
 ## The world.meta keys a client gets.
@@ -70,11 +81,34 @@ static func type_name(type: int) -> String:
 
 # --- encoding -----------------------------------------------------------------------
 
-static func hello(name: String) -> PackedByteArray:
+static func hello(name: String, char_class := "") -> PackedByteArray:
 	var w := Writer.new(T.HELLO)
 	w.u32(MAGIC)
 	w.u16(VERSION)
 	w.str8(name)
+	w.str8(char_class)
+	return w.b
+
+## A system message (either direction). Empty if the payload is over MAX_SYS.
+static func sys(sys_id: int, kind: int, data: PackedByteArray) -> PackedByteArray:
+	if data.size() > MAX_SYS:
+		return PackedByteArray()
+	var w := Writer.new(T.SYS)
+	w.u8(sys_id)
+	w.u8(kind)
+	w.b.append_array(data)
+	return w.b
+
+## entries: [{id, hp, max_hp}], at most 255.
+static func vitals(entries: Array) -> PackedByteArray:
+	var w := Writer.new(T.VITALS)
+	var n := mini(entries.size(), 255)
+	w.u8(n)
+	for i in n:
+		var e: Dictionary = entries[i]
+		w.u32(int(e["id"]))
+		w.u16(clampi(int(e["hp"]), 0, 0xffff))
+		w.u16(clampi(int(e["max_hp"]), 0, 0xffff))
 	return w.b
 
 static func state(epoch: int, seq: int, pos: Vector2, vel: Vector2, flags: int) -> PackedByteArray:
@@ -163,13 +197,17 @@ static func tiles(deltas: PackedInt32Array) -> PackedByteArray:
 		o += 7
 	return b
 
-static func ent_add(id: int, kind: int, size: Vector2, pos: Vector2, flags: int, name: String) -> PackedByteArray:
+## hp, max_hp: max_hp 0 for an entity without hit points.
+static func ent_add(id: int, kind: int, size: Vector2, pos: Vector2, flags: int, name: String,
+		hp := 0, max_hp := 0) -> PackedByteArray:
 	var w := Writer.new(T.ENT_ADD)
 	w.u32(id)
 	w.u8(kind)
 	w.vec(size)
 	w.vec(pos)
 	w.u8(flags)
+	w.u16(clampi(hp, 0, 0xffff))
+	w.u16(clampi(max_hp, 0, 0xffff))
 	w.str8(name)
 	return w.b
 
@@ -318,6 +356,7 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			m["magic"] = r.u32()
 			m["version"] = r.u16()
 			m["name"] = r.str8()
+			m["class"] = r.str8() if r.ok and not r.at_end() else ""   # absent before version 6
 		T.STATE:
 			m["epoch"] = r.u16()
 			m["seq"] = r.u32()
@@ -373,6 +412,8 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			m["size"] = r.vec()
 			m["pos"] = r.vec()
 			m["flags"] = r.u8()
+			m["hp"] = r.u16()
+			m["max_hp"] = r.u16()
 			m["name"] = r.str8()
 		T.ENT_REMOVE:
 			m["id"] = r.u32()
@@ -414,6 +455,18 @@ static func decode(b: PackedByteArray) -> Dictionary:
 					return {}
 				lines.append(r.bytes(k).get_string_from_utf8())
 			m["lines"] = lines
+		T.SYS:
+			m["sys"] = r.u8()
+			m["kind"] = r.u8()
+			m["data"] = r.rest()
+			if (m["data"] as PackedByteArray).size() > MAX_SYS:
+				return {}
+		T.VITALS:
+			var n := r.u8()
+			var list := []
+			for i in n:
+				list.append({"id": r.u32(), "hp": r.u16(), "max_hp": r.u16()})
+			m["entries"] = list
 		T.CHECK:
 			m["tag"] = r.str8()
 			var n := r.u16()

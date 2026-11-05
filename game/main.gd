@@ -6,6 +6,9 @@
 ##   join=ADDR[:PORT] bot [name=X] [digs=N] [places=M] [dir=1|-1] [delay=S] [rejoin=0|1]
 ##   host modes: gen=dev|small|medium|large [seed=N] for a new world, gen=test or size=WxH
 ##             for the fixed test world; a world saved in world=DIR is loaded instead
+##   host modes: spawn=SLUG[:N] places N (default 1) of an SRD monster near the spawn point,
+##             standing still (no brain), e.g. spawn=goblin-warrior:3
+##   client modes: class=SLUG, the SRD class of a new character (default fighter)
 ##   any mode: timeout=S (exit 1 after S seconds),
 ##             offline (host with no ENet port: single-player), view=log (no 3D view),
 ##             sleep=HOURS (host: advance the world clock at start),
@@ -98,6 +101,7 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	var local_name := "" if dedicated else String(opts.get("name", "host"))
 	session = NetSession.new()
 	session.threaded = String(opts.get("host_thread", "1")) != "0"
+	session.player_class = String(opts.get("class", ""))
 	add_child(session)
 	var err := session.start_host(world_source(), port, local_name)
 	if err != OK:
@@ -112,15 +116,34 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	if opts.has("sleep"):
 		session.host.sleep(float(opts["sleep"]))
 		print("slept %s h: %s" % [opts["sleep"], WorldClock.describe(session.host.clock.hours())])
+	if opts.has("spawn"):
+		_spawn_monsters(String(opts["spawn"]))
 	print("hosting on port %d (%s), %d saved players in %s" % [port, "dedicated" if dedicated else "listen", n, world_dir])
 	# Emitted on the host thread: handle it on the main thread.
 	session.host_ep.player_left.connect(_on_player_left, CONNECT_DEFERRED)
 	if not dedicated:
 		_make_client_side(headless)
 
+## spawn=SLUG[:N]: N monsters a few tiles apart, left of the spawn point. Runs before the
+## host thread starts (the first _process), so it may touch the host directly.
+func _spawn_monsters(spec: String) -> void:
+	var parts := spec.split(":")
+	var slug := parts[0]
+	var n := int(parts[1]) if parts.size() > 1 and parts[1].is_valid_int() else 1
+	var h := session.host
+	for i in n:
+		var x := clampi(int(h.spawn.x) - 24 - 3 * i, 2, h.world.width - 3)
+		var e := h.add_srd_monster(slug, h.find_spawn(x))
+		if e == null:
+			printerr("spawn: no SRD monster %s" % slug)
+			return
+		var v := e.vitals()
+		print("spawned %s (entity %d) at %.1f,%.1f hp %d/%d" % [e.name, e.id, e.body.pos.x, e.body.pos.y, v.x, v.y])
+
 func _start_join(headless: bool) -> void:
 	var a := split_address(String(opts["join"]))
 	session = NetSession.new()
+	session.player_class = String(opts.get("class", ""))
 	add_child(session)
 	var err := session.start_client(a[0], a[1], String(opts.get("name", "player%d" % (randi() % 1000))))
 	if err != OK:
@@ -157,6 +180,7 @@ func _start_bot() -> void:
 	bot.dir = 1 if int(opts.get("dir", 1)) >= 0 else -1
 	bot.delay = float(opts.get("delay", 0.0))
 	bot.rejoin = String(opts.get("rejoin", "1")) != "0"
+	bot.bot_class = String(opts.get("class", ""))
 	bot.finished.connect(func(ok: bool) -> void: _quit(0 if ok else 1, 0.3))
 	add_child(bot)
 

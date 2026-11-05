@@ -24,6 +24,10 @@ var look := {}
 var brain: Object = null
 ## Last input fed to the controller (host-simulated entities).
 var input := PlayerInput.new()
+## Rules state. Players: their Character (saved in the player record) and the Combatant
+## built from it. Monsters: a Combatant from the stat block, or null. Host thread only.
+var character: Character = null
+var combatant: Combatant = null
 
 # Validation of client-owned movement (see WorldHost.submit_state).
 ## Bumped on every correction; states stamped with an older epoch are ignored.
@@ -87,6 +91,14 @@ static func state_name(f: int, vel: Vector2) -> String:
 
 func is_player() -> bool:
 	return kind == Kind.PLAYER
+
+## Hit points for the wire: Vector2i(current, max), or NO_VITALS without a combatant.
+func vitals() -> Vector2i:
+	if combatant == null:
+		return NO_VITALS
+	return Vector2i(clampi(combatant.stats.current_hp, 0, 0xffff), clampi(combatant.stats.max_hp, 0, 0xffff))
+
+const NO_VITALS := Vector2i(-1, -1)
 
 func digging() -> bool:
 	return dig_target != NO_DIG

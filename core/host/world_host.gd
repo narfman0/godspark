@@ -22,7 +22,12 @@ enum Reason { OK, OUT_OF_BOUNDS, OUT_OF_REACH, NOTHING_THERE, UNBREAKABLE, OCCUP
 ##   EDIT_RESULT  id, owner, req, reason, x, y, tile     (tile = the cell's fg id now)
 ##   CHRONICLE    lines: PackedStringArray               (new world-history lines)
 ##   OBJECTS      cx, cy                                 (a chunk's dressing list changed)
-enum Ev { TILE, JOIN, LEAVE, CORRECT, EDIT_RESULT, CHRONICLE, OBJECTS }
+##   SYS          sys, kind, data, to, near?             (a system message: to = an entity id
+##                                                        or ALL; near: Vector2, players whose
+##                                                        interest area covers it)
+enum Ev { TILE, JOIN, LEAVE, CORRECT, EDIT_RESULT, CHRONICLE, OBJECTS, SYS }
+## send_sys target: every player.
+const ALL := -1
 ## What submit_state decided.
 enum StateCheck { OK, STALE, NO_ENTITY, OUT_OF_BOUNDS, TOO_FAST, IN_SOLID }
 
@@ -67,7 +72,36 @@ var sim_origin := 0
 var chronicle_sent := 0
 ## Per tick that stepped the sim: microseconds spent (for HOSTSTATS and tests).
 var sim_usec := PackedInt32Array()
+## Systems by id, in the order added (HostSystem).
+var systems := {}
+## World state of systems not added yet, from load_state: id (String) -> Dictionary.
+var _pending_world := {}
+## The class a player gets when it has no saved character and asks for none.
+var default_class := "fighter"
 var _next_id := 1
+
+## One SRD content set per process: building it is expensive (srd_build_usec), and it is
+## read-only after that. Build it before the host thread starts (warm_srd) or the first
+## join pays for it inside a tick.
+static var _srd: SRDContent
+static var srd_build_usec := 0
+var srd: SRDContent:
+	get:
+		return shared_srd()
+
+static func shared_srd() -> SRDContent:
+	if _srd == null:
+		var t0 := Time.get_ticks_usec()
+		_srd = SRDContent.new()
+		srd_build_usec = Time.get_ticks_usec() - t0
+	return _srd
+
+## Build the shared SRDContent now. Returns the build time in microseconds (0 if it existed).
+static func warm_srd() -> int:
+	if _srd != null:
+		return 0
+	shared_srd()
+	return srd_build_usec
 
 func _init(w: TileWorld) -> void:
 	world = w
@@ -85,6 +119,7 @@ func dt() -> float:
 
 ## One host step. Advances held digs and host-simulated bodies.
 func tick() -> void:
+	Dice.rng = rng     # rules dice are the ticking host's (one host per process in play)
 	tick_count += 1
 	clock.advance(1)
 	if sim != null:
@@ -102,6 +137,8 @@ func tick() -> void:
 				PlayerController.step(world, e.body, e.input, e.stats, step_dt)
 				e.input.jump_pressed = false
 			e.flags = HostEntity.body_flags(e.body, e.digging())
+	for sys: HostSystem in systems.values():
+		sys.tick(self)
 
 ## Step the sim toward the clock within SIM_BUDGET_US, then queue its new chronicle lines.
 func _step_sim() -> void:
@@ -152,17 +189,29 @@ func find_spawn(x: int) -> Vector2:
 				break
 	return Vector2(x + 0.5, top)
 
-func add_player(player_name: String, owner: int) -> HostEntity:
+## A player joins: its saved record (position, character, systems' parts) or a new level-1
+## character of opts.class (default_class when missing or not an SRD class).
+func add_player(player_name: String, owner: int, opts := {}) -> HostEntity:
 	var e := HostEntity.new()
 	e.id = _alloc_id()
 	e.kind = HostEntity.Kind.PLAYER
 	e.name = player_name
 	e.owner = owner
-	e.stats = MoveStats.player()
+	var rec: Dictionary = records.get(player_name, {})
+	var saved: Variant = rec.get("character")
+	e.character = Character.from_dict(saved) if saved is Dictionary else null
+	if e.character == null:
+		var cls := String(opts.get("class", ""))
+		if not Character.HIT_DIE.has(cls):
+			cls = default_class
+		e.character = Character.create(player_name, cls, [], [], "", "", srd)
+	e.character.name = player_name
+	e.combatant = e.character.make_combatant(srd)
+	e.stats = e.character.move_stats(e.combatant)
 	e.body = e.stats.make_body()
 	e.body.pos = spawn
-	e.look = {"kind": "player", "size": e.stats.size, "color": Color(0.85, 0.75, 0.55)}
-	var rec: Dictionary = records.get(player_name, {})
+	e.look = {"kind": "player", "size": e.stats.size, "color": Color(0.85, 0.75, 0.55),
+			"slug": "player:" + e.character.class_slug}
 	if rec.has("pos"):
 		var p := Vector2(float(rec["pos"][0]), float(rec["pos"][1]))
 		if world.in_bounds(floori(p.x), floori(p.y)):
@@ -177,10 +226,15 @@ func add_player(player_name: String, owner: int) -> HostEntity:
 	e.last_state_tick = tick_count
 	entities[e.id] = e
 	outbox.append({"type": Ev.JOIN, "id": e.id})
+	var sysrec: Dictionary = rec.get("systems", {})
+	for sys: HostSystem in systems.values():
+		sys.load_player(e, sysrec.get(str(sys.sys_id()), {}))
+		sys.entity_added(self, e)
 	return e
 
-## Monsters slot in here next milestone: host-simulated, driven by `brain`.
-func add_monster(stats: MoveStats, pos: Vector2, brain: Object, look := {}) -> HostEntity:
+## A host-simulated creature, driven by `brain` (null: it stands still). `combatant` (may be
+## null) carries its rules state and hit points.
+func add_monster(stats: MoveStats, pos: Vector2, brain: Object, look := {}, combatant: Combatant = null) -> HostEntity:
 	var e := HostEntity.new()
 	e.id = _alloc_id()
 	e.kind = HostEntity.Kind.MONSTER
@@ -191,9 +245,43 @@ func add_monster(stats: MoveStats, pos: Vector2, brain: Object, look := {}) -> H
 	TileCollision.depenetrate(world, e.body)
 	e.brain = brain
 	e.look = look if not look.is_empty() else {"kind": "monster", "size": stats.size, "color": Color(0.6, 0.2, 0.2)}
+	e.combatant = combatant
 	entities[e.id] = e
 	outbox.append({"type": Ev.JOIN, "id": e.id})
+	for sys: HostSystem in systems.values():
+		sys.entity_added(self, e)
 	return e
+
+## An SRD monster from its stat block (srd.make_monster): body size and movement from its
+## size and speeds, standing on the ground near `pos`. Null for an unknown slug.
+func add_srd_monster(slug: String, pos: Vector2, brain: Object = null) -> HostEntity:
+	var row: Dictionary = srd.pack.get_row("monster", slug)
+	if row.is_empty():
+		return null
+	var c := srd.make_monster(slug)
+	if c == null:
+		return null
+	var stats := MoveStats.from_srd(monster_speeds(row.get("data", {})), monster_size(row.get("data", {})))
+	var look := {"kind": "monster", "slug": slug, "name": String(row.get("name", slug)), "size": stats.size,
+			"color": Color(0.6, 0.2, 0.2)}
+	return add_monster(stats, pos, brain, look, c)
+
+## SRD size word of a stat block for bodies: "medium or small" -> "medium"; swarms (no
+## size) are Medium.
+static func monster_size(d: Dictionary) -> String:
+	var s: Variant = d.get("size")
+	return String(s).split(" ")[0].to_lower() if s is String and s != "" else "medium"
+
+## SRD speeds of a stat block for MoveStats.from_srd (walk 0 stays 0: a fish has none).
+static func monster_speeds(d: Dictionary) -> Dictionary:
+	var out := {"walk": 0}
+	var spd: Variant = d.get("speed", {})
+	if spd is Dictionary:
+		for k: String in ["walk", "climb", "swim", "fly", "burrow"]:
+			if spd.has(k):
+				out[k] = int(spd[k])
+		out["hover"] = bool(spd.get("hover", false))
+	return out
 
 func remove_entity(id: int) -> void:
 	var e: HostEntity = entities.get(id)
@@ -201,6 +289,8 @@ func remove_entity(id: int) -> void:
 		return
 	if e.is_player():
 		_store_record(e)
+	for sys: HostSystem in systems.values():
+		sys.entity_removed(self, e)
 	entities.erase(id)
 	outbox.append({"type": Ev.LEAVE, "id": id})
 
@@ -225,6 +315,56 @@ func bodies() -> Array:
 	for e: HostEntity in entities.values():
 		out.append(e.body)
 	return out
+
+# --- systems ------------------------------------------------------------------------
+
+## Add a feature system. Its saved world state (if load_state already ran) is handed to it,
+## then attach, then entity_added (with load_player for players) for everyone already here.
+func add_system(sys: HostSystem) -> void:
+	var id := sys.sys_id()
+	assert(id > 0 and id <= 255 and not systems.has(id), "system id %d taken or out of range" % id)
+	systems[id] = sys
+	if _pending_world.has(str(id)):
+		sys.load_world(_pending_world[str(id)])
+		_pending_world.erase(str(id))
+	sys.attach(self)
+	for e: HostEntity in entities.values():
+		if e.is_player():
+			sys.load_player(e, records.get(e.name, {}).get("systems", {}).get(str(id), {}))
+		sys.entity_added(self, e)
+
+func system(sys_id: int) -> HostSystem:
+	return systems.get(sys_id)
+
+## Queue a SYS message: to one entity's owner (a player's id) or to every player (ALL).
+## False (and nothing sent) if the payload is over Protocol's cap.
+func send_sys(sys_id: int, kind: int, data: PackedByteArray, to_entity := ALL) -> bool:
+	if data.size() > SYS_MAX:
+		push_warning("SYS %d/%d: %d bytes is over the cap" % [sys_id, kind, data.size()])
+		return false
+	outbox.append({"type": Ev.SYS, "sys": sys_id, "kind": kind, "data": data, "to": to_entity})
+	return true
+
+## Queue a SYS message for every player whose interest area covers `pos` (tile units).
+func send_sys_near(sys_id: int, kind: int, data: PackedByteArray, pos: Vector2) -> bool:
+	if data.size() > SYS_MAX:
+		push_warning("SYS %d/%d: %d bytes is over the cap" % [sys_id, kind, data.size()])
+		return false
+	outbox.append({"type": Ev.SYS, "sys": sys_id, "kind": kind, "data": data, "to": ALL, "near": pos})
+	return true
+
+## A SYS message from the client owning entity `id`. False if no such system or entity
+## (the caller logs it; it is never fatal).
+func receive_sys(id: int, sys_id: int, kind: int, data: PackedByteArray) -> bool:
+	var sys: HostSystem = systems.get(sys_id)
+	var e: HostEntity = entities.get(id)
+	if sys == null or e == null:
+		return false
+	sys.handle(self, e, kind, data)
+	return true
+
+## Largest SYS payload (bytes); the same as Protocol.MAX_SYS (core cannot name net/).
+const SYS_MAX := 32768
 
 # --- client-owned movement ----------------------------------------------------------
 
@@ -399,6 +539,11 @@ func save_state(dir: String) -> Error:
 	if err != OK:
 		return err
 	var d := {"format": 1, "clock": clock.to_dict()}
+	var sysw := _pending_world.duplicate(true)     # systems not added this run keep their state
+	for sys: HostSystem in systems.values():
+		sysw[str(sys.sys_id())] = sys.save_world()
+	if not sysw.is_empty():
+		d["systems"] = sysw
 	if sim != null:
 		# Exact save and resume needs var_to_bytes (JSON loses float bits): docs/tracks/sim.md.
 		var blob := var_to_bytes({"origin": sim_origin, "sent": chronicle_sent, "sim": sim.to_dict()})
@@ -428,6 +573,14 @@ func load_state(dir: String) -> bool:
 	if not d is Dictionary:
 		return false
 	clock.from_dict(d.get("clock", {}))
+	var sysw: Variant = d.get("systems", {})
+	if sysw is Dictionary:
+		for k: String in sysw:
+			var sys: HostSystem = systems.get(int(k))
+			if sys != null:
+				sys.load_world(sysw[k])
+			else:
+				_pending_world[k] = sysw[k]
 	var sp := dir.path_join("sim.bin")
 	if d.has("sim_raw") and FileAccess.file_exists(sp):
 		var raw := FileAccess.get_file_as_bytes(sp).decompress(int(d["sim_raw"]), FileAccess.COMPRESSION_ZSTD)
@@ -481,6 +634,14 @@ func _store_record(e: HostEntity) -> void:
 	var rec: Dictionary = records.get(e.name, {})
 	rec["name"] = e.name
 	rec["pos"] = [e.body.pos.x, e.body.pos.y]
+	if e.character != null:
+		e.character.capture(e.combatant)
+		rec["character"] = e.character.to_dict()
+	var sysrec: Dictionary = rec.get("systems", {})     # systems not added this run keep theirs
+	for sys: HostSystem in systems.values():
+		sysrec[str(sys.sys_id())] = sys.save_player(e)
+	if not sysrec.is_empty():
+		rec["systems"] = sysrec
 	records[e.name] = rec
 
 func _alloc_id() -> int:

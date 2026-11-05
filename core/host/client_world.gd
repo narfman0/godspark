@@ -24,6 +24,8 @@ signal corrected(pos: Vector2)
 signal meta_arrived(meta: Dictionary)
 ## New lines of world history from the host.
 signal chronicle_lines(lines: PackedStringArray)
+## Hit points of an entity (remote or the own player, id == my_id) changed or became known.
+signal vitals_changed(id: int, hp: int, max_hp: int)
 
 ## Edit request ops (wire values).
 enum Op { DIG_START, DIG_STOP, PLACE }
@@ -88,6 +90,12 @@ var view_offset := Vector2.ZERO
 ## Edits predicted and rolled back (host refused or timed out).
 var predicted := 0
 var rolled_back := 0
+## Own hit points as the host last said; max_hp -1 until known (or no combatant).
+var hp := -1
+var max_hp := -1
+## Client systems by id (ClientSystem), and SYS messages they queued: [[sys, kind, data]].
+var systems := {}
+var _sys_out: Array = []
 
 func setup(width: int, height: int, seed_value: int, id: int, name_: String, pos: Vector2,
 		epoch_: int, radius_: int) -> void:
@@ -340,7 +348,8 @@ func _forget_predictions(cx: int, cy: int) -> void:
 
 # --- remote entities ----------------------------------------------------------------
 
-func add_remote(id: int, kind: int, name_: String, size: Vector2, pos: Vector2, flags: int) -> void:
+func add_remote(id: int, kind: int, name_: String, size: Vector2, pos: Vector2, flags: int,
+		hp_ := 0, max_hp_ := 0) -> void:
 	if id == my_id:
 		return
 	var r: RemoteEntity = remotes.get(id)
@@ -357,10 +366,66 @@ func add_remote(id: int, kind: int, name_: String, size: Vector2, pos: Vector2, 
 	r.placeholder = true
 	r.pos = pos
 	r.flags = flags
+	var had := Vector2i(r.hp, r.max_hp)
+	r.hp = hp_ if max_hp_ > 0 else -1
+	r.max_hp = max_hp_ if max_hp_ > 0 else -1
 	if fresh:
 		actor_added.emit(id, {"kind": "player" if kind == HostEntity.Kind.PLAYER else "monster",
 				"size": size, "color": Color(0.45, 0.6, 0.9) if kind == HostEntity.Kind.PLAYER else Color(0.6, 0.2, 0.2),
 				"name": name_})
+	if r.max_hp > 0 and (fresh or had != Vector2i(r.hp, r.max_hp)):
+		vitals_changed.emit(id, r.hp, r.max_hp)
+
+## Hit points from VITALS: [{id, hp, max_hp}]. Unknown remote ids are ignored.
+func apply_vitals(entries: Array) -> void:
+	for en: Dictionary in entries:
+		var id := int(en["id"])
+		var h := int(en["hp"])
+		var mx := int(en["max_hp"])
+		if id == my_id:
+			hp = h
+			max_hp = mx
+		else:
+			var r: RemoteEntity = remotes.get(id)
+			if r == null:
+				continue
+			r.hp = h
+			r.max_hp = mx
+		vitals_changed.emit(id, h, mx)
+
+## Hit points of the own player or a remote: Vector2i(hp, max), or (-1, -1) if unknown.
+func vitals_of(id: int) -> Vector2i:
+	if id == my_id:
+		return Vector2i(hp, max_hp)
+	var r: RemoteEntity = remotes.get(id)
+	return Vector2i(r.hp, r.max_hp) if r != null else Vector2i(-1, -1)
+
+# --- systems ------------------------------------------------------------------------
+
+func add_system(sys: ClientSystem) -> void:
+	systems[sys.sys_id()] = sys
+	sys.attach(self)
+
+func system(sys_id: int) -> ClientSystem:
+	return systems.get(sys_id)
+
+## Queue a SYS message for the host (sent by the endpoint this frame, in order).
+func send_sys(sys_id: int, kind: int, data: PackedByteArray) -> void:
+	_sys_out.append([sys_id, kind, data])
+
+## The endpoint takes the queued messages.
+func take_sys_out() -> Array:
+	var out := _sys_out
+	_sys_out = []
+	return out
+
+## A SYS message from the host. False if no system has that id (the caller logs it).
+func receive_sys(sys_id: int, kind: int, data: PackedByteArray) -> bool:
+	var sys: ClientSystem = systems.get(sys_id)
+	if sys == null:
+		return false
+	sys.handle(kind, data)
+	return true
 
 func remove_remote(id: int) -> void:
 	if remotes.erase(id):
@@ -410,6 +475,8 @@ func hours() -> float:
 func advance(frame_dt: float) -> void:
 	clock += frame_dt
 	clock_ticks += frame_dt * K.TICK_HZ
+	for sys: ClientSystem in systems.values():
+		sys.frame(frame_dt)
 	if view_offset != Vector2.ZERO:
 		view_offset *= exp(-frame_dt / CORRECT_BLEND)
 		if view_offset.length() < 0.01:
@@ -462,3 +529,6 @@ class RemoteEntity extends RefCounted:
 	var placeholder := false
 	var pos := Vector2.ZERO
 	var flags := 0
+	## Hit points as last heard; -1 when it has none.
+	var hp := -1
+	var max_hp := -1

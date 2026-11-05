@@ -20,6 +20,8 @@ var rejoin := true
 var dir := 1
 ## Seconds to wait before connecting (to join late, after others have edited).
 var delay := 0.0
+## SRD class for a new character ("" = the host's default).
+var bot_class := ""
 
 var session: NetSession
 var input := PlayerInput.new()
@@ -63,6 +65,7 @@ func _finish() -> void:
 func _connect() -> void:
 	session = NetSession.new()
 	session.input_source = func() -> PlayerInput: return input
+	session.player_class = bot_class
 	add_child(session)
 	session.client_closed.connect(_on_closed)
 	var err := session.start_client(address, port, bot_name)
@@ -108,6 +111,7 @@ func _process(delta: float) -> void:
 				var objs := 0
 				for k: Vector2i in c.loaded:
 					objs += c.world.chunk_at(k.x, k.y).object_count()
+				_say_vitals()
 				_say("%s area_ms=%d welcome_ms=%d chunks=%d pos=%.2f,%.2f objects=%d clock=%s chronicle=%d" % [phase,
 						roundi(ep.area_at * 1000.0), roundi(ep.welcome_at * 1000.0), c.loaded.size(), c.body.pos.x,
 						c.body.pos.y, objs, WorldClock.describe(c.hours()), c.chronicle.size()])
@@ -150,6 +154,7 @@ func _process(delta: float) -> void:
 					_fail("check %s mismatch" % _check_tag)
 					return
 				if phase == "check_final":
+					_say_vitals()
 					_finish()
 				elif rejoin:
 					_left_at = cw().body.pos
@@ -220,6 +225,18 @@ func _place_step() -> void:
 	input.place = _target.x >= 0
 	input.place_tile = _wood
 	input.target = _target
+
+## One line: own hit points and every remote entity with its hit points, e.g.
+## "BOT bot1 vitals me=12/12 sees 2: 1 Goblin Warrior monster 10/10, 3 bot2 player 12/12".
+func _say_vitals() -> void:
+	var c := cw()
+	if c == null:
+		return
+	var seen := PackedStringArray()
+	for r: ClientWorld.RemoteEntity in c.remotes.values():
+		seen.append("%d %s %s %s" % [r.id, r.name, "player" if r.kind == HostEntity.Kind.PLAYER else "monster",
+				"%d/%d" % [r.hp, r.max_hp] if r.max_hp > 0 else "-"])
+	_say("vitals me=%d/%d sees %d: %s" % [c.hp, c.max_hp, seen.size(), ", ".join(seen)])
 
 ## First untried cell (relative to the feet, x offsets times `dir`) that passes ok(x, y).
 func _pick(ok: Callable, dxs: Array, dys: Array) -> Vector2i:

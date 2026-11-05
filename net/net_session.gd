@@ -32,6 +32,8 @@ var hub: LoopbackHub
 ## func() -> PlayerInput for the own player; idle input if unset.
 var input_source := Callable()
 var log_fn := Callable()
+## SRD class slug for this client's new character ("" = the host's default).
+var player_class := ""
 ## Tick the host on a thread (true) or in _process (false: the old render-bound way).
 var threaded := true
 var _host_acc := 0.0
@@ -43,6 +45,12 @@ var _calls: Array[Callable] = []
 
 func start_host(world: TileWorld, port: int, local_name := "", max_players := 4) -> Error:
 	host = WorldHost.new(world)
+	var srd_us := WorldHost.warm_srd()      # here, not inside the first join's tick
+	if srd_us > 0:
+		_log("SRD content built in %d ms" % (srd_us / 1000))
+	var installed := Systems.install_host(host)
+	if not installed.is_empty():
+		_log("host systems %s" % [installed])
 	var multi := MultiTransport.new()
 	if port > 0:
 		enet = EnetTransport.new()
@@ -72,7 +80,10 @@ func start_client(address: String, port: int, player_name: String) -> Error:
 
 func _make_client(t: NetTransport, player_name: String) -> void:
 	client_ep = ClientEndpoint.new(t, player_name)
-	client_ep.welcomed.connect(func(cw: ClientWorld) -> void: client_ready.emit(cw))
+	client_ep.player_class = player_class
+	client_ep.welcomed.connect(func(cw: ClientWorld) -> void:
+		Systems.install_client(cw)       # before the SYS messages that follow WELCOME
+		client_ready.emit(cw))
 	client_ep.disconnected.connect(func(r: int, s: String) -> void: client_closed.emit(r, s))
 
 ## Run f(host: WorldHost) on the host thread just before its next tick (or at once when the

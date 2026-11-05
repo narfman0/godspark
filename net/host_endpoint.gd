@@ -39,6 +39,8 @@ var log_fn := Callable()
 var _blob_cache := {}     ## Vector2i -> PackedByteArray
 var _meta_msg := PackedByteArray()
 var _round_robin := 0
+## (peer, system id) pairs already logged for a SYS to an unknown system.
+var _unknown_sys := {}
 
 func _init(h: WorldHost, t: NetTransport) -> void:
 	host = h
@@ -129,6 +131,12 @@ func _handle(id: int, bytes: PackedByteArray) -> void:
 					host.stop_dig(p.entity_id)
 				ClientWorld.Op.PLACE:
 					host.request_place(p.entity_id, m["req"], m["x"], m["y"], m["tile"])
+		Protocol.T.SYS:
+			if not host.receive_sys(p.entity_id, m["sys"], m["kind"], m["data"]):
+				var k := Vector2i(id, int(m["sys"]))
+				if not _unknown_sys.has(k):
+					_unknown_sys[k] = true
+					_log("ignored SYS for unknown system %d (kind %d) from peer %d (%s)" % [m["sys"], m["kind"], id, p.name])
 		Protocol.T.BYE:
 			p.phase = PeerPhase.CLOSING
 			_drop_peer(id, m["reason"])
@@ -171,7 +179,7 @@ func _hello(p: PeerState, m: Dictionary) -> void:
 		transport.disconnect_peer(p.id)
 		_log("reject peer %d (%s): %s" % [p.id, name, text])
 		return
-	var e := host.add_player(name, p.id)
+	var e := host.add_player(name, p.id, {"class": String(m.get("class", ""))})
 	p.entity_id = e.id
 	p.name = name
 	p.phase = PeerPhase.PLAYING
@@ -228,6 +236,7 @@ func _route(events: Array[Dictionary]) -> void:
 						p.deltas.append_array(PackedInt32Array([ev["x"], ev["y"], ev["layer"], ev["value"]]))
 			WorldHost.Ev.LEAVE:
 				for p: PeerState in peers.values():
+					p.vitals.erase(int(ev["id"]))
 					if p.visible.erase(int(ev["id"])):
 						_send(p.id, Protocol.ent_remove(ev["id"]))
 			WorldHost.Ev.CORRECT:
@@ -249,10 +258,38 @@ func _route(events: Array[Dictionary]) -> void:
 					for p: PeerState in peers.values():
 						if p.phase == PeerPhase.PLAYING:
 							_send(p.id, msg)
+			WorldHost.Ev.SYS:
+				var msg := Protocol.sys(ev["sys"], ev["kind"], ev["data"])
+				if msg.is_empty():
+					continue
+				for p: PeerState in _sys_targets(ev):
+					_flush_deltas(p)       # tile changes queued before it land first
+					_send(p.id, msg)
 			WorldHost.Ev.EDIT_RESULT:
 				if peers.has(int(ev["owner"])):
 					_flush_deltas(peers[ev["owner"]])     # the tile change lands before its result
 					_send(ev["owner"], Protocol.result(ev["req"], ev["reason"], ev["x"], ev["y"], ev["tile"]))
+
+## Who a SYS event goes to: one player's peer, every playing peer, or those whose interest
+## area (radius, in chunks) covers `near`.
+func _sys_targets(ev: Dictionary) -> Array:
+	var out := []
+	var to := int(ev["to"])
+	if to != WorldHost.ALL:
+		var e := host.entity(to)
+		var p: PeerState = peers.get(e.owner) if e != null and e.is_player() else null
+		if p != null and p.phase == PeerPhase.PLAYING and p.entity_id == to:
+			out.append(p)
+		return out
+	var near: Variant = ev.get("near")
+	var c := Interest.chunk_of(near) if near is Vector2 else Vector2i.ZERO
+	for p: PeerState in peers.values():
+		if p.phase != PeerPhase.PLAYING:
+			continue
+		if near is Vector2 and (not p.interest_set or Interest.dist(c, p.center) > radius):
+			continue
+		out.append(p)
+	return out
 
 func _update_interest(p: PeerState) -> void:
 	var e := host.entity(p.entity_id)
@@ -319,24 +356,40 @@ func _flush_deltas(p: PeerState) -> void:
 
 func _snapshot(p: PeerState) -> void:
 	var entries := []
+	var vit := []
 	for e: HostEntity in host.entities.values():
+		var hv := e.vitals()
 		if e.id == p.entity_id:
+			_vitals_changed(p, e.id, hv, vit)
 			continue
 		var d := Interest.dist(Interest.chunk_of(e.body.center()), p.center)
 		if not p.visible.has(e.id):
 			if d > radius:
 				continue
 			p.visible[e.id] = true
-			_send(p.id, Protocol.ent_add(e.id, e.kind, e.body.size, e.body.pos, e.flags, e.name))
+			_send(p.id, Protocol.ent_add(e.id, e.kind, e.body.size, e.body.pos, e.flags, e.name, maxi(0, hv.x), maxi(0, hv.y)))
+			p.vitals[e.id] = hv
 		elif d > radius + 1:
 			p.visible.erase(e.id)
+			p.vitals.erase(e.id)
 			_send(p.id, Protocol.ent_remove(e.id))
 			continue
+		else:
+			_vitals_changed(p, e.id, hv, vit)
 		entries.append({"id": e.id, "pos": e.body.pos, "vel": e.body.vel, "flags": e.flags})
+	if not vit.is_empty():
+		for i in range(0, vit.size(), 255):
+			_send(p.id, Protocol.vitals(vit.slice(i, i + 255)))
 	if not entries.is_empty():
 		var msg := Protocol.snapshot(host.tick_count, entries)
 		_send(p.id, msg)
 		p.snapshot_bytes += msg.size()
+
+func _vitals_changed(p: PeerState, id: int, hv: Vector2i, out: Array) -> void:
+	if hv == HostEntity.NO_VITALS or p.vitals.get(id, HostEntity.NO_VITALS) == hv:
+		return
+	p.vitals[id] = hv
+	out.append({"id": id, "hp": hv.x, "max_hp": hv.y})
 
 func _send(peer: int, msg: PackedByteArray) -> void:
 	var type := int(msg[0])
@@ -376,6 +429,8 @@ class PeerState extends RefCounted:
 	var queue: Array[Vector2i] = []
 	## Entity ids the peer has been told about.
 	var visible := {}
+	## Hit points the peer last heard: entity id -> Vector2i(hp, max).
+	var vitals := {}
 	## Pending tile deltas, flat (x, y, layer, value).
 	var deltas := PackedInt32Array()
 	var bytes_out := 0
