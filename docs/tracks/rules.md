@@ -220,3 +220,8 @@ level would stay flat); re-run with measured rates when the spawn director exist
 - The respawn shrine search scans up to 193 x 193 cells once per respawn without a bed.
 - Not tested with the Combat or Items systems present (their calls are guarded and
   exercised only by `has_method` checks).
+
+## After the integration pass
+
+The seams this track left open were wired in [m2-integration.md](m2-integration.md); the public
+surface it added here is listed in architecture.md, "M2 contracts / Integration".

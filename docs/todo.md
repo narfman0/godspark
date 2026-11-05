@@ -7,7 +7,6 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
   the feel of predicted digs and of correction blending, and a second human client are all
   untested; so is anything off localhost (NAT, latency, packet loss). The hardening pass
   ([tracks/hardening.md](tracks/hardening.md)) closed every other M1 gap it listed.
-- No inventory: placing is unlimited.
 
 ## Net and host
 - Light for a cold chunk is now spread over frames, but one chunk is still one 8 ms flood
@@ -63,32 +62,25 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 - Invented names come from `data/sim/names.json`; `data/setting/names.json` is still empty.
   One should become the single source.
 
-## M2 integration (gaps between the M2 tracks; `docs/tracks/` has the detail)
+## M2 after the integration pass ([tracks/m2-integration.md](tracks/m2-integration.md))
 
-Wiring
-- Monster `look` (slug, people, rank, scale) is not sent to clients: remote monsters draw as
-  plain capsules. ENT_ADD or a monsters SYS message should carry it.
-- Longarm (reach) and Mole (dig speed) are tags nobody reads: `TileEdit`, the host dig and
-  the client's predicted dig still use the fixed reach and dig time.
-- Tempo sparks and affix tags (swing recovery, cast while moving, no slowdown when hit) are
-  not read by combat. Featherfall should reduce fall damage, not only fall speed.
-- Combat should call `rules.player_dropped(e, crit)` for every hit on a player at 0 HP and
-  `rules.heal(e, amount)` for healing at 0 HP; spell slots spent on the combatant must
-  reach `Character.slots_left` so they survive saves and show on the sheet.
-- When Rules rebuilds a combatant it must end with `items.outfit(e)`.
-- `Character.capture` caps saved HP at the max without gear: gear that raises Constitution
-  loses its extra hit points on save.
-- A downed player can still place tiles. Movement limits from conditions (speed 0, prone,
-  frightened) are enforced only by the player's own client.
-- Rules and combat move players by pushing CORRECT events themselves; add
-  `WorldHost.teleport(e, pos)`.
-
-Mirrors the interface is missing
-- Deeds are not sent to the client (the sheet and Knack cards count this session only).
-- Answered choices (feats, fighting style, skills) are not mirrored, so the character
-  sheet's AC, attacks and skills can differ from the host's.
-- Temporary hit points are not mirrored. Cast refusals from the host are silent.
-- Quick-spell assignments are saved locally (`user://ui.cfg`), not on the host.
+Open from the integration pass
+- XP curve shape: with the director's measured kill rates no single `XP_SCALE` meets the
+  pacing target (early 3-6 min and the 90s an hour). At 8: levels 2-5 take 4.7-7.5 min but
+  level 50 ~8 min, the 90s ~6 min, ~10 h in all. The deep bands need their own XP divisor
+  (or fewer, slower deep spawns); the deep kill rates rest on assumed fight lengths.
+- Caves: Medium walkers reach 49% of air-connected cave spots 40 tiles apart (35% before);
+  the rest are sealed pockets and long climbs. Cave hunters could dig (Tunnelling exists);
+  the worldgen ladders stand in for roots or vines that have no tile yet.
+- Monsters do not attack downed players (brains skip them); a hit on a downed player comes
+  only from areas, falls and other incidental damage, and counts as a failed death save.
+- Steady (cast_move) wins back a casting slowdown that is 1.0 in data/combat.json (none, as
+  played); turning a slowdown on is a feel decision. Surefoot shrinks pushes.
+- Scripted melee on uneven ground connects rarely (the ALL smoke bots: a few hits in 20-70
+  swings); check whether players feel the same on slopes (arc vs body height).
+- Temporary hit points are mirrored to the owner only (STATUS), not to other players.
+- The attack slot (hotbar 1) is a convention of Inventory.add; nothing stops a player putting
+  blocks there by hand.
 
 Content and rules gaps
 - 168 of 258 SRD magic items are text only; 63 more apply their main number all the time.
@@ -99,11 +91,9 @@ Content and rules gaps
 - Epic Boons and tool and language Knacks are recorded only. Nothing reads Bonds.
   Species and background are stored but not applied. The one SRD subclass per class is
   taken at class level 3 without asking.
-- The XP scale (15) rests on an assumed kills-per-minute table: re-fit with
-  `tools/xp_pacing.gd` once the spawn director's real rates are known.
+- Lantern, Owl and Dowser tags are for the view and have no reader yet; Silver Tongue,
+  Hearthfriend and Beastfriend wait for trade, reputation and monster bonds.
 
-Never played
-- Nothing in M2 has had a hand on the controls: attack feel, telegraph dodging at real
-  latency, hold-to-rest and revive timing, inventory drag, spell aiming, HUD at 1080p,
-  whether three goblins should be this deadly at level 1.
-
+Never played (beyond the first session)
+- Attack feel, telegraph dodging at real latency, hold-to-rest and revive timing, inventory
+  drag, spell aiming, HUD at 1080p, whether day packs by the spawn are now too easy.

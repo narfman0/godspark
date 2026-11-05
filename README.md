@@ -5,9 +5,33 @@ Underdark, biomes with their own ecology, settlements that trade, raid and starv
 long road to godhood. Working title.
 
 - Engine: Godot 4.7.1 (Forward+), GDScript.
-- Status: M1, "Dig together": a generated world, co-op digging and building, day and
-  night, a living world history. See [docs/plan.md](docs/plan.md) and
+- Status: M2, "Leveling and combat" (integrated, first time in players' hands): on top of
+  M1's generated world, co-op digging and building, day and night and world history, there
+  are now characters that level to 100, real-time d20 combat, monsters spawned around you,
+  loot, gear and sparks. See [docs/m2.md](docs/m2.md), [docs/plan.md](docs/plan.md) and
   [docs/architecture.md](docs/architecture.md).
+
+## What M2 added
+
+- **Characters**: fighter, rogue, wizard or cleric (`class=` when you first join); levels 1-100
+  where every fifth is an SRD class level and the levels between give spark slots, Vigor and
+  Knacks (picked from what you did: deeds). XP from kills, shared with everyone nearby.
+- **Combat**: real-time; every swing and spell is an SRD roll made on the host once the hit
+  physically connects. Monsters wind up visibly before they strike. Downed at 0 HP: death
+  saves every 4 s, a friend holds E to get you up (a healing spell or potion does too); dead,
+  you wake at your bed or the nearest shrine with nothing lost.
+- **Monsters**: SRD stat blocks with brains, ranks (minion, elite, champion, boss) and
+  affixes, spawned off-screen around you by a director: small, minion-heavy packs by day near
+  the settlement you start at, harder ones further out, at night and deeper down. Sim lairs
+  become real creatures when you arrive.
+- **Items**: an inventory and hotbar (what you dig is what you can place), a paper doll with
+  ten rings, SRD magic items (attunement items bond at a campfire, no limit), ordinary gear
+  with materials and affixes, loot on the ground.
+- **Sparks**: found on elites and champions; kindle them at a shrine for movement and utility
+  (run, jump, air jumps, dash, glide, dig speed and reach, light, swing speed ...). They never
+  change attack rolls, AC, DCs or damage dice.
+- **Rests**: hold E at a campfire for a short rest on Hit Point Dice; sleep in a bed for a long
+  rest (the night passes when every living player is in bed).
 
 ```bash
 git clone --recurse-submodules <this repo>
@@ -28,7 +52,10 @@ godot --headless -- dedicated port=24650 world=/path/to/world   # a server with 
 Options (after `--`): `gen=dev|small|medium|large` and `seed=N` pick a new world;
 `world=DIR` is where it is saved and loaded (default `user://worlds/dev`; a saved world there
 is loaded instead of generating one); `gen=test` is the small flat test world; `name=X`;
-`port=N`; `sleep=HOURS` advances the world clock at start; `timeout=S`; `shot=PATH.png
+`port=N`; `class=fighter|rogue|wizard|cleric` for a new character; `cheats` (debug keys and
+DEBUG messages); `spawns=0|1` turns the spawn director off or on; `pack=goblin-warrior` (or
+`SLUG:RANK`, `raiders:bandit`, comma-separated) spawns ranked packs near you; `xp=N`
+multiplies kill XP; `sleep=HOURS` advances the world clock at start; `timeout=S`; `shot=PATH.png
 shot_after=S` saves a screenshot and quits; `ui_tour=DIR` (with `offline cheats`, under
 `tools/soft_godot.sh`) drives the interface through its screens and saves a picture of each. `game/main.gd` lists them all. The world, the
 clock, the world history and the players are saved on exit.
@@ -89,13 +116,34 @@ dark without one.
 `tools/fetch_fonts.sh` (run by `tools/bootstrap.sh`) fetches the two OFL fonts the interface
 uses; without them it falls back to the engine font.
 
+## Known limits
+
+- Nobody had played M2 before this build: combat feel, wind-up dodging at real latency, the
+  revive hold, inventory dragging and spell aiming want a human's judgement.
+- About two thirds of SRD magic items and spells are text only or refused; no opportunity
+  attacks, two-weapon fighting, grapples, Action Surge or monster spellcasting yet.
+- XP pacing: early levels take about 5-8 minutes, but the deep bands level too fast (the
+  whole climb to 100 is about 10 hours, not the 40 planned). See
+  [docs/tracks/m2-integration.md](docs/tracks/m2-integration.md).
+- Caves: worldgen opens pinch points and hangs ladders in tall shafts, but about half of cave
+  spots 40 tiles apart are still out of a walker's reach without digging.
+- Species and background are labels only; Epic Boons, tool and language Knacks and Bonds are
+  recorded but not used yet.
+
 ## Tests
 
 ```bash
 godot --headless -s res://tools/run_tests.gd     # prints ALL PASS
 tools/net_smoke.sh                               # two bots and a dedicated host over ENet
 WORLD="gen=dev seed=3" HOST_WAIT=3 tools/net_smoke.sh   # the same on a generated world
+ALL=1 tools/net_smoke.sh   # the M2 story with the director on: fight, XP, rests, downed, revive
+tools/soft_godot.sh --resolution 1280x720 -- offline cheats class=fighter gen=dev seed=3 \
+    world=/tmp/x ui_tour=/tmp/shots     # screenshots of every screen and an M2 slice
 ```
+
+Balance tools (headless): `tools/arena.gd` (a build against a ranked pack), `tools/spawn_sim.gd`
+(what the director spawns, kill rates), `tools/loot_sim.gd`, `tools/xp_pacing.gd`,
+`tools/cave_nav.gd`.
 
 Rules come from [godot-srd-addon](https://github.com/narfman0/godot-srd-addon), vendored as
 a submodule and symlinked at `addons/srd`.

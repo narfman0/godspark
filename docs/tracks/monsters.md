@@ -289,3 +289,8 @@ passing (616 before). `tools/net_smoke.sh`: PASS; `FIGHT=1 SPAWN=goblin-warrior:
   what combat supports.
 - Minions with resistance to the damage type take 0 from a 1-damage hit and survive it.
 - `MonsterBrain` uses combat's `_targetable` (a private helper).
+
+## After the integration pass
+
+The seams this track left open were wired in [m2-integration.md](m2-integration.md); the public
+surface it added here is listed in architecture.md, "M2 contracts / Integration".

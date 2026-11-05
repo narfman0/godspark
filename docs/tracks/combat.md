@@ -346,3 +346,8 @@ All additive; nothing in `world_host.gd`, `protocol.gd` or the endpoints changed
   builds every attack action (with its riders) instead of only the first.
 - A parsed `multiattack` list on the monster row.
 - Effects keyed by a combatant id rather than its name.
+
+## After the integration pass
+
+The seams this track left open were wired in [m2-integration.md](m2-integration.md); the public
+surface it added here is listed in architecture.md, "M2 contracts / Integration".

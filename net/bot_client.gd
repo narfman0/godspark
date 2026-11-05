@@ -37,6 +37,7 @@ var fight_soft := false
 var _resume := ""
 var _resumes := 0
 var _home := Vector2.ZERO
+var _join_pos := Vector2.INF
 var _kills := 0
 var _clear_t := 0.0
 var _fight_hooked := false
@@ -152,6 +153,8 @@ func _process(delta: float) -> void:
 				_say("%s area_ms=%d welcome_ms=%d chunks=%d pos=%.2f,%.2f objects=%d clock=%s chronicle=%d" % [phase,
 						roundi(ep.area_at * 1000.0), roundi(ep.welcome_at * 1000.0), c.loaded.size(), c.body.pos.x,
 						c.body.pos.y, objs, WorldClock.describe(c.hours()), c.chronicle.size()])
+				if phase == "join":
+					_join_pos = c.body.pos
 				if phase == "join" and fight:
 					_go("fight")
 					return
@@ -257,6 +260,12 @@ func _fight_step(delta: float) -> void:
 			_say("fight over, back to %s" % _resume)
 			_recover(_rules())
 			_rules_asked = false
+			_go("r_back")
+		elif rules_mode and fight_soft:
+			# the fight scattered the bots: both go back to where they joined to camp together
+			_recover(_rules())
+			_home = _join_pos
+			_resume = "start"
 			_go("r_back")
 		elif rules_mode:
 			_rules_start()
@@ -427,9 +436,12 @@ func _rules_step() -> void:
 			if absf(dx) <= 0.4 and c.body.on_floor:
 				var back := _resume
 				_resume = ""
-				_go(back)
-			elif _t > 15.0:
-				_fail("rules: could not walk back to %s" % _home)
+				if back == "start":
+					_rules_start()
+				else:
+					_go(back)
+			elif _t > 30.0:
+				_fail("rules: could not walk back to %s (at %s)" % [_home, c.body.pos])
 		"r_level":
 			if rc.level() == rules_level and rc.pending_keys().is_empty():
 				_say("rules level=%d class_level=%d hp=%d/%d knacks=%d" % [rc.level(), rc.sheet["class_level"],

@@ -157,3 +157,8 @@ passing. It prints `TOUR shot <path>` for each picture and a frame-cost line for
   flash.
 - Quick-slot assignments live in `user://ui.cfg` per character name, not on the host.
 - Not looked at at 1920x1080 (Xvfb here is 1280x720); the root scales by 1.5 there.
+
+## After the integration pass
+
+The seams this track left open were wired in [m2-integration.md](m2-integration.md); the public
+surface it added here is listed in architecture.md, "M2 contracts / Integration".

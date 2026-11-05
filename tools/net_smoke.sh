@@ -160,7 +160,12 @@ elif [ "$FIGHT" != 0 ] && ! grep -q "^BOT bot1 fight killed=[1-9].* done" "$LOGS
 	fail+=("bot1 did not kill the spawned monsters: $(grep -h '^BOT bot1 fight' "$LOGS/bot1.log")")
 fi
 if [ "$RULES" = 1 ]; then
-	for want in "bot1 rules short_rest" "bot2 rules short_rest" "bot1 rules waiting for bot2" "bot1 rules slept" \
+	WAITER="bot1 rules waiting for bot2"
+	if [ "$ALL" = 1 ]; then   # with fights in between, either bot may get to bed first
+		grep -qh "^BOT bot[12] rules waiting for bot[12]" "$LOGS/bot1.log" "$LOGS/bot2.log" || fail+=("all: no bot waited in bed for the other")
+		WAITER="bot1 rules slept"
+	fi
+	for want in "bot1 rules short_rest" "bot2 rules short_rest" "$WAITER" "bot1 rules slept" \
 			"bot2 rules slept" "bot1 rules downed" "bot2 rules revived bot1" "bot1 rules revived" \
 			"bot1 rules respawned at bed" "bot1 rules rejoin ok level=24" "bot2 rules rejoin ok level=24"; do
 		if ! grep -qh "^BOT $want" "$LOGS/bot1.log" "$LOGS/bot2.log"; then

@@ -386,3 +386,8 @@ kit has 30), `Presenter` or `view/`.
   nothing calls it yet; `rank_of` reads `e.meta.rank` / `e.look.rank` until monsters define ranks.
 - Coin in a record is clamped to 65535 on the wire (a coin pile bigger than that would show
   short on the client; nothing makes one).
+
+## After the integration pass
+
+The seams this track left open were wired in [m2-integration.md](m2-integration.md); the public
+surface it added here is listed in architecture.md, "M2 contracts / Integration".

@@ -488,9 +488,8 @@ Presenter.combat_event(ev)     # optional; LogPresenter prints it, ViewPresenter
   from 3x3 raycasts, within 5 ft box to box, unseen from a host LightEngine plus player
   torches and Darkvision, ranged in melee, long range).
 - Monster combatants are renamed `"<name> #<id>"` (the addon keys effects by name).
-- A player's position is moved by the host only for the fallback respawn, through a
-  CORRECT event with a new epoch (no WorldHost change); pushes on players are a PUSH event
-  the owner applies to its own body.
+- A player's position is moved by the host only through `WorldHost.teleport` (the fallback
+  respawn); pushes on players are a PUSH event the owner applies to its own body.
 
 ### Monsters (`core/monsters/`)
 
@@ -524,6 +523,42 @@ combat.set_pace(e, mult)
   sent when it enters a player's interest), GONE 2.
 - Lairs: materialized from `host.sim.lairs` near players, reconciled each second, kills written
   back with `WorldSim.lair_killed`, survivors folded back; nothing extra saved.
+
+### Integration (as built: [tracks/m2-integration.md](tracks/m2-integration.md))
+
+```gdscript
+# protocol 7: ENT_ADD gains str slug, str people, u8 rank (Protocol.RANKS), u8 scale*20
+Protocol.ent_add(..., hp, max_hp, look := {}); Protocol.compact_look(look)
+cw.add_remote(..., look := {}); RemoteEntity.look       # actor_added carries slug/people/rank/scale
+ClientSystem.decorate_look(id, look)                    # fill gaps before actor_added (monsters: INFO)
+# who may act, how players may move
+HostSystem.allow_edit(host, e) -> bool                  # rules: not while downed; refusal Reason.UNABLE
+ClientSystem.allow_edit() -> bool                       # the same gate for prediction
+HostSystem.move_limits(host, e) -> {mult?, no_jump?, fear?}   # combat: conditions, downed
+WorldHost.move_limits(e); WorldHost.can_edit(e); WorldHost.teleport(e, pos)   # CORRECT + epoch for players
+WorldHost.HOLD_SLIP; HostEntity.hold_at                 # speed 0: anchored, may only fall
+# reach and dig speed (Longarm, Mole, gear): host and client compute the same
+HostEntity.edit_reach / dig_power; cw.edit_reach / dig_power; Items.edit_numbers(tags) -> Vector2
+TileEdit.in_reach(body, x, y, reach := REACH); can_dig(..., reach); can_place(..., bodies, reach)
+DigProgress.update(at, id, dt, tool_power)
+# rules mirrors (RulesCodec): DEEDS 8, SUMMARY 9 (SheetSummary.of JSON), PREFS 10, SET_PREFS 72
+rc.deeds / rc.summary / rc.prefs; signals deeds_changed, summary_changed, prefs_arrived; rc.set_prefs(d)
+rules.is_resting(e); rules.xp_rate (host option xp=N); Character.prefs; Character.clean_prefs(d)
+# combat: STATUS gains u16 temp_hp; REFUSED 19 (u8 intent, str reason) -> cc.refused(intent, reason)
+# items: Inventory.ATTACK_SLOT (0): never filled by add/first_free; new characters start on it
+# monsters: SpawnDirector.spawn_pack(pack, spot, band); band_def_at(h, band, pos) (ramp near
+#   settlements); killed(rec, band, night) -> a lull; spawning.json ramp, lull_s, nadir promote
+```
+
+- Combat calls `rules.player_dropped(e, crit)` for every hit that lands on a player at 0 HP,
+  and `rules.heal` when a spell raised a downed player. Items' potions heal through
+  `rules.heal`. Spells on allies may target a downed player.
+- `rules.refresh` ends with `items.outfit(e, c)` (weapon, armour, shield, masteries, mods).
+- `Character.capture` keeps HP above the gear-less max (gear CON) and copies slots and uses
+  left; the rules tick captures every SYNC_EVERY ticks, so a save always has them.
+- Downed and dead players cannot dig, place, use, drop, bond, kindle or pick up.
+- Worldgen stage `cave_steps` (after `caves`): widens pinch points in the caves band and
+  hangs ladders up tall cave walls.
 
 ### Wave 1: who owns what, and how systems call each other
 
@@ -575,9 +610,8 @@ the player and need no other system.
 
 Rules as built: `RulesSystem` / `RulesClient` (`core/rules/`), wire format in
 `rules_codec.gd`, the client surface for the interface in [tracks/rules.md](tracks/rules.md).
-Downed and respawned players are held and moved by the host with a CORRECT and a bumped
-epoch (as `submit_state` does). Short rest: campfire within 3 tiles, nothing hostile within
-12, 5 s. Long rest: bed within 2 tiles, once per 24 game hours; the night passes (to 06:00)
+Downed and respawned players are held and moved by the host through `WorldHost.teleport`. Short rest: campfire within 3 tiles, nothing hostile within
+12, 5 s. Long rest: bed within 2 tiles, no daily limit (if it is safe, you can sleep); the night passes (to 06:00)
 when every living player is in bed. Downed: a death save every 4 s; revive is a 2 s hold
 within 3 tiles; respawn at the bed, else the nearest shrine within 96 tiles, else the spawn. Presentation is wave 2: in wave 1 a track may add one
 optional no-op method to `Presenter` (the log presenter prints it) and nothing else in
