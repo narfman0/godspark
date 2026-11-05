@@ -72,6 +72,12 @@ func senses_tiles(e: HostEntity) -> Dictionary:
 			var dv: Dictionary = CombatTempo.section("darkvision_species")
 			out["darkvision"] = K.ft(float(dv.get(e.character.species, 0)))
 		return out
+	# An NPC from the addon's make_npc carries its species' senses on the combatant.
+	var cs: Variant = e.combatant.get("senses") if e.combatant != null else null
+	if cs is Dictionary and not (cs as Dictionary).is_empty():
+		for k: String in out:
+			out[k] = K.ft(float(cs.get(k, 0)))
+		return out
 	var slug := String(e.look.get("slug", ""))
 	if slug != "":
 		var senses: Variant = host.srd.pack.get_row("monster", slug).get("data", {}).get("senses", {})

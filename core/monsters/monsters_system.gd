@@ -75,6 +75,10 @@ func spawn(slug: String, pos: Vector2, opts := {}) -> HostEntity:
 		return null
 	var size := String(opts.get("size", WorldHost.monster_size(d)))
 	var speeds := WorldHost.monster_speeds(d)
+	if opts.has("combatant"):
+		# an NPC from make_npc: the species' size and walking speed
+		size = String(opts.get("size", c.size))
+		speeds["walk"] = c.stats.speed
 	var stats := MoveStats.from_srd(speeds, size)
 	var rank := String(opts.get("rank", "standard"))
 	var affixes: Array = (opts.get("affixes", []) as Array).duplicate()

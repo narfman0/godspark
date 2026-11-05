@@ -10,6 +10,9 @@
 #   KEEP=1 tools/net_smoke.sh     keep the logs
 #   WORLD="gen=dev seed=3" tools/net_smoke.sh   on a generated world (default gen=test)
 #   SPAWN=goblin-warrior:1 SEE="Goblin Warrior monster 10/10" tools/net_smoke.sh   (defaults)
+#   SPAWNS=1 WORLD="gen=dev seed=3" SEE= tools/net_smoke.sh   the monsters' spawn director on a
+#                                 generated world (bots may fight or fall; the run must finish
+#                                 with matching state); the host prints "HOSTSTATS monsters ..."
 #   FIGHT=1 SPAWN=goblin-warrior:2 tools/net_smoke.sh   bot1 first attacks the spawned
 #                                 monsters (on open ground, SPAWN_DX=-44) until they die (combat
 #                                 track); it must report "BOT bot1 fight killed=N ... done"
@@ -80,7 +83,11 @@ FIGHT=${FIGHT:-0}
 # FIGHT: the test world's wooden ledges start 24 tiles left of the spawn; put the pack on open ground
 SPAWN_DX=${SPAWN_DX:-$([ "$FIGHT" != 0 ] && echo -44 || echo -24)}
 # shellcheck disable=SC2086
-run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world" spawn="$SPAWN" spawn_dx="$SPAWN_DX" $HOST_EXTRA
+SPAWNS_OPT=()
+if [ -n "${SPAWNS:-}" ]; then
+	SPAWNS_OPT=(spawns="$SPAWNS")
+fi
+run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world" spawn="$SPAWN" spawn_dx="$SPAWN_DX" "${SPAWNS_OPT[@]}" $HOST_EXTRA
 sleep "${HOST_WAIT:-1.5}"
 # shellcheck disable=SC2086
 run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1 fight="$FIGHT" $BOT1_EXTRA
@@ -137,6 +144,9 @@ if [ "$RULES" = 1 ]; then
 fi
 grep -h "^spawned" "$LOGS/host.log" | sed 's/^/  host /'
 grep -h "^SRD content\|^\[host\] SRD content" "$LOGS/host.log" | sed 's/^/  /'
+if [ "${SPAWNS:-0}" != 0 ] && ! grep -q "^HOSTSTATS monsters: director true, spawned [1-9]" "$LOGS/host.log"; then
+	fail+=("the spawn director spawned nothing: $(grep -h '^HOSTSTATS monsters' "$LOGS/host.log")")
+fi
 grep -h "^HOSTSTATS" -A 14 "$LOGS/host.log" | grep -v "^saved" | sed 's/^/  /'
 
 sleep 0.2
