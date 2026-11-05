@@ -126,8 +126,8 @@ standing: interrupted by any HP loss, moving 0.6 tiles, the campfire going, a mo
 near or combat. Then spends `min(left, ceil(missing / (die/2 + 0.5 + CON)))` Hit Point Dice
 through `SRDRest.short_rest_combatant` (short-rest features too).
 
-**Long rest.** Request; a bed tile within 2 tiles, not down, nothing hostile near, and 24
-game hours since the start of the last one (SRD). The player stays in bed until they move 2
+**Long rest.** Request; a bed tile within 2 tiles, not down, and nothing hostile near. There is no
+once-a-day limit (the user dropped the SRD's 24 hours; `LONG_REST_EVERY_HOURS` is 0). The player stays in bed until they move 2
 tiles, the bed goes, or they are hurt. While some living (not dead) player is up, those in
 bed get BED_WAIT with the names still up. When all are in bed (or one alone): the clock
 jumps to the next 06:00 through `WorldHost.sleep` (the sim catches up under its per-tick
