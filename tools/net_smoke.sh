@@ -13,10 +13,24 @@
 #   FIGHT=1 SPAWN=goblin-warrior:2 tools/net_smoke.sh   bot1 first attacks the spawned
 #                                 monsters (on open ground, SPAWN_DX=-44) until they die (combat
 #                                 track); it must report "BOT bot1 fight killed=N ... done"
+#   RULES=1 tools/net_smoke.sh    the rules variant: host with cheats; both bots level to 24,
+#                                 short-rest at a campfire and sleep in beds (the night passes
+#                                 when both are in), bot1 is downed and revived by bot2, then
+#                                 dies and respawns at its bed; the level survives the rejoin
 set -u
 cd "$(dirname "$0")/.."
 
 GODOT=${GODOT:-godot}
+RULES=${RULES:-0}
+if [ "$RULES" = 1 ]; then
+	LIMIT=${LIMIT:-90}
+	HOST_EXTRA="cheats"
+	BOT1_EXTRA="rules=1 rules_role=down"
+	BOT2_EXTRA="rules=1 rules_role=revive"
+fi
+HOST_EXTRA=${HOST_EXTRA:-}
+BOT1_EXTRA=${BOT1_EXTRA:-}
+BOT2_EXTRA=${BOT2_EXTRA:-}
 LIMIT=${LIMIT:-60}            # seconds each process may run
 LOGS=$(mktemp -d "${TMPDIR:-/tmp}/net_smoke.XXXXXX")
 PIDS=()
@@ -65,10 +79,13 @@ SEE=${SEE:-Goblin Warrior monster 10/10}
 FIGHT=${FIGHT:-0}
 # FIGHT: the test world's wooden ledges start 24 tiles left of the spawn; put the pack on open ground
 SPAWN_DX=${SPAWN_DX:-$([ "$FIGHT" != 0 ] && echo -44 || echo -24)}
-run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world" spawn="$SPAWN" spawn_dx="$SPAWN_DX"
+# shellcheck disable=SC2086
+run host dedicated $WORLD port="$PORT" expect=2 world="$LOGS/world" spawn="$SPAWN" spawn_dx="$SPAWN_DX" $HOST_EXTRA
 sleep "${HOST_WAIT:-1.5}"
-run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1 fight="$FIGHT"
-run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=3 places=4 dir=-1 delay=2 class=wizard
+# shellcheck disable=SC2086
+run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1 fight="$FIGHT" $BOT1_EXTRA
+# shellcheck disable=SC2086
+run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=3 places=4 dir=-1 delay=2 class=wizard $BOT2_EXTRA
 
 fail=()
 names=(host bot1 bot2)
@@ -108,6 +125,15 @@ if [ -n "$SEE" ] && ! grep -q "^BOT bot1 vitals .*$SEE" "$LOGS/bot1.log"; then
 fi
 if [ "$FIGHT" != 0 ] && ! grep -q "^BOT bot1 fight killed=[1-9].* done" "$LOGS/bot1.log"; then
 	fail+=("bot1 did not kill the spawned monsters: $(grep -h '^BOT bot1 fight' "$LOGS/bot1.log")")
+fi
+if [ "$RULES" = 1 ]; then
+	for want in "bot1 rules short_rest" "bot2 rules short_rest" "bot1 rules waiting for bot2" "bot1 rules slept" \
+			"bot2 rules slept" "bot1 rules downed" "bot2 rules revived bot1" "bot1 rules revived" \
+			"bot1 rules respawned at bed" "bot1 rules rejoin ok level=24" "bot2 rules rejoin ok level=24"; do
+		if ! grep -qh "^BOT $want" "$LOGS/bot1.log" "$LOGS/bot2.log"; then
+			fail+=("rules: no \"BOT $want\" line")
+		fi
+	done
 fi
 grep -h "^spawned" "$LOGS/host.log" | sed 's/^/  host /'
 grep -h "^SRD content\|^\[host\] SRD content" "$LOGS/host.log" | sed 's/^/  /'

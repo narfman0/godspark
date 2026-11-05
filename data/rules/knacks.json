@@ -1,0 +1,881 @@
+{
+	"_doc": "Knacks (docs/m2.md, 'The level track'): small permanent perks offered three at a time at every KNACK level (level % 5 == 4), weighted by the deeds of the band just played. kind: skill | tool | language | bond. key: the SRD skill/tool/language slug, or the bond key ('people:<culture in data/sim/cultures.json>' or 'beast:<kind in beast_kinds>'). deeds: counter -> weight; a counter is a deed key (exact, like 'dig:stone', or an aggregate, like 'dig'). A knack's weight is base + sum(weight * min(cap, delta / unit)), where delta is how much the counter grew since the last offer and unit is units[counter prefix before ':']. Skills, tools and languages are SRD 5.2.1 names; Bonds are original.",
+	"base": 1.0,
+	"cap": 4.0,
+	"units": {
+		"dig": 40,
+		"place": 30,
+		"run": 600,
+		"climb": 60,
+		"fall": 60,
+		"swim": 60,
+		"underground": 240,
+		"sleep": 1,
+		"rest": 2,
+		"kill": 8,
+		"beast": 4,
+		"trade": 3,
+		"craft": 4,
+		"kindle": 1,
+		"revive": 1,
+		"downed": 2
+	},
+	"beast_kinds": {
+		"wolf": {
+			"name": "Wolves and hounds",
+			"slugs": [
+				"wolf",
+				"dire-wolf",
+				"jackal",
+				"hyena",
+				"giant-hyena",
+				"mastiff"
+			]
+		},
+		"bear": {
+			"name": "Bears",
+			"slugs": [
+				"black-bear",
+				"brown-bear",
+				"polar-bear"
+			]
+		},
+		"cat": {
+			"name": "Great cats",
+			"slugs": [
+				"cat",
+				"lion",
+				"panther",
+				"tiger",
+				"saber-toothed-tiger"
+			]
+		},
+		"bat": {
+			"name": "Bats",
+			"slugs": [
+				"bat",
+				"giant-bat",
+				"swarm-of-bats"
+			]
+		},
+		"vermin": {
+			"name": "Rats and weasels",
+			"slugs": [
+				"rat",
+				"giant-rat",
+				"swarm-of-rats",
+				"weasel",
+				"giant-weasel",
+				"badger",
+				"giant-badger"
+			]
+		},
+		"crawler": {
+			"name": "Spiders and crawlers",
+			"slugs": [
+				"spider",
+				"giant-spider",
+				"giant-wolf-spider",
+				"giant-centipede",
+				"scorpion",
+				"giant-scorpion",
+				"giant-fire-beetle",
+				"giant-wasp",
+				"swarm-of-insects"
+			]
+		},
+		"serpent": {
+			"name": "Serpents and lizards",
+			"slugs": [
+				"constrictor-snake",
+				"giant-constrictor-snake",
+				"venomous-snake",
+				"giant-venomous-snake",
+				"swarm-of-venomous-snakes",
+				"lizard",
+				"giant-lizard",
+				"crocodile",
+				"giant-crocodile",
+				"frog",
+				"giant-frog",
+				"giant-toad"
+			]
+		},
+		"bird": {
+			"name": "Birds",
+			"slugs": [
+				"blood-hawk",
+				"eagle",
+				"hawk",
+				"owl",
+				"raven",
+				"vulture",
+				"swarm-of-ravens",
+				"pteranodon"
+			]
+		},
+		"hoof": {
+			"name": "Boars and hooved beasts",
+			"slugs": [
+				"boar",
+				"giant-boar",
+				"deer",
+				"elk",
+				"goat",
+				"giant-goat",
+				"camel",
+				"draft-horse",
+				"riding-horse",
+				"warhorse",
+				"pony",
+				"mule",
+				"rhinoceros",
+				"hippopotamus"
+			]
+		}
+	},
+	"knacks": [
+		{
+			"id": "skill-acrobatics",
+			"kind": "skill",
+			"key": "acrobatics",
+			"name": "Acrobatics",
+			"text": "Proficiency in the Acrobatics skill.",
+			"deeds": {
+				"fall": 2,
+				"run": 0.5
+			}
+		},
+		{
+			"id": "skill-animal-handling",
+			"kind": "skill",
+			"key": "animal-handling",
+			"name": "Animal Handling",
+			"text": "Proficiency in the Animal Handling skill.",
+			"deeds": {
+				"kill:beast": 1.5,
+				"sleep": 0.5
+			}
+		},
+		{
+			"id": "skill-arcana",
+			"kind": "skill",
+			"key": "arcana",
+			"name": "Arcana",
+			"text": "Proficiency in the Arcana skill.",
+			"deeds": {
+				"kindle": 2,
+				"kill:aberration": 1,
+				"kill:construct": 1,
+				"kill:elemental": 1
+			}
+		},
+		{
+			"id": "skill-athletics",
+			"kind": "skill",
+			"key": "athletics",
+			"name": "Athletics",
+			"text": "Proficiency in the Athletics skill.",
+			"deeds": {
+				"climb": 2,
+				"swim": 1,
+				"dig": 0.5
+			}
+		},
+		{
+			"id": "skill-deception",
+			"kind": "skill",
+			"key": "deception",
+			"name": "Deception",
+			"text": "Proficiency in the Deception skill.",
+			"deeds": {
+				"trade": 1,
+				"kill:humanoid": 0.5
+			}
+		},
+		{
+			"id": "skill-history",
+			"kind": "skill",
+			"key": "history",
+			"name": "History",
+			"text": "Proficiency in the History skill.",
+			"deeds": {
+				"dig:cobblestone": 2,
+				"trade": 0.5,
+				"underground:deeps": 0.5
+			}
+		},
+		{
+			"id": "skill-insight",
+			"kind": "skill",
+			"key": "insight",
+			"name": "Insight",
+			"text": "Proficiency in the Insight skill.",
+			"deeds": {
+				"trade": 1.5,
+				"revive": 0.5
+			}
+		},
+		{
+			"id": "skill-intimidation",
+			"kind": "skill",
+			"key": "intimidation",
+			"name": "Intimidation",
+			"text": "Proficiency in the Intimidation skill.",
+			"deeds": {
+				"kill:humanoid": 1,
+				"kill:giant": 1,
+				"kill": 0.5
+			}
+		},
+		{
+			"id": "skill-investigation",
+			"kind": "skill",
+			"key": "investigation",
+			"name": "Investigation",
+			"text": "Proficiency in the Investigation skill.",
+			"deeds": {
+				"dig:copper_ore": 1,
+				"dig:iron_ore": 1,
+				"dig:silver_ore": 1,
+				"underground": 0.5
+			}
+		},
+		{
+			"id": "skill-medicine",
+			"kind": "skill",
+			"key": "medicine",
+			"name": "Medicine",
+			"text": "Proficiency in the Medicine skill.",
+			"deeds": {
+				"revive": 3,
+				"rest": 1
+			}
+		},
+		{
+			"id": "skill-nature",
+			"kind": "skill",
+			"key": "nature",
+			"name": "Nature",
+			"text": "Proficiency in the Nature skill.",
+			"deeds": {
+				"dig:dirt": 1,
+				"dig:grass": 1,
+				"kill:plant": 1,
+				"kill:beast": 0.5
+			}
+		},
+		{
+			"id": "skill-perception",
+			"kind": "skill",
+			"key": "perception",
+			"name": "Perception",
+			"text": "Proficiency in the Perception skill.",
+			"deeds": {
+				"run": 1,
+				"underground": 0.5
+			}
+		},
+		{
+			"id": "skill-performance",
+			"kind": "skill",
+			"key": "performance",
+			"name": "Performance",
+			"text": "Proficiency in the Performance skill.",
+			"deeds": {
+				"trade": 1,
+				"sleep": 0.5
+			}
+		},
+		{
+			"id": "skill-persuasion",
+			"kind": "skill",
+			"key": "persuasion",
+			"name": "Persuasion",
+			"text": "Proficiency in the Persuasion skill.",
+			"deeds": {
+				"trade": 2
+			}
+		},
+		{
+			"id": "skill-religion",
+			"kind": "skill",
+			"key": "religion",
+			"name": "Religion",
+			"text": "Proficiency in the Religion skill.",
+			"deeds": {
+				"kill:undead": 1.5,
+				"kill:fiend": 1,
+				"kill:celestial": 1,
+				"kindle": 1
+			}
+		},
+		{
+			"id": "skill-sleight-of-hand",
+			"kind": "skill",
+			"key": "sleight-of-hand",
+			"name": "Sleight of Hand",
+			"text": "Proficiency in the Sleight of Hand skill.",
+			"deeds": {
+				"place": 1,
+				"craft": 1
+			}
+		},
+		{
+			"id": "skill-stealth",
+			"kind": "skill",
+			"key": "stealth",
+			"name": "Stealth",
+			"text": "Proficiency in the Stealth skill.",
+			"deeds": {
+				"underground:caves": 1.5,
+				"underground": 0.5
+			}
+		},
+		{
+			"id": "skill-survival",
+			"kind": "skill",
+			"key": "survival",
+			"name": "Survival",
+			"text": "Proficiency in the Survival skill.",
+			"deeds": {
+				"run": 1,
+				"sleep": 1,
+				"kill:beast": 0.5,
+				"fall": 0.5
+			}
+		},
+		{
+			"id": "tool-smiths-tools",
+			"kind": "tool",
+			"key": "smiths-tools",
+			"name": "Smith's Tools",
+			"text": "Proficiency with Smith's Tools.",
+			"deeds": {
+				"craft": 2,
+				"dig:iron_ore": 1,
+				"dig:copper_ore": 1
+			}
+		},
+		{
+			"id": "tool-masons-tools",
+			"kind": "tool",
+			"key": "masons-tools",
+			"name": "Mason's Tools",
+			"text": "Proficiency with Mason's Tools.",
+			"deeds": {
+				"place:stone": 1.5,
+				"place:cobblestone": 1.5,
+				"dig:stone": 1
+			}
+		},
+		{
+			"id": "tool-carpenters-tools",
+			"kind": "tool",
+			"key": "carpenters-tools",
+			"name": "Carpenter's Tools",
+			"text": "Proficiency with Carpenter's Tools.",
+			"deeds": {
+				"place:wood": 2,
+				"place:platform": 1,
+				"place:ladder": 1
+			}
+		},
+		{
+			"id": "tool-cartographers-tools",
+			"kind": "tool",
+			"key": "cartographers-tools",
+			"name": "Cartographer's Tools",
+			"text": "Proficiency with Cartographer's Tools.",
+			"deeds": {
+				"run": 1.5,
+				"underground": 1
+			}
+		},
+		{
+			"id": "tool-cooks-utensils",
+			"kind": "tool",
+			"key": "cooks-utensils",
+			"name": "Cook's Utensils",
+			"text": "Proficiency with Cook's Utensils.",
+			"deeds": {
+				"rest": 1.5,
+				"sleep": 1,
+				"kill:beast": 0.5
+			}
+		},
+		{
+			"id": "tool-herbalism-kit",
+			"kind": "tool",
+			"key": "herbalism-kit",
+			"name": "Herbalism Kit",
+			"text": "Proficiency with Herbalism Kit.",
+			"deeds": {
+				"dig:grass": 1,
+				"kill:plant": 2,
+				"rest": 0.5
+			}
+		},
+		{
+			"id": "tool-jewelers-tools",
+			"kind": "tool",
+			"key": "jewelers-tools",
+			"name": "Jeweler's Tools",
+			"text": "Proficiency with Jeweler's Tools.",
+			"deeds": {
+				"dig:silver_ore": 2,
+				"craft": 0.5
+			}
+		},
+		{
+			"id": "tool-leatherworkers-tools",
+			"kind": "tool",
+			"key": "leatherworkers-tools",
+			"name": "Leatherworker's Tools",
+			"text": "Proficiency with Leatherworker's Tools.",
+			"deeds": {
+				"kill:beast": 1.5,
+				"craft": 1
+			}
+		},
+		{
+			"id": "tool-thieves-tools",
+			"kind": "tool",
+			"key": "thieves-tools",
+			"name": "Thieves' Tools",
+			"text": "Proficiency with Thieves' Tools.",
+			"deeds": {
+				"underground:deeps": 1.5,
+				"dig:cobblestone": 1
+			}
+		},
+		{
+			"id": "tool-navigators-tools",
+			"kind": "tool",
+			"key": "navigators-tools",
+			"name": "Navigator's Tools",
+			"text": "Proficiency with Navigator's Tools.",
+			"deeds": {
+				"swim": 2,
+				"run": 0.5
+			}
+		},
+		{
+			"id": "tool-tinkers-tools",
+			"kind": "tool",
+			"key": "tinkers-tools",
+			"name": "Tinker's Tools",
+			"text": "Proficiency with Tinker's Tools.",
+			"deeds": {
+				"craft": 1.5,
+				"kindle": 1
+			}
+		},
+		{
+			"id": "lang-dwarvish",
+			"kind": "language",
+			"key": "dwarvish",
+			"name": "Dwarvish",
+			"text": "You speak, read and write Dwarvish.",
+			"deeds": {
+				"trade:dwarf": 3,
+				"underground:caves": 0.5,
+				"dig:stone": 0.3
+			}
+		},
+		{
+			"id": "lang-elvish",
+			"kind": "language",
+			"key": "elvish",
+			"name": "Elvish",
+			"text": "You speak, read and write Elvish.",
+			"deeds": {
+				"trade:elf": 3,
+				"trade:drow": 1
+			}
+		},
+		{
+			"id": "lang-giant",
+			"kind": "language",
+			"key": "giant",
+			"name": "Giant",
+			"text": "You speak, read and write Giant.",
+			"deeds": {
+				"kill:giant": 2,
+				"trade:goliath": 1
+			}
+		},
+		{
+			"id": "lang-gnomish",
+			"kind": "language",
+			"key": "gnomish",
+			"name": "Gnomish",
+			"text": "You speak, read and write Gnomish.",
+			"deeds": {
+				"trade:gnome": 3
+			}
+		},
+		{
+			"id": "lang-goblin",
+			"kind": "language",
+			"key": "goblin",
+			"name": "Goblin",
+			"text": "You speak, read and write Goblin.",
+			"deeds": {
+				"trade:goblinoid": 3,
+				"kill:humanoid": 0.5
+			}
+		},
+		{
+			"id": "lang-halfling",
+			"kind": "language",
+			"key": "halfling",
+			"name": "Halfling",
+			"text": "You speak, read and write Halfling.",
+			"deeds": {
+				"trade:halfling": 3
+			}
+		},
+		{
+			"id": "lang-orc",
+			"kind": "language",
+			"key": "orc",
+			"name": "Orc",
+			"text": "You speak, read and write Orc.",
+			"deeds": {
+				"trade:orc": 3
+			}
+		},
+		{
+			"id": "lang-draconic",
+			"kind": "language",
+			"key": "draconic",
+			"name": "Draconic",
+			"text": "You speak, read and write Draconic.",
+			"deeds": {
+				"kill:dragon": 2,
+				"trade:dragonborn": 2,
+				"trade:kobold": 2
+			}
+		},
+		{
+			"id": "lang-infernal",
+			"kind": "language",
+			"key": "infernal",
+			"name": "Infernal",
+			"text": "You speak, read and write Infernal.",
+			"deeds": {
+				"kill:fiend": 1.5,
+				"trade:tiefling": 2
+			}
+		},
+		{
+			"id": "lang-undercommon",
+			"kind": "language",
+			"key": "undercommon",
+			"name": "Undercommon",
+			"text": "You speak, read and write Undercommon.",
+			"deeds": {
+				"underground:deeps": 1.5,
+				"trade:drow": 2
+			}
+		},
+		{
+			"id": "lang-abyssal",
+			"kind": "language",
+			"key": "abyssal",
+			"name": "Abyssal",
+			"text": "You speak, read and write Abyssal.",
+			"deeds": {
+				"kill:fiend": 1.5
+			}
+		},
+		{
+			"id": "lang-celestial",
+			"kind": "language",
+			"key": "celestial",
+			"name": "Celestial",
+			"text": "You speak, read and write Celestial.",
+			"deeds": {
+				"kill:celestial": 2,
+				"kindle": 0.5
+			}
+		},
+		{
+			"id": "lang-deep-speech",
+			"kind": "language",
+			"key": "deep-speech",
+			"name": "Deep Speech",
+			"text": "You speak, read and write Deep Speech.",
+			"deeds": {
+				"kill:aberration": 2,
+				"underground:nadir": 1.5
+			}
+		},
+		{
+			"id": "lang-primordial",
+			"kind": "language",
+			"key": "primordial",
+			"name": "Primordial",
+			"text": "You speak, read and write Primordial.",
+			"deeds": {
+				"kill:elemental": 2,
+				"underground:nadir": 0.5
+			}
+		},
+		{
+			"id": "lang-sylvan",
+			"kind": "language",
+			"key": "sylvan",
+			"name": "Sylvan",
+			"text": "You speak, read and write Sylvan.",
+			"deeds": {
+				"kill:fey": 2,
+				"run": 0.3
+			}
+		},
+		{
+			"id": "bond-people-human",
+			"kind": "bond",
+			"key": "people:human",
+			"name": "Bond with the humans",
+			"text": "Better prices and a warmer welcome among the humans.",
+			"deeds": {
+				"trade:human": 3
+			}
+		},
+		{
+			"id": "bond-people-dwarf",
+			"kind": "bond",
+			"key": "people:dwarf",
+			"name": "Bond with the dwarves",
+			"text": "Better prices and a warmer welcome among the dwarves.",
+			"deeds": {
+				"trade:dwarf": 3
+			}
+		},
+		{
+			"id": "bond-people-elf",
+			"kind": "bond",
+			"key": "people:elf",
+			"name": "Bond with the elves",
+			"text": "Better prices and a warmer welcome among the elves.",
+			"deeds": {
+				"trade:elf": 3
+			}
+		},
+		{
+			"id": "bond-people-halfling",
+			"kind": "bond",
+			"key": "people:halfling",
+			"name": "Bond with the halflings",
+			"text": "Better prices and a warmer welcome among the halflings.",
+			"deeds": {
+				"trade:halfling": 3
+			}
+		},
+		{
+			"id": "bond-people-gnome",
+			"kind": "bond",
+			"key": "people:gnome",
+			"name": "Bond with the gnomes",
+			"text": "Better prices and a warmer welcome among the gnomes.",
+			"deeds": {
+				"trade:gnome": 3
+			}
+		},
+		{
+			"id": "bond-people-orc",
+			"kind": "bond",
+			"key": "people:orc",
+			"name": "Bond with the orcs",
+			"text": "Better prices and a warmer welcome among the orcs.",
+			"deeds": {
+				"trade:orc": 3
+			}
+		},
+		{
+			"id": "bond-people-dragonborn",
+			"kind": "bond",
+			"key": "people:dragonborn",
+			"name": "Bond with the dragonborn",
+			"text": "Better prices and a warmer welcome among the dragonborn.",
+			"deeds": {
+				"trade:dragonborn": 3
+			}
+		},
+		{
+			"id": "bond-people-goliath",
+			"kind": "bond",
+			"key": "people:goliath",
+			"name": "Bond with the goliaths",
+			"text": "Better prices and a warmer welcome among the goliaths.",
+			"deeds": {
+				"trade:goliath": 3
+			}
+		},
+		{
+			"id": "bond-people-tiefling",
+			"kind": "bond",
+			"key": "people:tiefling",
+			"name": "Bond with the tieflings",
+			"text": "Better prices and a warmer welcome among the tieflings.",
+			"deeds": {
+				"trade:tiefling": 3
+			}
+		},
+		{
+			"id": "bond-people-drow",
+			"kind": "bond",
+			"key": "people:drow",
+			"name": "Bond with the drow",
+			"text": "Better prices and a warmer welcome among the drow.",
+			"deeds": {
+				"trade:drow": 3
+			}
+		},
+		{
+			"id": "bond-people-goblinoid",
+			"kind": "bond",
+			"key": "people:goblinoid",
+			"name": "Bond with the goblins",
+			"text": "Safe passage among the goblins.",
+			"deeds": {
+				"trade:goblinoid": 3,
+				"kill:humanoid": 0.3
+			}
+		},
+		{
+			"id": "bond-people-kobold",
+			"kind": "bond",
+			"key": "people:kobold",
+			"name": "Bond with the kobolds",
+			"text": "Safe passage among the kobolds.",
+			"deeds": {
+				"trade:kobold": 3,
+				"kill:humanoid": 0.3
+			}
+		},
+		{
+			"id": "bond-people-gnoll",
+			"kind": "bond",
+			"key": "people:gnoll",
+			"name": "Bond with the gnolls",
+			"text": "Safe passage among the gnolls.",
+			"deeds": {
+				"trade:gnoll": 3,
+				"kill:humanoid": 0.3
+			}
+		},
+		{
+			"id": "bond-people-bandit",
+			"kind": "bond",
+			"key": "people:bandit",
+			"name": "Bond with the bandits",
+			"text": "Safe passage among the bandits.",
+			"deeds": {
+				"trade:bandit": 3,
+				"kill:humanoid": 0.3
+			}
+		},
+		{
+			"id": "bond-beast-wolf",
+			"kind": "bond",
+			"key": "beast:wolf",
+			"name": "Bond with wolves and hounds",
+			"text": "Wolves and hounds will not attack you unprovoked.",
+			"deeds": {
+				"beast:wolf": 3,
+				"sleep": 0.2
+			}
+		},
+		{
+			"id": "bond-beast-bear",
+			"kind": "bond",
+			"key": "beast:bear",
+			"name": "Bond with bears",
+			"text": "Bears will not attack you unprovoked.",
+			"deeds": {
+				"beast:bear": 3,
+				"sleep": 0.2
+			}
+		},
+		{
+			"id": "bond-beast-cat",
+			"kind": "bond",
+			"key": "beast:cat",
+			"name": "Bond with great cats",
+			"text": "Great cats will not attack you unprovoked.",
+			"deeds": {
+				"beast:cat": 3,
+				"sleep": 0.2
+			}
+		},
+		{
+			"id": "bond-beast-bat",
+			"kind": "bond",
+			"key": "beast:bat",
+			"name": "Bond with bats",
+			"text": "Bats will not attack you unprovoked.",
+			"deeds": {
+				"beast:bat": 3,
+				"sleep": 0.2
+			}
+		},
+		{
+			"id": "bond-beast-vermin",
+			"kind": "bond",
+			"key": "beast:vermin",
+			"name": "Bond with rats and weasels",
+			"text": "Rats and weasels will not attack you unprovoked.",
+			"deeds": {
+				"beast:vermin": 3,
+				"sleep": 0.2
+			}
+		},
+		{
+			"id": "bond-beast-crawler",
+			"kind": "bond",
+			"key": "beast:crawler",
+			"name": "Bond with spiders and crawlers",
+			"text": "Spiders and crawlers will not attack you unprovoked.",
+			"deeds": {
+				"beast:crawler": 3,
+				"sleep": 0.2
+			}
+		},
+		{
+			"id": "bond-beast-serpent",
+			"kind": "bond",
+			"key": "beast:serpent",
+			"name": "Bond with serpents and lizards",
+			"text": "Serpents and lizards will not attack you unprovoked.",
+			"deeds": {
+				"beast:serpent": 3,
+				"sleep": 0.2
+			}
+		},
+		{
+			"id": "bond-beast-bird",
+			"kind": "bond",
+			"key": "beast:bird",
+			"name": "Bond with birds",
+			"text": "Birds will not attack you unprovoked.",
+			"deeds": {
+				"beast:bird": 3,
+				"sleep": 0.2
+			}
+		},
+		{
+			"id": "bond-beast-hoof",
+			"kind": "bond",
+			"key": "beast:hoof",
+			"name": "Bond with boars and hooved beasts",
+			"text": "Boars and hooved beasts will not attack you unprovoked.",
+			"deeds": {
+				"beast:hoof": 3,
+				"sleep": 0.2
+			}
+		}
+	]
+}

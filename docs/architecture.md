@@ -320,7 +320,7 @@ Systems (core/host/systems.gd)                # where the game finds them: no bo
 ### Level track (`core/rules/level_track.gd`, pure static functions)
 
 ```gdscript
-LevelTrack.MAX_LEVEL = 100; MAX_CLASS_LEVEL = 20; XP_SCALE = 1.0
+LevelTrack.MAX_LEVEL = 100; MAX_CLASS_LEVEL = 20; XP_SCALE = 15.0   # tools/xp_pacing.gd
 enum LevelTrack.Reward { SPARK_SLOT, VIGOR, KNACK, CLASS_LEVEL, EPIC_BOON }
 LevelTrack.class_level(level) -> int        # min(20, 1 + level / 5)
 LevelTrack.reward(level) -> Reward          # level % 5: 1, 3 SPARK_SLOT; 2 VIGOR; 4 KNACK;
@@ -349,7 +349,7 @@ LevelTrack.hit_dice(level) -> int           # class level + Vigor steps
 ### Character (`core/rules/character.gd`)
 
 One per player, owned by the host, saved in the player record (`rec.character`), mirrored
-to its owner by the rules system (not built yet).
+to its owner by the rules system (CHAR, [tracks/rules.md](tracks/rules.md)).
 
 ```gdscript
 Character.create(name, class_slug, scores := [], skills := [], species := "", background := "",
@@ -504,13 +504,21 @@ Systems find each other with `host.system(id)` and must work when the other is a
 (check for null and `has_method`). The calls each one offers:
 
 ```gdscript
-# Rules
-rules.on_kill(victim: HostEntity, killers: Array[int])   # XP to nearby players, deeds
-rules.add_deed(entity_id, counter: String, n := 1)
+# Rules (as built: tracks/rules.md)
+rules.on_kill(victim: HostEntity, killers: Array[int])   # XP to players within 24 tiles and
+                                      # the killers, deeds; rank from meta "rank" / "xp_mult"
+rules.award_xp(entity_id, n, source := "") -> int        # levels gained
+rules.add_deed(entity_id, counter: String, n := 1)       # counters: see core/rules/knacks.gd
 rules.refresh(e: HostEntity)          # rebuild the combatant and move stats after gear, sparks
                                       # or a level change; keeps current HP in range; resyncs
-rules.player_dropped(e)               # combat reports 0 HP; rules runs downed, saves, death
-rules.is_downed(e) -> bool
+rules.player_dropped(e, crit := false)   # combat reports 0 HP, and every hit on a player at
+                                      # 0 HP (a failed death save; two on a crit)
+rules.heal(e, amount) -> int          # healing that also gets a downed player up (the addon's
+                                      # heal does nothing at 0 HP)
+rules.is_downed(e) -> bool            # downed, stable or dead; rules.is_dead(e)
+rules.bond(entity_id, key) -> int     # "people:<culture>", "beast:<kind>"; 0 = none
+rules.proficiencies(entity_id) -> {skills, tools, languages}
+rules.extras(e) -> Dictionary         # what items.apply_sparks wrote to `out`
 # Items
 items.gear_mods(e) -> Array           # ItemEffects mods of everything worn (unbonded magic out)
 items.wielded(e) -> Dictionary        # the main-hand item record, {} if none
@@ -529,7 +537,15 @@ combat.in_combat(e) -> bool           # hostile activity within the last few sec
 ```
 
 Campfire, bed and shrine are tiles (64, 65, 66), so rests and kindling test for a tile near
-the player and need no other system. Presentation is wave 2: in wave 1 a track may add one
+the player and need no other system.
+
+Rules as built: `RulesSystem` / `RulesClient` (`core/rules/`), wire format in
+`rules_codec.gd`, the client surface for the interface in [tracks/rules.md](tracks/rules.md).
+Downed and respawned players are held and moved by the host with a CORRECT and a bumped
+epoch (as `submit_state` does). Short rest: campfire within 3 tiles, nothing hostile within
+12, 5 s. Long rest: bed within 2 tiles, once per 24 game hours; the night passes (to 06:00)
+when every living player is in bed. Downed: a death save every 4 s; revive is a 2 s hold
+within 3 tiles; respawn at the bed, else the nearest shrine within 96 tiles, else the spawn. Presentation is wave 2: in wave 1 a track may add one
 optional no-op method to `Presenter` (the log presenter prints it) and nothing else in
 `game/` or `view/`, except that Combat owns the attack and cast inputs.
 
