@@ -37,6 +37,7 @@ func run(t: TestLog) -> void:
 	_ranks(t)
 	_affixes(t)
 	_codec(t)
+	_raiders(t)
 
 static func world(w := 256, walls := []) -> TileWorld:
 	var wd := TileWorld.new(w, 64, 1)
@@ -346,3 +347,19 @@ func _codec(t: TestLog) -> void:
 	var bad := MonstersCodec.write_info(infos).slice(0, 9)
 	t.check(MonstersCodec.read_info(bad).size() <= 1, "INFO: truncated input is safe")
 	t.eq(MonstersCodec.read_gone(MonstersCodec.write_gone([3, 4])), [3, 4], "GONE round trip")
+
+func _raiders(t: TestLog) -> void:
+	var r := rig(31)
+	var ms: MonstersSystem = r["ms"]
+	var cfg: Dictionary = Ecology.spawning()["raiders"]["drow"]
+	var pack := ms.director.raider_pack(r["host"], "drow", cfg, 40.0)
+	t.check(pack.size() >= 3, "a drow raider party (%d)" % pack.size())
+	var names := []
+	for m: Dictionary in pack:
+		names.append(m.get("name", ""))
+		t.check(String(m["people"]).begins_with("elf:drow:"), "people look key %s" % m["people"])
+	t.check(String(names[0]).begins_with("Drow "), "NPCs from make_npc (%s)" % names[0])
+	var e := ms.spawn(String(pack[0]["slug"]), Vector2(80.5, GROUND), pack[0])
+	t.eq(String(e.look.get("people", "")), String(pack[0]["people"]), "the look carries people")
+	t.eq(r["combat"].sight.darkvision_tiles(e), K.ft(120.0), "a drow sees 120 ft in the dark")
+	t.eq(e.brain.bond_key, "people:drow", "a Bond with the drow makes them friendly")
