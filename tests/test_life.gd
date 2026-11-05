@@ -550,3 +550,59 @@ func _roads(t: TestLog) -> void:
 	t.check(cp2.leg == leg and is_equal_approx(cp2.frac, frac), "at the same place on the road")
 	t.eq(cp2.size(), size_mid, "with the same people")
 	t.eq(l3.actors_of(cid).size(), 0, "and no actors left")
+
+# --- 5. per-entity dice ---------------------------------------------------------------------------
+
+func _dice(t: TestLog) -> void:
+	var ra := rig()
+	var rb := rig()
+	var ha: WorldHost = ra["host"]
+	var hb: WorldHost = rb["host"]
+	var la: LifeSystem = ra["life"]
+	var p := put(ha, "wanderer", ha.spawn)
+	for fid: int in ha.sim.factions:
+		la.add_standing(p.id, str(fid), 100, "a friend to all")
+	var towns: Array = WorldSim._sorted_keys(ha.sim.settlements)
+	# the young world has no caravans out yet: send the same two on both
+	for h: WorldHost in [ha, hb]:
+		var l: LifeSystem = h.system(HostSystem.LIFE)
+		var a := town_of(h)
+		var b := neighbour(h, a)
+		l.cheat_party("caravan", a, b, 0.1)
+		l.cheat_party("caravan", b, a, 0.3)
+	var seen_towns := {}
+	var seen_parties := {}
+	for step in 28:
+		# a town, or a party on the road every other stop
+		var at := Vector2.INF
+		if step % 2 == 1 and not ha.sim.parties.is_empty():
+			var pids: Array = WorldSim._sorted_keys(ha.sim.parties)
+			var sp: SimParty = ha.sim.parties[pids[step % pids.size()]]
+			at = la.road.ground(ha, la.road.party_pos(ha, sp))
+		if at == Vector2.INF and not towns.is_empty():
+			var sid: int = towns[step % towns.size()]
+			if ha.sim.settlements.has(sid):
+				at = LifeTown.site_pos(ha, sid) + Vector2(0, 3)
+		if at != Vector2.INF:
+			p.body.pos = at
+			TileCollision.depenetrate(ha.world, p.body)
+		ticks(ha, 65)
+		ticks(hb, 65)
+		for sid: int in la.town.active:
+			seen_towns[sid] = true
+		for pid: int in la.road.active:
+			seen_parties[pid] = true
+		advance(ha, 6.0)
+		advance(hb, 6.0)
+	t.check(seen_towns.size() >= 2 and not seen_parties.is_empty(), "the wanderer saw %d towns and %d parties" % [seen_towns.size(), seen_parties.size()])
+	t.check(la.stats["spawned"] > 20, "people appeared (%d)" % la.stats["spawned"])
+	t.eq(ha.sim.t, hb.sim.t, "a game week on both")
+	t.eq(ha.sim.rng.state, hb.sim.rng.state, "the sim's generator was never touched by looking")
+	t.check(ha.sim.to_dict().hash() == hb.sim.to_dict().hash(), "the sims are identical after a week")
+	var da := ha.sim.to_dict()
+	var db := hb.sim.to_dict()
+	for k: String in da:
+		if str(da[k]) != str(db[k]):    # diagnostics only when they differ
+			print("  differs: %s\n   A %s\n   B %s" % [k, str(da[k]).left(600), str(db[k]).left(600)])
+	if ha.sim.chronicle.size() != hb.sim.chronicle.size():
+		print("  chronicles differ: %d vs %d" % [ha.sim.chronicle.size(), hb.sim.chronicle.size()])

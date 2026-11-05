@@ -23,6 +23,8 @@ var town: LifeTown
 var road: LifeRoad
 ## Materialize at all (stance and standing work regardless).
 var enabled := true
+## Print what happens (tools).
+var debug := false
 ## entity id -> {kind, id, role, slot?}: every actor Life spawned
 var actors := {}
 ## player entity id -> {faction: int}

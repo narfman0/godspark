@@ -324,11 +324,24 @@ func _resolve(h: WorldHost) -> void:
 		if combat != null:
 			for id: int in rec["ids"]:
 				var e := h.entity(id)
-				if e != null and bool(combat.call("in_combat", e)):
+				# a foe in sight and blows exchanged (a fall does not count)
+				if e != null and e.brain is MonsterBrain and (e.brain as MonsterBrain).target_id != 0 \
+						and bool(combat.call("in_combat", e)):
 					fighting = true
 					break
 		var want := fighting or _busy(pid)
 		if want and not bool(rec["arrival"]):
+			if not bool(rec["hold"]):
+				life.stats["holds"] = int(life.stats.get("holds", 0)) + 1
+				if life.debug:
+					var foes := []
+					for id: int in rec["ids"]:
+						var e := h.entity(id)
+						if e != null and e.brain is MonsterBrain and (e.brain as MonsterBrain).target_id != 0:
+							var fo := h.entity((e.brain as MonsterBrain).target_id)
+							if fo != null:
+								foes.append("%s(%s) vs %s(%s)" % [e.name, Life.faction_of(e), fo.name, Life.faction_of(fo)])
+					print("LIFE hold party %d (%s) fighting=%s %s" % [pid, p.kind, fighting, foes])
 			p.frozen = true
 			rec["hold"] = true
 		elif bool(rec["hold"]) and not bool(rec["arrival"]):
