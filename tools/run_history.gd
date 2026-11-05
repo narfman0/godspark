@@ -1,5 +1,6 @@
 ## Run the strategic sim and print what happened.
 ##   godot --headless -s res://tools/run_history.gd -- seed=N years=200 sites=24 [csv=/path.csv] [quiet=1] [full=1]
+##   godot --headless -s res://tools/run_history.gd -- seed=N years=200 world=dev         # sites and routes from WorldGen
 ##   godot --headless -s res://tools/run_history.gd -- seeds=1..30 years=200 sites=24   # sweep: health stats
 ##   godot --headless -s res://tools/run_history.gd -- calibrate=1 [trials=200]          # SimCombat vs BattleSimulator
 ##   godot --headless -s res://tools/run_history.gd -- bench=1 sites=100 years=20        # tick cost
@@ -27,7 +28,11 @@ func _initialize() -> void:
 # ── One history ──────────────────────────────────────────────────────────────
 
 func _history(seed: int, years: int, n_sites: int, csv_path: String, quiet: bool, full: bool) -> void:
-	var sim := WorldSim.synthetic(n_sites, seed)
+	var sim: WorldSim
+	if _args.has("world"):  # a real generated world: world=dev|small|medium|large
+		sim = WorldSim.from_meta(WorldGen.generate_named(str(_args.world), seed).meta, seed)
+	else:
+		sim = WorldSim.synthetic(n_sites, seed)
 	_print_world(sim)
 	var rows: PackedStringArray = ["year,site,name,culture,faction,pop,food,wealth"]
 	var t0 := Time.get_ticks_usec()

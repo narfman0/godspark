@@ -43,3 +43,17 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
   should replicate them (record format proposed in tracks/assets.md).
 - The Meadow pack's trees are broken as cooked on the server (leaf materials lost).
 - Exported builds need `assets/*` in the export filter (untested).
+
+## Strategic sim
+- Not connected to the running game yet: the host does not own a `WorldSim`, and nothing is
+  materialized (M4). Materialization needs: a map from each sim route to its tile path, a
+  frozen flag per materialized entity with fold-back writers, per-entity seeded dice, and
+  hooks for what players cause (escorts, cleared lairs).
+- Tuned on synthetic strips; only spot-checked on real worldgen output (seed 7, 80 years:
+  healthy). Travel times may need retuning against real route lengths.
+- Tick cost is 2.1 ms per simulated day at about 130 settlements (target 2 ms); trade
+  planning dominates.
+- Food relief reaches under half of famines. Raider-heavy deep worlds grind each other
+  down. Combat ignores spells, breath weapons and regeneration. No alliances or revolts.
+- Invented names come from `data/sim/names.json`; `data/setting/names.json` is still empty.
+  One should become the single source.

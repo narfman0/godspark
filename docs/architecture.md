@@ -186,6 +186,14 @@ sim.chronicle                                                  # [{t, kind, ...}
 - `tools/run_history.gd -- seed=N years=200` prints the chronicle and writes a population
   CSV. This is how the sim is judged.
 
+As built ([tracks/sim.md](tracks/sim.md)): `core/sim/` holds `WorldSim`, `SimEconomy`,
+`SimConflict`, `SimCombat` and the state classes; data in `data/sim/` (cultures, goods,
+lairs, names). Unwatched fights use `SimCombat` (27 us per fight, counts Multiattack),
+not `BattleSimulator` (1 ms, first attack only). Exact save and resume goes through
+`var_to_bytes(sim.to_dict())`; JSON loses the last bit of some floats. Also there:
+`sim.entities_near(x0, x1)`, `sim.party_position(party)`, `sim.audit()`.
+`tools/run_history.gd -- seed=N years=80 world=dev` runs it on a generated world.
+
 ## Track G: assets
 
 Owns `tools/fetch_assets.sh`, `tools/sync_monsters.py`, `tools/bootstrap.sh`,
