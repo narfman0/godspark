@@ -175,9 +175,9 @@ func play(state: String, speed := 1.0) -> void:
 	var one := not c in LOOPING
 	if not one:
 		_loop_clip = c
-	if c == current_clip and anim.is_playing():
+	if c == current_clip and (anim.is_playing() or c in HOLD_LAST):
 		anim.speed_scale = speed if not one else 1.0
-		return
+		return   # a held clip (death) plays once and keeps its last pose
 	if current_clip != "" and not current_clip in LOOPING and anim.is_playing() and not one:
 		_loop_clip = c   # let the one-shot finish
 		return
