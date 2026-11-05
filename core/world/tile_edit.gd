@@ -17,16 +17,17 @@ const DIG_QUANTUM := 0.0001
 ## Accumulated step times may fall short of a dig time by float error; this much is forgiven.
 const DIG_SLACK := 1e-6
 
-## True if the tile is within reach of the body.
-static func in_reach(body: Body, x: int, y: int) -> bool:
+## True if the tile is within `reach` tiles of the body's box (REACH; the Longarm spark and
+## reach affixes add to it: HostEntity.edit_reach, ClientWorld.edit_reach).
+static func in_reach(body: Body, x: int, y: int, reach := REACH) -> bool:
 	var r := body.rect()
 	var gx := maxf(0.0, maxf(r.position.x - (x + 1), x - r.end.x))
 	var gy := maxf(0.0, maxf(r.position.y - (y + 1), y - r.end.y))
-	return gx * gx + gy * gy <= REACH * REACH + 1e-6
+	return gx * gx + gy * gy <= reach * reach + 1e-6
 
 ## In reach, inside the world, not air, and breakable (hardness >= 0).
-static func can_dig(world: TileWorld, body: Body, x: int, y: int) -> bool:
-	if not world.in_bounds(x, y) or not in_reach(body, x, y):
+static func can_dig(world: TileWorld, body: Body, x: int, y: int, reach := REACH) -> bool:
+	if not world.in_bounds(x, y) or not in_reach(body, x, y, reach):
 		return false
 	var id := world.get_fg(x, y)
 	return id != TileDefs.AIR and TileDefs.hardness[id] >= 0.0
@@ -48,11 +49,11 @@ static func dig_time(tile_id: int, tool_power := 1.0) -> float:
 ## on (a non-air foreground tile in one of the 4 neighbours, or a background wall in the
 ## cell), and, if the new tile is solid, no body in `bodies` (Array of Body) overlaps the
 ## cell. Non-solid tiles (platforms, ladders, torches) may go where bodies stand.
-static func can_place(world: TileWorld, body: Body, x: int, y: int, tile_id: int, bodies: Array) -> bool:
+static func can_place(world: TileWorld, body: Body, x: int, y: int, tile_id: int, bodies: Array, reach := REACH) -> bool:
 	TileDefs.ensure()
 	if tile_id <= TileDefs.AIR or tile_id >= TileDefs.solid.size():
 		return false
-	if not world.in_bounds(x, y) or not in_reach(body, x, y):
+	if not world.in_bounds(x, y) or not in_reach(body, x, y, reach):
 		return false
 	if world.get_fg(x, y) != TileDefs.AIR:
 		return false

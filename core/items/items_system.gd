@@ -160,6 +160,13 @@ func refresh(e: HostEntity) -> void:
 	_tags[e.id] = _compute_tags(e)
 	_apply_move(e)
 
+## Reach and dig speed from the tags onto the entity (the owner's ItemsClient computes the
+## same from its mirror: ItemsClient.edit_numbers).
+func _apply_edit(e: HostEntity) -> void:
+	var n := Items.edit_numbers(_tags.get(e.id, {}))
+	e.edit_reach = n.x
+	e.dig_power = n.y
+
 func _base(e: HostEntity) -> Dictionary:
 	var b := e.character.move_stats(e.combatant)
 	return {"speeds": {"walk": roundi(b.walk), "climb": roundi(b.climb), "swim": roundi(b.swim), "fly": roundi(b.fly)},
@@ -167,6 +174,7 @@ func _base(e: HostEntity) -> Dictionary:
 
 ## e.stats = Sparks.move_stats(base speeds, size, kindled); STARS to the owner when it changed.
 func _apply_move(e: HostEntity) -> void:
+	_apply_edit(e)
 	var b := _base(e)
 	var kindled := e.character.sparks.list()
 	e.stats = Sparks.move_stats(b["speeds"], b["size"], kindled)

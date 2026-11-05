@@ -85,6 +85,7 @@ func handle(kind: int, data: PackedByteArray) -> void:
 			_update_place_tile()
 			inventory_changed.emit(idx)
 			if not eqs.is_empty():
+				_apply_edit()
 				equipment_changed.emit(eqs)
 		ItemsCodec.K.STARS:
 			var m := ItemsCodec.read_stars(data)
@@ -96,7 +97,13 @@ func handle(kind: int, data: PackedByteArray) -> void:
 			constellation = Constellation.from_dict({"kindled": m["kindled"]})
 			constellation.slots = int(m["slots"])
 			if cw != null:
-				cw.stats = move_stats()
+				var ms := move_stats()
+				var rc := cw.system(HostSystem.RULES)
+				if rc != null and rc.has_method("adopt_stats"):
+					rc.call("adopt_stats", ms)       # a downed player stays still until up
+				else:
+					cw.stats = ms
+			_apply_edit()
 			constellation_changed.emit()
 		ItemsCodec.K.DROPS:
 			for d: Dictionary in ItemsCodec.read_drops(data):
@@ -192,6 +199,13 @@ func selected_tile() -> int:
 ## Display name of a record (ItemGen.name).
 func name_of(it: Dictionary) -> String:
 	return ItemGen.name(it)
+
+## Reach and dig power for the own player's predicted edits, from the mirrored tags.
+func _apply_edit() -> void:
+	if cw != null:
+		var n := Items.edit_numbers(tags())
+		cw.edit_reach = n.x
+		cw.dig_power = n.y
 
 ## Tags of what is worn and kindled (the host computes the same for its rules).
 func tags() -> Dictionary:

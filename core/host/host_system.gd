@@ -53,6 +53,12 @@ func allow_place(_host: WorldHost, _e: HostEntity, _tile_id: int) -> bool:
 func allow_edit(_host: WorldHost, _e: HostEntity) -> bool:
 	return true
 
+## Limits on a client-owned player's movement that the host enforces when it checks a
+## state (combat: conditions). {} = none; else any of mult (speed multiplier, 0 = may not
+## move), no_jump (bool), fear (Vector2: may not step toward it).
+func move_limits(_host: WorldHost, _e: HostEntity) -> Dictionary:
+	return {}
+
 ## Edit flow (items): entity e's dig (now == TileDefs.AIR) or place changed cell (x, y) from
 ## `old` to `now`. Runs right after the change and before its EDIT_RESULT is queued.
 func tile_edited(_host: WorldHost, _e: HostEntity, _x: int, _y: int, _old: int, _now: int) -> void:

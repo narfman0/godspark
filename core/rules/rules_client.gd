@@ -163,6 +163,13 @@ func _send(kind: int, data: PackedByteArray) -> void:
 
 var _look_class := ""
 
+## New MoveStats for the own player (items: sparks): applied now, or when it gets up.
+func adopt_stats(s: MoveStats) -> void:
+	if _base_stats != null:
+		_base_stats = s
+	elif cw != null:
+		cw.stats = s
+
 ## The own body is drawn by class (looks.json "player:<class>"): re-add it once the class is
 ## known (setup() adds it before any sheet).
 func _own_look(cls: String) -> void:

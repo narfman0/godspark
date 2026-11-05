@@ -27,6 +27,8 @@
 	},
 	"timers": {"bonus_s": 2.0, "reaction_s": 2.0},
 	"move_mult_during_swing": 1.0,
+	"tempo_move": {"_comment": "movement speed multiplier while a swing or a cast runs (1.0: no slowdown, as played in M2); cast_move tags (Steady) win back a share of the cast slowdown", "swing": 1.0, "cast": 1.0},
+	"tags": {"_comment": "caps on gear and spark tags combat reads", "swing_recovery_max": 0.5},
 	"melee": {"arc_half_angle_deg": 70.0, "within_5ft_tiles": 2.0},
 	"sweep": {"damage_fraction": 0.5},
 	"projectiles": {

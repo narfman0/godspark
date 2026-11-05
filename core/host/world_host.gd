@@ -38,6 +38,8 @@ const STATE_SLACK := 0.25
 const MOVE_MARGIN := 1.5
 ## Speed bound multiplier over the body's fastest mode.
 const SPEED_MULT := 1.25
+## A player held at speed 0 by a condition may drift this far (tiles) sideways or up.
+const HOLD_SLIP := 0.3
 ## A client's box may overlap solid tiles by this much (float noise at contacts).
 const SOLID_SLOP := 0.05
 ## Most time (us) one tick may spend catching the sim up with the clock. At least one sim
@@ -430,19 +432,51 @@ func _check_move(e: HostEntity, pos: Vector2, gap: float) -> StateCheck:
 	if pos.x - hw < 0.0 or pos.x + hw > world.width or pos.y < 0.0 or pos.y + e.body.size.y > world.height:
 		return StateCheck.OUT_OF_BOUNDS
 	var s := e.stats
-	var horiz := maxf(maxf(s.run_speed, s.fly_speed), maxf(s.swim_speed, s.ladder_side_speed)) * SPEED_MULT
-	var up := maxf(maxf(s.jump_velocity, s.fly_speed), maxf(s.ladder_speed, maxf(s.climb_speed, s.swim_speed))) * SPEED_MULT
-	var down := maxf(s.terminal_fall, s.fly_speed) * SPEED_MULT
+	var lim := move_limits(e)
+	var mult := float(lim.get("mult", 1.0))
 	var d := pos - e.body.pos
+	if mult <= 0.0:
+		# held still (speed 0, Paralyzed, Restrained, Grappled ...): falling is all it may do
+		if e.hold_at == Vector2.INF:
+			e.hold_at = e.body.pos
+		if absf(pos.x - e.hold_at.x) > HOLD_SLIP or pos.y > e.hold_at.y + HOLD_SLIP:
+			return StateCheck.TOO_FAST
+		e.hold_at.y = minf(e.hold_at.y, pos.y)
+	else:
+		e.hold_at = Vector2.INF
+	var horiz := maxf(maxf(s.run_speed, s.fly_speed), maxf(s.swim_speed, s.ladder_side_speed)) * SPEED_MULT * minf(mult, 1.0)
+	var jump := 0.0 if bool(lim.get("no_jump", false)) else s.jump_velocity
+	var up := maxf(maxf(jump, s.fly_speed), maxf(s.ladder_speed, maxf(s.climb_speed, s.swim_speed))) * SPEED_MULT
+	var down := maxf(s.terminal_fall, s.fly_speed) * SPEED_MULT
 	if absf(d.x) > horiz * gap + MOVE_MARGIN + s.step_tiles:
 		return StateCheck.TOO_FAST
 	if d.y > up * gap + MOVE_MARGIN + s.step_tiles or -d.y > down * gap + MOVE_MARGIN + s.step_tiles:
 		return StateCheck.TOO_FAST
+	var fear: Variant = lim.get("fear")
+	if fear is Vector2 and fear != Vector2.INF and signf(d.x) == signf((fear as Vector2).x - e.body.pos.x) \
+			and absf(d.x) > MOVE_MARGIN:
+		return StateCheck.TOO_FAST      # Frightened: no step toward the source
 	var probe := e.body.duplicate_body()
 	probe.pos = pos
 	if _in_solid(probe):
 		return StateCheck.IN_SOLID
 	return StateCheck.OK
+
+## Movement limits from every system (HostSystem.move_limits), combined: the smallest mult,
+## any no_jump, the first fear source.
+func move_limits(e: HostEntity) -> Dictionary:
+	var out := {}
+	for sys: HostSystem in systems.values():
+		var l: Dictionary = sys.move_limits(self, e)
+		if l.is_empty():
+			continue
+		if l.has("mult"):
+			out["mult"] = minf(float(out.get("mult", 1.0)), float(l["mult"]))
+		if bool(l.get("no_jump", false)):
+			out["no_jump"] = true
+		if l.get("fear") is Vector2 and not out.has("fear"):
+			out["fear"] = l["fear"]
+	return out
 
 func _in_solid(b: Body) -> bool:
 	return TileCollision.overlaps_solid(world, b.rect().grow(-SOLID_SLOP))
@@ -498,11 +532,11 @@ func dig_reason(e: HostEntity, x: int, y: int) -> Reason:
 		return Reason.NOTHING_THERE
 	if TileDefs.hardness[id] < 0.0:
 		return Reason.UNBREAKABLE
-	if not TileEdit.in_reach(e.body, x, y):
+	if not TileEdit.in_reach(e.body, x, y, e.edit_reach):
 		return Reason.OUT_OF_REACH
 	if not can_edit(e):
 		return Reason.UNABLE
-	return Reason.OK if TileEdit.can_dig(world, e.body, x, y) else Reason.OUT_OF_REACH
+	return Reason.OK if TileEdit.can_dig(world, e.body, x, y, e.edit_reach) else Reason.OUT_OF_REACH
 
 func place_reason(e: HostEntity, x: int, y: int, tile_id: int) -> Reason:
 	if tile_id <= TileDefs.AIR or tile_id >= TileDefs.solid.size() or TileDefs.names[tile_id] == "" \
@@ -510,15 +544,15 @@ func place_reason(e: HostEntity, x: int, y: int, tile_id: int) -> Reason:
 		return Reason.BAD_TILE
 	if not world.in_bounds(x, y):
 		return Reason.OUT_OF_BOUNDS
-	if not TileEdit.in_reach(e.body, x, y):
+	if not TileEdit.in_reach(e.body, x, y, e.edit_reach):
 		return Reason.OUT_OF_REACH
 	if not can_edit(e):
 		return Reason.UNABLE
 	if world.get_fg(x, y) != TileDefs.AIR:
 		return Reason.OCCUPIED
-	if not TileEdit.can_place(world, e.body, x, y, tile_id, []):
+	if not TileEdit.can_place(world, e.body, x, y, tile_id, [], e.edit_reach):
 		return Reason.NO_ANCHOR
-	if not TileEdit.can_place(world, e.body, x, y, tile_id, bodies()):
+	if not TileEdit.can_place(world, e.body, x, y, tile_id, bodies(), e.edit_reach):
 		return Reason.BLOCKED
 	return Reason.OK
 
@@ -537,7 +571,7 @@ func _advance_dig(e: HostEntity) -> void:
 		e.dig.reset()
 		_result(e, e.dig_req, why, at.x, at.y)
 		return
-	if e.dig.update(at, world.get_fg(at.x, at.y), dt()):
+	if e.dig.update(at, world.get_fg(at.x, at.y), dt(), e.dig_power):
 		e.dig_target = HostEntity.NO_DIG
 		var old := world.get_fg(at.x, at.y)
 		world.set_fg(at.x, at.y, TileDefs.AIR)

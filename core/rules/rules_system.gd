@@ -585,7 +585,11 @@ func refresh(e: HostEntity) -> void:
 			if sk >= 0 and not c.stats.is_skill_proficient(sk as SRD.Skill):
 				c.stats.set_skill_proficiency(sk as SRD.Skill, true)
 	var items := host.system(HostSystem.ITEMS)
-	if items != null and items.has_method("gear_mods"):
+	if items != null and items.has_method("outfit"):
+		# the whole outfit: weapon, armour, shield, off hand, masteries, mods (not just mods:
+		# the class's default weapon would stay in hand after a level-up, rest or load)
+		items.call("outfit", e, c)
+	elif items != null and items.has_method("gear_mods"):
 		var mods: Variant = items.call("gear_mods", e)
 		if mods is Array and not (mods as Array).is_empty():
 			ItemEffects.apply(c, mods)

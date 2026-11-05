@@ -14,8 +14,9 @@
 			{"move": {"dash_speed": 26.0, "dash_time": 0.15, "dash_cooldown": 1.2}},
 			{"move": {"dash_speed": 29.0, "dash_time": 0.15, "dash_cooldown": 0.9}},
 			{"move": {"dash_speed": 32.0, "dash_time": 0.15, "dash_cooldown": 0.6}}]},
-		"featherfall": {"name": "Featherfall", "group": "motion", "text": "Hold jump to drift down.", "ranks": [
-			{"move": {"glide_fall": 9.0}}, {"move": {"glide_fall": 6.0}}, {"move": {"glide_fall": 4.0}}]},
+		"featherfall": {"name": "Featherfall", "group": "motion", "text": "Hold jump to drift down; falls hurt less.", "ranks": [
+			{"move": {"glide_fall": 9.0}, "tags": {"fall_resist": 0.5}}, {"move": {"glide_fall": 6.0}, "tags": {"fall_resist": 0.75}},
+			{"move": {"glide_fall": 4.0}, "tags": {"fall_resist": 1.0}}]},
 		"mole": {"name": "Mole", "group": "motion", "text": "Dig faster.", "ranks": [
 			{"tags": {"dig_speed": 0.25}}, {"tags": {"dig_speed": 0.5}}, {"tags": {"dig_speed": 0.75}}]},
 		"longarm": {"name": "Longarm", "group": "motion", "text": "Dig and build further away.", "ranks": [

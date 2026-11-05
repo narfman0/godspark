@@ -38,10 +38,16 @@ var last_seq := -1
 var last_state_tick := 0
 var corrections := 0
 var states_accepted := 0
+## Where a player held still by a condition (speed 0) was when the hold began; INF when free.
+var hold_at := Vector2.INF
 ## Body flag bits from the client (facing, contacts, modes), for snapshots.
 var flags := 0
 
 # A held dig, advanced by the host every tick.
+## Dig and build reach (tiles from the box) and dig speed (tool power: 1 = bare hands); the
+## items system sets them from Longarm, Mole and gear tags, the owner's client mirrors them.
+var edit_reach := TileEdit.REACH
+var dig_power := 1.0
 var dig_target := NO_DIG
 var dig_req := 0
 var dig := TileEdit.DigProgress.new()

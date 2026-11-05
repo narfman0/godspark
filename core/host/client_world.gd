@@ -66,6 +66,10 @@ var remotes := {}
 var clock := 0.0
 var corrections := 0
 var place_tile := 4
+## The own player's dig and build reach and dig speed, as the host has them on its entity
+## (HostEntity.edit_reach / dig_power; the items client sets them from the same tags).
+var edit_reach := TileEdit.REACH
+var dig_power := 1.0
 var _clock_synced := false
 var _req := 0
 var _digging := false
@@ -209,7 +213,7 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 	elif input.dig and able:
 		var t := input.target
 		if not _digging or t != _dig_at:
-			if TileEdit.can_dig(world, body, t.x, t.y) and has_chunk(t.x >> 5, t.y >> 5):
+			if TileEdit.can_dig(world, body, t.x, t.y, edit_reach) and has_chunk(t.x >> 5, t.y >> 5):
 				_req += 1
 				_dig_req = _req
 				reqs.append({"op": Op.DIG_START, "req": _req, "x": t.x, "y": t.y, "tile": 0})
@@ -220,10 +224,10 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 				reqs.append({"op": Op.DIG_STOP, "req": 0, "x": t.x, "y": t.y, "tile": 0})
 				_digging = false
 		if _digging:
-			if not TileEdit.can_dig(world, body, _dig_at.x, _dig_at.y):
+			if not TileEdit.can_dig(world, body, _dig_at.x, _dig_at.y, edit_reach):
 				reqs.append({"op": Op.DIG_STOP, "req": 0, "x": _dig_at.x, "y": _dig_at.y, "tile": 0})
 				_digging = false
-			elif _dig_prog.update(_dig_at, world.get_fg(_dig_at.x, _dig_at.y), step_dt):
+			elif _dig_prog.update(_dig_at, world.get_fg(_dig_at.x, _dig_at.y), step_dt, dig_power):
 				# Done by our clock: show it now. The host finishes about one trip later.
 				_predict(_dig_at, TileDefs.AIR, _dig_req)
 				_dig_await = _dig_req
@@ -235,7 +239,7 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 		var t := input.target
 		var tile := input.place_tile if input.place_tile > 0 else place_tile
 		_place_at = t
-		if has_chunk(t.x >> 5, t.y >> 5) and TileEdit.can_place(world, body, t.x, t.y, tile, [body]) \
+		if has_chunk(t.x >> 5, t.y >> 5) and TileEdit.can_place(world, body, t.x, t.y, tile, [body], edit_reach) \
 				and _systems_allow_place(tile):
 			_req += 1
 			reqs.append({"op": Op.PLACE, "req": _req, "x": t.x, "y": t.y, "tile": tile})

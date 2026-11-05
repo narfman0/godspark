@@ -198,7 +198,13 @@ func _fall_damage(a: Actor, ft: float) -> void:
 	var dice := mini(floori(ft / float(f.get("ft_per_die", 10.0))), int(f.get("max_dice", 20)))
 	if dice < 1:
 		return
-	damage(0, a.e, Dice.roll_nd(dice, 6), SRD.DamageType.BLUDGEONING, {"what": "fall"})
+	# Featherfall and fall-resist gear take a share off (1.0: no fall damage)
+	var resist := clampf(_tag(a.e, "fall_resist"), 0.0, 1.0)
+	if resist >= 1.0:
+		return
+	var amount := floori(Dice.roll_nd(dice, 6) * (1.0 - resist))
+	if amount > 0:
+		damage(0, a.e, amount, SRD.DamageType.BLUDGEONING, {"what": "fall"})
 
 ## Every ROUND_SECONDS of a creature's own round clock: the end of its turn and the start
 ## of the next (effects expire, repeat saves, once-per-turn features reset, recharges).
@@ -266,6 +272,7 @@ func _end_seq(a: Actor, canceled: bool) -> void:
 	if canceled and not a.seq.is_empty():
 		_emit(Ev.CANCEL, a.e.id, 0, {})
 	a.seq = {}
+	_touched[a.e.id] = true       # movement limits during a swing or cast end with it
 
 ## Monster corpses go after their linger; downed players without a rules system respawn.
 ## Returns true when the actor should be removed.
@@ -274,6 +281,7 @@ func _expire(a: Actor) -> bool:
 	if a.e.is_player():
 		if a.downed_at >= 0.0 and c.current_hp > 0:
 			a.downed_at = -1.0
+			_touched[a.e.id] = true     # movement limits lift with it
 		if a.downed_at >= 0.0 and not _rules_has("player_dropped") \
 				and now - a.downed_at >= float(CombatTempo.section("death").get("player_respawn_s", 3.0)):
 			c.stats.current_hp = c.stats.max_hp
@@ -296,6 +304,16 @@ func _remove_dead(a: Actor) -> void:
 	if items != null and items.has_method("on_kill"):
 		items.call("on_kill", a.e)
 	host.remove_entity(a.e.id)
+
+## A summed gear and spark tag of a player (items.tags: swing_recovery, cast_move,
+## knockback_resist, fall_resist ...); 0 without the items system.
+func _tag(e: HostEntity, name: String) -> float:
+	if e == null or not e.is_player():
+		return 0.0
+	var items := host.system(HostSystem.ITEMS)
+	if items == null or not items.has_method("tags"):
+		return 0.0
+	return float((items.call("tags", e) as Dictionary).get(name, 0.0))
 
 func _rules_has(m: String) -> bool:
 	var rules := host.system(HostSystem.RULES)
@@ -338,6 +356,24 @@ func hostile(x: HostEntity, y: HostEntity) -> bool:
 
 func _targetable(b: Actor) -> bool:
 	return b.e.combatant != null and b.dead_at < 0.0 and b.downed_at < 0.0 and b.e.combatant.current_hp > 0
+
+## The host checks players' states against the same limits their client applies from STATUS
+## (WorldHost.move_limits): conditions, speed effects, downed.
+func move_limits(_h: WorldHost, e: HostEntity) -> Dictionary:
+	var a := actor(e)
+	if a == null or not e.is_player() or (a.move_mult >= 1.0 and not a.no_jump and a.fear_src == 0):
+		return {}
+	var out := {"mult": a.move_mult, "no_jump": a.no_jump}
+	var src := host.entity(a.fear_src) if a.fear_src != 0 else null
+	if src != null:
+		out["fear"] = src.body.pos
+	return out
+
+## Alive (downed counts, dead does not): a target for spells on allies.
+func _helpable(b: Actor) -> bool:
+	if b.e.combatant == null or b.dead_at >= 0.0 or b.e.combatant.death_saves.is_dead:
+		return false
+	return not (_rules_has("is_dead") and bool(host.system(HostSystem.RULES).call("is_dead", b.e)))
 
 ## Brains feed their input through this (players: CombatClient.filter_input does the same
 ## from STATUS): speed 0 holds still, Prone crawls, Frightened cannot step toward the source.
@@ -434,7 +470,11 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 		var n := c.kit.attacks_per_action() if c.kit != null else 1
 		for i in n:
 			steps.append({"type": "ranged" if ranged or do_throw else "melee", "weapon": w, "two": two, "throw": do_throw, "cls": cls})
-		tempo = CombatTempo.weapon_tempo(cls)
+		tempo = CombatTempo.weapon_tempo(cls).duplicate()
+		# Quickhand and swing-recovery affixes: a shorter recovery after the swing (the wind-up
+		# and every roll stay as they are)
+		var quick := clampf(_tag(e, "swing_recovery"), 0.0, float(CombatTempo.section("tags").get("swing_recovery_max", 0.5)))
+		tempo["recovery"] = float(tempo.get("recovery", 0.4)) * (1.0 - quick)
 		mode = Mode.THROW if do_throw else (Mode.RANGED if ranged else Mode.MELEE)
 		what = w.weapon_name if w != null else "Unarmed Strike"
 	else:
@@ -473,6 +513,7 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 		"steps": steps, "aim": aim, "sweep": int(tempo.get("sweep", 0))}
 	a.action_ready = now + float(tl["total"])
 	a.last_hostile = now
+	_touched[e.id] = true
 	_start_clock(a)
 	counts["swings"] += 1
 	_emit(Ev.SWING, e.id, 0, {"mode": mode, "swings": steps.size(), "windup": tl["windup"], "total": tl["total"],
@@ -727,6 +768,9 @@ func _place(a: Actor, pos: Vector2) -> void:
 ## tiles. Monsters are moved here; a player's client sweeps its own body on the PUSH event.
 func _push(b: Actor, from: Vector2, feet: int) -> void:
 	var tiles := feet / 5.0 * CombatTempo.num("push_tiles_per_5ft", 2.0)
+	tiles *= 1.0 - clampf(_tag(b.e, "knockback_resist"), 0.0, 1.0)     # Surefoot
+	if tiles <= 0.0:
+		return
 	var dx := signf(b.e.body.rect().get_center().x - from.x)
 	if dx == 0.0:
 		dx = 1.0
@@ -965,6 +1009,7 @@ func cast(e: HostEntity, slug: String, level: int, aim: Vector2) -> String:
 		"steps": [{"type": "spell"}], "aim": aim, "ab": ab, "level": lvl, "casting": ct}
 	if ct == "action":
 		a.action_ready = now + float(tl["total"])
+	_touched[e.id] = true
 	_start_clock(a)
 	counts["swings"] += 1
 	_emit(Ev.SWING, e.id, 0, {"mode": Mode.AREA if ab.area_size > 0 else Mode.CAST, "swings": 1, "windup": tl["windup"],
@@ -1092,7 +1137,10 @@ func _pick(a: Actor, aim: Vector2, foes: bool, ab: AbilityData) -> Array:
 	var rng := K.ft(5) if ab.range_feet <= 5 else K.ft(ab.range_feet)
 	var cands: Array = []
 	for b: Actor in actors.values():
-		if not _targetable(b) or (foes and (b == a or not hostile(a.e, b.e))) or (not foes and hostile(a.e, b.e)):
+		# spells on allies (Cure Wounds, Healing Word) reach a downed player too: that is how a
+		# spell gets them up; spells on foes never touch the downed
+		var ok := _targetable(b) if foes else _helpable(b)
+		if not ok or (foes and (b == a or not hostile(a.e, b.e))) or (not foes and hostile(a.e, b.e)):
 			continue
 		var r := b.e.body.rect()
 		if b != a and (HitShapes.gap(rect, r) > rng + HitShapes.EPS or not HitShapes.line_to(host.world, center, r)):
@@ -1273,6 +1321,13 @@ func _move_rules(a: Actor) -> void:
 		mult = float(cd.get("prone_crawl", 0.5))
 	if mult > 0.0 and c.stats.speed > 0:
 		mult *= float(c.speed) / float(c.stats.speed)
+	if mult > 0.0 and not a.seq.is_empty():
+		# moving while swinging or casting (data: 1.0 = full speed, the feel as played);
+		# Steady (cast_move) and the like win back a share of any slowdown while casting
+		var base := float(CombatTempo.section("tempo_move").get("cast" if String(a.seq.get("kind", "")) == "cast" else "swing", 1.0))
+		if String(a.seq.get("kind", "")) == "cast":
+			base = lerpf(base, 1.0, clampf(_tag(a.e, "cast_move"), 0.0, 1.0))
+		mult *= base
 	if a.dead_at >= 0.0 or a.downed_at >= 0.0:
 		mult = 0.0
 		no_jump = true

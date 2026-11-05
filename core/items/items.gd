@@ -161,6 +161,11 @@ static func takes_material(base: String) -> bool:
 
 # --- records ----------------------------------------------------------------------------
 
+## Dig and build reach (tiles) and dig power from summed tags: (REACH + reach, 1 + dig_speed).
+## Host and client both use this, so a predicted dig takes exactly the host's time.
+static func edit_numbers(tags: Dictionary) -> Vector2:
+	return Vector2(TileEdit.REACH + maxf(0.0, float(tags.get("reach", 0.0))), 1.0 + maxf(0.0, float(tags.get("dig_speed", 0.0))))
+
 static func make(base: String, count := 1) -> Dictionary:
 	return {"base": base, "count": count}
 
