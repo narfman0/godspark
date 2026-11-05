@@ -40,6 +40,17 @@ var swimming := false
 var drop_y := NO_DROP
 ## Tiles stepped up (positive) or snapped down (negative) on the last step, for view smoothing.
 var stepped := 0.0
+# Spark abilities (MoveStats.air_jumps, dash_*): untouched while those are off.
+## Air jumps left before landing.
+var air_jumps_left := 0
+## Seconds of dash left, its direction, and cooldown left.
+var dash_left := 0.0
+var dash_dir := 0
+var dash_cd := 0.0
+## Double-tap detection: last tapped direction, seconds it stays open, last move_x.
+var tap_dir := 0
+var tap_t := 0.0
+var last_move_x := 0.0
 
 const NO_DROP := 1 << 30
 
@@ -84,4 +95,11 @@ func duplicate_body() -> Body:
 	b.swimming = swimming
 	b.drop_y = drop_y
 	b.stepped = stepped
+	b.air_jumps_left = air_jumps_left
+	b.dash_left = dash_left
+	b.dash_dir = dash_dir
+	b.dash_cd = dash_cd
+	b.tap_dir = tap_dir
+	b.tap_t = tap_t
+	b.last_move_x = last_move_x
 	return b

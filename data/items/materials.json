@@ -1,0 +1,37 @@
+{
+	"_comment": "Materials and quality for ordinary weapons and armour (original content; the SRD defines Silvered, Mithral and Adamantine, and those keep their SRD properties). Per kind (weapon, armor): mods = ItemEffects mods (addon format), tags = game effects read by other systems (see affixes.json). attack and ac count against the +3 budget (Items.BUDGET) together with quality and magic; Items.mods trims material and quality first. level: the lowest level_hint ItemGen rolls it at; weight: relative chance once allowed. value and weight_mult scale the base item's cost and weight. no_metal: bases that take no material (wood, leather, string).",
+	"materials": {
+		"copper": {"name": "Copper", "level": 1, "weight": 10, "value": 0.6, "weight_mult": 1.0, "ore": "copper",
+			"weapon": {"tags": {"dig_speed": 0.05}},
+			"armor": {"tags": {"light": 1}}},
+		"iron": {"name": "Iron", "level": 1, "weight": 10, "value": 1.0, "weight_mult": 1.0, "ore": "iron",
+			"weapon": {},
+			"armor": {"tags": {"knockback_resist": 0.1}}},
+		"silver": {"name": "Silver", "level": 15, "weight": 6, "value": 3.0, "weight_mult": 1.0, "ore": "silver",
+			"weapon": {"tags": {"silvered": 1}},
+			"armor": {"mods": {"resist": ["necrotic"]}}},
+		"mithral": {"name": "Mithral", "level": 40, "weight": 3, "value": 12.0, "weight_mult": 0.5,
+			"weapon": {"mods": {"attack": 1}, "tags": {"swing_recovery": 0.1}},
+			"armor": {"mods": {"heavy_stealth": true, "strength_free": true}}},
+		"adamantine": {"name": "Adamantine", "level": 65, "weight": 2, "value": 20.0, "weight_mult": 1.0,
+			"weapon": {"mods": {"attack": 1}, "tags": {"dig_speed": 0.5, "sunder": 1}},
+			"armor": {"mods": {"crit_immune": true}}}
+	},
+	"no_metal": ["club", "greatclub", "quarterstaff", "dart", "sling", "blowgun", "shortbow", "longbow", "whip",
+		"padded-armor", "leather-armor", "studded-leather-armor", "hide-armor"],
+	"quality": {
+		"crude": {"name": "Crude", "value": 0.5, "weight_mult": 1.25, "chance": 25,
+			"weapon": {"tags": {"swing_recovery": -0.05}},
+			"armor": {"tags": {"knockback_resist": -0.1}}},
+		"common": {"name": "", "value": 1.0, "weight_mult": 1.0, "chance": 55,
+			"weapon": {},
+			"armor": {}},
+		"fine": {"name": "Fine", "value": 2.5, "weight_mult": 0.9, "chance": 15,
+			"weapon": {"tags": {"swing_recovery": 0.05}},
+			"armor": {"tags": {"knockback_resist": 0.15}}},
+		"masterwork": {"name": "Masterwork", "value": 8.0, "weight_mult": 0.8, "chance": 5,
+			"weapon": {"tags": {"swing_recovery": 0.1, "dig_speed": 0.1}},
+			"armor": {"mods": {"speed": 5}, "tags": {"knockback_resist": 0.25}}}
+	},
+	"quality_order": ["crude", "common", "fine", "masterwork"]
+}

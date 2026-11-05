@@ -234,15 +234,25 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 		var t := input.target
 		var tile := input.place_tile if input.place_tile > 0 else place_tile
 		_place_at = t
-		if has_chunk(t.x >> 5, t.y >> 5) and TileEdit.can_place(world, body, t.x, t.y, tile, [body]):
+		if has_chunk(t.x >> 5, t.y >> 5) and TileEdit.can_place(world, body, t.x, t.y, tile, [body]) \
+				and _systems_allow_place(tile):
 			_req += 1
 			reqs.append({"op": Op.PLACE, "req": _req, "x": t.x, "y": t.y, "tile": tile})
 			_predict(t, tile, _req)
+			for sys: ClientSystem in systems.values():
+				sys.placed(_req, tile)
 	_place_prev = input.place
 	frozen = not _body_area_loaded()
 	if not frozen:
 		PlayerController.step(world, body, input, stats, 1.0 / MoveStats.step_hz())
 	return reqs
+
+## Every client system agrees to a place (ClientSystem.allow_place; items checks the tile is held).
+func _systems_allow_place(tile: int) -> bool:
+	for sys: ClientSystem in systems.values():
+		if not sys.allow_place(tile):
+			return false
+	return true
 
 func _body_area_loaded() -> bool:
 	var margin := FREEZE_MARGIN + body.vel.length() / MoveStats.step_hz()

@@ -13,7 +13,7 @@ extends RefCounted
 
 ## Why an edit was refused. OK = 0 means accepted.
 enum Reason { OK, OUT_OF_BOUNDS, OUT_OF_REACH, NOTHING_THERE, UNBREAKABLE, OCCUPIED,
-		NO_ANCHOR, BLOCKED, BAD_TILE, NO_ENTITY }
+		NO_ANCHOR, BLOCKED, BAD_TILE, NO_ENTITY, NO_ITEM }
 ## Outbox event types. Every event is a Dictionary with "type" and the fields below.
 ##   TILE         x, y, layer, value                    (any tile change, from tile_changed)
 ##   JOIN         id                                     (an entity appeared)
@@ -458,7 +458,14 @@ func request_place(id: int, req: int, x: int, y: int, tile_id: int) -> Reason:
 		return Reason.NO_ENTITY
 	var why := place_reason(e, x, y, tile_id)
 	if why == Reason.OK:
+		for sys: HostSystem in systems.values():
+			if not sys.allow_place(self, e, tile_id):
+				why = Reason.NO_ITEM
+				break
+	if why == Reason.OK:
+		var old := world.get_fg(x, y)
 		world.set_fg(x, y, tile_id)
+		_edited(e, x, y, old, tile_id)
 	_result(e, req, why, x, y)
 	return why
 
@@ -500,8 +507,15 @@ func _advance_dig(e: HostEntity) -> void:
 		return
 	if e.dig.update(at, world.get_fg(at.x, at.y), dt()):
 		e.dig_target = HostEntity.NO_DIG
+		var old := world.get_fg(at.x, at.y)
 		world.set_fg(at.x, at.y, TileDefs.AIR)
+		_edited(e, at.x, at.y, old, TileDefs.AIR)
 		_result(e, e.dig_req, Reason.OK, at.x, at.y)
+
+## Systems hear of a player's completed edit (HostSystem.tile_edited).
+func _edited(e: HostEntity, x: int, y: int, old: int, now: int) -> void:
+	for sys: HostSystem in systems.values():
+		sys.tile_edited(self, e, x, y, old, now)
 
 func _result(e: HostEntity, req: int, why: Reason, x: int, y: int) -> void:
 	outbox.append({"type": Ev.EDIT_RESULT, "id": e.id, "owner": e.owner, "req": req,

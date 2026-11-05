@@ -56,11 +56,11 @@ var build := {}
 ## Knack ids taken, and deed counters (tiles dug, kills by type...): the rules track.
 var knacks: Array = []
 var deeds := {}
-## Items track: these three are placeholders it replaces with Constellation, Inventory and
-## Equipment (keep them JSON-safe). Nothing here reads them yet.
-var sparks := {}
-var inventory := {}
-var equipment := {}
+## The items track's state, saved here (and only here): kindled sparks, carried items and
+## coin, and what is worn. See docs/tracks/items.md.
+var sparks := Constellation.new()
+var inventory := Inventory.new()
+var equipment := Equipment.new()
 ## State rests restore. hp: current hit points (max comes from the level, max_hp()).
 ## slots_left: spell slots left per level [l1..l9] ([] = all); uses_left: {resource: n}
 ## ({} = all). The rules track owns the last two.
@@ -79,6 +79,7 @@ static func create(char_name: String, class_slug_in: String, scores: Array = [],
 	var ch := Character.new()
 	var d: Dictionary = DEFAULTS.get(class_slug_in, {})
 	ch.name = char_name
+	ch.sparks.salt = char_name
 	ch.class_slug = class_slug_in
 	ch.species = species_in if species_in != "" else DEFAULT_SPECIES
 	ch.background = background_in if background_in != "" else String(d.get("background", ""))
@@ -214,8 +215,8 @@ func to_dict() -> Dictionary:
 	return {
 		"format": 1, "name": name, "class": class_slug, "subclass": subclass, "species": species,
 		"background": background, "level": level, "xp": xp, "build": build.duplicate(true),
-		"knacks": knacks.duplicate(), "deeds": deeds.duplicate(true), "sparks": sparks.duplicate(true),
-		"inventory": inventory.duplicate(true), "equipment": equipment.duplicate(true),
+		"knacks": knacks.duplicate(), "deeds": deeds.duplicate(true), "sparks": sparks.to_dict(),
+		"inventory": inventory.to_dict(), "equipment": equipment.to_dict(),
 		"hp": hp, "hit_dice_left": hit_dice_left, "slots_left": slots_left.duplicate(),
 		"uses_left": uses_left.duplicate(true), "bed": [bed.x, bed.y] if bed is Vector2i else null,
 	}
@@ -236,9 +237,10 @@ static func from_dict(d: Dictionary) -> Character:
 	ch.build = _ints(d.get("build", {}))
 	ch.knacks = Array(d.get("knacks", [])).duplicate()
 	ch.deeds = _ints(d.get("deeds", {}))
-	ch.sparks = Dictionary(d.get("sparks", {})).duplicate(true)
-	ch.inventory = Dictionary(d.get("inventory", {})).duplicate(true)
-	ch.equipment = Dictionary(d.get("equipment", {})).duplicate(true)
+	ch.sparks = Constellation.from_dict(d.get("sparks", {}))
+	ch.sparks.salt = ch.name
+	ch.inventory = Inventory.from_dict(d.get("inventory", {}))
+	ch.equipment = Equipment.from_dict(d.get("equipment", {}))
 	ch.hp = int(d.get("hp", 0))
 	ch.hit_dice_left = int(d.get("hit_dice_left", 0))
 	ch.slots_left = _ints(d.get("slots_left", []))

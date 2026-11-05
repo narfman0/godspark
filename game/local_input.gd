@@ -22,9 +22,15 @@ func read() -> PlayerInput:
 	input.down = Input.is_action_pressed("move_down")
 	input.dig = Input.is_action_pressed("dig")
 	input.place = Input.is_action_pressed("place") and not input.dig
+	# With the items system the keys pick hotbar slots 1-4 and you place what is selected.
+	var items: ClientSystem = presenter.cw.system(HostSystem.ITEMS) if presenter != null and presenter.cw != null else null
 	for i in PLACEABLE.size():
 		if Input.is_action_just_pressed("tile_%d" % (i + 1)):
 			place_tile = TileDefs.id(PLACEABLE[i])
+			if items != null and items.has_method("select_hotbar"):
+				items.call("select_hotbar", i)
+	if items != null and bool(items.get("live")):
+		place_tile = int(items.call("selected_tile"))
 	input.place_tile = place_tile
 	if presenter != null and (input.dig or input.place):
 		input.target = presenter.tile_at_screen(get_viewport().get_mouse_position())

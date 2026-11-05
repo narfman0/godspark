@@ -1,0 +1,54 @@
+{
+	"_comment": "Sparks (original content): scraps of divinity kindled into constellation slots. THE RULE: a spark never changes attack rolls, AC, save DCs or damage dice (tests/test_sparks.gd proves it); it changes how you move and live. ranks: I, II, III (index 0-2). move: MoveStats changes, applied identically by host and client (Sparks.apply): run_mult (x run speed), jump_add (tiles of jump height, gravity kept), air_jumps and air_jump_mult (Skyhook: extra jumps in the air, x jump velocity), dash_speed / dash_time / dash_cooldown (Dash: double-tap a direction or PlayerInput.dash; tiles/s, s, s), glide_fall (Featherfall: most fall speed in tiles/s while jump is held), climb_speed (Gecko: wall cling and climb, tiles/s), swim_mult (x swim speed). tags: summed into items.tags(e) for other systems (units in data/items/affixes.json; plus cast_move: fraction of speed kept while casting, price_mult: fraction off prices, reputation_mult: extra reputation gain, beast_peace: chance a beast is not hostile). depth: which ranks drop where, by worldgen band (Loot).",
+	"groups": ["motion", "senses", "tempo", "bonds"],
+	"rank_names": ["I", "II", "III"],
+	"sparks": {
+		"fleet": {"name": "Fleet", "group": "motion", "text": "Run faster.", "ranks": [
+			{"move": {"run_mult": 1.1}}, {"move": {"run_mult": 1.2}}, {"move": {"run_mult": 1.3}}]},
+		"spring": {"name": "Spring", "group": "motion", "text": "Jump higher.", "ranks": [
+			{"move": {"jump_add": 1.0}}, {"move": {"jump_add": 2.0}}, {"move": {"jump_add": 3.0}}]},
+		"skyhook": {"name": "Skyhook", "group": "motion", "text": "Jump again in the air.", "ranks": [
+			{"move": {"air_jumps": 1, "air_jump_mult": 0.7}}, {"move": {"air_jumps": 1, "air_jump_mult": 0.9}},
+			{"move": {"air_jumps": 2, "air_jump_mult": 0.9}}]},
+		"dash": {"name": "Dash", "group": "motion", "text": "Double-tap a direction to dart that way.", "ranks": [
+			{"move": {"dash_speed": 26.0, "dash_time": 0.15, "dash_cooldown": 1.2}},
+			{"move": {"dash_speed": 29.0, "dash_time": 0.15, "dash_cooldown": 0.9}},
+			{"move": {"dash_speed": 32.0, "dash_time": 0.15, "dash_cooldown": 0.6}}]},
+		"featherfall": {"name": "Featherfall", "group": "motion", "text": "Hold jump to drift down.", "ranks": [
+			{"move": {"glide_fall": 9.0}}, {"move": {"glide_fall": 6.0}}, {"move": {"glide_fall": 4.0}}]},
+		"mole": {"name": "Mole", "group": "motion", "text": "Dig faster.", "ranks": [
+			{"tags": {"dig_speed": 0.25}}, {"tags": {"dig_speed": 0.5}}, {"tags": {"dig_speed": 0.75}}]},
+		"longarm": {"name": "Longarm", "group": "motion", "text": "Dig and build further away.", "ranks": [
+			{"tags": {"reach": 1.0}}, {"tags": {"reach": 2.0}}, {"tags": {"reach": 3.0}}]},
+		"gecko": {"name": "Gecko", "group": "motion", "text": "Cling to walls and climb them.", "ranks": [
+			{"move": {"climb_speed": 3.0}}, {"move": {"climb_speed": 5.0}}, {"move": {"climb_speed": 7.0}}]},
+		"otter": {"name": "Otter", "group": "motion", "text": "Swim faster.", "ranks": [
+			{"move": {"swim_mult": 1.25}}, {"move": {"swim_mult": 1.5}}, {"move": {"swim_mult": 1.8}}]},
+		"lantern": {"name": "Lantern", "group": "senses", "text": "Carry a glow.", "ranks": [
+			{"tags": {"light": 6}}, {"tags": {"light": 9}}, {"tags": {"light": 12}}]},
+		"owl": {"name": "Owl", "group": "senses", "text": "See further in dim light.", "ranks": [
+			{"tags": {"dim_sight": 4}}, {"tags": {"dim_sight": 8}}, {"tags": {"dim_sight": 12}}]},
+		"magnet": {"name": "Magnet", "group": "senses", "text": "Things on the ground come to you from further away.", "ranks": [
+			{"tags": {"pickup_radius": 2.0}}, {"tags": {"pickup_radius": 4.0}}, {"tags": {"pickup_radius": 6.0}}]},
+		"dowser": {"name": "Dowser", "group": "senses", "text": "Ore glints nearby.", "ranks": [
+			{"tags": {"ore_sense": 6}}, {"tags": {"ore_sense": 10}}, {"tags": {"ore_sense": 14}}]},
+		"quickhand": {"name": "Quickhand", "group": "tempo", "text": "Recover from a swing sooner.", "ranks": [
+			{"tags": {"swing_recovery": 0.1}}, {"tags": {"swing_recovery": 0.2}}, {"tags": {"swing_recovery": 0.3}}]},
+		"steady": {"name": "Steady", "group": "tempo", "text": "Keep moving while you cast.", "ranks": [
+			{"tags": {"cast_move": 0.4}}, {"tags": {"cast_move": 0.7}}, {"tags": {"cast_move": 1.0}}]},
+		"surefoot": {"name": "Surefoot", "group": "tempo", "text": "Blows don't slow you.", "ranks": [
+			{"tags": {"knockback_resist": 0.33}}, {"tags": {"knockback_resist": 0.66}}, {"tags": {"knockback_resist": 1.0}}]},
+		"silver_tongue": {"name": "Silver Tongue", "group": "bonds", "text": "Better prices.", "ranks": [
+			{"tags": {"price_mult": 0.05}}, {"tags": {"price_mult": 0.1}}, {"tags": {"price_mult": 0.15}}]},
+		"hearthfriend": {"name": "Hearthfriend", "group": "bonds", "text": "Peoples warm to you faster.", "ranks": [
+			{"tags": {"reputation_mult": 0.25}}, {"tags": {"reputation_mult": 0.5}}, {"tags": {"reputation_mult": 0.75}}]},
+		"beastfriend": {"name": "Beastfriend", "group": "bonds", "text": "Beasts may leave you be.", "ranks": [
+			{"tags": {"beast_peace": 0.25}}, {"tags": {"beast_peace": 0.5}}, {"tags": {"beast_peace": 0.75}}]},
+		"scavenger": {"name": "Scavenger", "group": "bonds", "text": "More falls from what you kill.", "ranks": [
+			{"tags": {"drop_find": 0.1}}, {"tags": {"drop_find": 0.2}}, {"tags": {"drop_find": 0.3}}]}
+	},
+	"depth": {
+		"_comment": "Rank weights [I, II, III] by worldgen band (GenContext.BAND_CUTS).",
+		"sky": [80, 18, 2], "surface": [85, 14, 1], "caves": [55, 38, 7], "deeps": [20, 55, 25], "nadir": [5, 40, 55]
+	}
+}

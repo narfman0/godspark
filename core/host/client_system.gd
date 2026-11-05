@@ -19,3 +19,12 @@ func handle(_kind: int, _data: PackedByteArray) -> void:
 ## Once per client frame (after the world advanced).
 func frame(_dt: float) -> void:
 	pass
+
+## Edit flow (items): may the own player place `tile_id` now? False: the client neither
+## predicts nor sends the place.
+func allow_place(_tile_id: int) -> bool:
+	return true
+
+## Edit flow (items): the client predicted a place (request `req`) and sent it.
+func placed(_req: int, _tile_id: int) -> void:
+	pass

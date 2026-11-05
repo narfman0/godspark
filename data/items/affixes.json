@@ -1,0 +1,98 @@
+{
+	"_comment": "Affixes for ordinary weapons and armour (original content). An item record lists them as ids, with the tier after a colon when above 1 (\"embers:2\"). kind: prefix (an adjective before the material) or suffix (\"of ...\"). on: weapon, armor (body armour and shields) or any. tiers: 1-3 (level_hint under 30, under 65, the rest), each with mods (ItemEffects, addon format) and/or tags. Affixes never add to attack rolls, AC, saves or spell DCs (Items.FORBIDDEN_AFFIX_MODS, checked by tests): riders and utility only. Tags are summed over worn gear and kindled sparks (items.tags(e)) for other systems: dig_speed (fraction faster), light (carried light level), pickup_radius (tiles), swing_recovery (fraction faster), reach (tiles), swim (fraction), jump (tiles), climb (on/off), fall_resist (fraction), knockback_resist (fraction), coin_find, drop_find (fraction), dim_sight (tiles), regen (hit points per minute), thorns (damage to melee attackers), breath (on/off), silvered, sunder.",
+	"weight": 10,
+	"affixes": {
+		"embers": {"name": "of Embers", "kind": "suffix", "on": "weapon", "tiers": [
+			{"mods": {"extra_damage": {"name": "Embers", "dice": "1d4", "type": "fire"}}},
+			{"mods": {"extra_damage": {"name": "Embers", "dice": "1d6", "type": "fire"}}},
+			{"mods": {"extra_damage": {"name": "Embers", "dice": "1d8", "type": "fire"}}}]},
+		"rime": {"name": "of Rime", "kind": "suffix", "on": "weapon", "tiers": [
+			{"mods": {"extra_damage": {"name": "Rime", "dice": "1d4", "type": "cold"}}},
+			{"mods": {"extra_damage": {"name": "Rime", "dice": "1d6", "type": "cold"}}},
+			{"mods": {"extra_damage": {"name": "Rime", "dice": "1d8", "type": "cold"}}}]},
+		"crackle": {"name": "of the Crackle", "kind": "suffix", "on": "weapon", "tiers": [
+			{"mods": {"extra_damage": {"name": "Crackle", "dice": "1d4", "type": "lightning"}}},
+			{"mods": {"extra_damage": {"name": "Crackle", "dice": "1d6", "type": "lightning"}}},
+			{"mods": {"extra_damage": {"name": "Crackle", "dice": "1d8", "type": "lightning"}}}]},
+		"bile": {"name": "of Bile", "kind": "suffix", "on": "weapon", "tiers": [
+			{"mods": {"extra_damage": {"name": "Bile", "dice": "1d4", "type": "acid"}}},
+			{"mods": {"extra_damage": {"name": "Bile", "dice": "1d6", "type": "acid"}}},
+			{"mods": {"extra_damage": {"name": "Bile", "dice": "1d8", "type": "acid"}}}]},
+		"wasp": {"name": "of the Wasp", "kind": "suffix", "on": "weapon", "tiers": [
+			{"mods": {"extra_damage": {"name": "Wasp", "dice": "1d4", "type": "poison"}}},
+			{"mods": {"extra_damage": {"name": "Wasp", "dice": "1d6", "type": "poison"}}},
+			{"mods": {"extra_damage": {"name": "Wasp", "dice": "1d8", "type": "poison"}}}]},
+		"thunderclap": {"name": "of Thunderclaps", "kind": "suffix", "on": "weapon", "tiers": [
+			{"mods": {"extra_damage": {"name": "Thunderclap", "dice": "1d4", "type": "thunder"}}},
+			{"mods": {"extra_damage": {"name": "Thunderclap", "dice": "1d6", "type": "thunder"}}},
+			{"mods": {"extra_damage": {"name": "Thunderclap", "dice": "1d8", "type": "thunder"}}}]},
+		"dusk": {"name": "of Dusk", "kind": "suffix", "on": "weapon", "tiers": [
+			{"mods": {"extra_damage": {"name": "Dusk", "dice": "1d4", "type": "necrotic"}}},
+			{"mods": {"extra_damage": {"name": "Dusk", "dice": "1d6", "type": "necrotic"}}},
+			{"mods": {"extra_damage": {"name": "Dusk", "dice": "1d8", "type": "necrotic"}}}]},
+		"dawn": {"name": "of Dawn", "kind": "suffix", "on": "weapon", "weight": 4, "tiers": [
+			{"mods": {"extra_damage": {"name": "Dawn", "dice": "1d4", "type": "radiant"}}},
+			{"mods": {"extra_damage": {"name": "Dawn", "dice": "1d6", "type": "radiant"}}},
+			{"mods": {"extra_damage": {"name": "Dawn", "dice": "1d8", "type": "radiant"}}}]},
+		"itch": {"name": "of the Nagging Itch", "kind": "suffix", "on": "weapon", "weight": 4, "tiers": [
+			{"mods": {"extra_damage": {"name": "Itch", "dice": "1d4", "type": "psychic"}}},
+			{"mods": {"extra_damage": {"name": "Itch", "dice": "1d6", "type": "psychic"}}},
+			{"mods": {"extra_damage": {"name": "Itch", "dice": "1d8", "type": "psychic"}}}]},
+		"mole": {"name": "of the Mole", "kind": "suffix", "on": "any", "tiers": [
+			{"tags": {"dig_speed": 0.2}}, {"tags": {"dig_speed": 0.35}}, {"tags": {"dig_speed": 0.5}}]},
+		"glowworm": {"name": "of the Glowworm", "kind": "suffix", "on": "any", "tiers": [
+			{"tags": {"light": 4}}, {"tags": {"light": 6}}, {"tags": {"light": 8}}]},
+		"magpie": {"name": "of the Magpie", "kind": "suffix", "on": "any", "tiers": [
+			{"tags": {"pickup_radius": 1.5}}, {"tags": {"pickup_radius": 2.5}}, {"tags": {"pickup_radius": 3.5}}]},
+		"hare": {"name": "of the Hare", "kind": "suffix", "on": "armor", "tiers": [
+			{"mods": {"speed": 5}}, {"mods": {"speed": 5}, "tags": {"jump": 0.5}}, {"mods": {"speed": 10}}]},
+		"quickwrist": {"name": "of Quick Wrists", "kind": "suffix", "on": "weapon", "tiers": [
+			{"tags": {"swing_recovery": 0.08}}, {"tags": {"swing_recovery": 0.12}}, {"tags": {"swing_recovery": 0.16}}]},
+		"longreach": {"name": "of the Long Arm", "kind": "suffix", "on": "any", "weight": 6, "tiers": [
+			{"tags": {"reach": 1}}, {"tags": {"reach": 1.5}}, {"tags": {"reach": 2}}]},
+		"hearth": {"name": "of the Hearth", "kind": "suffix", "on": "armor", "tiers": [
+			{"mods": {"resist": ["cold"]}}, {"mods": {"resist": ["cold"]}}, {"mods": {"resist": ["cold"]}}]},
+		"kiln": {"name": "of the Kiln", "kind": "suffix", "on": "armor", "tiers": [
+			{"mods": {"resist": ["fire"]}}, {"mods": {"resist": ["fire"]}}, {"mods": {"resist": ["fire"]}}]},
+		"grounding": {"name": "of Grounding", "kind": "suffix", "on": "armor", "tiers": [
+			{"mods": {"resist": ["lightning"]}}, {"mods": {"resist": ["lightning"]}}, {"mods": {"resist": ["lightning"]}}]},
+		"irongut": {"name": "of the Iron Gut", "kind": "suffix", "on": "armor", "tiers": [
+			{"mods": {"resist": ["poison"]}}, {"mods": {"resist": ["poison"]}}, {"mods": {"resist": ["poison"]}}]},
+		"gravedigger": {"name": "of the Gravedigger", "kind": "suffix", "on": "armor", "tiers": [
+			{"mods": {"resist": ["necrotic"]}}, {"mods": {"resist": ["necrotic"]}}, {"mods": {"resist": ["necrotic"]}}]},
+		"brine": {"name": "of Brine", "kind": "suffix", "on": "armor", "tiers": [
+			{"mods": {"resist": ["acid"]}}, {"mods": {"resist": ["acid"]}}, {"mods": {"resist": ["acid"]}}]},
+		"brightcoin": {"name": "of Bright Coins", "kind": "suffix", "on": "any", "tiers": [
+			{"tags": {"coin_find": 0.1}}, {"tags": {"coin_find": 0.15}}, {"tags": {"coin_find": 0.2}}]},
+		"softlanding": {"name": "of Soft Landings", "kind": "suffix", "on": "armor", "tiers": [
+			{"tags": {"fall_resist": 0.25}}, {"tags": {"fall_resist": 0.4}}, {"tags": {"fall_resist": 0.6}}]},
+		"cateye": {"name": "of the Cat's Eye", "kind": "suffix", "on": "any", "tiers": [
+			{"tags": {"dim_sight": 3}}, {"tags": {"dim_sight": 5}}, {"tags": {"dim_sight": 7}}]},
+		"gleaming": {"name": "Gleaming", "kind": "prefix", "on": "any", "tiers": [
+			{"tags": {"light": 2}}, {"tags": {"light": 3}}, {"tags": {"light": 4}}]},
+		"whistling": {"name": "Whistling", "kind": "prefix", "on": "weapon", "tiers": [
+			{"tags": {"swing_recovery": 0.05}}, {"tags": {"swing_recovery": 0.08}}, {"tags": {"swing_recovery": 0.1}}]},
+		"burrowing": {"name": "Burrowing", "kind": "prefix", "on": "any", "tiers": [
+			{"tags": {"dig_speed": 0.1}}, {"tags": {"dig_speed": 0.2}}, {"tags": {"dig_speed": 0.3}}]},
+		"greedy": {"name": "Greedy", "kind": "prefix", "on": "any", "tiers": [
+			{"tags": {"coin_find": 0.05}}, {"tags": {"coin_find": 0.1}}, {"tags": {"coin_find": 0.15}}]},
+		"lucky": {"name": "Lucky", "kind": "prefix", "on": "any", "weight": 5, "tiers": [
+			{"tags": {"drop_find": 0.05}}, {"tags": {"drop_find": 0.08}}, {"tags": {"drop_find": 0.12}}]},
+		"sturdy": {"name": "Sturdy", "kind": "prefix", "on": "armor", "tiers": [
+			{"tags": {"knockback_resist": 0.2}}, {"tags": {"knockback_resist": 0.3}}, {"tags": {"knockback_resist": 0.4}}]},
+		"featherweight": {"name": "Featherweight", "kind": "prefix", "on": "any", "tiers": [
+			{"tags": {"weight_mult": -0.3}}, {"tags": {"weight_mult": -0.4}}, {"tags": {"weight_mult": -0.5}}]},
+		"bristling": {"name": "Bristling", "kind": "prefix", "on": "armor", "tiers": [
+			{"tags": {"thorns": 1}}, {"tags": {"thorns": 2}}, {"tags": {"thorns": 3}}]},
+		"barnacled": {"name": "Barnacled", "kind": "prefix", "on": "armor", "tiers": [
+			{"tags": {"swim": 0.15}}, {"tags": {"swim": 0.25}}, {"tags": {"swim": 0.35}}]},
+		"hearty": {"name": "Hearty", "kind": "prefix", "on": "armor", "tiers": [
+			{"tags": {"regen": 1}}, {"tags": {"regen": 2}}, {"tags": {"regen": 3}}]},
+		"springheeled": {"name": "Spring-Heeled", "kind": "prefix", "on": "armor", "weight": 5, "tiers": [
+			{"tags": {"jump": 0.5}}, {"tags": {"jump": 0.75}}, {"tags": {"jump": 1.0}}]},
+		"snuffling": {"name": "Snuffling", "kind": "prefix", "on": "any", "weight": 5, "tiers": [
+			{"tags": {"ore_sense": 4}}, {"tags": {"ore_sense": 6}}, {"tags": {"ore_sense": 8}}]},
+		"gossamer": {"name": "Gossamer", "kind": "prefix", "on": "armor", "weight": 5, "tiers": [
+			{"tags": {"fall_resist": 0.2}}, {"tags": {"fall_resist": 0.3}}, {"tags": {"fall_resist": 0.4}}]}
+	}
+}

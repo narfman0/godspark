@@ -39,8 +39,11 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 		if body.pos.y > body.drop_y + TileCollision.EPS or (body.on_floor and body.pos.y < body.drop_y - TileCollision.EPS):
 			body.drop_y = Body.NO_DROP
 
+	if stats.dash_speed > 0.0:
+		_dash_input(body, input, stats, dt)
 	if body.on_floor:
 		body.coyote = stats.coyote_time
+		body.air_jumps_left = stats.air_jumps
 	else:
 		body.coyote = maxf(0.0, body.coyote - dt)
 	if input.jump_pressed:
@@ -67,6 +70,10 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 		var away := input.move_x != 0.0 and not toward
 		body.clinging = toward or (body.clinging and not away)
 
+	if body.dash_left > 0.0 and (body.flying or body.climbing or body.swimming or body.clinging):
+		body.dash_left = 0.0
+	if body.climbing or body.swimming or body.clinging:
+		body.air_jumps_left = stats.air_jumps
 	if body.flying:
 		_fly(world, body, input, stats, dt)
 	elif body.climbing:
@@ -81,6 +88,13 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 # --- modes ---------------------------------------------------------------------------
 
 static func _ground(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
+	if body.dash_left > T_EPS:
+		# Dash: a flat burst; gravity waits until it ends.
+		body.dash_left = maxf(0.0, body.dash_left - dt)
+		body.jumping = false
+		body.vel = Vector2(body.dash_dir * stats.dash_speed, 0.0)
+		_move(world, body, stats, dt, true)
+		return
 	var target := input.move_x * stats.run_speed
 	if body.on_floor:
 		_approach_x(body, target, stats.ground_accel, stats.ground_friction, stats.turn_accel, dt)
@@ -100,6 +114,12 @@ static func _ground(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 		body.jump_buffer = 0.0
 		body.coyote = 0.0
 		body.on_floor = false
+	elif input.jump_pressed and body.air_jumps_left > 0 and not body.on_floor:
+		# Skyhook: a jump in mid-air.
+		body.air_jumps_left -= 1
+		body.vel.y = stats.jump_velocity * stats.air_jump_mult
+		body.jumping = true
+		body.jump_buffer = 0.0
 	if body.jumping:
 		if body.vel.y <= 0.0:
 			body.jumping = false
@@ -109,6 +129,9 @@ static func _ground(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 
 	var g := stats.gravity * (stats.fall_gravity_mult if body.vel.y < 0.0 else 1.0)
 	body.vel.y = maxf(body.vel.y - g * dt, -stats.terminal_fall)
+	if stats.glide_fall > 0.0 and input.jump and body.vel.y < -stats.glide_fall:
+		# Featherfall: holding jump brakes a fall to glide_fall.
+		body.vel.y = minf(-stats.glide_fall, body.vel.y + 2.0 * g * dt)
 	_move(world, body, stats, dt, not dropped)
 
 static func _ladder(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
@@ -180,6 +203,29 @@ static func _fly(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 	TileCollision.move(world, body, dt)
 
 # --- shared ----------------------------------------------------------------------------
+
+## Dash triggers (only with stats.dash_speed > 0): PlayerInput.dash, or a direction tapped
+## twice within stats.dash_window. Starts body.dash_left when the cooldown allows.
+static func _dash_input(body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
+	body.dash_cd = maxf(0.0, body.dash_cd - dt)
+	body.tap_t = maxf(0.0, body.tap_t - dt)
+	var dir := 0
+	if input.dash:
+		dir = body.facing
+	if input.move_x != 0.0 and body.last_move_x == 0.0:
+		var d := 1 if input.move_x > 0.0 else -1
+		if body.tap_t > T_EPS and body.tap_dir == d:
+			dir = d
+			body.tap_t = 0.0
+		else:
+			body.tap_dir = d
+			body.tap_t = stats.dash_window
+	body.last_move_x = input.move_x
+	if dir != 0 and body.dash_cd <= T_EPS and body.dash_left <= T_EPS:
+		body.dash_dir = dir
+		body.dash_left = stats.dash_time
+		body.dash_cd = stats.dash_cooldown
+		body.facing = dir
 
 ## Accelerate vel.x toward target: `accel` when speeding up, `turn` when reversing,
 ## `decel` when letting go or above the target speed.

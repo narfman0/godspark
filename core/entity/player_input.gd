@@ -3,7 +3,7 @@
 ## stored quantized to 1/127 so it survives a byte, and the setters quantize on write.
 ##
 ## Wire layout (little-endian):
-##   u8 flags   bit0 jump held, 1 jump_pressed, 2 up, 3 down, 4 dig, 5 place, 6 use
+##   u8 flags   bit0 jump held, 1 jump_pressed, 2 up, 3 down, 4 dig, 5 place, 6 use, 7 dash
 ##   s8 move_x  * 127
 ##   if dig, place or use:  s16 target.x, s16 target.y
 ##   if place:              u16 place_tile
@@ -23,6 +23,8 @@ var down := false
 var dig := false
 var place := false
 var use := false
+## Dash pressed this step (only does something with a Dash spark: MoveStats.dash_speed).
+var dash := false
 ## Tile the dig/place/use intents aim at (tile coordinates, s16 range).
 var target := Vector2i.ZERO:
 	set(v):
@@ -37,7 +39,7 @@ func has_target() -> bool:
 
 func to_bytes() -> PackedByteArray:
 	var flags := (int(jump) | int(jump_pressed) << 1 | int(up) << 2 | int(down) << 3
-			| int(dig) << 4 | int(place) << 5 | int(use) << 6)
+			| int(dig) << 4 | int(place) << 5 | int(use) << 6 | int(dash) << 7)
 	var b := PackedByteArray()
 	b.resize(2 + (4 if has_target() else 0) + (2 if place else 0))
 	b[0] = flags
@@ -62,6 +64,7 @@ static func from_bytes(b: PackedByteArray) -> PlayerInput:
 	p.dig = flags & 16 != 0
 	p.place = flags & 32 != 0
 	p.use = flags & 64 != 0
+	p.dash = flags & 128 != 0
 	p.move_x = b.decode_s8(1) / QUANT
 	if p.has_target():
 		if b.size() < 6:
@@ -75,5 +78,5 @@ static func from_bytes(b: PackedByteArray) -> PlayerInput:
 
 func equals(o: PlayerInput) -> bool:
 	return (o != null and move_x == o.move_x and jump == o.jump and jump_pressed == o.jump_pressed
-			and up == o.up and down == o.down and dig == o.dig and place == o.place and use == o.use
+			and up == o.up and down == o.down and dig == o.dig and place == o.place and use == o.use and dash == o.dash
 			and (not has_target() or target == o.target) and (not place or place_tile == o.place_tile))

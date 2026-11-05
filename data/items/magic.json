@@ -1,0 +1,2416 @@
+{
+	"_comment": "SRD 5.2.1 magic items by addon slug: how the game wears and uses them. Rarity, attunement, text and names come from the addon at load. slot: an Equipment slot kind (main_hand, off_hand, armor, head, neck, cloak, hands, belt, feet, ring) or \"\" (carried). kind: weapon, armor, shield, worn, focus, consumable, carried, ammo. bases: base items it can be made from (\"*\" any weapon or armour of its kind, \"*melee\" any melee weapon). mods: ItemEffects mods (addon format); tags: game effects other systems read (see data/items/affixes.json). tiers: variants (+1/+2/+3, damage types, giant kinds), each with name and mods or use. use: what using it does (heal: dice). status: works (main effect applied), partial (part applied, rest is text), inert (text only for now).",
+	"adamantine-armor": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"chain-shirt",
+			"scale-mail",
+			"breastplate",
+			"half-plate-armor",
+			"ring-mail",
+			"chain-mail",
+			"splint-armor",
+			"plate-armor"
+		],
+		"mods": {
+			"crit_immune": true
+		},
+		"status": "works"
+	},
+	"ammunition-1-2-or-3": {
+		"slot": "",
+		"kind": "ammo",
+		"status": "inert"
+	},
+	"ammunition-of-slaying": {
+		"slot": "",
+		"kind": "ammo",
+		"status": "inert"
+	},
+	"amulet-of-health": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"set_ability": {
+				"con": 19
+			}
+		},
+		"status": "works"
+	},
+	"amulet-of-proof-against-detection-and-location": {
+		"slot": "neck",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"amulet-of-the-planes": {
+		"slot": "neck",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"animated-shield": {
+		"slot": "off_hand",
+		"kind": "shield",
+		"bases": [
+			"shield"
+		],
+		"status": "inert"
+	},
+	"apparatus-of-the-crab": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"armor-1-2-or-3": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"*armor"
+		],
+		"tiers": [
+			{
+				"name": "+1",
+				"mods": {
+					"ac": 1
+				}
+			},
+			{
+				"name": "+2",
+				"mods": {
+					"ac": 2
+				}
+			},
+			{
+				"name": "+3",
+				"mods": {
+					"ac": 3
+				}
+			}
+		],
+		"status": "works"
+	},
+	"armor-of-invulnerability": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"plate-armor"
+		],
+		"mods": {
+			"resist": [
+				"bludgeoning",
+				"piercing",
+				"slashing"
+			]
+		},
+		"status": "partial"
+	},
+	"armor-of-resistance": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"*armor"
+		],
+		"tiers": [
+			{
+				"name": "Acid",
+				"mods": {
+					"resist": [
+						"acid"
+					]
+				}
+			},
+			{
+				"name": "Cold",
+				"mods": {
+					"resist": [
+						"cold"
+					]
+				}
+			},
+			{
+				"name": "Fire",
+				"mods": {
+					"resist": [
+						"fire"
+					]
+				}
+			},
+			{
+				"name": "Force",
+				"mods": {
+					"resist": [
+						"force"
+					]
+				}
+			},
+			{
+				"name": "Lightning",
+				"mods": {
+					"resist": [
+						"lightning"
+					]
+				}
+			},
+			{
+				"name": "Necrotic",
+				"mods": {
+					"resist": [
+						"necrotic"
+					]
+				}
+			},
+			{
+				"name": "Poison",
+				"mods": {
+					"resist": [
+						"poison"
+					]
+				}
+			},
+			{
+				"name": "Psychic",
+				"mods": {
+					"resist": [
+						"psychic"
+					]
+				}
+			},
+			{
+				"name": "Radiant",
+				"mods": {
+					"resist": [
+						"radiant"
+					]
+				}
+			},
+			{
+				"name": "Thunder",
+				"mods": {
+					"resist": [
+						"thunder"
+					]
+				}
+			}
+		],
+		"status": "works"
+	},
+	"armor-of-vulnerability": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"*armor"
+		],
+		"tiers": [
+			{
+				"name": "Bludgeoning",
+				"mods": {
+					"resist": [
+						"bludgeoning"
+					]
+				}
+			},
+			{
+				"name": "Piercing",
+				"mods": {
+					"resist": [
+						"piercing"
+					]
+				}
+			},
+			{
+				"name": "Slashing",
+				"mods": {
+					"resist": [
+						"slashing"
+					]
+				}
+			}
+		],
+		"status": "partial"
+	},
+	"arrow-catching-shield": {
+		"slot": "off_hand",
+		"kind": "shield",
+		"bases": [
+			"shield"
+		],
+		"status": "inert"
+	},
+	"bag-of-beans": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"bag-of-devouring": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"bag-of-holding": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"bag-of-tricks": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"bead-of-force": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"bead-of-nourishment": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"belt-of-dwarvenkind": {
+		"slot": "belt",
+		"kind": "worn",
+		"mods": {
+			"resist": [
+				"poison"
+			],
+			"ability": {
+				"con": 2
+			}
+		},
+		"status": "partial"
+	},
+	"belt-of-giant-strength": {
+		"slot": "belt",
+		"kind": "worn",
+		"tiers": [
+			{
+				"name": "Hill",
+				"mods": {
+					"set_ability": {
+						"str": 21
+					}
+				}
+			},
+			{
+				"name": "Frost",
+				"mods": {
+					"set_ability": {
+						"str": 23
+					}
+				}
+			},
+			{
+				"name": "Stone",
+				"mods": {
+					"set_ability": {
+						"str": 23
+					}
+				}
+			},
+			{
+				"name": "Fire",
+				"mods": {
+					"set_ability": {
+						"str": 25
+					}
+				}
+			},
+			{
+				"name": "Cloud",
+				"mods": {
+					"set_ability": {
+						"str": 27
+					}
+				}
+			},
+			{
+				"name": "Storm",
+				"mods": {
+					"set_ability": {
+						"str": 29
+					}
+				}
+			}
+		],
+		"status": "works"
+	},
+	"berserker-axe": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"battleaxe",
+			"greataxe",
+			"handaxe"
+		],
+		"mods": {
+			"attack": 1,
+			"damage": 1
+		},
+		"status": "partial"
+	},
+	"boots-of-elvenkind": {
+		"slot": "feet",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"boots-of-levitation": {
+		"slot": "feet",
+		"kind": "worn",
+		"tags": {
+			"fall_resist": 1.0
+		},
+		"status": "partial"
+	},
+	"boots-of-speed": {
+		"slot": "feet",
+		"kind": "worn",
+		"mods": {
+			"speed": 30
+		},
+		"status": "partial"
+	},
+	"boots-of-striding-and-springing": {
+		"slot": "feet",
+		"kind": "worn",
+		"mods": {
+			"speed": 10
+		},
+		"tags": {
+			"jump": 1.0
+		},
+		"status": "partial"
+	},
+	"boots-of-the-winterlands": {
+		"slot": "feet",
+		"kind": "worn",
+		"mods": {
+			"resist": [
+				"cold"
+			]
+		},
+		"status": "partial"
+	},
+	"bowl-of-commanding-water-elementals": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"bracers-of-archery": {
+		"slot": "hands",
+		"kind": "worn",
+		"mods": {
+			"damage": 2
+		},
+		"status": "partial"
+	},
+	"bracers-of-defense": {
+		"slot": "hands",
+		"kind": "worn",
+		"mods": {
+			"unarmored_ac": 2
+		},
+		"status": "works"
+	},
+	"brazier-of-commanding-fire-elementals": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"brooch-of-shielding": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"resist": [
+				"force"
+			]
+		},
+		"status": "works"
+	},
+	"broom-of-flying": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"candle-of-invocation": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"cape-of-the-mountebank": {
+		"slot": "cloak",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"carpet-of-flying": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"censer-of-controlling-air-elementals": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"chime-of-opening": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"circlet-of-blasting": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"cloak-of-arachnida": {
+		"slot": "cloak",
+		"kind": "worn",
+		"mods": {
+			"resist": [
+				"poison"
+			]
+		},
+		"tags": {
+			"climb": 1.0
+		},
+		"status": "partial"
+	},
+	"cloak-of-displacement": {
+		"slot": "cloak",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"cloak-of-elvenkind": {
+		"slot": "cloak",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"cloak-of-invisibility": {
+		"slot": "cloak",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"cloak-of-protection": {
+		"slot": "cloak",
+		"kind": "worn",
+		"mods": {
+			"ac": 1,
+			"save": 1
+		},
+		"status": "works"
+	},
+	"cloak-of-the-bat": {
+		"slot": "cloak",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"cloak-of-the-manta-ray": {
+		"slot": "cloak",
+		"kind": "worn",
+		"tags": {
+			"swim": 1.0,
+			"breath": 1.0
+		},
+		"status": "works"
+	},
+	"crystal-ball": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"crystal-ball-of-mind-reading": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"crystal-ball-of-telepathy": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"crystal-ball-of-true-seeing": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"cube-of-force": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"cubic-gate": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"dagger-of-venom": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"dagger"
+		],
+		"mods": {
+			"attack": 1,
+			"damage": 1
+		},
+		"status": "partial"
+	},
+	"dancing-sword": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"greatsword",
+			"longsword",
+			"rapier",
+			"scimitar",
+			"shortsword"
+		],
+		"status": "inert"
+	},
+	"decanter-of-endless-water": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"deck-of-illusions": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"defender": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*melee"
+		],
+		"mods": {
+			"attack": 3,
+			"damage": 3
+		},
+		"status": "partial"
+	},
+	"demon-armor": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"*armor"
+		],
+		"mods": {
+			"ac": 1
+		},
+		"status": "partial"
+	},
+	"dimensional-shackles": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"dragon-orb": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"dragon-scale-mail": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"scale-mail"
+		],
+		"tiers": [
+			{
+				"name": "Black",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"acid"
+					]
+				}
+			},
+			{
+				"name": "Blue",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"lightning"
+					]
+				}
+			},
+			{
+				"name": "Brass",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"fire"
+					]
+				}
+			},
+			{
+				"name": "Bronze",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"lightning"
+					]
+				}
+			},
+			{
+				"name": "Copper",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"acid"
+					]
+				}
+			},
+			{
+				"name": "Gold",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"fire"
+					]
+				}
+			},
+			{
+				"name": "Green",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"poison"
+					]
+				}
+			},
+			{
+				"name": "Red",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"fire"
+					]
+				}
+			},
+			{
+				"name": "Silver",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"cold"
+					]
+				}
+			},
+			{
+				"name": "White",
+				"mods": {
+					"ac": 1,
+					"resist": [
+						"cold"
+					]
+				}
+			}
+		],
+		"status": "partial"
+	},
+	"dragon-slayer": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*"
+		],
+		"mods": {
+			"attack": 1,
+			"damage": 1
+		},
+		"status": "partial"
+	},
+	"dust-of-disappearance": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"dust-of-dryness": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"dust-of-sneezing-and-choking": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"dwarven-plate": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"half-plate-armor",
+			"plate-armor"
+		],
+		"mods": {
+			"ac": 2
+		},
+		"status": "partial"
+	},
+	"dwarven-thrower": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"warhammer"
+		],
+		"mods": {
+			"attack": 3,
+			"damage": 3
+		},
+		"status": "partial"
+	},
+	"efficient-quiver": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"efreeti-bottle": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"elemental-gem": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"elixir-of-health": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"elven-chain": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"chain-shirt",
+			"chain-mail"
+		],
+		"mods": {
+			"ac": 1
+		},
+		"status": "partial"
+	},
+	"energy-bow": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"shortbow",
+			"longbow"
+		],
+		"mods": {
+			"attack": 1,
+			"damage": 1
+		},
+		"status": "partial"
+	},
+	"eversmoking-bottle": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"eyes-of-charming": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"eyes-of-minute-seeing": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"eyes-of-the-eagle": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"feather-token": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"figurine-of-wondrous-power": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"flame-tongue": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*melee"
+		],
+		"mods": {
+			"extra_damage": {
+				"name": "Flame Tongue",
+				"dice": "2d6",
+				"type": "fire"
+			}
+		},
+		"status": "partial"
+	},
+	"folding-boat": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"frost-brand": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"glaive",
+			"greatsword",
+			"longsword",
+			"rapier",
+			"scimitar",
+			"shortsword"
+		],
+		"mods": {
+			"extra_damage": {
+				"name": "Frost Brand",
+				"dice": "1d6",
+				"type": "cold"
+			},
+			"resist": [
+				"fire"
+			]
+		},
+		"status": "partial"
+	},
+	"gauntlets-of-ogre-power": {
+		"slot": "hands",
+		"kind": "worn",
+		"mods": {
+			"set_ability": {
+				"str": 19
+			}
+		},
+		"status": "works"
+	},
+	"gem-of-brightness": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"gem-of-seeing": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"giant-slayer": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*"
+		],
+		"mods": {
+			"attack": 1,
+			"damage": 1
+		},
+		"status": "partial"
+	},
+	"glamoured-studded-leather": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"leather-armor",
+			"studded-leather-armor"
+		],
+		"mods": {
+			"ac": 1
+		},
+		"status": "partial"
+	},
+	"gloves-of-missile-snaring": {
+		"slot": "hands",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"gloves-of-swimming-and-climbing": {
+		"slot": "hands",
+		"kind": "worn",
+		"tags": {
+			"swim": 0.5,
+			"climb": 1.0
+		},
+		"status": "works"
+	},
+	"gloves-of-thievery": {
+		"slot": "hands",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"goggles-of-night": {
+		"slot": "head",
+		"kind": "worn",
+		"tags": {
+			"dim_sight": 12.0
+		},
+		"status": "works"
+	},
+	"hammer-of-thunderbolts": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"maul",
+			"warhammer"
+		],
+		"mods": {
+			"attack": 1,
+			"damage": 1
+		},
+		"status": "partial"
+	},
+	"handy-haversack": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"hat-of-disguise": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"hat-of-many-spells": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"headband-of-intellect": {
+		"slot": "head",
+		"kind": "worn",
+		"mods": {
+			"set_ability": {
+				"int": 19
+			}
+		},
+		"status": "works"
+	},
+	"helm-of-brilliance": {
+		"slot": "head",
+		"kind": "worn",
+		"mods": {
+			"resist": [
+				"fire"
+			]
+		},
+		"status": "partial"
+	},
+	"helm-of-comprehending-languages": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"helm-of-telepathy": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"helm-of-teleportation": {
+		"slot": "head",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"holy-avenger": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*"
+		],
+		"mods": {
+			"attack": 3,
+			"damage": 3,
+			"save": 2
+		},
+		"status": "partial"
+	},
+	"horn-of-blasting": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"horn-of-valhalla": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"horseshoes-of-a-zephyr": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"horseshoes-of-speed": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"immovable-rod": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"instant-fortress": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"ioun-stone": {
+		"slot": "head",
+		"kind": "worn",
+		"tiers": [
+			{
+				"name": "Protection",
+				"mods": {
+					"ac": 1
+				}
+			},
+			{
+				"name": "Fortitude",
+				"mods": {
+					"ability": {
+						"con": 2
+					}
+				}
+			},
+			{
+				"name": "Strength",
+				"mods": {
+					"ability": {
+						"str": 2
+					}
+				}
+			},
+			{
+				"name": "Agility",
+				"mods": {
+					"ability": {
+						"dex": 2
+					}
+				}
+			},
+			{
+				"name": "Insight",
+				"mods": {
+					"ability": {
+						"wis": 2
+					}
+				}
+			},
+			{
+				"name": "Intellect",
+				"mods": {
+					"ability": {
+						"int": 2
+					}
+				}
+			},
+			{
+				"name": "Leadership",
+				"mods": {
+					"ability": {
+						"cha": 2
+					}
+				}
+			}
+		],
+		"status": "partial"
+	},
+	"iron-bands": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"iron-flask": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"javelin-of-lightning": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"javelin"
+		],
+		"status": "inert"
+	},
+	"lantern-of-revealing": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"luck-blade": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"glaive",
+			"greatsword",
+			"longsword",
+			"rapier",
+			"scimitar",
+			"shortsword"
+		],
+		"mods": {
+			"attack": 1,
+			"damage": 1,
+			"save": 1
+		},
+		"status": "partial"
+	},
+	"mace-of-disruption": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"mace"
+		],
+		"mods": {
+			"extra_damage": {
+				"name": "Disruption",
+				"dice": "2d6",
+				"type": "radiant"
+			}
+		},
+		"status": "partial"
+	},
+	"mace-of-smiting": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"mace"
+		],
+		"mods": {
+			"attack": 1,
+			"damage": 1
+		},
+		"status": "partial"
+	},
+	"mace-of-terror": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"mace"
+		],
+		"status": "inert"
+	},
+	"mantle-of-spell-resistance": {
+		"slot": "cloak",
+		"kind": "worn",
+		"mods": {
+			"save": 2
+		},
+		"status": "partial"
+	},
+	"manual-of-bodily-health": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"manual-of-gainful-exercise": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"manual-of-golems": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"manual-of-quickness-of-action": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"marvelous-pigments": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"medallion-of-thoughts": {
+		"slot": "neck",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"mirror-of-life-trapping": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"mithral-armor": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"chain-shirt",
+			"scale-mail",
+			"breastplate",
+			"half-plate-armor",
+			"ring-mail",
+			"chain-mail",
+			"splint-armor",
+			"plate-armor"
+		],
+		"mods": {
+			"heavy_stealth": true,
+			"strength_free": true
+		},
+		"status": "works"
+	},
+	"mysterious-deck": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"necklace-of-adaptation": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"condition_immune": [
+				"poisoned"
+			]
+		},
+		"tags": {
+			"breath": 1.0
+		},
+		"status": "partial"
+	},
+	"necklace-of-fireballs": {
+		"slot": "neck",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"necklace-of-prayer-beads": {
+		"slot": "neck",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"nine-lives-stealer": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*"
+		],
+		"mods": {
+			"attack": 2,
+			"damage": 2
+		},
+		"status": "partial"
+	},
+	"oathbow": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"shortbow",
+			"longbow"
+		],
+		"mods": {
+			"extra_damage": {
+				"name": "Sworn Enemy",
+				"dice": "3d6",
+				"type": "piercing"
+			}
+		},
+		"status": "partial"
+	},
+	"oil-of-etherealness": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"oil-of-sharpness": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"oil-of-slipperiness": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"pearl-of-power": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"periapt-of-health": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"condition_immune": [
+				"poisoned"
+			]
+		},
+		"status": "partial"
+	},
+	"periapt-of-proof-against-poison": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"immune": [
+				"poison"
+			],
+			"condition_immune": [
+				"poisoned"
+			]
+		},
+		"status": "works"
+	},
+	"periapt-of-wound-closure": {
+		"slot": "neck",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"philter-of-love": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"pipes-of-haunting": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"pipes-of-the-sewers": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"plate-armor-of-etherealness": {
+		"slot": "armor",
+		"kind": "armor",
+		"bases": [
+			"half-plate-armor",
+			"plate-armor"
+		],
+		"status": "inert"
+	},
+	"portable-hole": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"potion-of-animal-friendship": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-clairvoyance": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-climbing": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-diminution": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-flying": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-gaseous-form": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-giant-strength": {
+		"slot": "",
+		"kind": "consumable",
+		"tiers": [
+			{
+				"name": "Hill"
+			},
+			{
+				"name": "Frost"
+			},
+			{
+				"name": "Stone"
+			},
+			{
+				"name": "Fire"
+			},
+			{
+				"name": "Cloud"
+			},
+			{
+				"name": "Storm"
+			}
+		],
+		"status": "inert"
+	},
+	"potion-of-growth": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potions-of-healing": {
+		"slot": "",
+		"kind": "consumable",
+		"tiers": [
+			{
+				"name": "Healing",
+				"use": {
+					"heal": "2d4+2"
+				}
+			},
+			{
+				"name": "Greater Healing",
+				"use": {
+					"heal": "4d4+4"
+				}
+			},
+			{
+				"name": "Superior Healing",
+				"use": {
+					"heal": "8d4+8"
+				}
+			},
+			{
+				"name": "Supreme Healing",
+				"use": {
+					"heal": "10d4+20"
+				}
+			}
+		],
+		"status": "works"
+	},
+	"potion-of-heroism": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-invisibility": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-invulnerability": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-longevity": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-mind-reading": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-poison": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-resistance": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-speed": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-vitality": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"potion-of-water-breathing": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"quarterstaff-of-the-acrobat": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"mods": {
+			"attack": 2,
+			"damage": 2
+		},
+		"status": "partial"
+	},
+	"ring-of-animal-influence": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-djinni-summoning": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-elemental-command": {
+		"slot": "ring",
+		"kind": "worn",
+		"mods": {
+			"resist": [
+				"lightning"
+			]
+		},
+		"status": "partial"
+	},
+	"ring-of-evasion": {
+		"slot": "ring",
+		"kind": "worn",
+		"mods": {
+			"save": 1
+		},
+		"status": "partial"
+	},
+	"ring-of-feather-falling": {
+		"slot": "ring",
+		"kind": "worn",
+		"tags": {
+			"fall_resist": 1.0
+		},
+		"status": "works"
+	},
+	"ring-of-free-action": {
+		"slot": "ring",
+		"kind": "worn",
+		"mods": {
+			"condition_immune": [
+				"paralyzed",
+				"restrained"
+			]
+		},
+		"status": "partial"
+	},
+	"ring-of-invisibility": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-jumping": {
+		"slot": "ring",
+		"kind": "worn",
+		"tags": {
+			"jump": 1.0
+		},
+		"status": "works"
+	},
+	"ring-of-mind-shielding": {
+		"slot": "ring",
+		"kind": "worn",
+		"mods": {
+			"immune": [
+				"psychic"
+			]
+		},
+		"status": "partial"
+	},
+	"ring-of-protection": {
+		"slot": "ring",
+		"kind": "worn",
+		"mods": {
+			"ac": 1,
+			"save": 1
+		},
+		"status": "works"
+	},
+	"ring-of-regeneration": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-resistance": {
+		"slot": "ring",
+		"kind": "worn",
+		"tiers": [
+			{
+				"name": "Acid",
+				"mods": {
+					"resist": [
+						"acid"
+					]
+				}
+			},
+			{
+				"name": "Cold",
+				"mods": {
+					"resist": [
+						"cold"
+					]
+				}
+			},
+			{
+				"name": "Fire",
+				"mods": {
+					"resist": [
+						"fire"
+					]
+				}
+			},
+			{
+				"name": "Force",
+				"mods": {
+					"resist": [
+						"force"
+					]
+				}
+			},
+			{
+				"name": "Lightning",
+				"mods": {
+					"resist": [
+						"lightning"
+					]
+				}
+			},
+			{
+				"name": "Necrotic",
+				"mods": {
+					"resist": [
+						"necrotic"
+					]
+				}
+			},
+			{
+				"name": "Poison",
+				"mods": {
+					"resist": [
+						"poison"
+					]
+				}
+			},
+			{
+				"name": "Psychic",
+				"mods": {
+					"resist": [
+						"psychic"
+					]
+				}
+			},
+			{
+				"name": "Radiant",
+				"mods": {
+					"resist": [
+						"radiant"
+					]
+				}
+			},
+			{
+				"name": "Thunder",
+				"mods": {
+					"resist": [
+						"thunder"
+					]
+				}
+			}
+		],
+		"status": "works"
+	},
+	"ring-of-shooting-stars": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-spell-storing": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-spell-turning": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-swimming": {
+		"slot": "ring",
+		"kind": "worn",
+		"tags": {
+			"swim": 0.5
+		},
+		"status": "works"
+	},
+	"ring-of-telekinesis": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-the-ram": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-three-wishes": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-warmth": {
+		"slot": "ring",
+		"kind": "worn",
+		"mods": {
+			"resist": [
+				"cold"
+			]
+		},
+		"status": "works"
+	},
+	"ring-of-water-walking": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"ring-of-x-ray-vision": {
+		"slot": "ring",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"robe-of-eyes": {
+		"slot": "armor",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"robe-of-scintillating-colors": {
+		"slot": "armor",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"robe-of-stars": {
+		"slot": "armor",
+		"kind": "worn",
+		"mods": {
+			"save": 1
+		},
+		"status": "partial"
+	},
+	"robe-of-the-archmagi": {
+		"slot": "armor",
+		"kind": "worn",
+		"mods": {
+			"unarmored_ac": 5,
+			"save": 2,
+			"spell_attack": 2,
+			"spell_dc": 2
+		},
+		"status": "partial"
+	},
+	"robe-of-useful-items": {
+		"slot": "armor",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"rod-of-absorption": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"rod-of-alertness": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"mods": {
+			"ac": 1,
+			"save": 1
+		},
+		"status": "partial"
+	},
+	"rod-of-lordly-might": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"mace"
+		],
+		"mods": {
+			"attack": 3,
+			"damage": 3
+		},
+		"status": "partial"
+	},
+	"rod-of-resurrection": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"rod-of-rulership": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"rod-of-security": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"rope-of-climbing": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"rope-of-entanglement": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"scarab-of-protection": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"ac": 1
+		},
+		"status": "partial"
+	},
+	"scimitar-of-speed": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"scimitar"
+		],
+		"mods": {
+			"attack": 2,
+			"damage": 2
+		},
+		"status": "partial"
+	},
+	"sending-stones": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"sentinel-shield": {
+		"slot": "off_hand",
+		"kind": "shield",
+		"bases": [
+			"shield"
+		],
+		"mods": {
+			"initiative": 0
+		},
+		"status": "inert"
+	},
+	"shield-1-2-or-3": {
+		"slot": "off_hand",
+		"kind": "shield",
+		"bases": [
+			"shield"
+		],
+		"tiers": [
+			{
+				"name": "+1",
+				"mods": {
+					"ac": 1
+				}
+			},
+			{
+				"name": "+2",
+				"mods": {
+					"ac": 2
+				}
+			},
+			{
+				"name": "+3",
+				"mods": {
+					"ac": 3
+				}
+			}
+		],
+		"status": "works"
+	},
+	"shield-of-missile-attraction": {
+		"slot": "off_hand",
+		"kind": "shield",
+		"bases": [
+			"shield"
+		],
+		"status": "inert"
+	},
+	"shield-of-the-cavalier": {
+		"slot": "off_hand",
+		"kind": "shield",
+		"bases": [
+			"shield"
+		],
+		"mods": {
+			"ac": 2
+		},
+		"status": "partial"
+	},
+	"slippers-of-spider-climbing": {
+		"slot": "feet",
+		"kind": "worn",
+		"tags": {
+			"climb": 1.0
+		},
+		"status": "works"
+	},
+	"sovereign-glue": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"spellguard-shield": {
+		"slot": "off_hand",
+		"kind": "shield",
+		"bases": [
+			"shield"
+		],
+		"status": "inert"
+	},
+	"spell-scroll": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"sphere-of-annihilation": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"staff-of-charming": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"status": "inert"
+	},
+	"staff-of-fire": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"mods": {
+			"resist": [
+				"fire"
+			]
+		},
+		"status": "partial"
+	},
+	"staff-of-frost": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"mods": {
+			"resist": [
+				"cold"
+			]
+		},
+		"status": "partial"
+	},
+	"staff-of-healing": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"status": "inert"
+	},
+	"staff-of-power": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"mods": {
+			"attack": 2,
+			"damage": 2,
+			"ac": 2,
+			"save": 2,
+			"spell_attack": 2
+		},
+		"status": "partial"
+	},
+	"staff-of-striking": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"mods": {
+			"attack": 3,
+			"damage": 3
+		},
+		"status": "partial"
+	},
+	"staff-of-swarming-insects": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"status": "inert"
+	},
+	"staff-of-the-magi": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"mods": {
+			"attack": 2,
+			"damage": 2,
+			"spell_attack": 2
+		},
+		"status": "partial"
+	},
+	"staff-of-the-python": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"status": "inert"
+	},
+	"staff-of-the-woodlands": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"mods": {
+			"attack": 2,
+			"damage": 2,
+			"spell_attack": 2
+		},
+		"status": "partial"
+	},
+	"staff-of-thunder-and-lightning": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"mods": {
+			"attack": 2,
+			"damage": 2
+		},
+		"status": "partial"
+	},
+	"staff-of-withering": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"quarterstaff"
+		],
+		"status": "inert"
+	},
+	"stone-of-controlling-earth-elementals": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"stone-of-good-luck-luckstone": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"save": 1
+		},
+		"status": "partial"
+	},
+	"sun-blade": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"longsword"
+		],
+		"mods": {
+			"attack": 2,
+			"damage": 2
+		},
+		"status": "partial"
+	},
+	"sword-of-life-stealing": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"glaive",
+			"greatsword",
+			"longsword",
+			"rapier",
+			"scimitar",
+			"shortsword"
+		],
+		"status": "inert"
+	},
+	"sword-of-sharpness": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"glaive",
+			"greatsword",
+			"longsword",
+			"scimitar"
+		],
+		"status": "inert"
+	},
+	"sword-of-wounding": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"glaive",
+			"greatsword",
+			"longsword",
+			"rapier",
+			"scimitar",
+			"shortsword"
+		],
+		"mods": {
+			"extra_damage": {
+				"name": "Wounding",
+				"dice": "2d6",
+				"type": "necrotic"
+			}
+		},
+		"status": "partial"
+	},
+	"talisman-of-pure-good": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"spell_attack": 2
+		},
+		"status": "partial"
+	},
+	"talisman-of-the-sphere": {
+		"slot": "neck",
+		"kind": "worn",
+		"status": "inert"
+	},
+	"talisman-of-ultimate-evil": {
+		"slot": "neck",
+		"kind": "worn",
+		"mods": {
+			"spell_attack": 2
+		},
+		"status": "partial"
+	},
+	"thunderous-greatclub": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"club",
+			"greatclub"
+		],
+		"mods": {
+			"extra_damage": {
+				"name": "Thunderous",
+				"dice": "1d8",
+				"type": "thunder"
+			}
+		},
+		"status": "partial"
+	},
+	"tome-of-clear-thought": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"tome-of-leadership-and-influence": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"tome-of-understanding": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"trident-of-fish-command": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"trident"
+		],
+		"status": "inert"
+	},
+	"universal-solvent": {
+		"slot": "",
+		"kind": "consumable",
+		"status": "inert"
+	},
+	"vicious-weapon": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*"
+		],
+		"mods": {
+			"extra_damage": {
+				"name": "Vicious",
+				"dice": "2d6",
+				"type": "same"
+			}
+		},
+		"status": "works"
+	},
+	"vorpal-sword": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"glaive",
+			"greatsword",
+			"longsword",
+			"scimitar"
+		],
+		"mods": {
+			"attack": 3,
+			"damage": 3
+		},
+		"status": "partial"
+	},
+	"wand-of-binding": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-enemy-detection": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-fear": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-fireballs": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-lightning-bolts": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-magic-detection": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-magic-missiles": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-paralysis": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-polymorph": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-secrets": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-the-war-mage-1-2-or-3": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"tiers": [
+			{
+				"name": "+1",
+				"mods": {
+					"spell_attack": 1
+				}
+			},
+			{
+				"name": "+2",
+				"mods": {
+					"spell_attack": 2
+				}
+			},
+			{
+				"name": "+3",
+				"mods": {
+					"spell_attack": 3
+				}
+			}
+		],
+		"status": "works"
+	},
+	"wand-of-web": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"wand-of-wonder": {
+		"slot": "off_hand",
+		"kind": "focus",
+		"status": "inert"
+	},
+	"weapon-1-2-or-3": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*"
+		],
+		"tiers": [
+			{
+				"name": "+1",
+				"mods": {
+					"attack": 1,
+					"damage": 1
+				}
+			},
+			{
+				"name": "+2",
+				"mods": {
+					"attack": 2,
+					"damage": 2
+				}
+			},
+			{
+				"name": "+3",
+				"mods": {
+					"attack": 3,
+					"damage": 3
+				}
+			}
+		],
+		"status": "works"
+	},
+	"weapon-of-warning": {
+		"slot": "main_hand",
+		"kind": "weapon",
+		"bases": [
+			"*"
+		],
+		"status": "inert"
+	},
+	"well-of-many-worlds": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"wind-fan": {
+		"slot": "",
+		"kind": "carried",
+		"status": "inert"
+	},
+	"winged-boots": {
+		"slot": "feet",
+		"kind": "worn",
+		"mods": {
+			"speed": 10
+		},
+		"status": "partial"
+	},
+	"wings-of-flying": {
+		"slot": "cloak",
+		"kind": "worn",
+		"tags": {
+			"fall_resist": 1.0
+		},
+		"status": "partial"
+	}
+}

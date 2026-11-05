@@ -1,0 +1,21 @@
+{
+	"_comment": "Base item rows that are not SRD weapons, armour or magic items. Those come from the addon at load: every SRD weapon and armour by slug (kind weapon / armor / shield) and every SRD magic item by slug (kind from magic.json). Tiles come from data/tiles.json: every breakable tile is an item tile:<name>; tile_drops says what digging a tile gives when it is not itself. Row fields: name, kind (tile, material, consumable, coin, spark, gear), stack (most per slot), value (coin), weight (lb), use (consumables: heal dice), tags.",
+	"tile_drops": {
+		"grass": "tile:dirt"
+	},
+	"tile_stack": 999,
+	"rows": {
+		"coin": {"name": "Coin", "kind": "coin", "stack": 1000000, "value": 1, "weight": 0},
+		"spark": {"name": "Spark", "kind": "spark", "stack": 20, "value": 250, "weight": 0},
+		"ingot:copper": {"name": "Copper Ingot", "kind": "material", "stack": 999, "value": 2, "weight": 1},
+		"ingot:iron": {"name": "Iron Ingot", "kind": "material", "stack": 999, "value": 5, "weight": 1},
+		"ingot:silver": {"name": "Silver Ingot", "kind": "material", "stack": 999, "value": 20, "weight": 1},
+		"ingot:mithral": {"name": "Mithral Ingot", "kind": "material", "stack": 999, "value": 200, "weight": 0.5},
+		"ingot:adamantine": {"name": "Adamantine Ingot", "kind": "material", "stack": 999, "value": 400, "weight": 1},
+		"cloth": {"name": "Cloth", "kind": "material", "stack": 999, "value": 1, "weight": 0.5},
+		"leather": {"name": "Leather", "kind": "material", "stack": 999, "value": 2, "weight": 1},
+		"bone": {"name": "Bone", "kind": "material", "stack": 999, "value": 1, "weight": 0.5},
+		"ichor": {"name": "Ichor", "kind": "material", "stack": 999, "value": 5, "weight": 0.1},
+		"gem": {"name": "Rough Gem", "kind": "material", "stack": 999, "value": 50, "weight": 0}
+	}
+}

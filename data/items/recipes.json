@@ -1,0 +1,10 @@
+{
+	"_comment": "Hand-crafting (no station needed): id -> {in: {base: count}, out: item record}. Wood is the tile:wood item. Ores and ingots craft into nothing yet (a smith comes later).",
+	"recipes": {
+		"platform": {"in": {"tile:wood": 1}, "out": {"base": "tile:platform", "count": 2}},
+		"ladder": {"in": {"tile:wood": 1}, "out": {"base": "tile:ladder", "count": 2}},
+		"torch": {"in": {"tile:wood": 1}, "out": {"base": "tile:torch", "count": 3}},
+		"campfire": {"in": {"tile:wood": 5}, "out": {"base": "tile:campfire", "count": 1}},
+		"bed": {"in": {"tile:wood": 8}, "out": {"base": "tile:bed", "count": 1}}
+	}
+}

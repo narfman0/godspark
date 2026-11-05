@@ -43,6 +43,16 @@ func entity_removed(_host: WorldHost, _e: HostEntity) -> void:
 func handle(_host: WorldHost, _e: HostEntity, _kind: int, _data: PackedByteArray) -> void:
 	pass
 
+## Edit flow (items): a player asks to place `tile_id` and the world allows it. False refuses
+## the place (EDIT_RESULT reason WorldHost.Reason.NO_ITEM). Ask, don't change state here.
+func allow_place(_host: WorldHost, _e: HostEntity, _tile_id: int) -> bool:
+	return true
+
+## Edit flow (items): entity e's dig (now == TileDefs.AIR) or place changed cell (x, y) from
+## `old` to `now`. Runs right after the change and before its EDIT_RESULT is queued.
+func tile_edited(_host: WorldHost, _e: HostEntity, _x: int, _y: int, _old: int, _now: int) -> void:
+	pass
+
 ## This system's part of a player record (JSON-safe), stored under its id.
 func save_player(_e: HostEntity) -> Dictionary:
 	return {}

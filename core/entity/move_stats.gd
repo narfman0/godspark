@@ -64,6 +64,20 @@ var fly_speed := 0.0
 var fly_accel := 60.0
 ## Tiles per second of burrowing. Not used yet: see PlayerController (burrow is a stub).
 var burrow_speed := 0.0
+# Spark abilities (data/sparks.json, Sparks.apply). All off by default, so a body with no
+# spark moves exactly as before.
+## Extra jumps in the air (Skyhook); each at jump_velocity * air_jump_mult.
+var air_jumps := 0
+var air_jump_mult := 0.85
+## Dash: a burst of dash_speed (tiles/s) for dash_time (s), then dash_cooldown (s) before the
+## next. Triggered by PlayerInput.dash or by tapping a direction twice within dash_window (s).
+## 0 = no dash.
+var dash_speed := 0.0
+var dash_time := 0.15
+var dash_cooldown := 1.0
+var dash_window := 0.25
+## Featherfall: most fall speed (tiles/s) while jump is held in the air. 0 = off.
+var glide_fall := 0.0
 
 static func data() -> Dictionary:
 	if _data.is_empty():

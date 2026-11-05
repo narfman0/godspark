@@ -1,0 +1,37 @@
+{
+	"_comment": "Loot tables (Loot.roll). A kill rolls: coin (chance by creature type, dice by CR band, x rank coin mult, x (1 + coin_find)); then `rolls` (by rank; a fraction is a chance of one more) draws, each a drop with chance band.drop x (1 + drop_find), its category picked by the creature type's weights; then the rank's spark chance and guarantees. Coin follows the SRD's individual-treasure sense (GP by CR tier) divided by about ten for ARPG kill rates. Sparks take their rank from the depth band (data/sparks.json depth). Gear is ItemGen.roll at the band's level hint; magic picks an SRD magic item by the band's rarity weights (items with working mods weigh magic_working x more). Tune with tools/loot_sim.gd.",
+	"bands": [
+		{"name": "cr0-1", "max_cr": 1, "level": 3, "coin": "1d6", "drop": 0.22, "magic": {"common": 80, "uncommon": 20}},
+		{"name": "cr2-4", "max_cr": 4, "level": 12, "coin": "2d6+2", "drop": 0.26, "magic": {"common": 50, "uncommon": 45, "rare": 5}},
+		{"name": "cr5-10", "max_cr": 10, "level": 35, "coin": "2d8+6", "drop": 0.3, "magic": {"common": 15, "uncommon": 55, "rare": 28, "very rare": 2}},
+		{"name": "cr11-16", "max_cr": 16, "level": 60, "coin": "4d10+15", "drop": 0.33, "magic": {"uncommon": 30, "rare": 50, "very rare": 20}},
+		{"name": "cr17+", "max_cr": 99, "level": 85, "coin": "8d10+40", "drop": 0.36, "magic": {"rare": 40, "very rare": 45, "legendary": 15}}
+	],
+	"magic_working": 4,
+	"types": {
+		"_comment": "coin: chance of coin; weights of a drop's category (gear, material, potion, magic); materials: what material drops are.",
+		"humanoid": {"coin": 0.6, "gear": 40, "material": 25, "potion": 25, "magic": 10, "materials": ["cloth", "leather", "ingot:iron", "tile:torch"]},
+		"beast": {"coin": 0.03, "gear": 0, "material": 90, "potion": 8, "magic": 2, "materials": ["leather", "bone"]},
+		"monstrosity": {"coin": 0.1, "gear": 5, "material": 75, "potion": 12, "magic": 8, "materials": ["leather", "bone", "ichor"]},
+		"undead": {"coin": 0.35, "gear": 35, "material": 40, "potion": 15, "magic": 10, "materials": ["bone", "cloth"]},
+		"construct": {"coin": 0.1, "gear": 30, "material": 55, "potion": 0, "magic": 15, "materials": ["ingot:iron", "ingot:copper", "gem"]},
+		"elemental": {"coin": 0.05, "gear": 0, "material": 80, "potion": 5, "magic": 15, "materials": ["gem", "ichor"]},
+		"fiend": {"coin": 0.4, "gear": 25, "material": 40, "potion": 15, "magic": 20, "materials": ["ichor", "gem"]},
+		"aberration": {"coin": 0.2, "gear": 10, "material": 60, "potion": 10, "magic": 20, "materials": ["ichor", "gem"]},
+		"dragon": {"coin": 0.9, "gear": 20, "material": 40, "potion": 10, "magic": 30, "materials": ["gem", "leather"]},
+		"giant": {"coin": 0.5, "gear": 35, "material": 40, "potion": 10, "magic": 15, "materials": ["leather", "bone", "gem"]},
+		"fey": {"coin": 0.3, "gear": 15, "material": 40, "potion": 25, "magic": 20, "materials": ["cloth", "gem"]},
+		"celestial": {"coin": 0.3, "gear": 25, "material": 30, "potion": 25, "magic": 20, "materials": ["gem"]},
+		"plant": {"coin": 0.0, "gear": 0, "material": 90, "potion": 10, "magic": 0, "materials": ["tile:wood"]},
+		"ooze": {"coin": 0.15, "gear": 15, "material": 75, "potion": 5, "magic": 5, "materials": ["ichor"]},
+		"default": {"coin": 0.2, "gear": 20, "material": 50, "potion": 15, "magic": 15, "materials": ["bone", "leather"]}
+	},
+	"ranks": {
+		"_comment": "rolls: drop draws; coin: coin multiplier; spark: chance of a spark; guarantee: spark_or_item (a spark half the time, else a gear or magic item), spark_and_magic; affixes and quality: added to ItemGen's rank for gear.",
+		"minion": {"rolls": 0.1, "coin": 0.15, "spark": 0.0},
+		"standard": {"rolls": 1, "coin": 1.0, "spark": 0.0},
+		"elite": {"rolls": 2, "coin": 2.5, "spark": 0.12},
+		"champion": {"rolls": 3, "coin": 5.0, "spark": 0.0, "guarantee": "spark_or_item"},
+		"boss": {"rolls": 5, "coin": 12.0, "spark": 0.0, "guarantee": "spark_and_magic"}
+	}
+}
