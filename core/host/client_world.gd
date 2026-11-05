@@ -22,6 +22,8 @@ signal edit_result(req: int, reason: int, at: Vector2i, tile: int)
 signal corrected(pos: Vector2)
 ## The host's world meta arrived (biomes, bands, sites, surface): world.meta is set.
 signal meta_arrived(meta: Dictionary)
+## New lines of world history from the host.
+signal chronicle_lines(lines: PackedStringArray)
 
 ## Edit request ops (wire values).
 enum Op { DIG_START, DIG_STOP, PLACE }
@@ -377,6 +379,16 @@ func apply_snapshot(tick: int, entries: Array) -> void:
 		r.samples.append([t, en["pos"], en["vel"], int(en["flags"])])
 		if r.samples.size() > MAX_SAMPLES:
 			r.samples.pop_front()
+
+## Most recent chronicle lines kept (oldest first).
+const CHRONICLE_KEEP := 50
+var chronicle := PackedStringArray()
+
+func apply_chronicle(lines: PackedStringArray) -> void:
+	chronicle.append_array(lines)
+	if chronicle.size() > CHRONICLE_KEEP:
+		chronicle = chronicle.slice(chronicle.size() - CHRONICLE_KEEP)
+	chronicle_lines.emit(lines)
 
 ## The host's game clock arrived (join, periodically, after a jump).
 func apply_clock(ticks: int) -> void:

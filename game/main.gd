@@ -223,6 +223,17 @@ func _report() -> void:
 		sum += u
 		mx = maxi(mx, u)
 	print("HOSTSTATS ticks=%d tick_avg_us=%.1f tick_max_us=%d host_time=%.1f" % [ticks.size(), float(sum) / maxi(1, ticks.size()), mx, ep.time])
+	var h := session.host
+	if h.sim != null:
+		var su := h.sim_usec
+		var ssum := 0
+		var smax := 0
+		for u in su:
+			ssum += u
+			smax = maxi(smax, u)
+		print("HOSTSTATS sim: %d ticks stepped it, avg %.0f us, max %d us; sim hour %d, %d behind, %d chronicle entries; clock %s" % [
+				su.size(), float(ssum) / maxi(1, su.size()), smax, h.sim.t, h.sim_behind(), h.sim.chronicle.size(),
+				WorldClock.describe(h.clock.hours())])
 	print("HOSTSTATS traffic by message type:\n" + ep.traffic_report())
 
 ## Debug keys on a host with a local player: F6 one game hour, F7 one game day.

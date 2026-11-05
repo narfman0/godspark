@@ -179,6 +179,9 @@ func _hello(p: PeerState, m: Dictionary) -> void:
 			e.body.pos, e.epoch, K.TICK_HZ, K.TICK_HZ / snapshot_every, radius))
 	_send(p.id, _meta())
 	_send(p.id, Protocol.clock(host.clock.ticks))
+	var recent := host.recent_chronicle()
+	if not recent.is_empty():
+		_send(p.id, Protocol.chronicle(recent))
 	_update_interest(p)
 	_log("join peer %d as %s (entity %d) at %s" % [p.id, name, e.id, e.body.pos])
 	player_joined.emit(p.id, name)
@@ -230,6 +233,13 @@ func _route(events: Array[Dictionary]) -> void:
 				if peers.has(int(ev["owner"])):
 					_send(ev["owner"], Protocol.correct(ev["epoch"], ev["pos"], ev["vel"]))
 					_log("correct entity %d (%s) to %s" % [ev["id"], WorldHost.StateCheck.find_key(ev["why"]), ev["pos"]])
+			WorldHost.Ev.CHRONICLE:
+				var lines: PackedStringArray = ev["lines"]
+				for i in range(0, lines.size(), 32):
+					var msg := Protocol.chronicle(lines.slice(i, i + 32))
+					for p: PeerState in peers.values():
+						if p.phase == PeerPhase.PLAYING:
+							_send(p.id, msg)
 			WorldHost.Ev.EDIT_RESULT:
 				if peers.has(int(ev["owner"])):
 					_flush_deltas(peers[ev["owner"]])     # the tile change lands before its result

@@ -33,13 +33,15 @@
 ##              Sent once, right after WELCOME and before any chunk.
 ##   CLOCK      s64 game ticks (WorldClock.ticks)                   9
 ##              After META, every CLOCK_EVERY host ticks, and at once after a jump.
+##   CHRONICLE  u8 n, n x (u16 len, UTF-8 text <= 400 B)           2 + lines
+##              New world-history lines (WorldSim.describe), and a few on join.
 ## (* = unreliable, sequenced; everything else reliable and ordered on one channel, so a
 ## chunk blob always precedes the tile deltas for that chunk.)
 class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 3
+const VERSION := 4
 const MAX_STR := 64
 const VEL_SCALE := 64.0
 
@@ -47,7 +49,7 @@ enum T {
 	HELLO = 1, STATE = 2, EDIT = 3, BYE = 4, CHECK_REQ = 5,
 	WELCOME = 16, REJECT = 17, CHUNK = 18, UNLOAD = 19, TILES = 20, ENT_ADD = 21,
 	ENT_REMOVE = 22, SNAPSHOT = 23, CORRECT = 24, RESULT = 25, CHECK = 26, KICK = 27,
-	META = 28, CLOCK = 29,
+	META = 28, CLOCK = 29, CHRONICLE = 30,
 }
 ## Largest decompressed META body accepted.
 const MAX_META := 8 * 1024 * 1024
@@ -271,6 +273,20 @@ static func _decode_meta(r: Reader) -> Variant:
 	out["surface"] = surf
 	return out
 
+const MAX_LINE := 400
+
+static func chronicle(lines: PackedStringArray) -> PackedByteArray:
+	var w := Writer.new(T.CHRONICLE)
+	var n := mini(lines.size(), 255)
+	w.u8(n)
+	for i in n:
+		var u := lines[i].to_utf8_buffer()
+		if u.size() > MAX_LINE:
+			u = u.slice(0, MAX_LINE)
+		w.u16(u.size())
+		w.b.append_array(u)
+	return w.b
+
 static func clock(ticks: int) -> PackedByteArray:
 	var w := Writer.new(T.CLOCK)
 	w.s64(ticks)
@@ -374,6 +390,15 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			m["meta"] = d
 		T.CLOCK:
 			m["ticks"] = r.s64()
+		T.CHRONICLE:
+			var n := r.u8()
+			var lines := PackedStringArray()
+			for i in n:
+				var k := r.u16()
+				if k > MAX_LINE:
+					return {}
+				lines.append(r.bytes(k).get_string_from_utf8())
+			m["lines"] = lines
 		T.CHECK:
 			m["tag"] = r.str8()
 			var n := r.u16()

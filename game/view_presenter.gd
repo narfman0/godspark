@@ -15,6 +15,7 @@ var rig: CameraRig
 var env: Environment
 var my_id := 0
 var sun := 1.0
+var chronicle: ChronicleOverlay
 var _actors := {}
 
 func world_ready(world: TileWorld, id: int) -> void:
@@ -37,6 +38,9 @@ func world_ready(world: TileWorld, id: int) -> void:
 		add_child(rig)
 	rig.target = cw.view_pos() + Vector2(0, cw.body.size.y * 0.5)
 	rig.snap()
+	if chronicle == null:
+		chronicle = ChronicleOverlay.new()
+		add_child(chronicle)
 
 func _clear() -> void:
 	_actors.clear()
@@ -66,6 +70,10 @@ func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 	view.move_actor(id, pos, facing, state)
 	if id == my_id:
 		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
+
+func chronicle_lines(lines: PackedStringArray) -> void:
+	if chronicle != null:
+		chronicle.add_lines(lines)
 
 func meta_arrived(_meta: Dictionary) -> void:
 	if light != null:

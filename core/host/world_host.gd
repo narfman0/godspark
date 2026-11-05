@@ -20,7 +20,8 @@ enum Reason { OK, OUT_OF_BOUNDS, OUT_OF_REACH, NOTHING_THERE, UNBREAKABLE, OCCUP
 ##   LEAVE        id                                     (an entity is gone)
 ##   CORRECT      id, owner, epoch, pos, vel, why        (a client's state was refused)
 ##   EDIT_RESULT  id, owner, req, reason, x, y, tile     (tile = the cell's fg id now)
-enum Ev { TILE, JOIN, LEAVE, CORRECT, EDIT_RESULT }
+##   CHRONICLE    lines: PackedStringArray               (new world-history lines)
+enum Ev { TILE, JOIN, LEAVE, CORRECT, EDIT_RESULT, CHRONICLE }
 ## What submit_state decided.
 enum StateCheck { OK, STALE, NO_ENTITY, OUT_OF_BOUNDS, TOO_FAST, IN_SOLID }
 
@@ -35,6 +36,11 @@ const SPEED_MULT := 1.25
 const SOLID_SLOP := 0.05
 ## Added to each tick's dig time (see _advance_dig).
 const DIG_EPS := 1e-6
+## Most time (us) one tick may spend catching the sim up with the clock. At least one sim
+## hour is stepped per tick when behind, so the sim always makes progress.
+const SIM_BUDGET_US := 2000
+## Lines of history a joining player is sent.
+const CHRONICLE_ON_JOIN := 5
 
 var world: TileWorld
 var tick_count := 0
@@ -54,6 +60,14 @@ var world_saver := Callable()
 var clock := WorldClock.new()
 ## Set when the clock jumped (sleep), so the net layer tells clients at once.
 var clock_jumped := false
+## The living world (null for worlds without sites, like the test world). Its hour 0 is
+## clock hour `sim_origin`; it follows the clock, a budget per tick.
+var sim: WorldSim
+var sim_origin := 0
+## Chronicle entries already turned into CHRONICLE events.
+var chronicle_sent := 0
+## Per tick that stepped the sim: microseconds spent (for HOSTSTATS and tests).
+var sim_usec := PackedInt32Array()
 var _next_id := 1
 
 func _init(w: TileWorld) -> void:
@@ -62,6 +76,10 @@ func _init(w: TileWorld) -> void:
 	Dice.rng = rng
 	spawn = find_spawn(w.width / 2)
 	world.tile_changed.connect(_on_tile_changed)
+	if not (w.meta.get("sites", []) as Array).is_empty():
+		sim = WorldSim.from_meta(w.meta, w.world_seed)
+		sim_origin = clock.whole_hours()
+		chronicle_sent = sim.chronicle.size()   # founding entries are history, not news
 
 func dt() -> float:
 	return 1.0 / K.TICK_HZ
@@ -70,6 +88,8 @@ func dt() -> float:
 func tick() -> void:
 	tick_count += 1
 	clock.advance(1)
+	if sim != null:
+		_step_sim()
 	var step_dt := 1.0 / MoveStats.step_hz()
 	var steps := maxi(1, MoveStats.step_hz() / K.TICK_HZ)
 	for e: HostEntity in entities.values():
@@ -83,6 +103,37 @@ func tick() -> void:
 				PlayerController.step(world, e.body, e.input, e.stats, step_dt)
 				e.input.jump_pressed = false
 			e.flags = HostEntity.body_flags(e.body, e.digging())
+
+## Step the sim toward the clock within SIM_BUDGET_US, then queue its new chronicle lines.
+func _step_sim() -> void:
+	var target := clock.whole_hours() - sim_origin
+	if sim.t >= target:
+		return
+	var t0 := Time.get_ticks_usec()
+	while sim.t < target:
+		sim.step(1)
+		if Time.get_ticks_usec() - t0 >= SIM_BUDGET_US:
+			break
+	sim_usec.append(Time.get_ticks_usec() - t0)
+	if sim.chronicle.size() > chronicle_sent:
+		var lines := PackedStringArray()
+		for i in range(chronicle_sent, sim.chronicle.size()):
+			lines.append(sim.describe(sim.chronicle[i]))
+		chronicle_sent = sim.chronicle.size()
+		outbox.append({"type": Ev.CHRONICLE, "lines": lines})
+
+## Sim hours still to catch up with the clock (0 when it is current or there is no sim).
+func sim_behind() -> int:
+	return 0 if sim == null else maxi(0, clock.whole_hours() - sim_origin - sim.t)
+
+## The last n chronicle lines already sent (for a joining player).
+func recent_chronicle(n := CHRONICLE_ON_JOIN) -> PackedStringArray:
+	var out := PackedStringArray()
+	if sim == null:
+		return out
+	for i in range(maxi(0, chronicle_sent - n), chronicle_sent):
+		out.append(sim.describe(sim.chronicle[i]))
+	return out
 
 ## Take this tick's events.
 func drain() -> Array[Dictionary]:
@@ -341,6 +392,18 @@ func save_state(dir: String) -> Error:
 	if err != OK:
 		return err
 	var d := {"format": 1, "clock": clock.to_dict()}
+	if sim != null:
+		# Exact save and resume needs var_to_bytes (JSON loses float bits): docs/tracks/sim.md.
+		var blob := var_to_bytes({"origin": sim_origin, "sent": chronicle_sent, "sim": sim.to_dict()})
+		var sf := FileAccess.open(dir.path_join("sim.bin.tmp"), FileAccess.WRITE)
+		if sf == null:
+			return FileAccess.get_open_error()
+		sf.store_buffer(blob.compress(FileAccess.COMPRESSION_ZSTD))
+		sf.close()
+		var e3 := DirAccess.rename_absolute(dir.path_join("sim.bin.tmp"), dir.path_join("sim.bin"))
+		if e3 != OK:
+			return e3
+		d["sim_raw"] = blob.size()
 	var tmp := dir.path_join("host.json.tmp")
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
@@ -358,6 +421,14 @@ func load_state(dir: String) -> bool:
 	if not d is Dictionary:
 		return false
 	clock.from_dict(d.get("clock", {}))
+	var sp := dir.path_join("sim.bin")
+	if d.has("sim_raw") and FileAccess.file_exists(sp):
+		var raw := FileAccess.get_file_as_bytes(sp).decompress(int(d["sim_raw"]), FileAccess.COMPRESSION_ZSTD)
+		var s: Variant = bytes_to_var(raw) if raw.size() == int(d["sim_raw"]) else null
+		if s is Dictionary and (s as Dictionary).get("sim") is Dictionary:
+			sim = WorldSim.from_dict(s["sim"])
+			sim_origin = int(s.get("origin", 0))
+			chronicle_sent = mini(int(s.get("sent", 0)), sim.chronicle.size())
 	return true
 
 ## One JSON file per player under dir/players/, keyed by name.
