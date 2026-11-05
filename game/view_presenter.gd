@@ -16,6 +16,11 @@ var env: Environment
 var my_id := 0
 var sun := 1.0
 var chronicle: ChronicleOverlay
+var dressing: DressingView
+## Seconds between dressing rebuilds while chunks or objects keep changing.
+const DRESS_EVERY := 0.3
+var _dress_dirty := false
+var _dress_wait := 0.0
 var _actors := {}
 
 func world_ready(world: TileWorld, id: int) -> void:
@@ -33,6 +38,10 @@ func world_ready(world: TileWorld, id: int) -> void:
 	view = WorldView.new()
 	add_child(view)
 	view.setup(world, light)
+	dressing = DressingView.new()
+	view.add_child(dressing)
+	world.objects_changed.connect(func(_cx: int, _cy: int) -> void: _dress_dirty = true)
+	_dress_dirty = true
 	if rig == null:
 		rig = CameraRig.new()
 		add_child(rig)
@@ -44,6 +53,7 @@ func world_ready(world: TileWorld, id: int) -> void:
 
 func _clear() -> void:
 	_actors.clear()
+	dressing = null
 	if view != null:
 		view.queue_free()
 		view = null
@@ -71,6 +81,20 @@ func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 	if id == my_id:
 		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
 
+func chunk_arrived(_cx: int, _cy: int) -> void:
+	_dress_dirty = true
+
+func chunk_dropped(_cx: int, _cy: int) -> void:
+	_dress_dirty = true
+
+## Every dressing record in the chunks held, for DressingView ({id: name, x, y}).
+func _dress() -> void:
+	var recs: Array = []
+	for c: Vector2i in cw.loaded:
+		for r: Dictionary in Dressing.records_in(cw.world, c.x, c.y):
+			recs.append({"id": Dressing.name_of(int(r["id"])), "x": r["x"], "y": r["y"]})
+	dressing.set_objects(recs)
+
 func chronicle_lines(lines: PackedStringArray) -> void:
 	if chronicle != null:
 		chronicle.add_lines(lines)
@@ -88,6 +112,11 @@ func frame(delta: float) -> void:
 	if view == null or cw == null:
 		return
 	rig.target = cw.view_pos() + Vector2(0, cw.body.size.y * 0.5)
+	_dress_wait -= delta
+	if _dress_dirty and _dress_wait <= 0.0 and dressing != null:
+		_dress_dirty = false
+		_dress_wait = DRESS_EVERY
+		_dress()
 	var s := WorldClock.sun_at(cw.hours())
 	if absf(s - light.sun) > 0.002 or (s != light.sun and (s <= WorldClock.MOON or s >= 1.0)):
 		light.sun = s

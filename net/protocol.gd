@@ -35,13 +35,15 @@
 ##              After META, every CLOCK_EVERY host ticks, and at once after a jump.
 ##   CHRONICLE  u8 n, n x (u16 len, UTF-8 text <= 400 B)           2 + lines
 ##              New world-history lines (WorldSim.describe), and a few on join.
+##   OBJECTS    s16 cx, s16 cy, u16 n, n x 5 B (Chunk.objects)     7 + 5n
+##              A held chunk's whole dressing list, after a change (CHUNK carries it too).
 ## (* = unreliable, sequenced; everything else reliable and ordered on one channel, so a
 ## chunk blob always precedes the tile deltas for that chunk.)
 class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 4
+const VERSION := 5
 const MAX_STR := 64
 const VEL_SCALE := 64.0
 
@@ -49,7 +51,7 @@ enum T {
 	HELLO = 1, STATE = 2, EDIT = 3, BYE = 4, CHECK_REQ = 5,
 	WELCOME = 16, REJECT = 17, CHUNK = 18, UNLOAD = 19, TILES = 20, ENT_ADD = 21,
 	ENT_REMOVE = 22, SNAPSHOT = 23, CORRECT = 24, RESULT = 25, CHECK = 26, KICK = 27,
-	META = 28, CLOCK = 29, CHRONICLE = 30,
+	META = 28, CLOCK = 29, CHRONICLE = 30, OBJECTS = 31,
 }
 ## Largest decompressed META body accepted.
 const MAX_META := 8 * 1024 * 1024
@@ -275,6 +277,14 @@ static func _decode_meta(r: Reader) -> Variant:
 
 const MAX_LINE := 400
 
+static func objects(cx: int, cy: int, records: PackedByteArray) -> PackedByteArray:
+	var w := Writer.new(T.OBJECTS)
+	w.s16(cx)
+	w.s16(cy)
+	w.u16(records.size() / Chunk.OBJ_BYTES)
+	w.b.append_array(records.slice(0, records.size() / Chunk.OBJ_BYTES * Chunk.OBJ_BYTES))
+	return w.b
+
 static func chronicle(lines: PackedStringArray) -> PackedByteArray:
 	var w := Writer.new(T.CHRONICLE)
 	var n := mini(lines.size(), 255)
@@ -390,6 +400,11 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			m["meta"] = d
 		T.CLOCK:
 			m["ticks"] = r.s64()
+		T.OBJECTS:
+			m["cx"] = r.s16()
+			m["cy"] = r.s16()
+			var n := r.u16()
+			m["records"] = r.bytes(n * Chunk.OBJ_BYTES)
 		T.CHRONICLE:
 			var n := r.u8()
 			var lines := PackedStringArray()

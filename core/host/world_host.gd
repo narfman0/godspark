@@ -21,7 +21,8 @@ enum Reason { OK, OUT_OF_BOUNDS, OUT_OF_REACH, NOTHING_THERE, UNBREAKABLE, OCCUP
 ##   CORRECT      id, owner, epoch, pos, vel, why        (a client's state was refused)
 ##   EDIT_RESULT  id, owner, req, reason, x, y, tile     (tile = the cell's fg id now)
 ##   CHRONICLE    lines: PackedStringArray               (new world-history lines)
-enum Ev { TILE, JOIN, LEAVE, CORRECT, EDIT_RESULT, CHRONICLE }
+##   OBJECTS      cx, cy                                 (a chunk's dressing list changed)
+enum Ev { TILE, JOIN, LEAVE, CORRECT, EDIT_RESULT, CHRONICLE, OBJECTS }
 ## What submit_state decided.
 enum StateCheck { OK, STALE, NO_ENTITY, OUT_OF_BOUNDS, TOO_FAST, IN_SOLID }
 
@@ -365,8 +366,13 @@ func _result(e: HostEntity, req: int, why: Reason, x: int, y: int) -> void:
 	outbox.append({"type": Ev.EDIT_RESULT, "id": e.id, "owner": e.owner, "req": req,
 			"reason": why, "x": x, "y": y, "tile": world.get_fg(x, y)})
 
-func _on_tile_changed(x: int, y: int, layer: int, _old: int, now: int) -> void:
+func _on_tile_changed(x: int, y: int, layer: int, old: int, now: int) -> void:
 	outbox.append({"type": Ev.TILE, "x": x, "y": y, "layer": layer, "value": now})
+	if layer == TileWorld.Layer.FG and TileDefs.solid[old] != TileDefs.solid[now]:
+		# Dug out from under a tree, or a block put into a bush: the host decides.
+		for c in Dressing.on_tile_changed(world, x, y):
+			world.objects_changed.emit(c.x, c.y)
+			outbox.append({"type": Ev.OBJECTS, "cx": c.x, "cy": c.y})
 
 # --- saving -------------------------------------------------------------------------
 

@@ -23,6 +23,8 @@ enum Layer { FG, BG, LIQUID }
 signal tile_changed(x: int, y: int, layer: Layer, old: int, now: int)
 ## A whole chunk was rewritten (generation, load, a chunk arriving from the host).
 signal chunk_changed(cx: int, cy: int)
+## A chunk's dressing object list changed (Dressing records; not emitted for chunk_changed).
+signal objects_changed(cx: int, cy: int)
 
 var width: int
 var height: int
@@ -205,6 +207,8 @@ func content_hash() -> String:
 		ctx.update(c.fg)
 		ctx.update(c.bg)
 		ctx.update(c.liquid)
+		if not c.objects.is_empty():
+			ctx.update(c.objects)
 	return ctx.finish().hex_encode()
 
 ## A small fixed world for tests and demos: flat ground at half height with stone under

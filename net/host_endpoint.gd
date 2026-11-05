@@ -233,6 +233,14 @@ func _route(events: Array[Dictionary]) -> void:
 				if peers.has(int(ev["owner"])):
 					_send(ev["owner"], Protocol.correct(ev["epoch"], ev["pos"], ev["vel"]))
 					_log("correct entity %d (%s) to %s" % [ev["id"], WorldHost.StateCheck.find_key(ev["why"]), ev["pos"]])
+			WorldHost.Ev.OBJECTS:
+				var oc := Vector2i(int(ev["cx"]), int(ev["cy"]))
+				_blob_cache.erase(oc)
+				var msg := Protocol.objects(oc.x, oc.y, host.world.chunk_at(oc.x, oc.y).objects)
+				for p: PeerState in peers.values():
+					if p.sent.has(oc):
+						_flush_deltas(p)      # the tile change lands before the object goes
+						_send(p.id, msg)
 			WorldHost.Ev.CHRONICLE:
 				var lines: PackedStringArray = ev["lines"]
 				for i in range(0, lines.size(), 32):

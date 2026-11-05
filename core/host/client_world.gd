@@ -119,6 +119,7 @@ func apply_chunk(cx: int, cy: int, blob: PackedByteArray) -> bool:
 	c.fg = raw.fg
 	c.bg = raw.bg
 	c.liquid = raw.liquid
+	c.objects = raw.objects
 	loaded[Vector2i(cx, cy)] = true
 	world.chunk_changed.emit(cx, cy)
 	chunk_arrived.emit(cx, cy)
@@ -158,6 +159,13 @@ func apply_tile(x: int, y: int, layer: int, value: int) -> void:
 			world.set_bg(x, y, value)
 		TileWorld.Layer.LIQUID:
 			world.set_liquid(x, y, value)
+
+## A held chunk's dressing list from the host (after a dig removed something).
+func apply_objects(cx: int, cy: int, records: PackedByteArray) -> void:
+	if not loaded.has(Vector2i(cx, cy)) or records.size() % Chunk.OBJ_BYTES != 0:
+		return
+	world.chunk_at(cx, cy).objects = records
+	world.objects_changed.emit(cx, cy)
 
 func has_chunk(cx: int, cy: int) -> bool:
 	return loaded.has(Vector2i(cx, cy))

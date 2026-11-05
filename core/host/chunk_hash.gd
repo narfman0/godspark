@@ -34,4 +34,6 @@ static func raw(world: TileWorld, coords: Array) -> PackedByteArray:
 		ctx.update(ch.fg)
 		ctx.update(ch.bg)
 		ctx.update(ch.liquid)
+		if not ch.objects.is_empty():
+			ctx.update(ch.objects)
 	return ctx.finish()
