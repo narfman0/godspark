@@ -6,6 +6,9 @@
 #                                            #   (+ each glTF's .bin and textures)
 #   tools/fetch_assets.sh --paths list.txt   # explicit server paths (assets/<Pack>/...), one per line
 #   tools/fetch_assets.sh --list             # print the referenced paths, fetch nothing
+#   tools/fetch_assets.sh --index            # check the referenced paths against the server's
+#                                            #   index.json and write tests/data/asset_paths.txt
+#                                            #   (tests/test_looks.gd reads it, offline)
 #   tools/fetch_assets.sh --pack Nature …    # whole packs (big: browsing only, never for the game)
 #
 # "Referenced" means a literal res://assets/meshes/<Pack>/....(gltf|glb|png) anywhere in
@@ -28,6 +31,7 @@ case "${1:-}" in
 	--pack) MODE="pack"; shift; ARGS=("$@") ;;
 	--paths) MODE="paths"; shift; ARGS=("$@") ;;
 	--list) MODE="list"; shift ;;
+	--index) MODE="index"; shift ;;
 	"") ;;
 	*) echo "unknown option: $1 (see the header of $0)" >&2; exit 2 ;;
 esac
@@ -121,6 +125,25 @@ def ensure(fs):
                 uri = item.get("uri")
                 if uri and not uri.startswith("data:"):
                     ensure(os.path.join(base, urllib.parse.unquote(uri)))
+
+if MODE == "index":
+    if not reachable():
+        sys.exit(1)
+    index = json.load(urllib.request.urlopen(f"{SERVER}/index.json", timeout=120))
+    on_server = {f["path"] for p in index["cooked"]["packs"] for f in p["files"]}
+    refs = referenced()
+    bad = [r for r in refs if to_server(r) not in on_server]
+    for r in bad:
+        print(f"  NOT ON SERVER {r}", file=sys.stderr)
+    good = [r for r in refs if r not in bad]
+    os.makedirs("tests/data", exist_ok=True)
+    with open("tests/data/asset_paths.txt", "w") as fh:
+        fh.write("# Referenced asset paths verified against the asset server's index.json.\n")
+        fh.write("# Written by tools/fetch_assets.sh --index; read by tests/test_looks.gd (offline).\n")
+        for r in good:
+            fh.write(r + "\n")
+    print(f"{len(good)} referenced paths on the server, {len(bad)} not: tests/data/asset_paths.txt")
+    sys.exit(1 if bad else 0)
 
 if MODE == "pack":
     print("WARNING: whole packs are large (thousands of files). Use only for browsing.", file=sys.stderr)
