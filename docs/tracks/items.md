@@ -27,7 +27,7 @@ system is `HostSystem.ITEMS` (3): `core/items/items_system.gd` (`ItemsSystem`) a
 | `data/loot/loot.json` | CR bands, creature types, ranks |
 | `data/sparks.json` | 20 sparks x 3 ranks; spark rank weights by depth band |
 | `tools/loot_sim.gd` | `-- monster=SLUG rank=R n=1000 band=B` or `-- table` |
-| `tests/test_items.gd`, `test_items_system.gd`, `test_items_net.gd`, `test_items_codec.gd`, `test_sparks.gd` | 330 checks |
+| `tests/test_items.gd`, `test_items_system.gd`, `test_items_net.gd`, `test_items_codec.gd`, `test_sparks.gd` | 339 checks |
 
 ## The item record
 
@@ -362,7 +362,7 @@ kit has 30), `Presenter` or `view/`.
 
 | What | Measured |
 |---|---|
-| Tests | 2037 -> see the final run (1702 before M2 items) |
+| Tests | 2041 checks, ALL PASS (1702 before; 339 new) |
 | Smoke run (2 bots) | NET SMOKE PASS; items SYS 22 messages, 1015 bytes; host tick avg 217 us |
 | `Items.ensure()` | loads 300+ rows once per process |
 
