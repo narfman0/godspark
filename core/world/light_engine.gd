@@ -1,0 +1,442 @@
+## Per-tile light for rules (SRD Bright / Dim / Darkness) and for the view. Pure core: no nodes.
+##
+##   var light := LightEngine.new(world)
+##   light.ensure_region(Rect2i(0, 0, 64, 64))   # lazy; level_at() also computes on demand
+##   light.category_at(x, y) == LightEngine.Category.BRIGHT
+##   light.add_light(id, 10.5, 40.2, LightEngine.TORCH)
+##
+## Two fields, one byte per tile each:
+##   sky:   sunlight. Falls straight down every column until the first opaque tile (cells at
+##          or above `sky_top(x)` hold SUN), then spreads sideways and down with falloff.
+##   block: emissive tiles (TileDefs.emit) and carried lights.
+## level = max(block, sky * sun). Changing `sun` recomputes nothing.
+##
+## Spreading is a Dijkstra flood over 8 neighbours: an orthogonal step costs STEP levels, a
+## diagonal step DIAG (STEP * 1.4, so distances are octile, close to Euclidean). A
+## diagonal step needs both orthogonal cells it squeezes between to be clear. Opaque tiles
+## receive light (so the faces of cave walls are lit) but never pass it on.
+##
+## Levels: a torch is DIM_MIN + 16 * STEP = 85. It reads BRIGHT (>= 45) within 8 tiles,
+## DIM (>= 5) out to 16 tiles, DARK beyond. That is the SRD torch: 20 ft bright, 20 ft more
+## dim, at 2.5 ft per tile. Sunlight uses the same scale, so cave mouths fade out over 16 tiles.
+##
+## Background walls do not affect light: a cell is sunlit when nothing opaque is above it
+## (wall or not), and a covered cell gets only what spreads to it.
+class_name LightEngine
+extends RefCounted
+
+enum Category { DARK, DIM, BRIGHT }
+
+const STEP := 5
+const DIAG := 7
+const MAX := 125
+const DIM_MIN := 5
+const BRIGHT_MIN := 45
+## A torch: bright 8 tiles (20 ft), dim to 16 tiles (40 ft).
+const TORCH := 85
+## Direct noon sunlight.
+const SUN := 85
+## Chunks are computed in batches of at most this many chunks per side.
+const BATCH := 4
+
+## light_changed(rect): levels in rect (tile units) may have changed. A change of `sun`
+## reports the whole world.
+signal light_changed(rect: Rect2i)
+
+var world: TileWorld
+## 0 night .. 1 noon. Scales the sky field when read.
+var sun := 1.0:
+	set(value):
+		value = clampf(value, 0.0, 1.0)
+		if value != sun:
+			sun = value
+			light_changed.emit(Rect2i(0, 0, _w, _h))
+
+var _w: int
+var _h: int
+var _block := PackedByteArray()
+var _sky := PackedByteArray()
+var _top := PackedInt32Array()   ## per column: lowest y that sees the sky, -1 = not scanned
+var _done := PackedByteArray()   ## per chunk: 1 once computed
+var _lights := {}                ## id -> Vector3i(x, y, strength)
+var _reach := 0                  ## tiles a level can travel: ceil(strongest source / STEP)
+
+func _init(w: TileWorld) -> void:
+	world = w
+	_w = w.width
+	_h = w.height
+	_block.resize(_w * _h)
+	_sky.resize(_w * _h)
+	_top.resize(_w)
+	_top.fill(-1)
+	_done.resize(w.chunks_x * w.chunks_y)
+	var strongest := SUN
+	for e in TileDefs.emit:
+		strongest = maxi(strongest, emit_level(e))
+	_reach = ceili(float(strongest) / STEP)
+	world.tile_changed.connect(_on_tile_changed)
+	world.chunk_changed.connect(_on_chunk_changed)
+
+## Light level for a tile's `emit` value (0-15): emit 15 is a torch.
+static func emit_level(emit: int) -> int:
+	return 0 if emit <= 0 else mini(MAX, DIM_MIN + (emit + 1) * STEP)
+
+## Strength for a light that sheds bright light for half of `total_ft` and dim light for the
+## rest (torch 40, lantern 60, the Light cantrip 40, a candle 10).
+static func strength_for_ft(total_ft: float) -> int:
+	return mini(MAX, DIM_MIN + roundi(K.ft(total_ft)) * STEP)
+
+static func category_of(level: int) -> Category:
+	if level >= BRIGHT_MIN:
+		return Category.BRIGHT
+	if level >= DIM_MIN:
+		return Category.DIM
+	return Category.DARK
+
+func level_at(x: int, y: int) -> int:
+	if not world.in_bounds(x, y):
+		return int(SUN * sun + 0.5) if y >= _h and x >= 0 and x < _w else 0
+	if _done[(x >> 5) + (y >> 5) * world.chunks_x] == 0:
+		ensure_region(Rect2i(x, y, 1, 1))
+	var i := x + y * _w
+	return maxi(_block[i], int(_sky[i] * sun + 0.5))
+
+func category_at(x: int, y: int) -> Category:
+	return category_of(level_at(x, y))
+
+## The raw fields, for the view (sky is unscaled by sun). Ensure the region first.
+func block_at(x: int, y: int) -> int:
+	return _block[x + y * _w] if world.in_bounds(x, y) else 0
+
+func sky_at(x: int, y: int) -> int:
+	if world.in_bounds(x, y):
+		return _sky[x + y * _w]
+	return SUN if y >= _h and x >= 0 and x < _w else 0
+
+## One byte per tile of `rect`, rows bottom to top, for an R8 texture. sky = true gives the
+## unscaled sky field, false the block field. Outside the world reads 0 (sky: SUN above it).
+## Does not compute anything: call ensure_region(rect) first.
+func region_bytes(rect: Rect2i, sky: bool) -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(rect.size.x * rect.size.y)
+	var src := _sky if sky else _block
+	var x0 := maxi(rect.position.x, 0)
+	var x1 := mini(rect.end.x, _w)
+	for r in rect.size.y:
+		var y := rect.position.y + r
+		var o := r * rect.size.x
+		if y >= _h:
+			if sky:
+				for x in range(x0, x1):
+					out[o + x - rect.position.x] = SUN
+			continue
+		if y < 0 or x1 <= x0:
+			continue
+		var row := src.slice(x0 + y * _w, x1 + y * _w)
+		var at := o + x0 - rect.position.x
+		for k in row.size():
+			out[at + k] = row[k]
+	return out
+
+## Lowest y in column x that sees open sky (nothing opaque at or above it).
+func sky_top(x: int) -> int:
+	if x < 0 or x >= _w:
+		return _h
+	if _top[x] < 0:
+		_top[x] = _scan_top(x, _h - 1)
+	return _top[x]
+
+func add_light(id: int, x: float, y: float, strength: int) -> void:
+	strength = clampi(strength, 0, MAX)
+	var l := Vector3i(floori(x), floori(y), strength)
+	if _lights.get(id) == l:
+		return
+	var old: Variant = _lights.get(id)
+	_lights[id] = l
+	_reach = maxi(_reach, ceili(float(strength) / STEP))
+	var box := _around(Vector2i(l.x, l.y))
+	if old != null:
+		box = box.merge(_around(Vector2i(old.x, old.y)))
+	_update(box, true, false)
+
+func move_light(id: int, x: float, y: float) -> void:
+	if not _lights.has(id):
+		return
+	var l: Vector3i = _lights[id]
+	if Vector2i(floori(x), floori(y)) == Vector2i(l.x, l.y):
+		return
+	add_light(id, x, y, l.z)
+
+func remove_light(id: int) -> void:
+	if not _lights.has(id):
+		return
+	var l: Vector3i = _lights[id]
+	_lights.erase(id)
+	_update(_around(Vector2i(l.x, l.y)), true, false)
+
+func has_light(id: int) -> bool:
+	return _lights.has(id)
+
+## Compute every not-yet-computed chunk that rect touches.
+func ensure_region(rect: Rect2i) -> void:
+	rect = rect.intersection(Rect2i(0, 0, _w, _h))
+	if rect.size.x <= 0 or rect.size.y <= 0:
+		return
+	var c0 := Vector2i(rect.position.x >> 5, rect.position.y >> 5)
+	var c1 := Vector2i((rect.end.x - 1) >> 5, (rect.end.y - 1) >> 5)
+	var by := c0.y
+	while by <= c1.y:
+		var bx := c0.x
+		while bx <= c1.x:
+			_ensure_batch(Rect2i(bx, by, mini(BATCH, c1.x - bx + 1), mini(BATCH, c1.y - by + 1)))
+			bx += BATCH
+		by += BATCH
+
+func is_computed(cx: int, cy: int) -> bool:
+	return _done[cx + cy * world.chunks_x] != 0
+
+## Forget everything (a whole new world was loaded into the same TileWorld).
+func reset() -> void:
+	_block.fill(0)
+	_sky.fill(0)
+	_top.fill(-1)
+	_done.fill(0)
+	light_changed.emit(Rect2i(0, 0, _w, _h))
+
+# --- internals ---------------------------------------------------------------------------
+
+func _around(p: Vector2i) -> Rect2i:
+	return Rect2i(p.x - _reach, p.y - _reach, _reach * 2 + 1, _reach * 2 + 1)
+
+func _scan_top(x: int, from_y: int) -> int:
+	var y := from_y
+	while y >= 0:
+		if world.is_opaque(x, y):
+			return y + 1
+		y -= 1
+	return 0
+
+func _ensure_batch(chunks: Rect2i) -> void:
+	var cxn := world.chunks_x
+	var lo := Vector2i(1 << 30, 1 << 30)
+	var hi := Vector2i(-1, -1)
+	for cy in range(chunks.position.y, chunks.end.y):
+		for cx in range(chunks.position.x, chunks.end.x):
+			if _done[cx + cy * cxn] == 0:
+				lo = Vector2i(mini(lo.x, cx), mini(lo.y, cy))
+				hi = Vector2i(maxi(hi.x, cx), maxi(hi.y, cy))
+	if hi.x < 0:
+		return
+	var inner := Rect2i(lo * K.CHUNK, (hi - lo + Vector2i.ONE) * K.CHUNK)
+	var box := inner.grow(_reach).intersection(Rect2i(0, 0, _w, _h))
+	var blk := _flood(box, false)
+	var sky := _flood(box, true)
+	for cy in range(lo.y, hi.y + 1):
+		for cx in range(lo.x, hi.x + 1):
+			if _done[cx + cy * cxn] != 0:
+				continue
+			_write(box, blk, sky, Rect2i(cx * K.CHUNK, cy * K.CHUNK, K.CHUNK, K.CHUNK), true, true)
+			_done[cx + cy * cxn] = 1
+	light_changed.emit(inner)
+
+## Recompute box after a change inside it. Cells outside box are unaffected, because the
+## change is at least _reach tiles from them.
+func _update(box: Rect2i, block: bool, sky: bool) -> void:
+	box = box.intersection(Rect2i(0, 0, _w, _h))
+	if box.size.x <= 0 or box.size.y <= 0:
+		return
+	var any := false
+	for cy in range(box.position.y >> 5, ((box.end.y - 1) >> 5) + 1):
+		for cx in range(box.position.x >> 5, ((box.end.x - 1) >> 5) + 1):
+			if _done[cx + cy * world.chunks_x] != 0:
+				any = true
+	if not any:
+		return  # nobody has looked here yet; ensure_region will see the new state
+	# The frame around box seeds the flood, so it has to be computed already.
+	ensure_region(box.grow(1))
+	var blk := _flood(box, false) if block else PackedByteArray()
+	var skf := _flood(box, true) if sky else PackedByteArray()
+	_write(box, blk, skf, box, block, sky)
+	light_changed.emit(box)
+
+func _write(box: Rect2i, blk: PackedByteArray, sky: PackedByteArray, area: Rect2i, wb: bool, ws: bool) -> void:
+	var gw := box.size.x + 4
+	for y in range(area.position.y, area.end.y):
+		var g := (area.position.x - box.position.x + 2) + (y - box.position.y + 2) * gw
+		var i := area.position.x + y * _w
+		for k in area.size.x:
+			if wb:
+				_block[i + k] = blk[g + k]
+			if ws:
+				_sky[i + k] = sky[g + k]
+
+## Flood one field over box. The grid is box grown by 2: the outer ring is a barrier, the
+## next ring (the frame) is seeded from the stored field, so a small box continues the light
+## around it exactly. Returns levels for the whole grid.
+func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
+	var gx := box.position.x - 2
+	var gy := box.position.y - 2
+	var gw := box.size.x + 4
+	var gh := box.size.y + 4
+	var n := gw * gh
+	var op := PackedByteArray()
+	op.resize(n)
+	var lv := PackedByteArray()
+	lv.resize(n)
+	var buckets: Array = []
+	buckets.resize(MAX + 1)
+	for l in MAX + 1:
+		buckets[l] = []
+	var opaque := TileDefs.opaque
+	var emit := TileDefs.emit
+	var stored := _sky if sky else _block
+	for j in gh:
+		var y := gy + j
+		for k in gw:
+			var i := k + j * gw
+			if j == 0 or k == 0 or j == gh - 1 or k == gw - 1:
+				op[i] = 2
+				continue
+			var x := gx + k
+			var src := 0
+			if x < 0 or x >= _w or y < 0:
+				op[i] = 1
+				continue
+			if y >= _h:
+				if sky:
+					src = SUN
+			else:
+				var id := world.get_fg(x, y)
+				var e := emit[id]
+				if e > 0:
+					if not sky:
+						src = emit_level(e)
+				elif opaque[id] != 0:
+					op[i] = 1
+				if sky and op[i] == 0 and y >= sky_top(x):
+					src = SUN
+				if j == 1 or k == 1 or j == gh - 2 or k == gw - 2:
+					src = maxi(src, stored[x + y * _w])
+			if src > 0:
+				lv[i] = src
+				if op[i] == 0:
+					buckets[src].append(i)
+	if not sky:
+		for l: Vector3i in _lights.values():
+			var k := l.x - gx
+			var j := l.y - gy
+			if k < 1 or j < 1 or k >= gw - 1 or j >= gh - 1 or l.z <= 0:
+				continue
+			var i := k + j * gw
+			if op[i] == 1 or l.z <= lv[i]:
+				continue
+			lv[i] = l.z
+			buckets[l.z].append(i)
+	for l in range(MAX, 0, -1):
+		var b: Array = buckets[l]
+		if b.is_empty():
+			continue
+		var o := l - STEP
+		var d := l - DIAG
+		var ob: Array = buckets[o] if o > 0 else []
+		var db: Array = buckets[d] if d > 0 else []
+		for i: int in b:
+			if lv[i] != l:
+				continue
+			if o <= 0:
+				continue
+			var nl := i - 1
+			var nr := i + 1
+			var nd := i - gw
+			var nu := i + gw
+			var cl := op[nl] == 0
+			var cr := op[nr] == 0
+			var cd := op[nd] == 0
+			var cu := op[nu] == 0
+			if op[nl] < 2 and lv[nl] < o:
+				lv[nl] = o
+				if cl:
+					ob.append(nl)
+			if op[nr] < 2 and lv[nr] < o:
+				lv[nr] = o
+				if cr:
+					ob.append(nr)
+			if op[nd] < 2 and lv[nd] < o:
+				lv[nd] = o
+				if cd:
+					ob.append(nd)
+			if op[nu] < 2 and lv[nu] < o:
+				lv[nu] = o
+				if cu:
+					ob.append(nu)
+			if d <= 0:
+				continue
+			var m: int
+			if cl and cd:
+				m = nd - 1
+				if op[m] < 2 and lv[m] < d:
+					lv[m] = d
+					if op[m] == 0:
+						db.append(m)
+			if cr and cd:
+				m = nd + 1
+				if op[m] < 2 and lv[m] < d:
+					lv[m] = d
+					if op[m] == 0:
+						db.append(m)
+			if cl and cu:
+				m = nu - 1
+				if op[m] < 2 and lv[m] < d:
+					lv[m] = d
+					if op[m] == 0:
+						db.append(m)
+			if cr and cu:
+				m = nu + 1
+				if op[m] < 2 and lv[m] < d:
+					lv[m] = d
+					if op[m] == 0:
+						db.append(m)
+	return lv
+
+func _on_tile_changed(x: int, y: int, layer: int, old: int, now: int) -> void:
+	if layer != TileWorld.Layer.FG:
+		return
+	var was_op := TileDefs.opaque[old] != 0 and TileDefs.emit[old] == 0
+	var is_op := TileDefs.opaque[now] != 0 and TileDefs.emit[now] == 0
+	var emit_changed := TileDefs.emit[old] != TileDefs.emit[now]
+	if was_op == is_op and not emit_changed:
+		return
+	var p := Vector2i(x, y)
+	if was_op == is_op:
+		_update(_around(p), true, false)
+		return
+	# The direct-sun span of this column changes between y and the next opaque tile below.
+	# Fix the column top first, so any chunk computed during the updates sees the new sky.
+	var lo := y
+	if _top[x] >= 0:
+		var top := _top[x]
+		if is_op and y >= top:
+			_top[x] = y + 1
+			lo = top
+		elif not is_op and y == top - 1:
+			_top[x] = _scan_top(x, y)
+			lo = _top[x]
+	else:
+		var t := sky_top(x)
+		if not is_op and t <= y:
+			lo = t
+		elif is_op and t == y + 1:
+			lo = _scan_top(x, y - 1)
+	var span := Rect2i(x, lo, 1, y - lo + 1)
+	_update(_around(p), true, false)
+	_update(span.grow(_reach), false, true)
+
+func _on_chunk_changed(cx: int, cy: int) -> void:
+	# Whole chunk rewritten: rescan its columns and recompute everything it can reach.
+	for x in range(cx * K.CHUNK, (cx + 1) * K.CHUNK):
+		_top[x] = -1
+	var r := Rect2i(cx * K.CHUNK, cy * K.CHUNK, K.CHUNK, K.CHUNK)
+	# Sun can now fall anywhere below this chunk in these columns.
+	var tall := Rect2i(r.position.x, 0, K.CHUNK, r.end.y)
+	_update(r.grow(_reach), true, false)
+	_update(tall.grow(_reach), false, true)
