@@ -517,7 +517,7 @@ func damage(src_id: int, dst: HostEntity, amount: int, dtype: Variant, opts := {
 	var t: int = SRDContent.damage_type_from(String(dtype)) if dtype is String else int(dtype)
 	var dealt := dst.combatant.take_damage(amount, t as SRD.DamageType, bool(opts.get("crit", false)))
 	_emit(Ev.DAMAGE, src_id, dst.id, {"amount": dealt, "dtype": t, "hp": dst.combatant.current_hp})
-	_after_damage(b, dealt, src_id)
+	_after_damage(b, dealt, src_id, bool(opts.get("crit", false)))
 	return dealt
 
 # --- contacts ---------------------------------------------------------------------------------
@@ -606,7 +606,7 @@ func _weapon_attack(a: Actor, b: Actor, opts_in: Dictionary, from: Vector2) -> D
 			"hp": t.current_hp})
 	if ev.has("push_feet"):
 		_push(b, from, int(ev["push_feet"]))
-	_after_damage(b, dealt, a.e.id)
+	_after_damage(b, dealt, a.e.id, bool(ev.get("crit", false)))
 	return ev
 
 ## A sweep: the same arc grazing another creature. An attack roll (no crit doubling), and on
@@ -671,7 +671,7 @@ func _foe_adjacent(a: Actor) -> bool:
 			return true
 	return false
 
-func _after_damage(b: Actor, dealt: int, src: int) -> void:
+func _after_damage(b: Actor, dealt: int, src: int, crit := false) -> void:
 	var c := b.e.combatant
 	# Other systems hear of every hit taken (and of misses: dealt 0) before the 0 HP check, so
 	# they may still change hit points (Monsters: wards, tethers, minions, thorns, provocation).
@@ -689,13 +689,17 @@ func _after_damage(b: Actor, dealt: int, src: int) -> void:
 			if not b.conc.damage_concentration_check(dealt):
 				_emit(Ev.EFFECT, src, b.e.id, {"on": false, "what": "concentration:" + was})
 	if c.current_hp <= 0:
-		_drop(b, src)
+		_drop(b, src, dealt, crit)
 
 ## 0 hit points: monsters die (DEATH, removed after a linger, then on_kill hooks); players
-## are downed (DOWNED, then rules.player_dropped, or the fallback respawn).
-func _drop(b: Actor, src: int) -> void:
+## are downed (DOWNED, then rules.player_dropped, or the fallback respawn). A hit that lands
+## on a player already down is a failed death save (two on a critical hit): player_dropped
+## again with the crit flag.
+func _drop(b: Actor, src: int, dealt := 0, crit := false) -> void:
 	if b.e.is_player():
 		if b.downed_at >= 0.0 or (_rules_has("is_downed") and is_downed(b.e)):
+			if dealt > 0 and _rules_has("player_dropped"):
+				host.system(HostSystem.RULES).call("player_dropped", b.e, crit)
 			return
 		b.downed_at = now
 		b.seq = {}
@@ -715,16 +719,9 @@ func _drop(b: Actor, src: int) -> void:
 ## Move a body (push, respawn). Monsters move at once; a player's client gets the host's
 ## position through the existing CORRECT path (new epoch), as a refused state would.
 func _place(a: Actor, pos: Vector2) -> void:
-	var e := a.e
-	e.body.pos = pos
-	e.body.vel = Vector2.ZERO
-	a.takeoff_y = pos.y
+	host.teleport(a.e, pos)
+	a.takeoff_y = a.e.body.pos.y
 	a.footed = true
-	if e.is_player():
-		e.epoch = (e.epoch + 1) & 0xffff
-		e.last_state_tick = host.tick_count
-		host.outbox.append({"type": WorldHost.Ev.CORRECT, "id": e.id, "owner": e.owner, "epoch": e.epoch,
-			"pos": pos, "vel": Vector2.ZERO, "why": WorldHost.StateCheck.OK})
 
 ## Push (Thunderwave, the Push mastery): a horizontal shove away from `from`, swept against
 ## tiles. Monsters are moved here; a player's client sweeps its own body on the PUSH event.
@@ -1148,15 +1145,18 @@ func _spell_events(a: Actor, ab: AbilityData, evs: Array, from: Vector2) -> void
 				_emit(Ev.SAVE, a.e.id, tid, {"dc": ev.get("dc", 0), "saved": ev.get("saved", false), "what": ab.spell_id})
 			"spell_heal":
 				_emit(Ev.HEAL, a.e.id, tid, {"amount": ev.get("healed", 0), "hp": ev.get("target_hp_after", 0)})
-				if b != null and b.downed_at >= 0.0 and b.e.combatant.current_hp > 0:
+				if b != null and b.e.combatant.current_hp > 0:
 					b.downed_at = -1.0
+					# the addon's heal raised it from 0 HP: Rules gets the player up now
+					if b.e.is_player() and _rules_has("heal") and is_downed(b.e):
+						host.system(HostSystem.RULES).call("heal", b.e, b.e.combatant.current_hp)
 		if dealt > 0:
 			_emit(Ev.DAMAGE, a.e.id, tid, {"amount": dealt, "dtype": ab.damage_type, "hp": ev.get("target_hp_after", 0)})
 		if b != null:
 			_touched[tid] = true
 			if ev.has("push_feet"):
 				_push(b, from, int(ev["push_feet"]))
-			_after_damage(b, dealt, a.e.id)
+			_after_damage(b, dealt, a.e.id, bool(ev.get("crit", false)))
 	_touched[a.e.id] = true
 
 ## Spell durations from the table: the cast's timed effects stop counting turns and end on

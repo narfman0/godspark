@@ -146,6 +146,10 @@ func level() -> int:
 func is_downed(id := -1) -> bool:
 	return downed.has(cw.my_id if id < 0 and cw != null else id)
 
+## No digging or placing while down (ClientSystem.allow_edit; the host refuses them too).
+func allow_edit() -> bool:
+	return not is_downed()
+
 func state_of(id: int) -> int:
 	return int(downed.get(id, {}).get("state", RulesCodec.Down.UP))
 

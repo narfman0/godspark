@@ -276,6 +276,7 @@ func tick(h: WorldHost) -> void:
 
 func _died(e: HostEntity, b: MonsterBrain) -> void:
 	var rec: Dictionary = b.rec
+	director.killed(rec, director.band_at(host, e.body.pos.y), director.is_night(host))
 	if int(rec["lair"]) >= 0:
 		lairs.killed(e, b)
 	if "splitting" in rec["affixes"]:

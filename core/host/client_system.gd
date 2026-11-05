@@ -26,5 +26,9 @@ func allow_place(_tile_id: int) -> bool:
 	return true
 
 ## Edit flow (items): the client predicted a place (request `req`) and sent it.
+## May the own player dig or place now (prediction gate; Rules: not while down)?
+func allow_edit() -> bool:
+	return true
+
 func placed(_req: int, _tile_id: int) -> void:
 	pass

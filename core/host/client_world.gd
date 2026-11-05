@@ -203,9 +203,10 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 	_time += step_dt
 	_expire_predictions()
 	var reqs: Array[Dictionary] = []
+	var able := _systems_allow_edit()
 	if _dig_await != 0:
 		pass   # a predicted dig waits for the host's word; nothing about digging goes out
-	elif input.dig:
+	elif input.dig and able:
 		var t := input.target
 		if not _digging or t != _dig_at:
 			if TileEdit.can_dig(world, body, t.x, t.y) and has_chunk(t.x >> 5, t.y >> 5):
@@ -230,7 +231,7 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 	elif _digging:
 		reqs.append({"op": Op.DIG_STOP, "req": 0, "x": _dig_at.x, "y": _dig_at.y, "tile": 0})
 		_digging = false
-	if input.place and (not _place_prev or input.target != _place_at):
+	if input.place and able and (not _place_prev or input.target != _place_at):
 		var t := input.target
 		var tile := input.place_tile if input.place_tile > 0 else place_tile
 		_place_at = t
@@ -251,6 +252,12 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 func _systems_allow_place(tile: int) -> bool:
 	for sys: ClientSystem in systems.values():
 		if not sys.allow_place(tile):
+			return false
+	return true
+
+func _systems_allow_edit() -> bool:
+	for sys: ClientSystem in systems.values():
+		if not sys.allow_edit():
 			return false
 	return true
 

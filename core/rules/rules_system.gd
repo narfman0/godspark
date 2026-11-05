@@ -59,6 +59,8 @@ var host: WorldHost
 var cheats := false
 ## Tests: d20 results to use before rolling Dice.
 var test_d20: Array = []
+## Kill XP multiplier (host option xp=N, tests and smokes; 1 in play).
+var xp_rate := 1.0
 var _p := {}               ## entity id -> PState
 var _campfire := -1
 var _bed := -1
@@ -102,6 +104,9 @@ class PState extends RefCounted:
 
 func _init() -> void:
 	cheats = cmdline_cheats()
+	for a in OS.get_cmdline_user_args():
+		if a.trim_prefix("--").begins_with("xp="):
+			xp_rate = maxf(0.0, a.trim_prefix("--").trim_prefix("xp=").to_float())
 
 ## True when the process was started with `cheats` (or cheats=1) after `--`.
 static func cmdline_cheats() -> bool:
@@ -274,6 +279,8 @@ func tick(h: WorldHost) -> void:
 	for e: HostEntity in players:
 		var ps := _ps(e)
 		if ps != null and (ps.dirty or periodic):
+			if periodic:
+				_capture(e)     # slots and uses combat spent reach the record (and the save)
 			_sync(e)
 
 # --- experience and levels -------------------------------------------------------------
@@ -288,7 +295,7 @@ func on_kill(victim: HostEntity, killers: Array = []) -> void:
 	var xp := int(row.get("data", {}).get("xp", 0))
 	if victim.has_meta("xp"):
 		xp = int(victim.get_meta("xp"))
-	var total := roundi(xp * xp_mult(victim))
+	var total := roundi(xp * xp_mult(victim) * xp_rate)
 	var ctype := String(row.get("data", {}).get("type", "")) if row.get("data", {}).get("type") != null else ""
 	if ctype == "" and slug.begins_with("swarm-"):
 		ctype = "beast"
@@ -610,8 +617,7 @@ func _capture(e: HostEntity) -> void:
 	var c := e.combatant
 	if c == null or e.character == null:
 		return
-	e.character.hp = clampi(c.stats.current_hp, 0, c.stats.max_hp)
-	e.character.hit_dice_left = clampi(c.stats.hit_dice_remaining, 0, e.character.hit_dice_max())
+	e.character.capture(c)
 
 ## The character record's HP and Hit Point Dice onto the current combatant (after a level or
 ## an answer changed them), so the next refresh keeps them.
@@ -949,6 +955,15 @@ func is_downed(e: HostEntity) -> bool:
 	var ps := _ps(e)
 	return ps != null and ps.down != Down.UP
 
+## In a short rest or in bed (the spawn director sends no new packs meanwhile).
+func is_resting(e: HostEntity) -> bool:
+	var ps := _ps(e)
+	return ps != null and ps.resting != Resting.NONE
+
+## Downed and dead players cannot dig or place (HostSystem.allow_edit).
+func allow_edit(_h: WorldHost, e: HostEntity) -> bool:
+	return not is_downed(e)
+
 func is_dead(e: HostEntity) -> bool:
 	var ps := _ps(e)
 	return ps != null and ps.down == Down.DEAD
@@ -960,7 +975,7 @@ func heal(e: HostEntity, amount: int) -> int:
 		return 0
 	var s := e.combatant.stats
 	if ps.down != Down.UP:
-		s.current_hp = mini(amount, s.max_hp)
+		s.current_hp = clampi(amount, 1, s.max_hp)
 		_get_up(e)
 		return s.current_hp
 	var got := s.heal(amount)
@@ -1037,20 +1052,11 @@ func respawn_point(e: HostEntity) -> Vector2:
 ## to its owner (the same event WorldHost.submit_state emits), so states from before are
 ## ignored and the client snaps there.
 func teleport(e: HostEntity, pos: Vector2) -> void:
-	e.body.pos = pos
-	e.body.vel = Vector2.ZERO
-	if TileCollision.overlaps_solid(host.world, e.body.rect().grow(-WorldHost.SOLID_SLOP)):
-		TileCollision.depenetrate(host.world, e.body)
-	TileCollision.update_contacts(host.world, e.body)
-	e.epoch = (e.epoch + 1) & 0xffff
-	e.last_state_tick = host.tick_count
-	e.corrections += 1
+	host.teleport(e, pos)
 	var ps := _ps(e)
 	if ps != null:
 		ps.last_pos = e.body.pos
 		ps.anchor = e.body.pos
-	host.outbox.append({"type": WorldHost.Ev.CORRECT, "id": e.id, "owner": e.owner, "epoch": e.epoch,
-			"pos": e.body.pos, "vel": Vector2.ZERO, "why": WorldHost.StateCheck.OK})
 
 func _d20() -> int:
 	if not test_d20.is_empty():

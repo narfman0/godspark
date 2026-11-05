@@ -48,6 +48,11 @@ func handle(_host: WorldHost, _e: HostEntity, _kind: int, _data: PackedByteArray
 func allow_place(_host: WorldHost, _e: HostEntity, _tile_id: int) -> bool:
 	return true
 
+## May player e dig, place or use things now? False refuses digs and places (EDIT_RESULT
+## reason WorldHost.Reason.UNABLE); Rules says no while e is downed or dead.
+func allow_edit(_host: WorldHost, _e: HostEntity) -> bool:
+	return true
+
 ## Edit flow (items): entity e's dig (now == TileDefs.AIR) or place changed cell (x, y) from
 ## `old` to `now`. Runs right after the change and before its EDIT_RESULT is queued.
 func tile_edited(_host: WorldHost, _e: HostEntity, _x: int, _y: int, _old: int, _now: int) -> void:

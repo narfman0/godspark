@@ -154,7 +154,7 @@ func answer_choice(class_lvl: int, choice_id: String, answer: Array) -> void:
 	_max_changed(old_max)
 
 func _max_changed(old_max: int) -> void:
-	hp = clampi(hp + max_hp() - old_max, 0, max_hp())
+	hp = maxi(0, hp + max_hp() - old_max)      # the max with gear (rebuilt next) bounds it
 
 ## Choices the SRD asks for at class levels 1..class_level() that the build has not answered:
 ## [{class_level, choice}] (choice as SRDProgression.choices gives it).
@@ -178,7 +178,7 @@ func gain_level() -> LevelTrack.Reward:
 	var old_max := max_hp()
 	var old_dice := hit_dice_max()
 	level += 1
-	hp = clampi(hp + max_hp() - old_max, 0, max_hp())
+	hp = maxi(0, hp + max_hp() - old_max)      # the max with gear (rebuilt next) bounds it
 	hit_dice_left = clampi(hit_dice_left + hit_dice_max() - old_dice, 0, hit_dice_max())
 	return LevelTrack.reward(level)
 
@@ -194,16 +194,28 @@ func make_combatant(srd: SRDContent) -> Combatant:
 	if c == null:
 		return null
 	c.stats.max_hp = LevelTrack.max_hp(level, c.stats.hit_die, c.stats.ability_modifier(SRD.Ability.CONSTITUTION))
-	c.stats.current_hp = clampi(hp, 0, c.stats.max_hp)
+	# Not capped at the gear-less max: gear that raises Constitution is put on next (Rules'
+	# refresh or Equipment.dress), and that caps it at the max with gear.
+	c.stats.current_hp = maxi(0, hp)
 	c.stats.hit_dice_remaining = clampi(hit_dice_left, 0, hit_dice_max())
 	return c
 
-## Copy what play changes on the combatant back into the record (before saving).
+## Copy what play changes on the combatant back into the record (before saving): hit points
+## (bounded by the combatant's max, which gear CON may raise above max_hp()), Hit Point Dice,
+## spell slots and limited uses left.
 func capture(c: Combatant) -> void:
 	if c == null:
 		return
-	hp = clampi(c.stats.current_hp, 0, max_hp())
+	hp = maxi(0, c.stats.current_hp)
 	hit_dice_left = clampi(c.stats.hit_dice_remaining, 0, hit_dice_max())
+	if c.energy_slots != null:
+		slots_left = []
+		for i in 9:
+			slots_left.append(c.energy_slots.slots_remaining[i])
+	if c.kit != null:
+		uses_left = {}
+		for k: String in c.kit.resources:
+			uses_left[k] = int(c.kit.resources[k]["current"])
 
 ## Movement from the combatant's speed, Medium size. Sparks and gear change it later.
 func move_stats(c: Combatant = null) -> MoveStats:

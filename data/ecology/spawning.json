@@ -34,6 +34,7 @@
 	"despawn": {"far_tiles": 96, "after_s": 20.0},
 	"group_tiles": 64,
 	"period_s": 1.5,
+	"lull_s": {"_doc": "seconds a player group gets no new pack after one of its director monsters dies, by band[:day|night]", "surface:day": 25.0, "surface:night": 12.0, "sky:day": 25.0, "sky:night": 12.0, "caves": 10.0, "deeps": 8.0, "nadir": 6.0, "default": 10.0},
 	"attempts": 10,
 	"prefer_dark": 0.75,
 	"raiders": {

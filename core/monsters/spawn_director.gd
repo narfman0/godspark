@@ -15,6 +15,9 @@ var sys: MonstersSystem
 var rng := RandomNumberGenerator.new()
 var _t := 0.0
 var _next := 0.0
+## Group id (its first player's id) -> director time before which it gets no new pack: a
+## lull after one of its director monsters dies, so a cleared area stays clear a while.
+var _lull := {}
 ## Counters for tests and tools.
 var stats := {"packs": 0, "spawned": 0, "rejected_view": 0, "rejected_safe": 0, "no_spot": 0, "despawned": 0,
 	"raiders": 0, "over_budget": 0}
@@ -114,8 +117,26 @@ func _director_count() -> int:
 			n += 1
 	return n
 
+## One of the director's monsters died: its group gets a lull (data: lull_s by band and time).
+func killed(rec: Dictionary, band: String, night: bool) -> void:
+	if not bool(rec.get("director", false)):
+		return
+	var l: Dictionary = cfg().get("lull_s", {})
+	var s := float(l.get(band + (":night" if night else ":day"), l.get(band, l.get("default", 0.0))))
+	var gid := int(rec.get("group", 0))
+	_lull[gid] = maxf(float(_lull.get(gid, 0.0)), _t + s)
+
 func _fill(h: WorldHost, g: Array) -> void:
 	var anchor: HostEntity = g[0]
+	if _t < float(_lull.get(g[0].id, 0.0)):
+		stats["lull"] = int(stats.get("lull", 0)) + 1
+		return
+	# no new packs while someone in the group rests (a camp is a refuge; brains still hunt)
+	var rules := h.system(HostSystem.RULES)
+	if rules != null and rules.has_method("is_resting"):
+		for p: HostEntity in g:
+			if bool(rules.call("is_resting", p)):
+				return
 	var band := band_at(h, anchor.body.pos.y)
 	var bd := band_def(h, band)
 	var budget := float(bd.get("budget", 4.0))
@@ -205,6 +226,11 @@ func _rank_roll(band: String) -> String:
 		if r <= 0.0:
 			return k
 	return "standard"
+
+## Spawn a pack as the director does (ranks, affixes, archers, a leader): pack is
+## [{slug, rank, leader}] (build_pack's shape). Tests, smokes and debug options use it.
+func spawn_pack(pack: Array, spot: Vector2, band := "surface") -> Array:
+	return _place_pack(sys.host, pack, spot, 0, band)
 
 func _place_pack(h: WorldHost, pack: Array, spot: Vector2, group: int, band: String) -> Array:
 	var pid := sys.new_pack()

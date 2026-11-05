@@ -20,8 +20,15 @@ func _initialize() -> void:
 	var failed := 0
 	var total := 0
 	var broken: Array[String] = []
+	# `-- only=a,b`: run only test files whose name contains one of these (iteration aid).
+	var only := PackedStringArray()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("only="):
+			only = a.trim_prefix("only=").split(",", false)
 	for f in DirAccess.get_files_at("res://tests"):
 		if not (f.begins_with("test_") and f.ends_with(".gd")) or f == "test_log.gd":
+			continue
+		if not only.is_empty() and not Array(only).any(func(o: String) -> bool: return o in f):
 			continue
 		print("== ", f)
 		var script: GDScript = load("res://tests/" + f)

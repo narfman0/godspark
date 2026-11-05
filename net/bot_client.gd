@@ -30,6 +30,13 @@ var bot_class := ""
 ## Fight first: after joining, walk at the nearest monster and attack it (CombatClient)
 ## until no live monster is in sight, then go on as usual. Prints "BOT <name> fight ...".
 var fight := false
+## fight=2: a world where the director keeps spawning: the fight ends after 40 s if this bot
+## has killed something, instead of failing.
+var fight_soft := false
+## A rest interrupted by monsters (director worlds): fight them, then go back to this phase.
+var _resume := ""
+var _resumes := 0
+var _home := Vector2.ZERO
 var _kills := 0
 var _clear_t := 0.0
 var _fight_hooked := false
@@ -71,6 +78,8 @@ func _ready() -> void:
 				rules_level = int(kv[1]) if kv.size() > 1 else rules_level
 			"rules_role":
 				rules_role = kv[1] if kv.size() > 1 else ""
+			"fight":
+				fight_soft = kv.size() > 1 and kv[1] == "2"
 
 func _say(s: String) -> void:
 	print("BOT %s %s" % [bot_name, s])
@@ -205,7 +214,7 @@ func _process(delta: float) -> void:
 					_go("settle_final")
 			elif _t > 5.0:
 				_fail("no check answer")
-		"r_level", "r_fire", "r_short", "r_bed", "r_sleep", "r_down", "r_dead", "r_up", "r_revive", "r_wait":
+		"r_back", "r_level", "r_fire", "r_short", "r_bed", "r_sleep", "r_down", "r_dead", "r_up", "r_revive", "r_wait":
 			_rules_step()
 		"leave":
 			if _t > 0.8:
@@ -231,13 +240,28 @@ func _fight_step(delta: float) -> void:
 	if _clear_t > 1.0 or _t > 40.0:
 		var dmg := cc.events_log.filter(func(ev: Dictionary) -> bool:
 			return int(ev["kind"]) == CombatCodec.Ev.DAMAGE and int(ev["src"]) == cw().my_id)
-		_say("fight killed=%d attacks=%d hits=%d hp=%d/%d %s" % [_kills, cc.sent, dmg.size(), cw().hp, cw().max_hp,
-			"done" if not live else "timeout"])
-		if live:
+		var rc := _rules()
+		var ic := cw().system(HostSystem.ITEMS) as ItemsClient
+		var held := 0
+		if ic != null:
+			for k in Inventory.SIZE:
+				held += Items.count(ic.item(k)) if not ic.item(k).is_empty() else 0
+		_say("fight killed=%d attacks=%d hits=%d hp=%d/%d level=%d xp=%d items=%d coin=%d %s" % [_kills, cc.sent, dmg.size(),
+			cw().hp, cw().max_hp, rc.level() if rc != null else -1, int(rc.sheet.get("xp", -1)) if rc != null else -1,
+			held, ic.coin() if ic != null else -1, "done" if not live else "timeout"])
+		if live and not (fight_soft and _kills > 0):
 			_fail("monsters still standing after 40 s")
 			return
 		input = PlayerInput.new()
-		_go("walk")
+		if _resume != "":
+			_say("fight over, back to %s" % _resume)
+			_recover(_rules())
+			_rules_asked = false
+			_go("r_back")
+		elif rules_mode:
+			_rules_start()
+		else:
+			_go("walk")
 
 func _dig_step() -> void:
 	var c := cw()
@@ -331,6 +355,7 @@ func _rules_start() -> void:
 		return
 	rc.rest_event.connect(func(ev: Dictionary) -> void: _rules_evs.append(ev))
 	rc.notice.connect(func(text: String) -> void: _say("rules notice: " + text))
+	_recover(rc)
 	rc.debug(RulesCodec.Debug.LEVEL, rules_level)
 	rc.debug(RulesCodec.Debug.AUTO)
 	_go("r_level")
@@ -341,22 +366,67 @@ func _rules_rest_ev(ev: int) -> Dictionary:
 			return e
 	return {}
 
-## Place `tile` next to the feet (dx * dir) until the world shows it. True when there.
+## Place `tile` next to the feet (dx * dir, else the nearest free spot beside it, on
+## uneven ground after a fight) until the world shows it. True when there.
 func _rules_place(tile: int, dx: int) -> bool:
 	var c := cw()
-	var at := Vector2i(floori(c.body.pos.x) + dx * dir, floori(c.body.pos.y))
-	if c.world.get_fg(at.x, at.y) == tile:
-		input.place = false
-		return true
+	var fx := floori(c.body.pos.x)
+	var fy := floori(c.body.pos.y)
+	var at := Vector2i(fx + dx * dir, fy)
+	for k in [dx, -dx, dx + 1, -dx - 1, dx + 2, -dx - 2]:
+		for dy in [0, 1, -1]:
+			var cell := Vector2i(fx + k * dir, fy + dy)
+			if c.world.get_fg(cell.x, cell.y) == tile:
+				input.place = false
+				return true
+	for k in [dx, -dx, dx + 1, -dx - 1, dx + 2, -dx - 2]:
+		var cell := Vector2i(fx + k * dir, fy)
+		if TileEdit.can_place(c.world, c.body, cell.x, cell.y, tile, [c.body]):
+			at = cell
+			break
 	input.place = fmod(_t, 0.4) < 0.2      # press, hold, release, press again
 	input.place_tile = tile
 	input.target = at
 	return false
 
+## A fight may have left the bot down (cheats heal it) or dead (it respawns).
+func _recover(rc: RulesClient) -> void:
+	if rc.state_of(cw().my_id) == RulesCodec.Down.DEAD:
+		rc.respawn()
+	elif rc.is_downed():
+		rc.debug(RulesCodec.Debug.HEAL, 9999)
+
+## Waits for the other bot are longer on director worlds (it may be fighting).
+func _patience() -> float:
+	return 3.0 if fight_soft else 1.0
+
+## fight=2 (director worlds): monsters broke a rest; fight them and come back to `resume`.
+func _defend(reason: String, resume: String) -> bool:
+	if not fight_soft or _resumes >= 5 or not reason in ["enemies nearby", "in combat", "hurt"]:
+		return false
+	_resumes += 1
+	_rules_evs.clear()
+	_resume = resume
+	_home = cw().body.pos
+	_say("rules %s: fighting first" % reason)
+	_go("fight")
+	return true
+
 func _rules_step() -> void:
 	var rc := _rules()
 	var c := cw()
 	match phase:
+		"r_back":
+			var dx := _home.x - c.body.pos.x
+			input.move_x = signf(dx) if absf(dx) > 0.4 else 0.0
+			input.jump = _t > 1.0 and fmod(_t, 1.0) < 0.3 and absf(c.body.vel.x) < 0.5 and absf(dx) > 0.4
+			input.jump_pressed = input.jump
+			if absf(dx) <= 0.4 and c.body.on_floor:
+				var back := _resume
+				_resume = ""
+				_go(back)
+			elif _t > 15.0:
+				_fail("rules: could not walk back to %s" % _home)
 		"r_level":
 			if rc.level() == rules_level and rc.pending_keys().is_empty():
 				_say("rules level=%d class_level=%d hp=%d/%d knacks=%d" % [rc.level(), rc.sheet["class_level"],
@@ -370,10 +440,15 @@ func _rules_step() -> void:
 				_rules_evs.clear()
 				_go("r_short")
 			elif _t > 6.0:
-				_fail("rules: could not place a campfire")
+				var ic := c.system(HostSystem.ITEMS) as ItemsClient
+				var fire := TileDefs.id("campfire")
+				_fail("rules: could not place a campfire (at %s, held %d, can edit %s, downed %s, frozen %s, near %s)" % [c.body.pos,
+					ic.held_tiles(fire) if ic != null else -1, c._systems_allow_edit(), rc.downed, c.frozen,
+					[c.world.get_fg(floori(c.body.pos.x) - 1, floori(c.body.pos.y)), c.world.get_fg(floori(c.body.pos.x) + 1, floori(c.body.pos.y)),
+					c.world.get_fg(floori(c.body.pos.x), floori(c.body.pos.y) - 1)]])
 		"r_short":
-			if _t > 0.5 and not _rules_asked:
-				_rules_asked = true
+			if _t > (6.0 if _resumes > 0 else 0.5) and not _rules_asked:
+				_rules_asked = true      # after a fight, wait out "in combat" first
 				rc.rest_short()
 			var done := _rules_rest_ev(RulesCodec.RestEv.SHORT_DONE)
 			var stop := _rules_rest_ev(RulesCodec.RestEv.SHORT_STOP)
@@ -381,9 +456,10 @@ func _rules_step() -> void:
 				_say("rules short_rest healed=%d dice=%d" % [done["healed"], done["dice"]])
 				_go("r_bed")
 			elif not stop.is_empty():
-				_fail("rules: short rest stopped: " + String(stop["reason"]))
-			elif _t > 10.0:
-				_fail("rules: short rest never finished")
+				if not _defend(String(stop["reason"]), "r_short"):
+					_fail("rules: short rest stopped: " + String(stop["reason"]))
+			elif _t > (16.0 if _resumes > 0 else 10.0):
+				_fail("rules: short rest never finished (%s)" % [_rules_evs])
 		"r_bed":
 			if _rules_place(TileDefs.id("bed"), 1):
 				_rules_evs.clear()
@@ -401,8 +477,9 @@ func _rules_step() -> void:
 				_say("rules slept until %s bed=%s" % [WorldClock.describe(c.hours()), rc.sheet["bed"]])
 				_go("r_wait")
 			elif not stop.is_empty():
-				_fail("rules: long rest stopped: " + String(stop["reason"]))
-			elif _t > 30.0:
+				if not _defend(String(stop["reason"]), "r_bed"):
+					_fail("rules: long rest stopped: " + String(stop["reason"]))
+			elif _t > 30.0 * _patience():
 				_fail("rules: the night never passed")
 		"r_wait":
 			if _t > 1.0:
@@ -421,7 +498,7 @@ func _rules_step() -> void:
 				_say("rules revived hp=%d" % c.hp)
 				rc.debug(RulesCodec.Debug.DIE)
 				_go("r_dead")
-			elif _t > 20.0:
+			elif _t > 20.0 * _patience():
 				_fail("rules: never revived")
 		"r_dead":
 			if rc.state_of(c.my_id) == RulesCodec.Down.DEAD and _rules_corr == 0:
@@ -447,5 +524,5 @@ func _rules_step() -> void:
 				var r: ClientWorld.RemoteEntity = c.remotes.get(_rules_other)
 				_say("rules revived %s" % (r.name if r != null else str(_rules_other)))
 				_go("walk")
-			if _t > 25.0:
+			if _t > 25.0 * _patience():
 				_fail("rules: no one to revive")

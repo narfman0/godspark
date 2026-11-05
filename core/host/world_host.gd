@@ -13,7 +13,7 @@ extends RefCounted
 
 ## Why an edit was refused. OK = 0 means accepted.
 enum Reason { OK, OUT_OF_BOUNDS, OUT_OF_REACH, NOTHING_THERE, UNBREAKABLE, OCCUPIED,
-		NO_ANCHOR, BLOCKED, BAD_TILE, NO_ENTITY, NO_ITEM }
+		NO_ANCHOR, BLOCKED, BAD_TILE, NO_ENTITY, NO_ITEM, UNABLE }
 ## Outbox event types. Every event is a Dictionary with "type" and the fields below.
 ##   TILE         x, y, layer, value                    (any tile change, from tile_changed)
 ##   JOIN         id                                     (an entity appeared)
@@ -402,6 +402,27 @@ func submit_state(id: int, epoch: int, seq: int, pos: Vector2, vel: Vector2, fla
 	e.states_accepted += 1
 	return StateCheck.OK
 
+## Move an entity by the host's decision (respawn, a downed body held in place, a rule).
+## Monsters just move. A client-owned player's host copy jumps, its epoch is bumped and a
+## CORRECT goes to its owner (the event a refused state makes, why = OK), so states sent
+## before it are ignored as STALE and the client snaps there. A body put into rock steps out
+## to the nearest gap.
+func teleport(e: HostEntity, pos: Vector2) -> void:
+	if e == null or e.body == null:
+		return
+	e.body.pos = pos
+	e.body.vel = Vector2.ZERO
+	if _in_solid(e.body):
+		TileCollision.depenetrate(world, e.body)
+	TileCollision.update_contacts(world, e.body)
+	if e.owner == HostEntity.NO_OWNER:
+		return
+	e.epoch = (e.epoch + 1) & 0xffff
+	e.last_state_tick = tick_count
+	e.corrections += 1
+	outbox.append({"type": Ev.CORRECT, "id": e.id, "owner": e.owner, "epoch": e.epoch,
+			"pos": e.body.pos, "vel": Vector2.ZERO, "why": StateCheck.OK})
+
 func _check_move(e: HostEntity, pos: Vector2, gap: float) -> StateCheck:
 	if not (is_finite(pos.x) and is_finite(pos.y)):
 		return StateCheck.OUT_OF_BOUNDS
@@ -479,6 +500,8 @@ func dig_reason(e: HostEntity, x: int, y: int) -> Reason:
 		return Reason.UNBREAKABLE
 	if not TileEdit.in_reach(e.body, x, y):
 		return Reason.OUT_OF_REACH
+	if not can_edit(e):
+		return Reason.UNABLE
 	return Reason.OK if TileEdit.can_dig(world, e.body, x, y) else Reason.OUT_OF_REACH
 
 func place_reason(e: HostEntity, x: int, y: int, tile_id: int) -> Reason:
@@ -489,6 +512,8 @@ func place_reason(e: HostEntity, x: int, y: int, tile_id: int) -> Reason:
 		return Reason.OUT_OF_BOUNDS
 	if not TileEdit.in_reach(e.body, x, y):
 		return Reason.OUT_OF_REACH
+	if not can_edit(e):
+		return Reason.UNABLE
 	if world.get_fg(x, y) != TileDefs.AIR:
 		return Reason.OCCUPIED
 	if not TileEdit.can_place(world, e.body, x, y, tile_id, []):
@@ -496,6 +521,13 @@ func place_reason(e: HostEntity, x: int, y: int, tile_id: int) -> Reason:
 	if not TileEdit.can_place(world, e.body, x, y, tile_id, bodies()):
 		return Reason.BLOCKED
 	return Reason.OK
+
+## Every system allows e to dig and place now (HostSystem.allow_edit; not while downed).
+func can_edit(e: HostEntity) -> bool:
+	for sys: HostSystem in systems.values():
+		if not sys.allow_edit(self, e):
+			return false
+	return true
 
 func _advance_dig(e: HostEntity) -> void:
 	var at := e.dig_target

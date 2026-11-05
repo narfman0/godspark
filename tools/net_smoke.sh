@@ -20,12 +20,31 @@
 #                                 short-rest at a campfire and sleep in beds (the night passes
 #                                 when both are in), bot1 is downed and revived by bot2, then
 #                                 dies and respawns at its bed; the level survives the rejoin
+#   ALL=1 tools/net_smoke.sh      everything at once on a generated world with the director on:
+#                                 the host spawns a ranked goblin pack (pack=, the director's path)
+#                                 and gives 10x kill XP; a fighter and a wizard fight it (kills and
+#                                 XP), then run the whole rules scenario (rests, night, downed,
+#                                 revived, respawn) and rejoin with their level
 set -u
 cd "$(dirname "$0")/.."
 
 GODOT=${GODOT:-godot}
 RULES=${RULES:-0}
-if [ "$RULES" = 1 ]; then
+ALL=${ALL:-0}
+if [ "$ALL" = 1 ]; then
+	LIMIT=${LIMIT:-240}
+	WORLD=${WORLD:-gen=dev seed=3}
+	SPAWNS=${SPAWNS:-1}
+	SPAWN=${SPAWN:-goblin-warrior:0}
+	SPAWN_DX=${SPAWN_DX:-16}
+	SEE=${SEE:-Goblin Warrior}
+	FIGHT=${FIGHT:-2}
+	HOST_EXTRA="cheats xp=10 pack=goblin-warrior"
+	BOT1_EXTRA="rules=1 rules_role=down"
+	BOT2_EXTRA="rules=1 rules_role=revive fight=2"
+	RULES=1
+fi
+if [ "$RULES" = 1 ] && [ "$ALL" != 1 ]; then
 	LIMIT=${LIMIT:-90}
 	HOST_EXTRA="cheats"
 	BOT1_EXTRA="rules=1 rules_role=down"
@@ -130,7 +149,14 @@ done
 if [ -n "$SEE" ] && ! grep -q "^BOT bot1 vitals .*$SEE" "$LOGS/bot1.log"; then
 	fail+=("bot1 never reported seeing \"$SEE\"")
 fi
-if [ "$FIGHT" != 0 ] && ! grep -q "^BOT bot1 fight killed=[1-9].* done" "$LOGS/bot1.log"; then
+if [ "$ALL" = 1 ]; then
+	if ! grep -qh "^BOT bot[12] fight killed=[1-9].* xp=[1-9]" "$LOGS/bot1.log" "$LOGS/bot2.log"; then
+		fail+=("all: no bot killed something and got XP: $(grep -h '^BOT bot. fight' "$LOGS/bot1.log" "$LOGS/bot2.log")")
+	fi
+	if ! grep -q "^spawned champion" "$LOGS/host.log"; then
+		fail+=("all: the host did not spawn the ranked pack")
+	fi
+elif [ "$FIGHT" != 0 ] && ! grep -q "^BOT bot1 fight killed=[1-9].* done" "$LOGS/bot1.log"; then
 	fail+=("bot1 did not kill the spawned monsters: $(grep -h '^BOT bot1 fight' "$LOGS/bot1.log")")
 fi
 if [ "$RULES" = 1 ]; then

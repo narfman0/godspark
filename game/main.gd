@@ -123,6 +123,8 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 		print("slept %s h: %s" % [opts["sleep"], WorldClock.describe(session.host.clock.hours())])
 	if opts.has("spawn"):
 		_spawn_monsters(String(opts["spawn"]))
+	if opts.has("pack"):
+		_spawn_pack(String(opts["pack"]))
 	# spawns=0|1: the monsters' spawn director (default: on for generated worlds, which have
 	# depth bands; off on the fixed test world)
 	var ms: Variant = session.host.system(HostSystem.MONSTERS)
@@ -155,6 +157,23 @@ func _spawn_monsters(spec: String) -> void:
 			return
 		var v := e.vitals()
 		print("spawned %s (entity %d) at %.1f,%.1f hp %d/%d" % [e.name, e.id, e.body.pos.x, e.body.pos.y, v.x, v.y])
+
+## pack=SLUG: a ranked pack through the spawn director's own path (a champion leading a
+## standard and two minions), spawn_dx tiles from the spawn point, with brains. Before the
+## host thread starts.
+func _spawn_pack(slug: String) -> void:
+	var h := session.host
+	var ms: Variant = h.system(HostSystem.MONSTERS)
+	if ms == null:
+		printerr("pack: no monsters system")
+		return
+	var x := clampi(int(h.spawn.x) + int(opts.get("spawn_dx", -24)), 2, h.world.width - 3)
+	var pack: Array = ms.director.spawn_pack([{"slug": slug, "rank": "champion", "leader": true},
+		{"slug": slug, "rank": "standard", "leader": false}, {"slug": slug, "rank": "minion", "leader": false},
+		{"slug": slug, "rank": "minion", "leader": false}], h.find_spawn(x))
+	for e: HostEntity in pack:
+		var v := e.vitals()
+		print("spawned %s %s (entity %d) at %.1f,%.1f hp %d/%d" % [e.get_meta("rank", ""), e.name, e.id, e.body.pos.x, e.body.pos.y, v.x, v.y])
 
 func _start_join(headless: bool) -> void:
 	var a := split_address(String(opts["join"]))
@@ -263,7 +282,10 @@ func _report() -> void:
 	for u in ticks:
 		sum += u
 		mx = maxi(mx, u)
-	print("HOSTSTATS ticks=%d tick_avg_us=%.1f tick_max_us=%d host_time=%.1f" % [ticks.size(), float(sum) / maxi(1, ticks.size()), mx, ep.time])
+	var sorted := Array(ticks)
+	sorted.sort()
+	var p99: int = sorted[mini(sorted.size() - 1, floori(sorted.size() * 0.99))] if not sorted.is_empty() else 0
+	print("HOSTSTATS ticks=%d tick_avg_us=%.1f tick_p99_us=%d tick_max_us=%d host_time=%.1f" % [ticks.size(), float(sum) / maxi(1, ticks.size()), p99, mx, ep.time])
 	var h := session.host
 	if h.sim != null:
 		var su := h.sim_usec

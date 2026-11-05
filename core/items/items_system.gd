@@ -16,8 +16,8 @@ extends HostSystem
 const BOND_TIME := 2.0
 ## Tiles from the body's box within which a campfire or shrine counts as near.
 const STATION_RANGE := 3
-## Base pickup radius (tiles, from the body's centre); the Magnet spark and affixes add.
-const PICKUP := 2.0
+## Base pickup radius (tiles, from the body's box); the Magnet spark and affixes add.
+const PICKUP := 1.25
 ## Drop visibility and stats checks run every this many ticks.
 const VIEW_EVERY := 10
 const CHECK_EVERY := 30
@@ -249,6 +249,11 @@ func tile_edited(_h: WorldHost, e: HostEntity, x: int, y: int, old: int, now: in
 func handle(_h: WorldHost, e: HostEntity, kind: int, data: PackedByteArray) -> void:
 	if not e.is_player() or e.character == null:
 		return
+	if kind != ItemsCodec.K.SELECT and kind != ItemsCodec.K.MOVE and _down(e):
+		_note(e, kind, "down")       # no drinking, dropping, bonding or kindling while down
+		_send_slots(e)
+		_flush()
+		return
 	match kind:
 		ItemsCodec.K.MOVE:
 			if data.size() >= 2:
@@ -279,6 +284,11 @@ func handle(_h: WorldHost, e: HostEntity, kind: int, data: PackedByteArray) -> v
 				_note(e, kind, craft(e, String(c["recipe"]), int(c["times"])))
 	_send_slots(e)
 	_flush()
+
+## Downed or dead (Rules): no item use, kindling, bonding or picking up.
+func _down(e: HostEntity) -> bool:
+	var rules := host.system(HostSystem.RULES) if host != null else null
+	return rules != null and rules.has_method("is_downed") and bool(rules.call("is_downed", e))
 
 ## Refusals go to the owner as NOTE (ok = false); successes too (for UI feedback).
 func _note(e: HostEntity, op: int, word: String) -> void:
@@ -372,7 +382,12 @@ func use_item(e: HostEntity, index: int) -> String:
 		var s := e.combatant.stats
 		if s.current_hp >= s.max_hp:
 			return "full_hp"
-		s.current_hp = mini(s.max_hp, s.current_hp + maxi(1, Loot.roll_dice(host.rng, String(u["heal"]))))
+		var amount := maxi(1, Loot.roll_dice(host.rng, String(u["heal"])))
+		var rules := host.system(HostSystem.RULES)
+		if rules != null and rules.has_method("heal"):
+			rules.call("heal", e, amount)      # one healing path (it also gets a downed player up)
+		else:
+			s.current_hp = mini(s.max_hp, s.current_hp + amount)
 		ch.inventory.take(index, 1)
 		return ""
 	var kind := Items.slot_kind(it)
@@ -571,13 +586,15 @@ func tick(h: WorldHost) -> void:
 ## First to touch it gets it: players in entity order, each takes what fits.
 func _pickups() -> void:
 	for e: HostEntity in host.entities.values():
-		if not e.is_player() or e.character == null:
+		if not e.is_player() or e.character == null or _down(e):
 			continue
-		var c := e.body.center()
+		# measured from the body's box, so loot in a dip at the feet or a step below is reached
+		var box := e.body.rect()
 		var r := PICKUP + float(tags(e).get("pickup_radius", 0.0))
 		var r2 := r * r
 		for d: Drops.Drop in drops.list.values():
-			if d.pos.distance_squared_to(c) > r2 or not drops.pickable(d, e.id):
+			var near := Vector2(clampf(d.pos.x, box.position.x, box.end.x), clampf(d.pos.y, box.position.y, box.end.y))
+			if d.pos.distance_squared_to(near) > r2 or not drops.pickable(d, e.id):
 				continue
 			var left := e.character.inventory.add(d.item)
 			if left.is_empty():
