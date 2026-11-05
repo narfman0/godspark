@@ -51,7 +51,7 @@ run() {   # run NAME ARGS... : a headless Godot in the background, logging to $L
 }
 
 echo "net smoke: port $PORT, logs $LOGS"
-run host dedicated port="$PORT" expect=2 world="$LOGS/world"
+run host dedicated gen=test port="$PORT" expect=2 world="$LOGS/world"
 sleep 1.5
 run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1
 run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=3 places=4 dir=-1 delay=2

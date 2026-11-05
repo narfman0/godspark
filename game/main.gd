@@ -4,7 +4,9 @@
 ##                                                      after N clients said a final BYE
 ##   join=ADDR[:PORT] [name=X]                          join a host
 ##   join=ADDR[:PORT] bot [name=X] [digs=N] [places=M] [dir=1|-1] [delay=S] [rejoin=0|1]
-##   any mode: timeout=S (exit 1 after S seconds), size=WxH (test world size),
+##   host modes: gen=dev|small|medium|large [seed=N] for a new world, gen=test or size=WxH
+##             for the fixed test world; a world saved in world=DIR is loaded instead
+##   any mode: timeout=S (exit 1 after S seconds),
 ##             offline (host with no ENet port: single-player), view=log (no 3D view),
 ##             shot=PATH.png [shot_after=S]: save a screenshot after S seconds and quit
 ## Headless processes (and bots) use the log presenter; windowed ones the 3D view.
@@ -54,12 +56,31 @@ static func split_address(s: String) -> Array:
 		port = int(s.substr(colon + 1))
 	return [host, port]
 
-## Where the world comes from. Track A's WorldSave/WorldGen replace the test world here.
+## Where the world comes from: the saved world in `world_dir`, else a generated one
+## (gen=dev|small|medium|large, seed=N), else with gen=test or size=WxH the fixed test world.
 func world_source() -> TileWorld:
-	var size := String(opts.get("size", "1024x256")).split("x")
-	var w := int(size[0]) if size.size() == 2 else 1024
-	var h := int(size[1]) if size.size() == 2 else 256
-	return TileWorld.make_test(w, h)
+	var gen := String(opts.get("gen", "dev"))
+	if gen == "test" or opts.has("size"):
+		var size := String(opts.get("size", "1024x256")).split("x")
+		var w := int(size[0]) if size.size() == 2 else 1024
+		var h := int(size[1]) if size.size() == 2 else 256
+		return TileWorld.make_test(w, h)
+	var saved := WorldSave.load(ProjectSettings.globalize_path(world_dir))
+	if saved != null:
+		print("loaded world %dx%d seed %d from %s" % [saved.width, saved.height, saved.world_seed, world_dir])
+		return saved
+	var world_seed := int(opts["seed"]) if opts.has("seed") else int(Time.get_unix_time_from_system())
+	var t0 := Time.get_ticks_msec()
+	var world := WorldGen.generate_named(gen, world_seed)
+	print("generated %s world %dx%d seed %d in %d ms" % [gen, world.width, world.height, world_seed, Time.get_ticks_msec() - t0])
+	return world
+
+## Players start at the first surface settlement site when the world has one.
+static func spawn_for(world: TileWorld, fallback: Vector2) -> Vector2:
+	for site: Dictionary in world.meta.get("sites", []):
+		if site.get("kind") == "settlement" and site.get("band") in ["surface", "sky"]:
+			return Vector2(float(site["x"]) + 0.5, float(site["y"]))
+	return fallback
 
 func _start_host(headless: bool, dedicated: bool) -> void:
 	world_dir = String(opts.get("world", "user://worlds/dev"))
@@ -72,6 +93,8 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 		printerr("could not host on port %d: %s" % [port, error_string(err)])
 		_quit(1)
 		return
+	session.host.world_saver = WorldSave.save
+	session.host.spawn = spawn_for(session.host.world, session.host.spawn)
 	var n := session.host.load_players(ProjectSettings.globalize_path(world_dir))
 	print("hosting on port %d (%s), %d saved players in %s" % [port, "dedicated" if dedicated else "listen", n, world_dir])
 	session.host_ep.player_left.connect(_on_player_left)
@@ -157,7 +180,7 @@ func _shutdown_and_exit() -> void:
 		_report()
 		if world_dir != "":
 			var err := session.host.save(ProjectSettings.globalize_path(world_dir))
-			print("saved players to %s: %s" % [world_dir, error_string(err)])
+			print("saved world and players to %s: %s" % [world_dir, error_string(err)])
 	if session != null:
 		session.stop()
 	get_tree().quit(_exit_code)

@@ -159,6 +159,13 @@ Owns `net/`, `core/host/`, `game/`, `tools/net_smoke.sh`.
 - `tools/net_smoke.sh`: headless host plus a scripted bot client in two processes; both
   sides' `content_hash()` must match at the end.
 
+As built ([tracks/net.md](tracks/net.md)): `core/host/` holds `WorldHost`, `HostEntity`,
+`ClientWorld`, `Interest`, `ChunkHash`; `net/` holds the protocol, transports (ENet,
+loopback), `HostEndpoint`, `ClientEndpoint`, `NetSession`, `BotClient`. The listen host's own
+player is an ordinary client over an in-process link. `game/main.gd` boots every mode
+(see its header) and takes the world from `WorldSave.load`, else `WorldGen.generate_named`.
+Interest is a square of chunks (radius 2, dropped past 3). Open issues: [todo.md](todo.md).
+
 ## Track E: the strategic simulation
 
 Owns `core/sim/`, `data/sim/`, `tools/run_history.gd`.
