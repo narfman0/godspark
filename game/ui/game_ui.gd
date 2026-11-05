@@ -128,7 +128,7 @@ func cast_sent(i: int, ok: bool) -> void:
 
 ## Fill `factories`; screens are made the first time they open.
 func register_screens() -> void:
-	pass
+	factories["inventory"] = func() -> Control: return InventoryScreen.new()
 
 func screen(name: String) -> Control:
 	if screens.has(name):

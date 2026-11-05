@@ -57,7 +57,56 @@ func _run() -> void:
 ## The tour itself; each step leaves the screen in a state and takes a picture.
 func steps() -> void:
 	await shot("01_hud")
+	await inventory()
 	await fight()
+
+func give(list: Array) -> void:
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		var items := h.system(HostSystem.ITEMS) as ItemsSystem
+		for it: Dictionary in list:
+			items.give(me.id, it))
+
+## Fill the pack with gear (rings, magic, affixed gear, sparks), wear six rings, show a tooltip.
+func inventory() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var list: Array = [Items.make_magic("ring-of-protection"), Items.make_magic("ring-of-resistance", 2),
+		Items.make_magic("ring-of-swimming"), Items.make_magic("ring-of-jumping"), Items.make_magic("ring-of-warmth"),
+		Items.make_magic("ring-of-feather-falling"), Items.make_magic("cloak-of-protection"), Items.make_magic("amulet-of-health"),
+		Items.make_magic("boots-of-speed"), Items.make_magic("flame-tongue", 0, "scimitar"),
+		{"base": "longsword", "count": 1, "material": "silver", "quality": "fine", "affixes": ["embers:2", "mole"]},
+		Items.spark_item("fleet", 1), Items.spark_item("lantern", 0), Items.spark_item("skyhook", 2), Items.spark_item("dash", 0),
+		Items.make("tile:stone", 120), Items.make("ingot:iron", 6), Items.make("gem", 3)]
+	for i in 4:
+		list.append(ItemGen.roll(rng, "", 30, "elite"))
+	await give(list)
+	await wait(0.5)
+	var items := cw.system(HostSystem.ITEMS) as ItemsClient
+	var n := 0
+	for i in Inventory.SIZE:
+		var it := items.item(i)
+		if Items.slot_kind(it) == "ring" and n < 6:
+			n += 1
+			items.equip(i, "ring_%d" % n)
+			await wait(0.1)
+	for i in Inventory.SIZE:
+		if String(items.item(i).get("magic", "")) == "cloak-of-protection":
+			items.use(i)
+	await wait(0.4)
+	ui.open("inventory")
+	await wait(0.3)
+	var inv := ui.screen("inventory") as InventoryScreen
+	for i in Inventory.SIZE:
+		if String(items.item(i).get("base", "")) == "longsword":
+			var r := InventoryScreen.grid_rect(i)
+			inv._hover = i
+			inv._update_tip(i, inv.panel.position + inv.grid.position + r.get_center())
+			break
+	inv.refresh()
+	await wait(0.3)
+	await shot("02_inventory")
+	ui.close("inventory")
 
 ## Spawn a small pack with the reference brain next to us, swing at them, and photograph the
 ## numbers, the wind-up telegraphs, the nameplates and the loot.

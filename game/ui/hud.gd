@@ -108,6 +108,8 @@ func attach() -> void:
 func set_dimmed(d: bool) -> void:
 	_dimmed = d
 	bar.modulate.a = 0.55 if d else 1.0
+	vitals.visible = not d
+	clock.visible = not d
 
 # --- per frame (cheap: redraws only what changed) ----------------------------------------
 
