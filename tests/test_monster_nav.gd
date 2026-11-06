@@ -369,7 +369,11 @@ func _caves(t: TestLog, world_seed := 11, pairs := 24) -> Array:
 		# Since the passages stage (docs/tracks/traversal.md) far more cave paths are found,
 		# through ladders, ropes, steps and bridges; the follower takes about three in four.
 		t.check(planned > 0 and ok * 10 >= planned * 7, "%s: the real body follows found cave paths (%d of %d)" % [spec[0], ok, planned])
-		t.check(ok * 4 >= n, "%s reaches at least a quarter of air-connected cave spots 40 tiles away (%d/%d)" % [spec[0], ok, n])
+		# The passages stage joins cave regions through two-wide shafts and Medium-sized ways,
+		# so many more pairs count as air-connected that a Large body cannot use: its share
+		# fell (docs/tracks/traversal.md); a Medium one rose.
+		var share := 4 if spec[0] == "medium" else 6
+		t.check(ok * share >= n, "%s reaches at least 1/%d of air-connected cave spots 40 tiles away (%d/%d)" % [spec[0], share, ok, n])
 		if spec[0] == "medium":
 			t.check(ok * 2 >= n, "medium reaches at least half of them (%d/%d)" % [ok, n])
 	return out

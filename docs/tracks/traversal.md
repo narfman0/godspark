@@ -127,7 +127,8 @@ routes (all later). It only changes newly generated worlds; saved worlds keep th
    (rising straight, a row to spare) and across gaps of up to 4 columns (falls back are free);
    ladders and ropes join every spot along them. Only moves that work both ways count.
 3. **Join**: the component under the first settlement flat (the spawn) is the network. Every
-   other component of at least 4 spots is joined to the nearest network spot (cost |dx| +
+   other component of at least 4 spots (in the deeps and nadir: 24; pockets under 24 spots
+   only within 48 tiles, so sparse deep pockets do not get long straight tunnels) is joined to the nearest network spot (cost |dx| +
    0.6 |dy|, searched in widening rings 24-400 tiles) with the cheapest believable feature:
    - steep (|dy| > |dx| + 2): a two-wide shaft with a ladder (surface and the deeps: roots and
      built ladders) or a hanging rope (caves) in its right-hand column (the column a body
@@ -163,24 +164,26 @@ body).
 
 | | before | after |
 |---|---|---|
-| point-to-point, Medium, 10 seeds (3..31) | 114/240 (48%) | 171/240 (71%) |
-| point-to-point, Large climber, 10 seeds | 103/240 (43%) | 66/240 (28%) |
-| sites on foot from the spawn (graph), dev, 10 seeds | 63/160 (39%), all sites in 0 of 10 | 155/160 (97%), all sites in 7 of 10 |
+| point-to-point, Medium, 10 seeds (3..31) | 114/240 (48%) | 166/240 (69%) |
+| point-to-point, Large climber, 10 seeds | 103/240 (43%) | 64/240 (27%) |
+| sites on foot from the spawn (graph), dev, 10 seeds | 63/160 (39%), all sites in 0 of 10 | 151/160 (94%), all sites in 5 of 10 |
 | sites on foot (graph), small, 3 seeds | 30/81 (37%), 0 of 3 | 80/81 (99%), 2 of 3 |
-| sites walked by the real body (NavFollow), dev, 3 seeds | - | 13/48 (27%) |
-| generation time, dev (2048x1024) | ~0.79 s | ~2.1 s (+1.2-1.5 s; the stage ~1.2-1.5 s with its second pass) |
-| generation time, small (4096x1536) | ~2.4 s | ~6.5 s |
+| sites walked by the real body (NavFollow), dev, 3 seeds | - | 13/48 (27%) (measured before the deep-pocket rule) |
+| generation time, dev (2048x1024) | ~0.79 s | ~1.8 s (+1.0 s) |
+| generation time, small (4096x1536) | ~2.4 s | ~5.4 s (+3.0 s) |
 
-Misses left (graph): a buried ruin, two portals in the nadir, one surface settlement and two
-lairs over 10 dev seeds. Point-to-point misses are about half planner misses inside its
+Misses left (graph, 10 dev seeds): the nadir portal in 4 worlds, both deep settlements in one,
+a buried ruin, one surface settlement and one lair. Before the deep-pocket rule (every pocket
+joined at any distance) it was 155/160 and the deeps were crossed by long straight shafts
+and stairways: the map now reads as caves. Point-to-point misses are about half planner misses inside its
 64-tile window (the join goes the long way round) and half the follower failing a jump. The
 real-body long walks fail mostly on NavFollow's jump execution over thousands of nodes, not
 on missing ways (the same paths exist in the graph). The Large climber lost ground: two-wide
 shafts and five-high ways fit a Medium body, not a Large one.
 
-Not met: point-to-point above 85% (71%), every site in every seed (97% of trips; 7 of 10
-worlds complete). Feature counts per dev world: about 900 joins (300 ladders, 280 ropes,
-the rest stairs, steps and bridges): dense; see the screenshots.
+Not met: point-to-point above 85% (69%), every site in every seed (94% of trips; 5 of 10
+worlds complete). Feature counts per dev world: several hundred joins, mostly short ladders
+and ropes in the caves band (thin vertical lines on the map): dense; see the screenshots.
 
 ## 5. Rubble-only digging and supplies
 

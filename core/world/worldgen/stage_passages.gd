@@ -27,6 +27,11 @@ const GenContext := preload("gen_context.gd")
 const JUMP_UP := 4
 const JUMP_ACROSS := 4
 const MIN_SPOTS := 4
+## In the deeps and the nadir only regions this big are joined (their pockets are sparse and
+## a long straight tunnel to each would not look like a cave); small pockets anywhere are
+## joined only within SMALL_REACH tiles.
+const BIG_SPOTS := 24
+const SMALL_REACH := 48
 ## Search radius (tiles) for the nearest network spot, by pass.
 const RADII := [24, 48, 96, 200, 400]
 ## Tunnel clear height (rows above the floor): a step up needs the box's 3 rows plus one
@@ -331,7 +336,7 @@ class Passer extends RefCounted:
 			if r == root:
 				continue
 			var m: Array = members[r]
-			if m.size() >= MIN_SPOTS:
+			if m.size() >= MIN_SPOTS and (m.size() >= BIG_SPOTS or c.band_at(spy[int(m[0])]) in ["caves", "surface", "sky"]):
 				todo.append(r)
 		todo.sort()
 		stats["to_join"] = todo.size()
@@ -346,6 +351,9 @@ class Passer extends RefCounted:
 				for r: int in todo:
 					if net[int((members[r] as Array)[0])] != 0:
 						continue           # joined on the way by an earlier feature
+					if radius > SMALL_REACH and (members[r] as Array).size() < BIG_SPOTS:
+						left.append(r)     # a small pocket far from everything stays a pocket
+						continue
 					var best := _nearest(members[r], radius)
 					if best.is_empty():
 						left.append(r)
