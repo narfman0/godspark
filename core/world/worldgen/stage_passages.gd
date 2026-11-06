@@ -49,6 +49,8 @@ const RADII := [24, 48, 96, 200, 400]
 const TALL := 5
 ## Network spots kept per 16 x 16 block, and component spots sampled, when aiming a join.
 const BUCKET_KEEP := 6
+## Pairs a must-reach join looks through when the cheap ones all run into something built.
+const MUST_TRIES := 400
 const SAMPLES := 64
 ## Where a site's or route end's standing node is looked for, around the node of its cell.
 const NEAR := [Vector2i(0, 0), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(1, 1),
@@ -917,7 +919,7 @@ class Passer extends RefCounted:
 				for r: int in todo:
 					if net[int((members[r] as Array)[0])] != 0:
 						continue
-					var best := _nearest(members[r], radius)
+					var best := _nearest(members[r], radius, true)
 					if best.is_empty():
 						left.append(r)
 						continue
@@ -966,7 +968,9 @@ class Passer extends RefCounted:
 				buckets[key] = bk
 
 	## [component spot, network spot] at the least join cost within radius, or [].
-	func _nearest(m: Array, radius: int) -> Array:
+	## must: a site's or route end's component: if every cheap pair runs into something built,
+	## look through the dearer ones too (only then: it scans the whole network).
+	func _nearest(m: Array, radius: int, must := false) -> Array:
 		var best := []
 		var best_cost := INF
 		var cands: Array = []
@@ -1011,6 +1015,24 @@ class Passer extends RefCounted:
 		for k in mini(cands.size(), 12 if radius < 400 else 64):
 			var cd: Array = cands[k]
 			if not _hits_built(Vector2i(spx[cd[1]], spy[cd[1]]), Vector2i(spx[cd[2]], spy[cd[2]])):
+				return [cd[1], cd[2]]
+		if not must:
+			return best
+		var all_pairs: Array = []
+		for bkey: int in blocks:
+			var a: int = blocks[bkey]
+			for key: int in buckets:
+				for b: int in buckets[key]:
+					var dx := absi(spx[b] - spx[a])
+					var dy := absi(spy[b] - spy[a])
+					if dx <= radius and dy <= radius:
+						all_pairs.append([dx + 0.6 * dy, a, b])
+		all_pairs.sort_custom(func(p: Array, q: Array) -> bool: return p[0] < q[0])
+		for k in mini(all_pairs.size(), MUST_TRIES):
+			var cd: Array = all_pairs[k]
+			var pa := Vector2i(spx[cd[1]], spy[cd[1]])
+			var pb := Vector2i(spx[cd[2]], spy[cd[2]])
+			if not _forbidden(pa.x, pa.y, pb.x, pb.y) and not _hits_built(pa, pb):
 				return [cd[1], cd[2]]
 		return best
 

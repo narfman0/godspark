@@ -781,3 +781,58 @@ GameUi: deals_ui (DealsUi), marks (PeopleMarks), number_keys_taken(); screens sh
 - Digging terrain gives `tile:rubble` (tile 13); ore tiles `ore:<metal>` trade goods; built
   things themselves. `supplies` make camp gear, walkways, stairs, ladders and rope.
 
+## M5 contracts (biomes and the shape of the overworld)
+
+As built so far: vocabulary and climate ([tracks/biomes.md](tracks/biomes.md)). The later M5
+tracks build on these.
+
+### One vocabulary (`data/biomes.json`, `core/world/biome_ids.gd`, exists)
+
+```gdscript
+BiomeIds.has(id) -> bool
+BiomeIds.ids(family := "") -> PackedStringArray         # "", "surface" or "underground"
+BiomeIds.generated(family := "") -> PackedStringArray   # the ids worldgen makes today
+```
+
+- Surface: `meadow forest hills mountain coast desert swamp tundra jungle`. Underground: `caves
+  underdark fungal crystal deep_lake magma`. Generated today: `meadow forest mountain desert
+  swamp`, `caves`, `underdark`.
+- Every table names only these. `tests/test_biome_vocab.gd` scans every `biome` and `biomes`
+  key in `data/**/*.json`, the sim's rows and stand-alone lists, and the sites of a generated
+  world. A new biome is a row in `data/biomes.json` first.
+- A biome reads as habitats through `spawning.json` `biome_fallback`; one with no row reads as
+  itself. The mountain has no habitat row and reads as `hills`, jungle as `forest`.
+
+### The climate strip (`data/worldgen/biomes.json`, `stage_biomes.gd`, exists)
+
+- The width runs cold (x = 0) to hot. `climate.orders` lists the ways the biomes can lie
+  along it, one drawn per world; each biome's width is drawn from its `share` and none ends
+  below `climate.min_share`. Pure function of the seed (RNG stage `biomes`).
+- `meta.biomes`: `[{x0, x1, biome, temp}]`, `temp` being the climate (0 cold, 1 hot) at the
+  segment's middle. `meta.climate`: `{order}`. Both are additive; older saves lack them.
+- `only_biome` in `WorldGen.generate`'s opts lays one biome across the width.
+- A site's `biome` is the strip's biome at its x (surface and sky), `caves` or `underdark`
+  below. `WorldSim.from_meta` takes it from there; `WorldSim.synthetic` has its own made-up
+  strip and is used only by sweeps.
+
+### Ground (`stage_surface.gd`, `stage_layers.gd`, exists)
+
+- Each row sets `top`, `road`, `soil`, `stone`, `soil_wall`, `stone_wall`, `soil_depth`,
+  optional `snow`, and `height {base, big, mid, fine, ridge, dune, step}`. Height numbers blend
+  over `climate.ramp`; `step` does not.
+- Between stages, for the patches they make: `c.col_top`, `c.col_soil`, `c.col_road` (tile ids
+  per column, dithered across seams, set by `layers`), `c.seams` (`[{x, a, b}]`, set by
+  `biomes`), `c.climate`. Fill ground with `c.col_soil[x]`, never `c.DIRT`, on the surface.
+- `step` 1 is walked without jumping; only the forest has 2. A flat holds its level and the
+  slopes around it give way; each flat is within a walk of the one before it.
+- Tiles 21-33, walls 10-17: the biomes' ground. Tiles 112-115: road surfaces, in the Places
+  range because the passages stage never cuts ids 96 and up. Digging gives rubble through
+  `tile_drops`: a new terrain tile needs a row there. Ores need a stone in their `replace`.
+
+### The default world
+
+`game/main.gd` generates `medium` by default, saved under `user://worlds/<gen>`. A windowed
+host generates on a thread behind `LoadingScreen`, which reads `WorldGen.stage_index`; closing
+the window sets `WorldGen.cancel`, and the run stops at the next stage and returns null.
+Headless hosts generate in place. Tests and smokes keep naming their own small worlds.
+Protocol 9 (the new tiles).

@@ -24,8 +24,10 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 - Host checks client movement by bounds only; replaying inputs would close it.
 
 ## World generation
-- One surface biome. Caverns sit in one row along the deep road; in medium and large worlds
-  most of the deeps and all of the nadir is plain noise caves.
+- Five surface biomes (M5, [tracks/biomes.md](tracks/biomes.md)): the sim's biome economy,
+  per-biome dressing, sky and spawning are later tracks, and mountains and rivers are not
+  barriers yet. Caverns sit in one row along the deep road; in medium and large worlds most
+  of the deeps and all of the nadir is plain noise caves.
 - Routes are checked open, not walkable under gravity. No liquids. One ascent per world.
 - Tile ids must stay below 256 during generation.
 - Dressing: trees are sparse on bumpy ground (about one per 80 columns) and kept off

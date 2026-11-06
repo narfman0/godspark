@@ -18,6 +18,7 @@ const HALF_MAX := 150
 const RAMP_MAX := 60
 const STREET_CLEAR := 6
 const FILL_MAX := 14
+const EDGE_BARE := 64
 
 static func run(c: GenContext, _rng: RandomNumberGenerator) -> void:
 	PlaceStyles.ensure()
@@ -60,8 +61,11 @@ static func default_culture(band: String) -> String:
 static func limits(c: GenContext, s: Dictionary, deep: bool) -> Vector2i:
 	var sx := int(s["x"])
 	var y := int(s["y"])
-	var lo := maxi(4, sx - HALF_MAX)
-	var hi := mini(c.w - 5, sx + HALF_MAX)
+	# the surface stays bare at the world's ends: roads run everywhere between the towns, and
+	# the passages stage, which never cuts a road, needs open ground to reach the caves from
+	var edge := 4 if deep else mini(EDGE_BARE, c.w / 16)
+	var lo := maxi(edge, sx - HALF_MAX)
+	var hi := mini(c.w - edge - 1, sx + HALF_MAX)
 	for o: Dictionary in c.sites:
 		var o_deep := not String(o["band"]) in ["surface", "sky"]
 		if int(o["id"]) == int(s["id"]) or o_deep != deep or (deep and absi(int(o["y"]) - y) > 40):

@@ -325,7 +325,7 @@ func _window_and_partial(t: TestLog) -> void:
 
 ## Generated cave terrain: a Medium walker and a Large climber try to reach spots ~40 tiles
 ## away in the caves band. Pairs are random standing spots (not known to be connected).
-func _caves(t: TestLog, world_seed := 11, pairs := 24) -> Array:
+func _caves(t: TestLog, world_seed := 13, pairs := 24) -> Array:
 	var world := WorldGen.generate(1024, 512, world_seed)
 	var out := []
 	var band: Array = world.meta.get("bands", {}).get("caves", [100, 200])
