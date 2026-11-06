@@ -297,6 +297,11 @@ func _dig_step() -> void:
 
 func _place_step() -> void:
 	var c := cw()
+	# Digging in a town gives back road and building tiles, not rubble: place what rubble
+	# there is (at least one), not more than was dug.
+	var ic := c.system(HostSystem.ITEMS) as ItemsClient
+	if ic != null and ic.live and placed + ic.held_tiles(_wood) < places:
+		places = maxi(1, placed + ic.held_tiles(_wood))
 	if placed >= places:
 		input.place = false
 		_target = Vector2i(-1, -1)
