@@ -152,6 +152,8 @@ static func _carve_path(c: GenContext, path: Array, tall: int) -> void:
 			c.carve_rect(p.x, p.y, p.x, p.y + tall - 1)  # out in the open: no paving in the air
 		else:
 			c.carve_road_column(p.x, p.y, tall, false)
+			for y in range(c.ground[p.x] + 1, p.y + tall):
+				c.bg[p.x + y * c.w] = 0                      # no built wall in the open at a mouth
 
 static func ascent(c: GenContext, rng: RandomNumberGenerator) -> void:
 	# Try each settled cavern and both directions; keep the ramp that surfaces closest to a

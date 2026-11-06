@@ -1,6 +1,7 @@
 ## Writes a PNG of a generated world: tiles by colour, background walls darker, sky above
 ## the surface, sites, route paths (rough ones red), places (street, building outlines) and a
-## ribbon of biome colours along the top. One pixel per tile up to 2048 wide; larger worlds
+## ribbon of biome colours along the top, passes (white), under-routes (orange), river
+## crossings (cyan a bridge, green a ford). One pixel per tile up to 2048 wide; larger worlds
 ## are sampled down. Prints stage timings and a site/route summary.
 ##   godot --headless -s res://tools/worldmap.gd -- seed=1 size=dev out=/tmp/map.png
 ##   (also: w=1024 h=512 instead of size, crop=x0,y0,x1,y1 for a 1:1 detail view)
@@ -189,8 +190,8 @@ func _summary(world: TileWorld) -> void:
 	print("climate: ", m.get("climate", {}))
 	var bar: Dictionary = m.get("barriers", {})
 	for rg: Dictionary in bar.get("ranges", []):
-		print("  range %d x %d-%d, peak %d, pass top %s, %d walls, %d galleries, under-route %d cells" % [rg["id"], rg["x0"], rg["x1"], rg["peak"],
-			rg["pass"]["top"], (rg["walls"] as Array).size(), rg["pass"]["galleries"], (rg["under"]["path"] as Array).size()])
+		print("  range %d x %d-%d, peak %d, pass top %s, %d walls, %d galleries, under-route %d cells, mouths %s %s" % [rg["id"], rg["x0"], rg["x1"], rg["peak"],
+			rg["pass"]["top"], (rg["walls"] as Array).size(), rg["pass"]["galleries"], (rg["under"]["path"] as Array).size(), rg["under"]["path"][0], rg["under"]["path"][-1]])
 	for rv: Dictionary in bar.get("rivers", []):
 		print("  river %d x %d-%d in the %s, a %s, bank %d, bed %d" % [rv["id"], rv["x0"], rv["x1"], rv["biome"], rv["kind"], rv["bank"], rv["bed"]])
 	for seg: Dictionary in m["biomes"]:

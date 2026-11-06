@@ -991,7 +991,9 @@ class Passer extends RefCounted:
 		var todo: Array = want.keys()
 		todo.sort()
 		var kinds := {}
-		for radius: int in RADII + [maxi(w, h)]:
+		var far := maxi(w, h)
+		var tried := {}
+		for radius: int in RADII + [far]:
 			var progress := true
 			while progress and not todo.is_empty():
 				progress = false
@@ -999,8 +1001,12 @@ class Passer extends RefCounted:
 				for r: int in todo:
 					if net[int((members[r] as Array)[0])] != 0:
 						continue
+					if tried.get(r, -1) == radius and radius != far:
+						left.append(r)     # the next reach looks again; this one is dear to repeat
+						continue
 					var best := _nearest(members[r], radius, true)
 					if best.is_empty():
+						tried[r] = radius
 						left.append(r)
 						continue
 					var kind := _join(best[0], best[1])

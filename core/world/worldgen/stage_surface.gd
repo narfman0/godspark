@@ -2,7 +2,8 @@
 ## "height"): a lift, how much of each noise, sharp ridges for mountains and short swells for
 ## dunes, all blended across biome borders over the climate's ramp. Flat stretches planned for
 ## settlements (c.flats) are blended in, and neighbouring columns differ by at most the
-## biome's step, so the surface stays walkable.
+## biome's step, so the surface stays walkable. Then a range's cliffed walls go up and the
+## river channels are cut (stage_barriers.gd), which is what is not walkable on purpose.
 extends RefCounted
 
 const GenContext := preload("gen_context.gd")

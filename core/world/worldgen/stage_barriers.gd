@@ -5,16 +5,19 @@
 ## walkable way left through them.
 ##
 ## Stage "surface" plans them, since they shape the ground:
-##   plan_ranges   a crest in each mountain stretch; towns keep off it (c.reserved).
+##   plan_ranges   a crest in each mountain stretch, and a level shelf for each mouth of its
+##                 under-route; towns keep off them (c.reserved).
 ##   plan_rivers   a channel in the wet biomes on ground held level for its banks.
 ##   raise         the mountain as it stands is the pass (step 1, walked without jumping):
 ##                 it is recorded (c.pass_y), then cliffed walls are stood on it, and the
 ##                 river channels are cut into the ground.
+## The caves stay under rock_top, so the walls stay solid and only the pass runs through them,
+## and the passages stage leaves what stands on the walls alone: the walls are not climbed.
 ## Stage "barriers" (after the caves) builds what crosses them:
 ##   the pass      paved, cut through the walls: a thin roof goes, a thick one stays, a gallery.
 ##   the under-route  a tunnel from a mouth on one side down under the range and up to a mouth
-##                 on the other, one row per column at most; the passages stage floors it
-##                 where it crosses caves.
+##                 on the other, one row per column at most, floored with treads and planks
+##                 where it crosses a cave.
 ##   rivers        bed sealed against the caves, water laid, and the crossing: a bridge over
 ##                 deep water, or a ford (one tile of water). The banks slope a row a column,
 ##                 so nobody is stuck in a channel, and swimming is not needed.
@@ -281,8 +284,9 @@ static func _pass(c: GenContext, rg: Dictionary) -> void:
 		if cover > 0:
 			if not inside:
 				galleries += 1
+				lit = 0
 			lit += 1
-			if lit % int(d["torch_every"]) == 0:
+			if lit % int(d["torch_every"]) == 1:       # one just inside each mouth, too
 				c.fg[p.x + (p.y + 3) * c.w] = torch
 		inside = cover > 0
 	rg["pass"]["galleries"] = galleries
@@ -345,6 +349,8 @@ static func _river(c: GenContext, rv: Dictionary) -> void:
 		c.fg[x + g * c.w] = ford_tile if ford and g == bed else bed_tile
 		for y in range(g + 1, bank + 6):
 			c.fg[x + y * c.w] = water if y <= top else c.AIR
+	for x: int in [x0 - 2, x0 - 1, x1 + 1, x1 + 2]:
+		c.fg[x + c.ground[x] * c.w] = c.col_road[x]       # the road's stretch of bank
 	var cells: Array = []
 	if ford:
 		for x in range(x0 - 2, x1 + 3):

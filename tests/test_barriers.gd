@@ -5,6 +5,7 @@ extends RefCounted
 
 const Barriers := preload("res://core/world/worldgen/stage_barriers.gd")
 const SP := preload("res://core/world/worldgen/stage_passages.gd")
+const GC := preload("res://core/world/worldgen/gen_context.gd")
 const TestRoads := preload("test_roads.gd")
 const SEEDS := [1, 2, 3, 4]
 
@@ -29,6 +30,10 @@ func run(t: TestLog) -> void:
 	var only := WorldGen.generate_named("dev", 2, {"only_biome": "meadow"})
 	t.eq((only.meta["barriers"]["rivers"] as Array).size(), 0, "nor has a one-biome scenario world")
 	_river_is_built(t)
+	var c := GC.new(2048, 64, 1, {})
+	var fare := func(kind: String) -> int: return Barriers.cost(c, [{"kind": kind}])
+	t.check(fare.call("pass") > fare.call("ford") and fare.call("ford") > fare.call("bridge") and fare.call("bridge") > 0,
+		"a pass costs more than a ford, a ford than a bridge, and a bridge something (%d, %d, %d)" % [fare.call("pass"), fare.call("ford"), fare.call("bridge")])
 
 ## Everything a world's barriers must be, as a list of what is wrong (tools/passability_sweep.gd
 ## runs it on bigger worlds).
@@ -45,12 +50,9 @@ static func check_world(world: TileWorld) -> Array:
 		if under.is_empty() or under[0].x >= int(rg["x0"]) or under[-1].x <= int(rg["x1"]):
 			out.append("%s: the under-route does not run from one side to the other" % name)
 			continue
-		var low := 1 << 30
-		for x in range(int(rg["x0"]), int(rg["x1"]) + 1):
-			low = mini(low, way[x - int(rg["x0"])].y)
 		for p: Vector2i in under:
-			if p.x >= int(rg["x0"]) and p.x <= int(rg["x1"]) and p.y >= low - 4:
-				out.append("%s: the under-route comes up to the pass at %s" % [name, p])
+			if p.x >= int(rg["x0"]) and p.x <= int(rg["x1"]) and p.y + 5 >= way[p.x - int(rg["x0"])].y:
+				out.append("%s: the under-route runs into the pass at %s" % [name, p])
 				break
 		# a walker cannot just go over: somewhere a wall stands up out of its reach
 		var surf: Array = world.meta["surface"]
