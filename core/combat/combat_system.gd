@@ -367,8 +367,46 @@ func actions_of(e: HostEntity) -> Array:
 	var a := actor(e)
 	return a.moves.get("actions", []) if a != null else []
 
+## Who fights whom. With Life installed (HostSystem.LIFE) its stance decides (monsters fight
+## guards, guards fight raiders, standing with factions); without it, monsters and players.
 func hostile(x: HostEntity, y: HostEntity) -> bool:
+	var life := _life_sys()
+	if life != null:
+		return bool(life.call("hostile", x, y))
 	return x.is_player() != y.is_player()
+
+var _life: HostSystem = null
+
+func _life_sys() -> HostSystem:
+	if _life == null:
+		var h := host
+		if h != null and h.systems.has(HostSystem.LIFE):
+			_life = h.system(HostSystem.LIFE)
+	return _life
+
+## With Life: a player's attack aimed right at a creature it is not hostile to (a townsperson,
+## a neutral beast) is allowed (Life then makes it and its faction hostile), except while the
+## player is fighting foes (then a bystander under the aim is not hit). Areas and sweeps
+## never hit FRIENDLY or NEUTRAL creatures. Without Life: never (nothing changes).
+func _aimed(a: Actor, b: Actor, aim: Variant) -> bool:
+	if _life_sys() == null or not a.e.is_player() or b.e.is_player() or not aim is Vector2 or aim == Vector2.INF:
+		return false
+	if not b.e.body.rect().grow(0.5).has_point(aim):
+		return false
+	# in the middle of a fight a blow that lands on a bystander is a miss, not a choice
+	if now - a.last_hostile <= CombatTempo.num("in_combat_s", 5.0) and not hostile(a.e, b.e):
+		var foes := false
+		for o: Actor in actors.values():
+			if o != a and _targetable(o) and hostile(a.e, o.e) and now - o.last_hostile <= CombatTempo.num("in_combat_s", 5.0):
+				foes = true
+				break
+		if foes:
+			return false
+	# a foe at the aim point is what it was aimed at, not the bystander beside it
+	for o: Actor in actors.values():
+		if o != a and o != b and _targetable(o) and o.e.body.rect().grow(0.5).has_point(aim) and hostile(a.e, o.e):
+			return false
+	return true
 
 func _targetable(b: Actor) -> bool:
 	return b.e.combatant != null and b.dead_at < 0.0 and b.downed_at < 0.0 and b.e.combatant.current_hp > 0
@@ -610,19 +648,23 @@ func _melee(a: Actor, s: Dictionary, step: Dictionary) -> void:
 	var half := float(CombatTempo.section("melee").get("arc_half_angle_deg", 70.0))
 	var touched: Array = []
 	for b: Actor in actors.values():
-		if b == a or not hostile(a.e, b.e) or not _targetable(b):
+		if b == a or not _targetable(b):
+			continue
+		var foe := hostile(a.e, b.e)
+		if not foe and not _aimed(a, b, s["aim"]):
 			continue
 		var r := b.e.body.rect()
 		if HitShapes.in_arc(rect, dir, reach, half, r) and HitShapes.line_to(host.world, center, r):
-			touched.append([HitShapes.gap(rect, r), r.get_center().distance_to(s["aim"]), b])
+			touched.append([HitShapes.gap(rect, r), r.get_center().distance_to(s["aim"]), b, foe])
 	if touched.is_empty():
 		counts["whiffs"] += 1
 		return
-	touched.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0] - 0.01 or (absf(x[0] - y[0]) <= 0.01 and x[1] < y[1]))
+	touched.sort_custom(func(x: Array, y: Array) -> bool: return (x[3] and not y[3]) or (x[3] == y[3] and (x[0] < y[0] - 0.01 or (absf(x[0] - y[0]) <= 0.01 and x[1] < y[1]))))
 	var primary: Actor = touched[0][2]
 	var opts := {"two_handed": bool(step.get("two", false))}
 	var ev := _weapon_attack(a, primary, opts, center)
-	var rest: Array = touched.slice(1).map(func(x: Array) -> Actor: return x[2])
+	# cleave and sweeps touch foes only (with Life: never a friendly or neutral bystander)
+	var rest: Array = touched.slice(1).filter(func(x: Array) -> bool: return x[3]).map(func(x: Array) -> Actor: return x[2])
 	# Cleave (mastery): one more full attack, once per turn, on a creature within 5 ft of the first.
 	if ev.get("cleave_available", false):
 		for b: Actor in rest:
@@ -825,7 +867,7 @@ func _spawn(a: Actor, kind: String, aim: Vector2, extra: Dictionary) -> Dictiona
 	var g := float(row["gravity"])
 	var dir := HitShapes.ballistic_dir(from, aim, speed, g)
 	var p := {"pid": _next_pid, "owner": a.e.id, "pos": from, "origin": from, "vel": dir * speed, "g": g,
-		"kind": kind, "born": now, "dist": 0.0}
+		"kind": kind, "born": now, "dist": 0.0, "aim": aim}
 	p.merge(extra, true)
 	_next_pid += 1
 	projectiles.append(p)
@@ -860,10 +902,10 @@ func _step_projectiles() -> void:
 			var best: Actor = null
 			var best_t := tile_t
 			for b: Actor in actors.values():
-				if b == owner or not hostile(owner.e, b.e) or not _targetable(b):
+				if b == owner or not _targetable(b):
 					continue
 				var bt := HitShapes.segment_box(a0, a1, b.e.body.rect())
-				if bt >= 0.0 and bt < best_t:
+				if bt >= 0.0 and bt < best_t and (hostile(owner.e, b.e) or _aimed(owner, b, p["aim"])):
 					best_t = bt
 					best = b
 			if best != null or tile_t <= 1.0:
@@ -1067,7 +1109,7 @@ func _cast_now(a: Actor, ab: AbilityData, level: int, aim: Vector2) -> void:
 			var best: Actor = null
 			var bg := 1e9
 			for b: Actor in actors.values():
-				if b == a or not hostile(a.e, b.e) or not _targetable(b):
+				if b == a or not _targetable(b) or not (hostile(a.e, b.e) or _aimed(a, b, aim)):
 					continue
 				var r := b.e.body.rect()
 				if HitShapes.in_arc(rect, dir, K.ft(5), half, r) and HitShapes.line_to(host.world, center, r) and HitShapes.gap(rect, r) < bg:
@@ -1135,8 +1177,12 @@ func _area(a: Actor, ab: AbilityData, aim: Vector2, from_self: bool) -> Dictiona
 		origin = HitShapes.reach_point(host.world, center, p)
 	var size := K.ft(ab.area_size)
 	var out := {"targets": [], "cover": {}, "origin": origin}
+	# with Life, harmful areas spare FRIENDLY and NEUTRAL creatures (and the caster)
+	var spare := _life_sys() != null and (ab.has_damage() or ab.uses_save or ab.hostile)
 	for b: Actor in actors.values():
 		if not _targetable(b) or (from_self and b == a):
+			continue
+		if spare and not hostile(a.e, b.e) and not _aimed(a, b, aim):
 			continue
 		var r := b.e.body.rect()
 		if HitShapes.in_area(ab.area_shape, origin, dir, size, 0.0, r) and HitShapes.line_to(host.world, origin, r):
@@ -1156,7 +1202,7 @@ func _pick(a: Actor, aim: Vector2, foes: bool, ab: AbilityData) -> Array:
 		# spells on allies (Cure Wounds, Healing Word) reach a downed player too: that is how a
 		# spell gets them up; spells on foes never touch the downed
 		var ok := _targetable(b) if foes else _helpable(b)
-		if not ok or (foes and (b == a or not hostile(a.e, b.e))) or (not foes and hostile(a.e, b.e)):
+		if not ok or (foes and (b == a or not (hostile(a.e, b.e) or _aimed(a, b, aim)))) or (not foes and hostile(a.e, b.e)):
 			continue
 		var r := b.e.body.rect()
 		if b != a and (HitShapes.gap(rect, r) > rng + HitShapes.EPS or not HitShapes.line_to(host.world, center, r)):

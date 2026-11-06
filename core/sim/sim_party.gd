@@ -23,6 +23,11 @@ var timer := 0.0          # hours left in ambush / patrol / siege
 var target := -1          # target site id (settlement, lair) or route id for ambushes
 var dest := -1            # final site of the current path
 var plan := {}            # kind-specific extras; values are floats or strings only (JSON-safe)
+# Materialization (Life track), transient: not saved, never set by the sim itself.
+## Someone is watching it as real actors: its fights are fought in real time, not resolved here.
+var watched := false
+## Held by real time as well: the sim neither moves it nor runs its timers or arrival.
+var frozen := false
 
 func size() -> int:
 	return SimData.count(members)

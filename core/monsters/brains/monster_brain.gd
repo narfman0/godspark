@@ -90,7 +90,12 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 		follow.path = null
 		return combat.filter_input(e, inp)
 	var foe: HostEntity = host.entity(target_id) if target_id != 0 else null
-	if foe != null and (not foe.is_player() or not combat._targetable(combat.actor(foe))):
+	if foe != null and (not _foe_kind(host, foe) or combat.actor(foe) == null or not combat._targetable(combat.actor(foe))):
+		foe = null
+		target_id = 0
+	# with Life a foe can stop being one (a grudge runs out, standing changes)
+	if foe != null and not provoked.has(foe.id) and host.system(HostSystem.LIFE) != null \
+			and not bool(host.system(HostSystem.LIFE).call("hostile", e, foe)):
 		foe = null
 		target_id = 0
 	# far from every player: think slowly, stand still
@@ -362,13 +367,15 @@ func _sense(host: WorldHost, combat: CombatSystem, e: HostEntity) -> HostEntity:
 	var bd := INF
 	var sight := _num("sight_tiles", 30.0)
 	var hear := _num("hear_tiles", 20.0)
+	var life := host.system(HostSystem.LIFE)
 	for p: HostEntity in host.entities.values():
-		if not p.is_player() or not combat._targetable(combat.actor(p)):
+		if p == e or (life == null and not p.is_player()):
 			continue
 		var d := _d(e, p)
 		if d > maxf(sight, hear) or d >= bd:
 			continue
-		if not hostile_to(host, e, p, d):
+		var pa := combat.actor(p)
+		if pa == null or not combat._targetable(pa) or not is_foe(host, e, p, d):
 			continue
 		var noticed := provoked.has(p.id)
 		if not noticed and d <= hear and combat.in_combat(p):
@@ -379,6 +386,23 @@ func _sense(host: WorldHost, combat: CombatSystem, e: HostEntity) -> HostEntity:
 			best = p
 			bd = d
 	return best
+
+## Players only without Life; with Life any creature can be a foe.
+static func _foe_kind(host: WorldHost, foe: HostEntity) -> bool:
+	return foe.is_player() or host.system(HostSystem.LIFE) != null
+
+## Would it fight `p` now? Without Life: a player it is hostile to (hostile_to). With Life:
+## provoked, or Life's stance says HOSTILE (players must also pass hostile_to: neutral
+## creatures, Bonds).
+func is_foe(host: WorldHost, e: HostEntity, p: HostEntity, d := -1.0) -> bool:
+	var life := host.system(HostSystem.LIFE)
+	if life == null:
+		return p.is_player() and hostile_to(host, e, p, d)
+	if provoked.has(p.id):
+		return true
+	if p.is_player() and not hostile_to(host, e, p, d):
+		return false
+	return bool(life.call("hostile", e, p))
 
 ## Is it hostile to this player now? Provoked: always. Neutral: only when cornered (a player
 ## stays very close for a while). A Bond of strength 1+ with its kind or people: friendly.
@@ -405,7 +429,7 @@ func hostile_to(host: WorldHost, e: HostEntity, p: HostEntity, d := -1.0) -> boo
 ## Attacked (by the monsters system from combat's damage hook).
 func provoke(host: WorldHost, e: HostEntity, src: int) -> void:
 	var p := host.entity(src)
-	if p == null or not p.is_player():
+	if p == null or p == e or (not p.is_player() and host.system(HostSystem.LIFE) == null):
 		return
 	provoked[src] = true
 	if target_id == 0 or state in [State.IDLE, State.WANDER, State.LURK, State.RETURN]:

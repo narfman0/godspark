@@ -678,10 +678,18 @@ life.actors_at(site_id) -> Array[HostEntity]; life.actors_of(party_id) -> Array[
 
 - Combat and brains pick foes through `life.stance` when Life is installed (monsters fight
   guards, guards fight raiders); without it, monsters and players are foes as before.
-- While materialized, the sim entity is frozen (the sim skips it); on fold-back its people,
-  cargo and coin are written back. Counts are conserved: a test proves it.
+  With Life, sweeps and harmful areas spare FRIENDLY and NEUTRAL creatures; an aimed blow at
+  one is allowed and makes its faction hostile for a while.
+- As built (docs/tracks/life.md): the system is `LifeSystem`, the constants `Life.HOSTILE`,
+  `NEUTRAL`, `FRIENDLY`. Sim entities carry transient `watched` (fights are real-time) and
+  `frozen` (parties: held while their people fight); watched parties keep moving at the sim's
+  pace and the actors follow (lockstep). Deaths are written back at once
+  (`WorldSim.party_member_killed`, `settlement_person_killed`); real-time fights end through
+  `SimConflict.raid_outcome` / `pack_outcome` / `ambush_outcome`. Counts are conserved and
+  watching without touching leaves the sim identical (tests).
 - Dice for materialized things come from per-entity seeded generators, so looking at the
   world does not change the sim's own rolls.
+- Client: `LifeClient` (standing_changed, factions, person(id) with role / faction / talk).
 
 ### Deals (`core/deals/`, system 6; wave 2)
 

@@ -237,8 +237,10 @@ func _fight_step(delta: float) -> void:
 			if int(ev["kind"]) == CombatCodec.Ev.DEATH:
 				_kills += 1)
 	input = cc.fight_step(input)
+	var lc := cw().system(HostSystem.LIFE)
 	var live := cw().remotes.values().any(func(r: ClientWorld.RemoteEntity) -> bool:
-		return r.kind != HostEntity.Kind.PLAYER and r.max_hp > 0 and r.hp > 0)
+		return r.kind != HostEntity.Kind.PLAYER and r.max_hp > 0 and r.hp > 0 \
+			and not (lc != null and bool(lc.call("is_person", r.id))))
 	_clear_t = 0.0 if live else _clear_t + delta
 	if _clear_t > 1.0 or _t > 40.0:
 		var dmg := cc.events_log.filter(func(ev: Dictionary) -> bool:

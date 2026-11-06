@@ -84,7 +84,8 @@ func spawn(slug: String, pos: Vector2, opts := {}) -> HostEntity:
 	var affixes: Array = (opts.get("affixes", []) as Array).duplicate()
 	_apply_rank(c, slug, rank)
 	var arch := String(opts.get("brain", eco.get("brain", "bruiser")))
-	var brain := MonsterBrain.new(arch, Vector2(opts.get("home", pos)))
+	# opts.brain_obj: a MonsterBrain subclass made by the caller (Life's people)
+	var brain: MonsterBrain = opts["brain_obj"] if opts.get("brain_obj") is MonsterBrain else MonsterBrain.new(arch, Vector2(opts.get("home", pos)))
 	brain.slug = slug
 	brain.rank = rank
 	brain.hostility = String(eco.get("hostility", "hostile"))

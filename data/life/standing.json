@@ -1,0 +1,19 @@
+{
+	"_doc": "Life: standing of each player with each sim faction, -100..100 (docs/tracks/life.md). Thresholds decide stance: at or below hostile_at the faction's guards and townsfolk treat you as a foe; at or above friendly_at they are friendly; raiders spare you only at raiders_spare_at. A Bond (Knack, rules.bond 'people:<culture>') sets bond_floor. Changes are added on the events below. grudge_s: how long attacking a faction's people on purpose makes it and its guards hostile to you.",
+	"start": 0,
+	"hostile_at": -40,
+	"friendly_at": 30,
+	"raiders_spare_at": 60,
+	"bond_floor": 30,
+	"grudge_s": 60.0,
+	"near_tiles": 80.0,
+	"attack_member": -5,
+	"kill_member": -20,
+	"kill_guard": -30,
+	"kill_enemy": 3,
+	"kill_raider": 4,
+	"repel_raid": 15,
+	"protect_caravan": 10,
+	"lair_kill": 1,
+	"clear_lair": 12
+}

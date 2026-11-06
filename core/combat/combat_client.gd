@@ -144,9 +144,12 @@ func fight_step(inp: PlayerInput, reach := 3.0) -> PlayerInput:
 	var best: ClientWorld.RemoteEntity = null
 	var bpos := Vector2.ZERO
 	var bd := 1e9
+	var life := cw.system(HostSystem.LIFE)
 	for r: ClientWorld.RemoteEntity in cw.remotes.values():
 		if r.kind == HostEntity.Kind.PLAYER or (r.max_hp > 0 and r.hp <= 0):
 			continue
+		if life != null and life.has_method("is_person") and bool(life.call("is_person", r.id)):
+			continue      # Life's townsfolk, guards and travellers are not monsters to hunt
 		var p: Vector2 = cw.sample_remote(r.id).get("pos", r.pos)    # as drawn (interpolated)
 		var d := p.distance_to(cw.body.pos)
 		if d < bd:

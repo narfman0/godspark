@@ -680,6 +680,60 @@ func lair_killed(site_id: int, slug: String, by := "adventurers") -> bool:
 		SimConflict._lair_gone(self, l, "players")
 	return true
 
+# ── Materialization write-back (Life track) ──────────────────────────────────
+# Real-time fights write their deaths here as they happen; the sim stays the truth, so
+# folding actors back needs no further bookkeeping. None of these use the sim's rng.
+
+## One member of a party died in real time (non-combatants come out of `people`). A party
+## with no one left is gone, its home's counters settled. False if it had no such member.
+## wipe = false keeps an emptied party for the caller's outcome call (SimConflict.*_outcome).
+func party_member_killed(pid: int, slug: String, wipe := true) -> bool:
+	var p: SimParty = parties.get(pid)
+	if p == null or int(p.members.get(slug, 0)) <= 0:
+		return false
+	SimConflict.party_losses(p, {slug: 1})
+	stats_add("real_deaths", 1)
+	if p.size() == 0 and wipe:
+		SimConflict._wiped(self, p)
+	return true
+
+## A person of a settlement died in real time: a soldier (the garrison shrinks by one) or a
+## civilian (a worker, else a dependant). False if there was no one of that kind left.
+func settlement_person_killed(sid: int, soldier: bool) -> bool:
+	var s: SimSettlement = settlements.get(sid)
+	if s == null:
+		return false
+	if soldier:
+		if s.soldiers <= 0:
+			return false
+		s.soldiers -= 1
+	elif s.workers > 0:
+		s.workers -= 1
+	elif s.dependants > 0:
+		s.dependants -= 1
+	else:
+		return false
+	stats_add("real_deaths", 1)
+	return true
+
+## Take `n` of a good (or coin with good "coin") out of a party's load: what players knocked
+## loose from it. Returns how much was really there.
+func party_take_cargo(pid: int, good: String, n: int) -> int:
+	var p: SimParty = parties.get(pid)
+	if p == null or n <= 0:
+		return 0
+	if good == "coin":
+		var c := mini(n, int(p.coin))
+		p.coin -= c
+		return c
+	var have := int(p.cargo.get(good, 0))
+	var k := mini(have, n)
+	if k > 0:
+		p.cargo[good] = have - k
+		if int(p.cargo[good]) <= 0:
+			p.cargo.erase(good)
+	return k
+
 # ── Queries ──────────────────────────────────────────────────────────────────
 
 ## Settlements, lairs and parties whose x lies in [x0, x1]: what a player's interest

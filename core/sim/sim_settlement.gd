@@ -30,6 +30,9 @@ var last_raided := -1000000
 var grievance := {}         # lair id (int) -> harm suffered from it
 var shock := {}             # an open food-shock record, see SimEconomy
 var price_ref := 1.0        # slow average of the food price in ordinary times
+## Materialization (Life track), transient: players are there, so raids and monster attacks
+## arriving here are fought in real time. Its slow processes (food, growth) run as usual.
+var watched := false
 var cooldowns := {}         # decision kind -> hour it may happen again
 # Derived from the site, not saved.
 var cap := {}               # food/timber/ore capacity per day
