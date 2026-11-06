@@ -63,6 +63,26 @@ func work() -> void:
 	ui.close("quests")
 	await wait(0.4)
 	await shot("10_tracker")
+	ui.open("map")
+	await wait(0.6)
+	await shot("11_map")
+	var m := ui.screen("map") as WorldMapScreen
+	m.zoom_at(m._p(cw.body.center()), 1.5)
+	await wait(0.3)
+	var near := -1
+	for sid: int in m._sites_px:
+		if sid in dc.seen and (near < 0 or (m._sites_px[sid] as Vector2).distance_to(m._p(cw.body.center())) < (m._sites_px[near] as Vector2).distance_to(m._p(cw.body.center()))):
+			near = sid
+	var heard := -1
+	for sid: int in m._sites_px:
+		if not sid in dc.seen:
+			heard = sid
+	m.hover = heard if heard >= 0 else near
+	m._card()
+	m.canvas.queue_redraw()
+	await wait(0.3)
+	await shot("12_map_zoomed_card")
+	ui.close("map")
 
 ## Buy a rope and sell ore at the merchant; the smith's rack with a tooltip.
 func trade() -> void:

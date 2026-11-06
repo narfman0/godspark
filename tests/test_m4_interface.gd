@@ -172,6 +172,16 @@ func _live(t: TestLog) -> void:
 	t.check(named > 0, "settlements have names (%d)" % named)
 	rig.run(1.5)
 	t.check(not dc.seen.is_empty(), "the spawn town counts as seen")
+	var ds := rig.host.system(HostSystem.DEALS) as DealsSystem
+	var saved := ds.save_player(rig.host_entity(0))
+	t.check(not (saved.get("seen", []) as Array).is_empty(), "seen sites are saved with the player")
+	var ds2 := DealsSystem.new()
+	ds2.load_player(rig.host_entity(0), JSON.parse_string(JSON.stringify(saved)))
+	t.eq((ds2.seen[rig.host_entity(0).id] as Dictionary).keys(), (ds.seen[rig.host_entity(0).id] as Dictionary).keys(), "and load back")
+	var full := DealsCodec.write({"t": 0, "sites": ds.atlas_sites(), "routes": ds.atlas_routes(), "seen": [], "all": true})
+	var sites_only := DealsCodec.write({"t": 0, "sites": ds.atlas_sites()})
+	print("  ATLAS on join: %d B (%d B zstd), a site refresh %d B, %d sites, %d routes" % [full.size(),
+		full.compress(FileAccess.COMPRESSION_ZSTD).size(), sites_only.size(), ds.atlas_sites().size(), ds.atlas_routes().size()])
 	t.check(lc.people.size() > 4, "Life shows the town's people (%d)" % lc.people.size())
 	var tree := Engine.get_main_loop() as SceneTree
 	var gu := GameUi.new()
