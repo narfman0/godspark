@@ -14,6 +14,7 @@ func run(t: TestLog) -> void:
 	_standing(t)
 	_bearing(t)
 	_input(t)
+	_map(t)
 	_live(t)
 
 func _people_words(t: TestLog) -> void:
@@ -95,12 +96,44 @@ func _standing(t: TestLog) -> void:
 
 func _bearing(t: TestLog) -> void:
 	var b := DealsLogic.bearing(Vector2(100, 200), Vector2(300, 200))
-	t.check(is_equal_approx(float(b["dist"]), 200.0) and String(b["text"]) == "200 east", "bearing east (%s)" % b["text"])
+	t.check(is_equal_approx(float(b["dist"]), 200.0) and String(b["text"]) == "200 tiles east", "bearing east (%s)" % b["text"])
 	t.check(is_equal_approx(float(b["angle"]), 0.0), "east points right")
 	var d := DealsLogic.bearing(Vector2(100, 200), Vector2(80, 150))
-	t.eq(String(d["text"]), "20 west, 50 below", "west and below (y is up in the world)")
+	t.eq(String(d["text"]), "20 tiles west, 50 down", "west and down (y is up in the world)")
 	t.check(float(d["angle"]) > 0.0, "below points down the screen")
 	t.eq(String(DealsLogic.bearing(Vector2(1, 1), Vector2(2, 2))["text"]), "here", "here")
+
+func _map(t: TestLog) -> void:
+	var meta := {"sites": [{"id": 1, "x": 100, "y": 600, "kind": "settlement"}, {"id": 2, "x": 900, "y": 300, "kind": "lair"},
+		{"id": 3, "x": 1500, "y": 610, "kind": "settlement"}, {"id": 4, "x": 50, "y": 200, "kind": "ruin"}]}
+	t.eq(MapLogic.site_xy(meta, 2), Vector2(900, 300), "site position from META")
+	t.eq(MapLogic.site_xy(meta, 9), Vector2.INF, "unknown site")
+	t.eq(MapLogic.quest_target({"where": [10.0, 20.0], "target_site": 2}, meta), Vector2(10, 20), "a quest's live position wins")
+	t.eq(MapLogic.quest_target({"where": null, "target_site": 2, "site": 1}, meta), Vector2(900, 300), "else its target site")
+	t.eq(MapLogic.quest_target({"site": 1}, meta), Vector2(100, 600), "else the giver's town")
+	var known := MapLogic.discovered({1: true}, [{"site": 2}, {"site": -1}], [{"target_site": 3, "site": 1}])
+	t.eq(known, {1: "seen", 2: "heard", 3: "heard"}, "discovery: seen, heard of in rumours and quests; nothing else")
+	t.check(not known.has(4), "an unheard-of ruin is not drawn")
+	var routes := [{"a": 1, "b": 3, "path": []}, {"a": 1, "b": 4, "path": []}]
+	t.eq(MapLogic.known_routes(routes, known).size(), 1, "only roads between known places")
+	var z := MapLogic.fit_zoom(Vector2(2048, 1024), Vector2(1024, 400))
+	t.check(is_equal_approx(z, 400.0 / 1024.0), "fit zoom keeps the whole world in view")
+	var o := Vector2(10, 5)
+	var p := MapLogic.to_map(Vector2(100, 600), 1024.0, 0.5, o)
+	t.eq(p, Vector2(60, 217), "world to map: y flips")
+	t.eq(MapLogic.from_map(p, 1024.0, 0.5, o), Vector2(100, 600), "and back")
+	var path: Array = []
+	for i in 100:
+		path.append(Vector2i(i, 600))
+	var pl := MapLogic.polyline(path, 1024.0, 0.5, Vector2.ZERO, 3.0)
+	t.check(pl.size() < 40 and pl.size() >= 2, "route polyline decimated (%d points)" % pl.size())
+	t.eq(pl[pl.size() - 1], Vector2(49.5, 212), "the route's end is kept")
+	var oc := MapLogic.origin_for(Vector2(1024, 512), Vector2(2048, 1024), 1.0, Vector2(800, 400))
+	t.eq(oc, Vector2(-624, -312), "centred on a cell")
+	t.eq(MapLogic.origin_for(Vector2(0, 1024), Vector2(2048, 1024), 1.0, Vector2(800, 400)), Vector2(0, 0), "clamped at the world's corner")
+	t.eq(MapLogic.pick({1: Vector2(10, 10), 2: Vector2(40, 10)}, Vector2(36, 12)), 2, "pick the nearest site under the mouse")
+	t.eq(MapLogic.pick({1: Vector2(10, 10)}, Vector2(100, 100)), -1, "nothing near")
+	t.eq(MapLogic.surface_line([5, 5, 5, 5, 5, 5, 5, 5, 5, 5], 10.0, 1.0, Vector2.ZERO, 8).size(), 3, "surface sampled with its last column")
 
 func _input(t: TestLog) -> void:
 	t.check(InputLogic.hotbar_keys_allowed(false, false), "number keys pick slots normally")

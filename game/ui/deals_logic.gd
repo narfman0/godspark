@@ -60,6 +60,10 @@ static func person_label(person: Dictionary) -> String:
 		return r.capitalize()
 	return nm if nm.to_lower().contains(r.to_lower()) else "%s, %s" % [nm, r]
 
+## First letter up, the rest as it is.
+static func cap(s: String) -> String:
+	return s.substr(0, 1).to_upper() + s.substr(1)
+
 ## A chronicle line split into its date and its news: ["Year 1, spring", "first caravan ..."]
 ## (the news capitalised); no date: ["", text].
 static func rumour_parts(text: String) -> Array:
@@ -255,7 +259,7 @@ static func progress_text(q: Dictionary) -> String:
 	var need := int(p.get("need", 0))
 	if need > 1:
 		return "%d of %d" % [mini(int(p.get("have", 0)), need), need]
-	return "done, go back" if String(q.get("state", "")) == "ready" else "not yet"
+	return "done, go back" if String(q.get("state", "")) == "ready" else "under way"
 
 static func progress_frac(q: Dictionary) -> float:
 	var p: Dictionary = q.get("progress", {})
@@ -327,10 +331,10 @@ static func bearing(from: Vector2, to: Vector2) -> Dictionary:
 	var dist := d.length()
 	var horiz := "here"
 	if absf(d.x) >= 4.0:
-		horiz = "%d east" % roundi(d.x) if d.x > 0 else "%d west" % roundi(-d.x)
+		horiz = "%d tiles east" % roundi(d.x) if d.x > 0 else "%d tiles west" % roundi(-d.x)
 	var vert := ""
 	if absf(d.y) >= 8.0:
-		vert = "%d above" % roundi(d.y) if d.y > 0 else "%d below" % roundi(-d.y)
+		vert = "%d %s" % [roundi(absf(d.y)), "up" if d.y > 0 else "down"]
 	var text := horiz
 	if vert != "":
 		text = vert if horiz == "here" else "%s, %s" % [horiz, vert]

@@ -19,6 +19,8 @@ var target := 0
 var unmarked := {}
 ## Rumours with a place heard since the map was last opened (the map button pulses).
 var fresh_marks := 0
+## The quest pinned to the HUD tracker ("" none; the first under way is pinned by itself).
+var pinned := ""
 var _qstate := {}
 var _q_init := false
 var _turning_in := {}
@@ -251,6 +253,12 @@ func _on_quests(qs: Array) -> void:
 		_turning_in.erase(id)
 	_qstate = now
 	_q_init = true
+	if not (String(now.get(pinned, "")) in ["active", "ready"]):
+		pinned = ""
+		for q: Dictionary in qs:
+			if String(q.get("state", "")) in ["active", "ready"]:
+				pinned = String(q["id"])
+				break
 	var log_s: Control = gu.screens.get("quests")
 	if log_s != null and log_s.visible and log_s.has_method("refresh"):
 		log_s.call("refresh")

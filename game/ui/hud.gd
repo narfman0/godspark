@@ -23,6 +23,10 @@ var prompt_box: Control
 var toasts: VBoxContainer
 var banner_box: Control
 var downed_box: Control
+## The pinned quest (M4) and the row of screen buttons under the clock (map, work, standing, help).
+var tracker: QuestTracker
+var ledger: HBoxContainer
+var map_btn: Button
 ## Entities the own player has damaged (for kills in the deed tally, and nameplates).
 var hurt_by_me := {}
 ## SRD condition names on the own player (CONDITION events).
@@ -70,6 +74,22 @@ func _ready() -> void:
 	toasts.add_theme_constant_override("separation", 6)
 	toasts.z_index = 20      # over screens too
 	add_child(toasts)
+	tracker = QuestTracker.new()
+	tracker.gu = gu
+	tracker.visible = false
+	add_child(tracker)
+	ledger = HBoxContainer.new()
+	ledger.name = "ledger"
+	ledger.add_theme_constant_override("separation", 4)
+	for b: Array in [["Map  M", "map"], ["Work  J", "quests"], ["Standing  P", "standing"], ["Help  F1", "help"]]:
+		var btn := UiTheme.button(String(b[0]), UiTheme.TINY)
+		btn.add_theme_stylebox_override("normal", UiTheme.button_box(UiTheme.PARCHMENT))
+		var scr := String(b[1])
+		btn.pressed.connect(func() -> void: gu.toggle(scr))
+		ledger.add_child(btn)
+		if scr == "map":
+			map_btn = btn
+	add_child(ledger)
 	resized.connect(_layout)
 	_layout()
 
@@ -98,6 +118,10 @@ func _layout() -> void:
 	downed_box.position = Vector2.ZERO
 	toasts.position = Vector2(s.x - 332, 100)
 	toasts.size = Vector2(320, 300)
+	if ledger != null:
+		ledger.position = Vector2(s.x - 12 - ledger.get_combined_minimum_size().x, 92)
+		tracker.position = Vector2(s.x - 12 - QuestTracker.W, 126)
+		_toast_y()
 
 func attach() -> void:
 	if gu.items != null:
@@ -118,7 +142,18 @@ func set_dimmed(d: bool) -> void:
 	vitals.visible = not d
 	clock.visible = not d
 	banner_box.visible = not d
-	toasts.position.y = 4.0 if d else 100.0
+	ledger.visible = not d
+	tracker.modulate.a = 0.0 if d else 1.0
+	_toast_y()
+
+## Toasts sit under the clock, the screen buttons and the pinned quest (at the top over screens).
+func _toast_y() -> void:
+	if _dimmed:
+		toasts.position.y = 4.0
+	elif tracker != null and tracker.visible:
+		toasts.position.y = tracker.position.y + QuestTracker.H + 8
+	else:
+		toasts.position.y = 126.0 if ledger != null and ledger.visible and gu.deals_ui != null else 100.0
 
 # --- per frame (cheap: redraws only what changed) ----------------------------------------
 
@@ -199,6 +234,21 @@ func tick(delta: float) -> void:
 	if not downed.is_empty() or downed_box.visible or _night_t >= 0.0:
 		downed_box.visible = not downed.is_empty() or _night_t >= 0.0
 		downed_box.queue_redraw()
+	if gu.deals_ui != null:
+		var was := tracker.visible
+		tracker.tick(delta)
+		if was != tracker.visible:
+			_toast_y()
+		if map_btn != null:
+			var fresh := gu.deals_ui.fresh_marks > 0
+			map_btn.modulate = Color.WHITE.lerp(UiTheme.GOLD.lightened(0.3), 0.5 + 0.5 * sin(Time.get_ticks_msec() / 220.0)) if fresh else Color.WHITE
+			var t := "Map  M  (%d new)" % gu.deals_ui.fresh_marks if fresh else "Map  M"
+			if map_btn.text != t:
+				map_btn.text = t
+				ledger.reset_size()
+		ledger.position.x = size.x - 12 - ledger.get_combined_minimum_size().x
+	elif ledger.visible:
+		ledger.visible = false
 	prompt_box.visible = not prompt.is_empty() and not _dimmed
 	if prompt_box.visible:
 		prompt_box.queue_redraw()

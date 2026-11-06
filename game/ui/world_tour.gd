@@ -13,6 +13,7 @@ extends UiTour
 var dc: DealsClient
 var lc: LifeClient
 var items: ItemsClient
+var quest_id := ""
 
 func steps() -> void:
 	dc = cw.system(HostSystem.DEALS) as DealsClient
@@ -35,6 +36,33 @@ func steps() -> void:
 ## Later beats.
 func more() -> void:
 	await trade()
+	await work()
+
+## Work from the keeper: the offers in the dialogue, accepted; the log; the tracker.
+func work() -> void:
+	await talk_role("keeper")
+	ui.deals_ui.choose("quests")
+	await wait(1.0)
+	await shot("08_work_offers")
+	var offers: Array = dc.conversation.get("offers", [])
+	var taken := ""
+	for q: Dictionary in offers:
+		if String(q.get("kind", "")) == "message":
+			taken = String(q["id"])
+	if taken == "" and not offers.is_empty():
+		taken = String(offers[0]["id"])
+	if taken != "":
+		dc.accept(taken)
+	await wait(1.0)
+	quest_id = taken
+	dc.leave()
+	await wait(0.5)
+	ui.open("quests")
+	await wait(0.5)
+	await shot("09_quest_log")
+	ui.close("quests")
+	await wait(0.4)
+	await shot("10_tracker")
 
 ## Buy a rope and sell ore at the merchant; the smith's rack with a tooltip.
 func trade() -> void:

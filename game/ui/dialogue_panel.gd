@@ -207,7 +207,7 @@ func _offer_card(q: Dictionary) -> Control:
 	goal.custom_minimum_size.x = w
 	v.add_child(goal)
 	var tl := DealsLogic.time_left(int(q.get("due", 0)), dc.sim_hour())
-	v.add_child(_text("Reward: %s.  %s" % [DealsLogic.reward_text(q.get("reward", {})), tl.capitalize() if tl != "" else ""], UiTheme.TINY, UiTheme.GOLD.darkened(0.5)))
+	v.add_child(_text("Reward: %s.  %s" % [DealsLogic.reward_text(q.get("reward", {})), DealsLogic.cap(tl) if tl != "" else ""], UiTheme.TINY, UiTheme.GOLD.darkened(0.5)))
 	var mine := gu.cw.player_name in (q.get("players", []) as Array)
 	var b := UiTheme.button("Taken" if mine else ("Accept" if String(q.get("state", "")) == "offered" else "Join them"), UiTheme.SMALL)
 	b.disabled = mine

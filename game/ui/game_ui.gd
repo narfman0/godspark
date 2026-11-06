@@ -160,6 +160,7 @@ func register_screens() -> void:
 	factories["spells"] = func() -> Control: return SpellScreen.new()
 	factories["character"] = func() -> Control: return CharacterSheet.new()
 	factories["shop"] = func() -> Control: return ShopScreen.new()
+	factories["quests"] = func() -> Control: return QuestLogScreen.new()
 
 func screen(name: String) -> Control:
 	if screens.has(name):
@@ -179,6 +180,8 @@ func screen(name: String) -> Control:
 	return s
 
 func open(name: String) -> void:
+	if name == "map" and deals_ui != null:
+		deals_ui.fresh_marks = 0
 	var s := screen(name)
 	if s == null:
 		return
@@ -240,7 +243,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	for pair: Array in [["inventory", "inventory"], ["character", "character"], ["constellation", "constellation"],
-			["spellbook", "spells"], ["levelup", "choices"]]:
+			["spellbook", "spells"], ["levelup", "choices"], ["quest_log", "quests"], ["world_map", "map"], ["standing", "standing"],
+			["help", "help"]]:
 		if event.is_action_pressed(pair[0]):
 			toggle(pair[1])
 			get_viewport().set_input_as_handled()
