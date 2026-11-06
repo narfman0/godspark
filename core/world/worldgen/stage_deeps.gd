@@ -186,6 +186,7 @@ static func ascent(c: GenContext, rng: RandomNumberGenerator) -> void:
 		c.ascent = {}
 		return
 	_carve_path(c, best, GenContext.RAMP_H)
+	best_meta["path"] = best      # feet cells, for the passages stage (holes where it crosses a cave)
 	c.ascent = best_meta
 
 ## True if any of the last n path columns lies under (or within 3 of) a settlement flat:
@@ -238,7 +239,7 @@ static func portal(c: GenContext, rng: RandomNumberGenerator) -> void:
 	c.wall_rect(x0, floor_y, x0 + cw - 1, floor_y + ch - 1, c.W_COBBLE)
 	c.fill_rect(x0, floor_y - 1, x0 + cw - 1, floor_y - 1, c.COBBLE)
 	c.portal = {"cavern": ci, "x": x0 + cw / 2, "y": floor_y, "w": cw, "steps": path.size(),
-		"x0": sx}
+		"x0": sx, "path": path}
 
 static func ascent_uses(c: GenContext, ci: int) -> bool:
 	return not c.ascent.is_empty() and int(c.ascent["cavern"]) == ci

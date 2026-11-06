@@ -102,6 +102,8 @@ static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: in
 	var la := a.y - 1
 	var lb := b.y - 1
 	var out: Array = [a]
+	var stairs_r := TileDefs.id("stairs_r")
+	var stairs_l := TileDefs.id("stairs_l")
 	if xb < xa:
 		out.append(b)
 		return out
@@ -134,6 +136,7 @@ static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: in
 		var lo := maxi(la - (i + 1), lb - (n - i))
 		var hi := mini(la + (i + 1), lb + (n - i))
 		var r := clampi(clampi(t[i], lo, hi), prev - 1, prev + 1)
+		var prev0 := prev
 		prev = r
 		var nat := h[i]
 		if r < nat:
@@ -152,6 +155,10 @@ static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: in
 					c.fg[x + yy * c.w] = c.DIRT
 				c.fg[x + r * c.w] = road
 				c.surface[x] = r
+			elif r != prev0:
+				# a sloping span over air is a flight of stairs (one-way like the bridge, and
+				# walkable up: a walkway cannot be stepped up onto)
+				c.fg[x + r * c.w] = stairs_r if r > prev0 else stairs_l
 			else:
 				c.fg[x + r * c.w] = bridge
 		else:

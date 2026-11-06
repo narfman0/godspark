@@ -365,12 +365,16 @@ func _caves(t: TestLog, world_seed := 11, pairs := 24) -> Array:
 		out.append([ok, n])
 		t.check(n >= 20, "enough cave pairs for %s (%d)" % [spec[0], n])
 		# Noise caves are often cramped shafts a 2x3 or 3x4 body cannot climb without digging;
-		# when the search finds a way, the real body must take it.
-		# Since the passages stage (docs/tracks/traversal.md) far more cave paths are found,
-		# through ladders, ropes, steps and bridges; the follower takes about three in four.
-		# With settlements stamped as well (the Places merge) this test world gives 13 of 19:
-		# the bar is 6 in 10 until the follower's jumps are fixed (docs/todo.md, passability).
-		t.check(planned > 0 and ok * 10 >= planned * 6, "%s: the real body follows found cave paths (%d of %d)" % [spec[0], ok, planned])
+		# when the search finds a way, the real body must take it. The passability pass
+		# (docs/tracks/passability.md) made NavFollow steer jumps along their recorded arcs,
+		# brake for drops and take-offs, leave ladders cleanly and pick a path up again where
+		# the body stands, and made the planner match the controller (landings with real
+		# footing, stairs, platform drops): over 10 seeds a Medium walker follows 98% of its
+		# planned cave paths and a Large climber 85% (few Large paths per world, 8 or 9 here, so
+		# one miss moves it 11 points). The bar is 9 in 10 for Medium (it was 8 in 10 before the
+		# passages stage, then 7 and 6 while the follower failed jumps) and 3 in 4 for Large.
+		var ok_bar := ok * 10 >= planned * 9 if spec[0] == "medium" else ok * 4 >= planned * 3
+		t.check(planned > 0 and ok_bar, "%s: the real body follows found cave paths (%d of %d)" % [spec[0], ok, planned])
 		# The passages stage joins cave regions through two-wide shafts and Medium-sized ways,
 		# so many more pairs count as air-connected that a Large body cannot use: its share
 		# fell (docs/tracks/traversal.md); a Medium one rose.

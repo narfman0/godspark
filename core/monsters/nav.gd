@@ -125,7 +125,9 @@ static func cell_flags(world: TileWorld, x: int, y: int) -> int:
 # --- jumps: recorded from the real controller -------------------------------------------------
 
 ## Fly a body through scripted jumps on an empty world and keep every landing it could make:
-## the cells its box swept (relative to the start node) and the inputs that made it.
+## the cells its box swept (relative to the start node), the inputs that made it, and the
+## body's path tick by tick (tx, ty: feet offsets from the start node's middle after each
+## tick), which NavFollow steers along.
 static func _record_jumps(p: NavProfile) -> void:
 	var world := TileWorld.new(96, 96)
 	var sx := 40
@@ -145,6 +147,9 @@ static func _record_jumps(p: NavProfile) -> void:
 			var left := false
 			var done := false
 			var inp := PlayerInput.new()
+			var run_js: Array = []      # the landings this run made: they get its trajectory
+			var tx := PackedFloat32Array()
+			var ty := PackedFloat32Array()
 			for tick in JUMP_MAX_TICKS:
 				inp.jump = tick < hold
 				inp.jump_pressed = tick == 0
@@ -164,14 +169,25 @@ static func _record_jumps(p: NavProfile) -> void:
 						while yb > b.pos.y and yb >= sy - MAX_FALL:
 							var f := (prev.y - yb) / (prev.y - b.pos.y)
 							var xc := lerpf(prev.x, b.pos.x, f)
-							_landing(p, best, cells, xc, int(yb), sx, sy, hold, delay, tick + 1)
+							var lj := _landing(p, best, cells, xc, int(yb), sx, sy, hold, delay, tick + 1)
+							if not lj.is_empty():
+								run_js.append(lj)
 							yb -= 1.0
 					_sweep_cells(p, cells, b, sx, sy)
 					if b.pos.y < sy - MAX_FALL:
 						done = true
 						break
+				tx.append(b.pos.x - (sx + p.cw * 0.5))
+				ty.append(b.pos.y - sy)
 				if done:
 					break
+			var peak := 0.0
+			for v in ty:
+				peak = maxf(peak, v)
+			for lj: Dictionary in run_js:
+				lj["tx"] = tx
+				lj["ty"] = ty
+				lj["peak"] = peak
 	var out: Array = []
 	for k in best:
 		for j: Dictionary in best[k]:
@@ -197,16 +213,16 @@ static func _sweep_cells(p: NavProfile, cells: Dictionary, b: Body, sx: int, sy:
 			cells[k] = maxi(int(cells.get(k, 0)), mark)
 
 static func _landing(p: NavProfile, best: Dictionary, cells: Dictionary, xc: float, yb: int, sx: int, sy: int,
-		hold: int, delay: int, ticks: int) -> void:
+		hold: int, delay: int, ticks: int) -> Dictionary:
 	var lx := floori(xc - p.cw * 0.5 + 0.5)
 	var dl := lx - sx
 	var dy := yb - sy
 	if dl == 0 and dy <= 0:
-		return            # straight down or back where it started: walking covers it
+		return {}         # straight down or back where it started: walking covers it
 	if dy < 0 and absi(dl) <= 1:
-		return            # a drop does this
+		return {}         # a drop does this
 	if dy < -8:
-		return            # long jumps down: drops and shorter hops do it more simply
+		return {}         # long jumps down: drops and shorter hops do it more simply
 	var foot := cells.duplicate()
 	# the box at the landing spot itself
 	for cy in range(yb, yb + p.ch):
@@ -221,7 +237,7 @@ static func _landing(p: NavProfile, best: Dictionary, cells: Dictionary, xc: flo
 		else:
 			asc.append(k)
 	var j := {"dl": dl, "dy": dy, "hold": hold, "delay": delay, "dir": 1, "ticks": ticks,
-		"t": ticks / float(K.TICK_HZ), "asc": asc, "desc": desc, "xc": xc - sx}
+		"t": ticks / float(K.TICK_HZ), "asc": asc, "desc": desc, "xc": xc - sx, "ov": _overlaps(p, xc - sx, dl)}
 	var key := _pack(dl, dy)
 	var list: Array = best.get(key, [])
 	# keep the quickest, plus the one that steers latest (it clears ledges under the jumper)
@@ -234,6 +250,7 @@ static func _landing(p: NavProfile, best: Dictionary, cells: Dictionary, xc: flo
 	elif list.size() == 2 and delay > int(list[1]["delay"]):
 		list[1] = j
 	best[key] = list
+	return j
 
 ## The same jump to the left: offsets mirrored around the start node's middle.
 static func _mirror(p: NavProfile, j: Dictionary) -> Dictionary:
@@ -242,6 +259,13 @@ static func _mirror(p: NavProfile, j: Dictionary) -> Dictionary:
 	var xc := float(p.cw) - float(j["xc"])      # around sx + cw/2
 	m["xc"] = xc
 	m["dl"] = floori(xc - p.cw * 0.5 + 0.5)
+	m["ov"] = _overlaps(p, xc, int(m["dl"]))
+	var tx: PackedFloat32Array = j["tx"]
+	var mx := PackedFloat32Array()
+	mx.resize(tx.size())
+	for i in tx.size():
+		mx[i] = -tx[i]
+	m["tx"] = mx
 	for f: String in ["asc", "desc"]:
 		var src: PackedInt32Array = j[f]
 		var dst := PackedInt32Array()
@@ -251,6 +275,16 @@ static func _mirror(p: NavProfile, j: Dictionary) -> Dictionary:
 			dst[i] = _pack(p.cw - 1 - o.x, o.y)
 		m[f] = dst
 	return m
+
+## How much of the landing box (centre xc, both relative to the start node's left column)
+## lies over each column of the landing node (left column dl): a jump is only planned onto
+## a node whose floor holds enough of the box (NavSearch.MIN_SUPPORT).
+static func _overlaps(p: NavProfile, xc: float, dl: int) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	for k in p.cw:
+		var c := float(dl + k)
+		out.append(maxf(0.0, minf(c + 1.0, xc + p.w * 0.5) - maxf(c, xc - p.w * 0.5)))
+	return out
 
 static func _pack(dx: int, dy: int) -> int:
 	return (dx + 512) | ((dy + 512) << 10)

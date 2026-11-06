@@ -12,6 +12,12 @@ const LADDER := MonsterNav.LADDER
 const WET := MonsterNav.WET
 const KNOWN := MonsterNav.KNOWN
 const MARGIN := 24
+## Tiles of a jump's landing box that must lie over floor (a sliver over a ledge's corner is
+## not a landing a body makes reliably).
+const MIN_SUPPORT := 0.5
+## Rows a jump's arc must rise above its landing (a landing at the very top of the arc is
+## missed by a hair's difference in take-off).
+const MIN_CLEARANCE := 0.6
 
 var world: TileWorld
 var prof: NavProfile
@@ -234,7 +240,9 @@ func _expand(k: int, L: int, y: int) -> void:
 	if ld:
 		if _ladder(L, y + 1) or (_clear_at(L, y + 1) == 1 and _stand_at(L, y + 1)):
 			_relax(k, L, y + 1, g0 + lu, E.LADDER, 0)
-	if ld or (st and _cf(cc, y - 1) & LADDER):
+	# down: not through a walkway or tread in the centre column (it holds a climber up)
+	var under := _cf(cc, y - 1)
+	if (ld or (st and under & LADDER)) and not (under & ONEWAY and not (under & LADDER)):
 		if _ladder(L, y - 1):
 			_relax(k, L, y - 1, g0 + lu, E.LADDER, 0)
 		elif ld and _stand_at(L, y - 1):
@@ -244,6 +252,8 @@ func _expand(k: int, L: int, y: int) -> void:
 		var cu := 1.0 / maxf(prof.stats.climb_speed, 0.5)
 		for dy: int in [1, -1]:
 			var ny := y + dy
+			if side == 0:
+				break           # up or down a wall needs a wall beside the box
 			if _clear_at(L, ny) == 1 and (_cling(L, ny) != 0 or _stand_at(L, ny)):
 				_relax(k, L, ny, g0 + cu, E.CLING, 0)
 		if side != 0:
@@ -260,6 +270,17 @@ func _ground(k: int, g0: float, L: int, y: int, dir: int, st: bool) -> void:
 	var unit := 1.0 / prof.run
 	var c := _clear_at(nl, y)
 	if c != 2 and _stand_at(nl, y):
+		if st and _treads_only(L, y):
+			# on a staircase the controller keeps to the treads: a tread at the feet's row in
+			# the column the leading edge enters lifts it (the STAIRS edge), one a row down
+			# brings it down; it does not walk on level there
+			var lead := _lead(nl, dir)
+			if _cf(lead, y) & MonsterNav.STAIR:
+				return
+			if (_cf(lead, y - 2) & MonsterNav.STAIR) and not (_cf(lead, y - 1) & SOLID):
+				if _clear_at(nl, y - 1) == 1 and _stand_at(nl, y - 1):
+					_relax(k, nl, y - 1, g0 + unit, E.WALK, 0)
+				return
 		_relax(k, nl, y, g0 + unit + _dig_cost(nl, y, c), E.WALK, 0)
 		return
 	if c == 2 or c == 3:
@@ -301,7 +322,9 @@ func _platform_drop(k: int, g0: float, L: int, y: int) -> void:
 	for d in range(1, MonsterNav.MAX_FALL + 1):
 		if _clear_at(L, y - d) != 1:
 			return
-		if (d >= 2 or _tread_under(L, y - d)) and _stand_at(L, y - d):
+		# the controller ignores one-way tops only down to the row it dropped through: the
+		# first floor below (one row down too) holds it
+		if _stand_at(L, y - d):
 			_relax(k, L, y - d, g0 + 0.15 + sqrt(2.0 * d / maxf(prof.stats.gravity, 1.0)), E.PLATFORM, 0)
 			return
 
@@ -310,13 +333,28 @@ func _platform_drop(k: int, g0: float, L: int, y: int) -> void:
 func _stairs_up(k: int, g0: float, L: int, y: int) -> void:
 	for dir: int in [1, -1]:
 		var nl := L + dir
-		var any := false
-		for c in range(nl, nl + prof.cw):
-			if _cf(c, y) & MonsterNav.STAIR:
-				any = true
-				break
+		# the controller lifts only for a tread in the column its leading edge enters
+		var any := (_cf(_lead(nl, dir), y) & MonsterNav.STAIR) != 0
 		if any and _clear_at(nl, y + 1) == 1 and _clear_at(L, y + 1) == 1 and _stand_at(nl, y + 1):
 			_relax(k, nl, y + 1, g0 + 1.2 / prof.run, E.STAIRS, 0)
+
+## The column a body's leading edge is in at node nl, moving in dir (the column the
+## controller's stairs rule looks at).
+func _lead(nl: int, dir: int) -> int:
+	if dir > 0:
+		return floori(nl + prof.cw * 0.5 + prof.w * 0.5 - 0.01)
+	return floori(nl + prof.cw * 0.5 - prof.w * 0.5 + 0.01)
+
+## Standing on stair treads and nothing else (so on a staircase).
+func _treads_only(L: int, y: int) -> bool:
+	var any := false
+	for c in range(L, L + prof.cw):
+		var f := _cf(c, y - 1)
+		if f & SOLID or (f & ONEWAY and not (f & MonsterNav.STAIR)):
+			return false
+		if f & MonsterNav.STAIR:
+			any = true
+	return any
 
 func _tread_under(L: int, y: int) -> bool:
 	for c in range(L, L + prof.cw):
@@ -351,6 +389,15 @@ func _jumps(k: int, g0: float, L: int, y: int) -> void:
 		if _stand[tk] == 2 or _clear[tk] == 2 or _clear_at(tl, ty) != 1 or not _stand_at(tl, ty):
 			continue
 		var j: Dictionary = js[i]
+		if float(j["peak"]) - jdy[i] < MIN_CLEARANCE:
+			continue
+		var ov: PackedFloat32Array = j["ov"]
+		var held := 0.0
+		for c in prof.cw:
+			if _cf(tl + c, ty - 1) & (SOLID | ONEWAY):
+				held += ov[c]
+		if held < MIN_SUPPORT:
+			continue
 		var ok := true
 		for o: int in j["asc"]:
 			if _cf(L + (o & 1023) - 512, y + ((o >> 10) & 1023) - 512) & SOLID:
