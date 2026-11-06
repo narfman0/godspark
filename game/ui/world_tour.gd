@@ -20,6 +20,11 @@ func steps() -> void:
 	lc = cw.system(HostSystem.LIFE) as LifeClient
 	items = cw.system(HostSystem.ITEMS) as ItemsClient
 	pres.rig.zoom = 1.6
+	await host(func(h: WorldHost) -> void:
+		var ds := h.system(HostSystem.DEALS) as DealsSystem
+		var full := DealsCodec.write({"t": h.sim.t, "sites": ds.atlas_sites(), "routes": ds.atlas_routes(), "seen": [0], "all": true})
+		print("TOUR atlas on join %d B, sites only %d B, %d sites, %d routes" % [full.size(),
+			DealsCodec.write({"t": 0, "sites": ds.atlas_sites()}).size(), ds.atlas_sites().size(), ds.atlas_routes().size()]))
 	# the arrival banner: show it again for the picture (it rose while the world loaded)
 	ui.deals_ui._bannered.clear()
 	ui.deals_ui._at = -1

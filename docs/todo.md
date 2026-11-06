@@ -78,14 +78,23 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 - The `ALL=1` smoke runs with `places=0`: bots' placing is flaky in a peopled town.
 
 ## Deals (M4) ([tracks/deals.md](tracks/deals.md))
-- The keyboard panel (`game/ui/deals_stopgap.gd`) is a stopgap: the Interface track builds the
-  dialogue, shop, quest log, map marks and patron screens on `DealsClient`.
+- The stopgap panel is gone: the M4 Interface track built the dialogue, shop, quest log, map
+  and standing screens ([tracks/m4-interface.md](tracks/m4-interface.md)).
 - Escort work is rare: it needs a caravan already leaving that day (the sim plans caravans
   every 5 days). A sim hook to announce departures a day ahead would make it regular.
 - Recover covers raiders still abroad; goods already at the raiders' camp have no quest.
 - Patron work: the hunt is offered and taken in a test; its completion and sieges are not exercised end to end.
 - Quest coin and XP, shop markups, the rumour window: first guesses, unbalanced against loot.
 - Tile items (torches, rope) cannot be sold back; a paid bed is only a respawn point.
+
+## Interface (M4) ([tracks/m4-interface.md](tracks/m4-interface.md))
+- Portraits are role icons on faction colours; people's looks are not used.
+- Work marks preview the day's offers until someone asks (may differ if the town changes first).
+- Party plates keep the destination they spawned with; rumour map marks are not saved; the
+  standing history is per session (Life does not mirror reasons).
+- The escort's pointer follows QUESTS updates, so it lags a moving caravan.
+- Not judged by a human: map hover and drag, shop Shift-click and nudge, marks in a crowd,
+  the copy's tone; not looked at at 1920x1080.
 
 ## M2 after the integration pass ([tracks/m2-integration.md](tracks/m2-integration.md))
 
