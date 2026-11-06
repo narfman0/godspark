@@ -50,8 +50,23 @@ func route_pos(h: WorldHost, rid: int, t: float) -> Vector2:
 func party_pos(h: WorldHost, p: SimParty) -> Vector2:
 	var pp := h.sim.party_position(p)
 	if int(pp["route"]) >= 0:
-		return route_pos(h, int(pp["route"]), float(pp["frac"]))
+		return route_pos(h, int(pp["route"]), display_frac(h, p, float(pp["frac"])))
 	return LifeTown.site_pos(h, int(pp["site"]))
+
+## Where a travelling party is between the sim's hourly steps: its fraction moved on by the
+## part of the game hour the clock has run past the sim (display only: the sim's numbers are
+## untouched), so its people walk the road at the on-screen pace instead of jumping.
+func display_frac(h: WorldHost, p: SimParty, route_frac: float) -> float:
+	if p.state != "travel" or p.frozen or not h.sim.route_by_id.has(p.route):
+		return route_frac
+	var ahead := clampf(h.clock.hours() - float(h.sim_origin + h.sim.t), 0.0, 1.0)
+	if ahead <= 0.0:
+		return route_frac
+	var stop := 1.0
+	if p.route == p.target and String(p.plan.get("mode", "")) == "route" and String(p.plan.get("leg", "out")) == "out":
+		stop = 0.5
+	var f := minf(p.frac + ahead / maxf(h.sim.leg_hours(p.kind, p.route), 0.01), maxf(stop, p.frac))
+	return f if int(h.sim.route_by_id[p.route].a) == p.path[p.leg] else 1.0 - f
 
 ## The party's point on the ground (the first floor below, or out of rock).
 func ground(h: WorldHost, p: Vector2, slug := "") -> Vector2:

@@ -34,12 +34,11 @@ static func tick_parties(sim: WorldSim, hours: int) -> void:
 	_encounters(sim, hours)
 
 static func _advance(sim: WorldSim, p: SimParty, hours: float) -> void:
-	var speed: float = WorldSim.SPEED.get(p.kind, 1.0)
 	while hours > 0.0 and p.state == "travel":
 		if p.path.size() < 2 or p.leg >= p.path.size() - 1:
 			_arrive(sim, p)
 			return
-		var leg_h: float = sim.route_hours[p.route] / speed
+		var leg_h: float = sim.leg_hours(p.kind, p.route)
 		# Raiders and patrols stop halfway along their target route.
 		var stop_frac := 1.0
 		if p.route == p.target and p.plan.get("mode", "") == "route" and p.plan.get("leg", "out") == "out":
@@ -109,6 +108,10 @@ static func _handed_off(sim: WorldSim, p: SimParty) -> bool:
 	return sim.settlements.has(here) and sim.settlements[here].watched
 
 static func _encounters(sim: WorldSim, hours: int) -> void:
+	# Ambushes are checked every party tick (an hour: trips are short now); patrol clashes and
+	# lair hunts every 6 hours as before (lair hunts scaled by _exposure, so the danger of a
+	# trip stays what it was).
+	var slow := sim.t % 6 == 0
 	var on_route := {}
 	for pid in sim.parties:
 		var p: SimParty = sim.parties[pid]
@@ -125,7 +128,7 @@ static func _encounters(sim: WorldSim, hours: int) -> void:
 				continue
 			for ra in list:
 				if ra.state == "ambush" and sim.parties.has(ra.id) and sim.parties.has(pa.id) \
-						and _hostile(sim, ra.faction, pa.faction, false) and sim.rng.randf() < 0.25 \
+						and slow and _hostile(sim, ra.faction, pa.faction, false) and sim.rng.randf() < 0.25 \
 						and not (pa.watched or ra.watched):
 					_patrol_clash(sim, pa, ra, rid)
 		# Raiders spring on travellers.
@@ -149,6 +152,8 @@ static func _encounters(sim: WorldSim, hours: int) -> void:
 							helpers.append(pa)
 					_ambush(sim, ra, v, rid, helpers)
 		# Lairs hunt along the route.
+		if not slow:
+			continue
 		for v in list:
 			if not sim.parties.has(v.id) or v.state == "siege" or v.kind == "pack":
 				continue
@@ -158,10 +163,15 @@ static func _encounters(sim: WorldSim, hours: int) -> void:
 				var l: SimLair = sim.lairs[lsid]
 				if l.out > 0 or l.count() == 0:
 					continue
-				var chance := LAIR_HUNT * l.hunger * l.hunger * hours / 24.0
+				var chance := LAIR_HUNT * l.hunger * l.hunger * 6.0 / 24.0 * _exposure(sim, rid)
 				if sim.rng.randf() < chance and not v.watched:
 					if _lair_hunt(sim, l, v, rid):
 						break
+
+## How much shorter a trip is on screen than in planning distance: hazards that scale with time
+## on the road are scaled up by it so the danger of one trip stays what it was.
+static func _exposure(sim: WorldSim, rid: int) -> float:
+	return float(sim.route_hours[rid]) / maxf(sim.leg_hours("caravan", rid), 0.05)
 
 static func _hostile(sim: WorldSim, a: int, b: int, raiding: bool) -> bool:
 	if a == b or a < 0 or b < 0:

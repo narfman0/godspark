@@ -13,7 +13,7 @@ const YEAR_DAYS := 360
 const YEAR_H := DAY_H * YEAR_DAYS
 const SEASON_H := YEAR_H / 4
 const SEASONS := ["spring", "summer", "autumn", "winter"]
-const PARTY_H := 6
+const PARTY_H := 1
 const ECON_DAYS := 5
 const ECON_H := ECON_DAYS * DAY_H
 const MONTH_H := 30 * DAY_H
@@ -26,6 +26,14 @@ const DEEP := 2
 const LINK := 4
 const SPEED := {"caravan": 1.0, "migrants": 0.8, "settlers": 0.85, "raid": 1.5, "patrol": 1.2,
 	"army": 0.9, "expedition": 1.1, "pack": 1.4}
+## On-screen pace: how fast parties really move, in tiles per real second, watched or not
+## (a wagon 1.5, people on foot 2.5). A game hour is K.DAY_SECONDS / 24 real seconds, so a
+## caravan covers 75 tiles of route in a game hour. Planning (reach, costs, risk) still uses
+## `route_hours` (the old strategic distances: who trades with and raids whom is unchanged);
+## movement uses `route_travel_h`.
+const TRAVEL_TPS := {"caravan": 1.5, "settlers": 1.5, "migrants": 2.5, "raid": 2.5, "patrol": 2.5,
+	"army": 2.5, "expedition": 2.5, "pack": 2.5}
+const GAME_HOUR_S := float(K.DAY_SECONDS) / DAY_H
 ## Furthest a party will go, in days of travel at its own speed.
 const REACH_DAYS := {"caravan": 18.0, "migrants": 20.0, "settlers": 20.0, "raid": 10.0, "patrol": 8.0,
 	"army": 14.0, "expedition": 10.0, "pack": 5.0}
@@ -55,7 +63,8 @@ var world_w := 1.0
 var site_by_id := {}          # id -> site dict
 var route_by_id := {}         # id -> route dict
 var adj := {}                 # site id -> [[neighbour id, route id], ...]
-var route_hours := {}         # route id -> hours at speed 1
+var route_hours := {}         # route id -> hours at speed 1 (planning distance)
+var route_travel_h := {}      # route id -> game hours for a wagon at 1.5 tiles a second
 var route_lair_sites := {}    # route id -> [site ids a lair there would hunt from]
 var edge := {}                # "a:b" -> route id
 var market := {}              # SimEconomy.build_market, per econ tick
@@ -213,6 +222,7 @@ func _index_routes() -> void:
 		edge["%d:%d" % [r.a, r.b]] = r.id
 		edge["%d:%d" % [r.b, r.a]] = r.id
 		route_hours[r.id] = maxf(r.length / world_w * CROSS_DAYS * DAY_H, 6.0)
+		route_travel_h[r.id] = maxf(r.length / (1.5 * GAME_HOUR_S), 0.05)
 		# Lair sites whose hunters reach this route: its endpoints, and same-family sites
 		# whose x lies within the route's span plus a margin.
 		var lo := minf(a.x, b.x) - world_w * 0.015
@@ -659,6 +669,10 @@ func party_position(p: SimParty) -> Dictionary:
 	var r: Dictionary = route_by_id[p.route]
 	var f := p.frac if r.a == p.path[p.leg] else 1.0 - p.frac
 	return {"route": p.route, "frac": f, "site": -1}
+
+## Game hours a party of its kind needs for a route at its on-screen pace.
+func leg_hours(kind: String, rid: int) -> float:
+	return float(route_travel_h[rid]) * 1.5 / float(TRAVEL_TPS.get(kind, 2.5))
 
 func remove_party(p: SimParty) -> void:
 	parties.erase(p.id)
