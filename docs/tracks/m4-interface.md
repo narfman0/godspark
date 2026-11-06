@@ -71,7 +71,7 @@ band; a banner on reaching or losing a patron tier.
 
 | Where | What | Size |
 |---|---|---|
-| `core/deals/deals_codec.gd`, `deals_system.gd` | SYS Deals `ATLAS` (7), h->c JSON: on join `{t, sites, routes, seen, all}`; every 5 s to all players `{t, sites}` only when a digest of the list changes (population counted in tens); once a second, to one player, `{t, seen: [new ids]}` when they first stand at a site | dev world (seed 3, 2048x1024, sim day 60): join message measured by the tour (see "Measured"); the loopback test world (1024x512, 11 sites, 5 routes): 3560 B (1349 B after zstd), a site refresh 909 B; a seen message ~25 B |
+| `core/deals/deals_codec.gd`, `deals_system.gd` | SYS Deals `ATLAS` (7), h->c JSON: on join `{t, sites, routes, seen, all}`; every 5 s to all players `{t, sites}` only when a digest of the list changes (population counted in tens); once a second, to one player, `{t, seen: [new ids]}` when they first stand at a site | dev world (seed 3, 2048x1024, day 60, 17 sites, 8 routes): 5440 B on join, a site refresh 1583 B; the loopback test world (1024x512, 11 sites, 5 routes): 3560 B (1349 B after zstd), a site refresh 909 B; a seen message ~25 B |
 | | site: `{id, kind, name, culture, tier, pop, faction, state: DealsTalk.situation, work: [giver roles with ordinary offers today]}` for settlements (work only within 120 tiles of a player), `{id, kind, name, lair, apex}` for lairs, `{id, kind, ruin, name}` otherwise (a fallen town's name from Deals' `names`) | |
 | | route: `{id, a, b, kind, name, path}`, `path` every 8th feet cell of `Places.route_path` plus the last | |
 | | `DealsSystem.work_roles(sid)`: reads the day's offers when someone has asked, else previews `DealsQuests.offers` (pure) without keeping them, so the first real ask still makes the day's list (the determinism tests in test_deals stay green; an earlier version that cached them broke three) | |
@@ -109,7 +109,9 @@ player's actions through `DealsClient`.
 | What | Number |
 |---|---|
 | Tests | 3754 checks, ALL PASS (3624 before; 130 in `test_m4_interface.gd`) |
-| Smokes | see the final report / below |
+| Smokes | plain, `FIGHT=1 SPAWN=goblin-warrior:2`, `RULES=1`, `SPAWNS=1 WORLD="gen=dev seed=3" SEE=`, `LIFE=1`, `DEALS=1`, `ALL=1`: NET SMOKE PASS (each first try) |
+| ATLAS, dev world seed 3 at day 60 | 5440 B JSON on join (17 sites, 8 routes), 1583 B for a site refresh |
+| Tour | 22 shots in /tmp/claude-1000/godspark-m4ui/, about 3 minutes under soft_godot |
 
 ## Known rough edges
 
