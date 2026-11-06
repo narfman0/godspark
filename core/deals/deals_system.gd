@@ -227,10 +227,9 @@ func can_talk(e: HostEntity, x: HostEntity, keep := false) -> String:
 		return "no_one"
 	if not bool(x.get_meta("talk", false)):
 		return "no_talk"
-	if e.body.center().distance_to(x.body.center()) > (KEEP_RANGE if keep else TALK_RANGE):
-		return "far"
-	if not keep and not HitShapes.line_to(host.world, CombatSight.eye(e), x.body.rect()):
-		return "no_sight"
+	var out_of_reach := DealsTalk.reach(host.world, e.body, x.body.rect(), KEEP_RANGE if keep else TALK_RANGE, not keep)
+	if out_of_reach != "":
+		return out_of_reach
 	var combat := _sys(host, HostSystem.COMBAT)
 	if combat != null and combat.has_method("in_combat") and (bool(combat.call("in_combat", e)) or bool(combat.call("in_combat", x))):
 		return "fight"

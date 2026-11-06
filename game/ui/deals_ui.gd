@@ -7,8 +7,6 @@
 class_name DealsUi
 extends RefCounted
 
-const RANGE := 4.0
-
 var gu: GameUi
 var dc: DealsClient
 var lc: LifeClient
@@ -68,27 +66,9 @@ func attach(g: GameUi) -> void:
 func talking() -> bool:
 	return dc != null and dc.talking()
 
-## The nearest person who talks within RANGE tiles, or 0.
+## The nearest person who would talk now, or 0.
 func nearest() -> int:
-	if lc == null:
-		return 0
-	var best := 0
-	var bd := RANGE
-	var me := gu.cw.body.center()
-	var fx: Variant = gu.presenter.get("fx") if gu.presenter != null else null
-	var active: Dictionary = fx.plates.active if fx != null and fx.plates != null else {}
-	var now := Time.get_ticks_msec()
-	for id: int in lc.people:
-		if not bool(lc.people[id].get("talk", false)):
-			continue
-		var r: ClientWorld.RemoteEntity = gu.cw.remotes.get(id)
-		if r == null or now - int(active.get(id, -100000)) < 6000:
-			continue      # gone, or busy fighting: no talk now
-		var d := (r.pos + Vector2(0, r.size.y * 0.5)).distance_to(me)
-		if d <= bd:
-			bd = d
-			best = id
-	return best
+	return dc.nearest_person() if dc != null else 0
 
 ## ContextPrompts asks: someone to talk to here? Sets `target` (the prompt is drawn over them
 ## by PeopleMarks) and acts on E.

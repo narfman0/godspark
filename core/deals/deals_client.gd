@@ -46,6 +46,9 @@ var seen := {}
 var sim_t := 0
 var clock_h := 0.0
 
+## How near a person must be for the talk prompt (the host allows DealsSystem.TALK_RANGE).
+const PROMPT_RANGE := 4.0
+
 func sys_id() -> int:
 	return HostSystem.DEALS
 
@@ -171,6 +174,43 @@ func site_name(sid: int) -> String:
 	return String(sites.get(sid, {}).get("name", ""))
 
 # --- requests (validated on the host) -------------------------------------------------------
+
+## The nearest person the host would talk to now, or 0: what the talk prompt shows.
+func nearest_person() -> int:
+	var lc := cw.system(HostSystem.LIFE) as LifeClient if cw != null else null
+	if lc == null:
+		return 0
+	var best := 0
+	var bd := INF
+	for id: int in lc.people:
+		var r: ClientWorld.RemoteEntity = cw.remotes.get(id)
+		if r == null:
+			continue
+		var d := cw.body.center().distance_to(r.pos + Vector2(0.0, r.size.y * 0.5))
+		if d < bd and would_talk(id):
+			bd = d
+			best = id
+	return best
+
+## Would the host talk to this person now? The same reach as DealsSystem.can_talk, from a little
+## nearer (PROMPT_RANGE: a person may take a step while the request travels), and its other
+## refusals as far as a client can tell: a fight, being down, a faction's hostility. A grudge
+## is known to the host alone: that one is still refused after the prompt.
+func would_talk(id: int) -> bool:
+	var lc := cw.system(HostSystem.LIFE) as LifeClient
+	var r: ClientWorld.RemoteEntity = cw.remotes.get(id)
+	if lc == null or r == null or not bool(lc.person(id).get("talk", false)):
+		return false
+	var cc := cw.system(HostSystem.COMBAT) as CombatClient
+	if cc != null and (cc.in_fight(cw.my_id) or cc.in_fight(id)):
+		return false
+	var rc := cw.system(HostSystem.RULES) as RulesClient
+	if rc != null and rc.is_downed():
+		return false
+	var f := String(lc.person(id).get("faction", ""))
+	if Life.is_sim_faction(f) and lc.standing(f) <= int(Life.num("hostile_at", -40)):
+		return false
+	return DealsTalk.reach(cw.world, cw.body, Rect2(r.pos - Vector2(r.size.x * 0.5, 0.0), r.size), PROMPT_RANGE) == ""
 
 func talk(entity_id: int) -> void:
 	_send(DealsCodec.Msg.TALK_TO, {"e": entity_id})

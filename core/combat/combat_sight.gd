@@ -88,7 +88,10 @@ func senses_tiles(e: HostEntity) -> Dictionary:
 
 ## Eye point of a body (upper middle of its box).
 static func eye(e: HostEntity) -> Vector2:
-	return e.body.pos + Vector2(0, e.body.size.y * 0.8)
+	return eye_of(e.body)
+
+static func eye_of(b: Body) -> Vector2:
+	return b.pos + Vector2(0, b.size.y * 0.8)
 
 ## Can `viewer` see `target` (line of sight, light, Darkvision, Invisible)?
 func can_see(viewer: HostEntity, target: HostEntity) -> bool:

@@ -31,6 +31,8 @@ var spells: Array = []
 var busy_s := 0.0
 var _pending := 0.0
 var sent := 0
+## Entity id -> cw.clock when an event last named it.
+var _fighting := {}
 
 func sys_id() -> int:
 	return HostSystem.COMBAT
@@ -73,7 +75,19 @@ func _apply(ev: Dictionary) -> void:
 	events_log.append(ev)
 	if events_log.size() > LOG_MAX:
 		events_log.pop_front()
+	for id: int in [int(ev["src"]), int(ev["dst"])]:
+		if id != 0:
+			_fighting[id] = cw.clock
+	if _fighting.size() > 512:
+		for id: int in _fighting.keys():
+			if not in_fight(id):
+				_fighting.erase(id)
 	event.emit(ev)
+
+## Is this entity in a fight, as far as this client heard? The host's in_combat (the last blow
+## within in_combat_s), with a second's margin for the news to arrive.
+func in_fight(id: int) -> bool:
+	return _fighting.has(id) and cw.clock - float(_fighting[id]) <= CombatTempo.num("in_combat_s", 5.0) + 1.0
 
 func frame(dt: float) -> void:
 	busy_s = maxf(0.0, busy_s - dt)

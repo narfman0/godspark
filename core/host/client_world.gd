@@ -521,6 +521,13 @@ func advance(frame_dt: float) -> void:
 		view_offset *= exp(-frame_dt / CORRECT_BLEND)
 		if view_offset.length() < 0.01:
 			view_offset = Vector2.ZERO
+	# RemoteEntity.pos is where anyone reads a remote from, view or no view
+	for id: int in remotes:
+		var st := sample_remote(id)
+		var r: RemoteEntity = remotes[id]
+		r.pos = st["pos"]
+		r.flags = st["flags"]
+		r.vel = st["vel"]
 
 ## Interpolated state of a remote at the render time: {pos, vel, flags}.
 func sample_remote(id: int) -> Dictionary:
@@ -551,11 +558,8 @@ func present() -> void:
 		return
 	actor_moved.emit(my_id, view_pos(), body.facing, HostEntity.state_name(HostEntity.body_flags(body, _digging), body.vel))
 	for id: int in remotes:
-		var st := sample_remote(id)
 		var r: RemoteEntity = remotes[id]
-		r.pos = st["pos"]
-		r.flags = st["flags"]
-		actor_moved.emit(id, r.pos, 1 if r.flags & HostEntity.F_RIGHT else -1, HostEntity.state_name(r.flags, st["vel"]))
+		actor_moved.emit(id, r.pos, 1 if r.flags & HostEntity.F_RIGHT else -1, HostEntity.state_name(r.flags, r.vel))
 
 ## Interpolation buffer and identity of an entity someone else moves.
 class RemoteEntity extends RefCounted:
@@ -567,7 +571,9 @@ class RemoteEntity extends RefCounted:
 	var samples: Array = []
 	## True while the only sample is the one add_remote made.
 	var placeholder := false
+	## Interpolated at the render time, every ClientWorld.advance.
 	var pos := Vector2.ZERO
+	var vel := Vector2.ZERO
 	var flags := 0
 	## Hit points as last heard; -1 when it has none.
 	var hp := -1

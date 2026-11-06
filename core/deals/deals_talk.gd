@@ -5,6 +5,7 @@
 ##   DealsTalk.situation(sim, sid) -> Array[String]     hungry, besieged, raided, war, ...
 ##   DealsTalk.line(sim, seed, person, sid, hour) -> String
 ##   DealsTalk.rumours(sim, sid, role, seen, n := -1) -> [{id, text, kind, site, dir, dist, tiles, t}]
+##   DealsTalk.reach(world, body, their_box, tiles, sight) -> "" or far, no_sight (host and client)
 class_name DealsTalk
 extends RefCounted
 
@@ -16,6 +17,15 @@ const TELL := {"keeper": 5, "guard": 4, "merchant": 4}
 const RAIDED_DAYS := 30
 ## Wealth per head that makes a town prosperous.
 const RICH := 2.0
+
+## Can `me` speak to someone in the box `them`? "", "far" or "no_sight". The host's refusal and
+## the client's prompt both ask this, on their own copies of the world.
+static func reach(world: TileWorld, me: Body, them: Rect2, tiles: float, sight := true) -> String:
+	if me.center().distance_to(them.get_center()) > tiles:
+		return "far"
+	if sight and not HitShapes.line_to(world, CombatSight.eye_of(me), them):
+		return "no_sight"
+	return ""
 
 ## The town's situation from the sim, most pressing first.
 static func situation(sim: WorldSim, sid: int) -> Array:
