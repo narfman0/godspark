@@ -3,8 +3,9 @@
 ## matters: a flood of the monsters' nav graph (Medium walker, jumps recorded from the real
 ## controller) from the spawn settlement to every site and both ends of every route.
 ##   godot --headless -s res://tools/passability_sweep.gd -- [seeds=3,5,7] [size=dev] [flood=1]
-##                                                            [passages=0|1]
+##                                                            [passages=0|1] [cross=1]
 ## Prints one line per world and a PASSWEEP total. flood=0 skips the nav check (timings only).
+## cross=1: the real controller walks every pass, under-route and river crossing both ways.
 extends SceneTree
 
 const SP := preload("res://core/world/worldgen/stage_passages.gd")
@@ -28,6 +29,7 @@ func _initialize() -> void:
 	var kinds_all := {}
 	var rough := 0
 	var routes := 0
+	var cross_bad := 0
 	for s in seeds:
 		var world := WorldGen.generate_named(size, int(s), gopts)
 		var tm: Dictionary = WorldGen.last_timings
@@ -71,18 +73,26 @@ func _initialize() -> void:
 		if miss.is_empty():
 			worlds_ok += 1
 		print(line, "; on foot %d/%d" % [tg.size() - miss.size(), tg.size()])
+		if not rs.get("missing", []).is_empty():
+			print("    passages left apart: ", rs["missing"])
 		for m: String in miss:
 			print("    apart: ", m)
+		if opts.has("cross"):
+			var bad: Array = load("res://tests/test_barriers.gd").check_world(world)
+			print("    crossings: %s" % ("all walked both ways" if bad.is_empty() else str(bad)))
+			cross_bad += bad.size()
 	var n := seeds.size()
 	print("PASSWEEP %s x%d: targets on foot %d/%d, every target in %d of %d worlds; rough routes %d/%d; gen %.0f ms avg (passages %.0f, reach %.0f); joins per world %s" % [
 		size, n, tot_ok, tot_n, worlds_ok, n if flood else 0, rough, routes, float(gen_ms) / n, float(pass_ms) / n,
 		float(reach_ms) / n, _per(kinds_all, n)])
+	if opts.has("cross"):
+		print("PASSWEEP crossings wrong: %d" % cross_bad)
 	quit()
 
 static func _brief(rs: Dictionary) -> String:
 	var parts := PackedStringArray()
 	for rd: Dictionary in rs.get("rounds", []):
-		parts.append("%d apart, %d joined" % [rd["apart"], rd["joined"]])
+		parts.append("%d apart, %d joined, %s ms" % [rd["apart"], rd["joined"], rd.get("ms", "-")])
 	return "[%s] clean %s, %s ms" % [", ".join(parts), rs.get("clean", "-"), rs.get("ms", "-")]
 
 static func _per(d: Dictionary, n: int) -> Dictionary:
@@ -108,6 +118,16 @@ static func _targets(world: TileWorld) -> Array:
 		if path.size() >= 2:
 			out.append(["route %d a" % r["id"], Vector2(float(path[0][0]) + 0.5, float(path[0][1]))])
 			out.append(["route %d b" % r["id"], Vector2(float(path[-1][0]) + 0.5, float(path[-1][1]))])
+	var bar: Dictionary = world.meta.get("barriers", {})
+	for rg: Dictionary in bar.get("ranges", []):
+		for way: String in ["pass", "under"]:
+			var path: Array = rg[way]["path"]
+			out.append(["%s %d west" % [way, rg["id"]], Vector2(float(path[0][0]) + 0.5, float(path[0][1]))])
+			out.append(["%s %d east" % [way, rg["id"]], Vector2(float(path[-1][0]) + 0.5, float(path[-1][1]))])
+	for rv: Dictionary in bar.get("rivers", []):
+		var cells: Array = rv["crossing"]["cells"]
+		out.append(["river %d west" % rv["id"], Vector2(float(cells[0][0]) + 0.5, float(cells[0][1]))])
+		out.append(["river %d east" % rv["id"], Vector2(float(cells[-1][0]) + 0.5, float(cells[-1][1]))])
 	return out
 
 static func _reached(f: NavSearch, prof: NavProfile, p: Vector2) -> bool:

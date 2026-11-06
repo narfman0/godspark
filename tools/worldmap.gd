@@ -18,6 +18,10 @@ const ROUGH := Color(1.0, 0.2, 0.2)
 const KIND_COLORS := {"home": Color(0.95, 0.85, 0.6), "smithy": Color(1.0, 0.4, 0.1), "market": Color(1.0, 0.9, 0.2),
 	"tavern": Color(0.9, 0.5, 0.9), "shrine": Color(0.7, 0.8, 1.0), "gate": Color(0.6, 0.6, 0.6), "hall": Color(1.0, 0.3, 0.3),
 	"store": Color(0.4, 0.9, 0.5), "ruin": Color(0.5, 0.4, 0.4)}
+const PASS := Color(1.0, 1.0, 1.0)
+const UNDER := Color(1.0, 0.45, 0.0)
+const BRIDGE := Color(0.1, 0.95, 1.0)
+const FORD := Color(0.3, 1.0, 0.5)
 const SKY_TOP := Color(0.35, 0.55, 0.85)
 const SKY_LOW := Color(0.7, 0.82, 0.95)
 const VOID := Color(0.06, 0.05, 0.08)
@@ -116,6 +120,7 @@ static func render(world: TileWorld, crop := "") -> Image:
 				_line(img, to_px.call(path[i - 1][0], path[i - 1][1] + 1), to_px.call(path[i][0], path[i][1] + 1), col)
 		else:
 			_line(img, to_px.call(a["x"], a["y"] + 2), to_px.call(b["x"], b["y"] + 2), col)
+	_barriers(img, world, to_px)
 	# places: the street (white) and each building's outline (by kind)
 	for key: String in world.meta.get("places", {}):
 		var pl: Dictionary = world.meta["places"][key]
@@ -138,6 +143,22 @@ static func render(world: TileWorld, crop := "") -> Image:
 		img.fill_rect(Rect2i(p.x - r - 1, p.y - r - 1, 2 * r + 3, 2 * r + 3), Color.BLACK)
 		img.fill_rect(Rect2i(p.x - r, p.y - r, 2 * r + 1, 2 * r + 1), col)
 	return img
+
+## Passes (white), under-routes (orange) and river crossings (cyan, a bridge over a ford's green),
+## each with a mark at its ends; rivers' water is drawn by its tile.
+static func _barriers(img: Image, world: TileWorld, to_px: Callable) -> void:
+	var bar: Dictionary = world.meta.get("barriers", {})
+	var draw := func(path: Array, col: Color) -> void:
+		for i in range(1, path.size()):
+			_line(img, to_px.call(path[i - 1][0], path[i - 1][1] + 1), to_px.call(path[i][0], path[i][1] + 1), col)
+		for e: Array in [path[0], path[-1]]:
+			var p: Vector2i = to_px.call(e[0], e[1] + 1)
+			img.fill_rect(Rect2i(p.x - 4, p.y - 8, 9, 9).intersection(Rect2i(Vector2i.ZERO, img.get_size())), col)
+	for rg: Dictionary in bar.get("ranges", []):
+		draw.call(rg["under"]["path"], UNDER)
+		draw.call(rg["pass"]["path"], PASS)
+	for rv: Dictionary in bar.get("rivers", []):
+		draw.call(rv["crossing"]["cells"], FORD if rv["kind"] == "ford" else BRIDGE)
 
 ## A ribbon along the top in each biome's map_color, with dark ticks at the borders.
 static func _biome_ribbon(img: Image, world: TileWorld, x0: int, k: int) -> void:
@@ -166,6 +187,12 @@ func _summary(world: TileWorld) -> void:
 	var m := world.meta
 	print("bands: ", m["bands"])
 	print("climate: ", m.get("climate", {}))
+	var bar: Dictionary = m.get("barriers", {})
+	for rg: Dictionary in bar.get("ranges", []):
+		print("  range %d x %d-%d, peak %d, pass top %s, %d walls, %d galleries, under-route %d cells" % [rg["id"], rg["x0"], rg["x1"], rg["peak"],
+			rg["pass"]["top"], (rg["walls"] as Array).size(), rg["pass"]["galleries"], (rg["under"]["path"] as Array).size()])
+	for rv: Dictionary in bar.get("rivers", []):
+		print("  river %d x %d-%d in the %s, a %s, bank %d, bed %d" % [rv["id"], rv["x0"], rv["x1"], rv["biome"], rv["kind"], rv["bank"], rv["bed"]])
 	for seg: Dictionary in m["biomes"]:
 		print("  %-9s x %5d-%5d  %4.1f%% of the width, temp %.2f" % [seg["biome"], seg["x0"], seg["x1"],
 			100.0 * (int(seg["x1"]) - int(seg["x0"]) + 1) / world.width, float(seg.get("temp", 0.0))])

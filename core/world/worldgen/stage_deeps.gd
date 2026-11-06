@@ -9,6 +9,7 @@
 extends RefCounted
 
 const GenContext := preload("gen_context.gd")
+const Barriers := preload("stage_barriers.gd")
 
 static func caverns(c: GenContext, rng: RandomNumberGenerator) -> void:
 	var db: Array = c.bands["deeps"]
@@ -174,7 +175,7 @@ static func ascent(c: GenContext, rng: RandomNumberGenerator) -> void:
 				continue
 			var end: Vector2i = path[-1]
 			var gap := _flat_gap(c, end.x)
-			if gap < 6 or _tail_under_flat(c, path, 16):
+			if gap < 6 or _tail_under_flat(c, path, 16) or Barriers.reserved_in(c, end.x - 16, end.x + 16):
 				continue
 			var score: float = float(gap) + path.size() * 0.05 + k / 8 * 40.0
 			if score < best_score:

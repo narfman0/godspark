@@ -12,6 +12,7 @@
 extends RefCounted
 
 const GenContext := preload("gen_context.gd")
+const Barriers := preload("stage_barriers.gd")
 
 const MAX_CUT := 12
 const HALF_MAX := 150
@@ -84,10 +85,10 @@ static func limits(c: GenContext, s: Dictionary, deep: bool) -> Vector2i:
 		else:
 			hi = mini(hi, m - 12)
 	var a := sx
-	while a - 1 >= lo and _usable(c, a - 1, y, deep):
+	while a - 1 >= lo and _usable(c, a - 1, y, deep) and (deep or c.reserved[a - 1] == 0):
 		a -= 1
 	var b := sx
-	while b + 1 <= hi and _usable(c, b + 1, y, deep):
+	while b + 1 <= hi and _usable(c, b + 1, y, deep) and (deep or c.reserved[b + 1] == 0):
 		b += 1
 	return Vector2i(a, b)
 
@@ -155,7 +156,7 @@ static func _ramp(c: GenContext, x_start: int, dir: int, level: int) -> void:
 	var prev := level
 	var x := x_start
 	for k in RAMP_MAX:
-		if x < 1 or x >= c.w - 1:
+		if x < 1 or x >= c.w - 1 or c.reserved[x] != 0:
 			return
 		var nat := c.surface[x]
 		if absi(nat - prev) <= 1:

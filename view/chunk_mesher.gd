@@ -13,7 +13,8 @@
 ## face down to the back plane; bevels meet in mitres at outer corners and get two filler
 ## triangles at inner corners. Open cells with a background wall get a wall plane at WALL_Z.
 ## Non-solid tiles: torches are posts with a glowing head, walkways planks, stairs treads
-## with risers and a stringer, ladders rails and rungs, ropes a cord with a knot at the anchor.
+## with risers and a stringer, ladders rails and rungs, ropes a cord with a knot at the anchor,
+## water a sheet behind the actors.
 ##
 ## Vertex data: COLOR is the tile colour (linear), UV2 = (tile or wall id, kind) with kind
 ## 0 block, 1 emissive, 2 wall, and UV is a world-space tile coordinate on the face's plane:
@@ -226,6 +227,7 @@ static func _walls(buf: MeshBuf, _ids: PackedInt32Array, sol: PackedByteArray, b
 static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -> void:
 	var colors := TileDefs.colors
 	var emit := TileDefs.emit
+	var water := TileDefs.id("water")
 	for ly in N:
 		for lx in N:
 			var c := lx + 1 + (ly + 1) * PAD
@@ -233,7 +235,12 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) ->
 			if id == 0 or sol[c] != 0:
 				continue
 			var col := colors[id].srgb_to_linear()
-			if emit[id] > 0:
+			if id == water:
+				# A sheet behind the actors, with a lighter skin along the top.
+				buf.box(Vector3(lx, ly, -0.42), Vector3(lx + 1, ly + 1, -0.3), col, id, KIND_BLOCK)
+				if ids[c + PAD] != water:
+					buf.box(Vector3(lx, ly + 0.86, -0.3), Vector3(lx + 1, ly + 1, 0.42), col.lightened(0.35), id, KIND_BLOCK)
+			elif emit[id] > 0:
 				# A stick with a glowing head.
 				buf.box(Vector3(lx + 0.44, ly, -0.06), Vector3(lx + 0.56, ly + 0.5, 0.06), STICK.srgb_to_linear(), id, KIND_BLOCK)
 				buf.box(Vector3(lx + 0.36, ly + 0.5, -0.12), Vector3(lx + 0.64, ly + 0.82, 0.12), col, id, KIND_EMIT)

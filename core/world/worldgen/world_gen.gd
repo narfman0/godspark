@@ -26,6 +26,7 @@ const CaveSteps := preload("stage_cave_steps.gd")
 const PlacesStage := preload("stage_places.gd")
 const RoadsStage := preload("stage_roads.gd")
 const Passages := preload("stage_passages.gd")
+const Barriers := preload("stage_barriers.gd")
 
 ## [name, script, static method]. Append new stages where they belong; names are the RNG
 ## keys, so renaming a stage changes every world.
@@ -39,6 +40,7 @@ const STAGES := [
 	["deep_road", Deeps, "deep_road"],
 	["ascent", Deeps, "ascent"],
 	["portal", Deeps, "portal"],
+	["barriers", Barriers, "run"],
 	["ruins", Sites, "ruins"],
 	["ores", Ores, "run"],
 	["finish", Sites, "finish"],

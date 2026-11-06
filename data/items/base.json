@@ -22,6 +22,8 @@
 		"desert_track": "tile:rubble",
 		"causeway": "tile:rubble",
 		"green_lane": "tile:rubble",
+		"river_bed": "tile:rubble",
+		"ford_stones": "tile:rubble",
 		"stone": "tile:rubble",
 		"wood": "tile:rubble",
 		"cobblestone": "tile:rubble",

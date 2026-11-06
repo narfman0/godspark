@@ -1,0 +1,34 @@
+{
+	"_comment": "Mountain ranges and rivers (core/world/worldgen/stage_barriers.gd). Sizes are tiles unless they say otherwise. A world narrower than min_world has neither. range: one crest per mountain stretch with biomes on both sides (one more per range_every tiles of it); crest_share = its width as a fraction of the world's, clamped to crest; walls = how many cliffed walls stand on it, wall_w = each wall's share of its slot, height = wall height over half-width, terrace = rows between ledges: at least 10, since a body reaches 7.75 rows (6.75 of jump, 1 of step) and a neighbouring column can take one off. margin = columns either side kept clear of towns. pass_h = clear rows on the pass; open_cut = rock this thin over it is cut away to the sky, thicker is a gallery. torch_every = columns between lights in a gallery. under: cover = rows of rock over the under-route at its shallowest, search = how far outward from the margin a mouth is looked for, shelf = columns of level ground either side of a mouth, wander = rows it wanders. river: count = one per so many tiles of world width, biomes = where they run, with ford_p the chance of a ford. width = [lo, hi] of a channel (its sides slope a row a column), banks = columns of level ground each side, deep = rows of water under a bridge, drop = rows from the bank to the water (bridge), ford_drop = rows from the bank to the ford's bed (a ford has one row of water), seal = rows of river bed laid under it, flat_gap = columns kept from a town's flat. cost: a route's length grows by this fraction of the world's width per crossing.",
+	"min_world": 2048,
+	"range": {
+		"range_every": 2800,
+		"crest_share": 0.07,
+		"crest": [72, 640],
+		"walls_per": 190,
+		"walls": [2, 4],
+		"wall_w": [0.62, 0.9],
+		"height": [0.9, 1.5],
+		"wall_h": [14, 150],
+		"terrace": [10, 14],
+		"margin": 40,
+		"pass_h": 6,
+		"open_cut": 6,
+		"torch_every": 16
+	},
+	"under": {"cover": 26, "shelf": 10, "wander": 6, "search": 240},
+	"river": {
+		"count": 2700,
+		"biomes": {"forest": {"ford_p": 0.25}, "swamp": {"ford_p": 0.6}, "meadow": {"ford_p": 0.5}},
+		"width": [24, 36],
+		"ford_width": [18, 30],
+		"banks": 8,
+		"deep": [6, 7],
+		"drop": [3, 4],
+		"ford_drop": [2, 3],
+		"seal": 3,
+		"flat_gap": 48,
+		"edge": 96
+	},
+	"cost": {"pass": 0.05, "bridge": 0.003, "ford": 0.008}
+}

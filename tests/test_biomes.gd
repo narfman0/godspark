@@ -4,6 +4,7 @@ extends RefCounted
 const GenContext := preload("res://core/world/worldgen/gen_context.gd")
 const StageBiomes := preload("res://core/world/worldgen/stage_biomes.gd")
 const StageSurface := preload("res://core/world/worldgen/stage_surface.gd")
+const StageBarriers := preload("res://core/world/worldgen/stage_barriers.gd")
 const FIVE := ["desert", "forest", "meadow", "mountain", "swamp"]
 
 func run(t: TestLog) -> void:
@@ -107,17 +108,18 @@ func _heights(t: TestLog) -> void:
 				tall += 1
 			if names[-1] == "swamp":
 				low += 1
-			# walkable: the step limit holds everywhere, and on the mountain it is what a body can climb
+			# walkable: the step limit holds everywhere, and on the mountain it is what a body can
+			# climb. A range's walls are cliffs on purpose: there the pass under them is measured.
 			var worst := 0
 			for x in range(1, c.w):
 				var step := int(c.biome_defs[c.col_biome[x]]["height"]["step"])
-				var d := absi(c.ground[x] - c.ground[x - 1])
+				var d := absi(StageBarriers.rock_top(c, x) - StageBarriers.rock_top(c, x - 1))
 				worst = maxi(worst, d - step)
 			t.check(worst <= 1, "%dx%d seed %d: neighbouring columns keep to the step (over by %d)" % [size.x, size.y, sd, worst])
 			var band: Array = c.bands["surface"]
 			var flat_tops := 0
 			for x in c.w:
-				if c.ground[x] >= int(band[1]) - 4:
+				if StageBarriers.rock_top(c, x) >= int(band[1]) - 4:
 					flat_tops += 1
 			t.check(flat_tops < c.w / 50, "%dx%d seed %d: heights are not cut flat at the band top (%d)" % [size.x, size.y, sd, flat_tops])
 	t.check(tall >= n - 1, "the mountain stands highest (%d/%d)" % [tall, n])

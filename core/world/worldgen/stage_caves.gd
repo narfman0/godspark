@@ -4,6 +4,7 @@
 extends RefCounted
 
 const GenContext := preload("gen_context.gd")
+const Barriers := preload("stage_barriers.gd")
 
 static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	_noise_caves(c, rng)
@@ -43,7 +44,7 @@ static func _noise_caves(c: GenContext, rng: RandomNumberGenerator) -> void:
 	limit.resize(c.w)
 	var ncrust := c.noise(rng, 1.0 / 40.0)
 	for x in c.w:
-		limit[x] = c.ground[x] - 12 - int((ncrust.get_noise_1d(x) + 1.0) * 5.0)
+		limit[x] = Barriers.rock_top(c, x) - 12 - int((ncrust.get_noise_1d(x) + 1.0) * 5.0)
 	var w := c.w
 	var fg := c.fg
 	var air := c.AIR
@@ -77,7 +78,7 @@ static func _worm(c: GenContext, rng: RandomNumberGenerator, x: float, y: float,
 		y += sin(ang) * 1.6
 		r = clampf(r + rng.randf_range(-0.25, 0.25), 1.8, 3.6)
 		var gx := clampi(int(x), 0, c.w - 1)
-		var ymax := c.ground[gx] - ymax_off
+		var ymax := Barriers.rock_top(c, gx) - ymax_off
 		if y > ymax:
 			y = ymax
 			ang = -absf(ang) if keep_level else ang
@@ -112,7 +113,7 @@ static func _entrances(c: GenContext, rng: RandomNumberGenerator) -> void:
 		if placed >= n:
 			break
 		var x := rng.randi_range(40, c.w - 41)
-		if _near_flat(c, x, 50):
+		if _near_flat(c, x, 50) or c.reserved[x] != 0:
 			continue
 		var dir := 1.0 if rng.randf() < 0.5 else -1.0
 		var ang := -PI / 2.0 + dir * rng.randf_range(0.35, 0.75)
@@ -120,7 +121,7 @@ static func _entrances(c: GenContext, rng: RandomNumberGenerator) -> void:
 		var steps := int((c.ground[x] - target) / 1.2)
 		# Steer away from flats: the worm drifts sideways by about steps * cos(ang).
 		var end_x := x + int(cos(ang) * 1.6 * steps)
-		if end_x < 20 or end_x > c.w - 20:
+		if end_x < 20 or end_x > c.w - 20 or Barriers.reserved_in(c, mini(x, end_x), maxi(x, end_x)):
 			continue
 		_worm(c, rng, x, c.ground[x] + 2, ang, steps, rng.randf_range(2.2, 3.0), cb[0], -4, 0.12, false)
 		placed += 1

@@ -9,6 +9,7 @@ const BAND_CUTS := [["nadir", 0.0], ["deeps", 0.14], ["caves", 0.42], ["surface"
 ## Clear height of the deep road and ramps, in tiles.
 const ROAD_H := 6
 const RAMP_H := 5
+const _Barriers := preload("stage_barriers.gd")
 
 var w: int
 var h: int
@@ -40,6 +41,10 @@ var sites: Array = []
 var routes: Array = []
 var objects := PackedInt32Array()  ## dressing records, flat (id, x, y, variant)
 var places := {}                   ## meta.places: site id (String) -> place (PlaceBuilder)
+var ranges: Array = []             ## mountain ranges (stage_barriers.gd)
+var rivers: Array = []             ## rivers (stage_barriers.gd)
+var reserved := PackedByteArray()  ## per column: 1 kept for a barrier (no towns, ramps, entrances)
+var pass_y := PackedInt32Array()   ## per column: feet row of a range's pass, -1 elsewhere
 
 var AIR := 0
 var BEDROCK: int
@@ -65,6 +70,9 @@ func _init(width: int, height: int, seed_value: int, options: Dictionary) -> voi
 	surface.resize(w)
 	bed.resize(w)
 	col_biome.resize(w)
+	reserved.resize(w)
+	pass_y.resize(w)
+	pass_y.fill(-1)
 	BEDROCK = TileDefs.id("bedrock")
 	STONE = TileDefs.id("stone")
 	SLATE = TileDefs.id("slate")
@@ -228,5 +236,6 @@ func to_world() -> TileWorld:
 		"sites": sites.duplicate(true),
 		"routes": routes.duplicate(true),
 		"places": places.duplicate(true),
+		"barriers": _Barriers.meta(self),
 	}
 	return world

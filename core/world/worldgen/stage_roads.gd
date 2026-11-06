@@ -17,6 +17,7 @@ extends RefCounted
 
 const GenContext := preload("gen_context.gd")
 const StagePlaces := preload("stage_places.gd")
+const Barriers := preload("stage_barriers.gd")
 
 const DIP := 14
 const FILL_MAX := 3
@@ -39,7 +40,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 			var right := b if left == a else a
 			var ea := _end(c, left, 1)
 			var eb := _end(c, right, -1)
-			path = grade(c, ea, eb, bridge, rng)
+			path = way(c, ea, eb, bridge, rng)
 			for p: Vector2i in path:
 				graded[p.x] = true
 			_signs(c, rng, path)
@@ -64,7 +65,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 						crosses = true   # a road already runs there: the walk follows it
 						break
 				if not crosses:
-					var leg := grade(c, p0 if dir > 0 else te, te if dir > 0 else p0, bridge, rng)
+					var leg := way(c, p0 if dir > 0 else te, te if dir > 0 else p0, bridge, rng)
 					_signs(c, rng, leg)
 				if surf_a:
 					ea = te
@@ -93,6 +94,21 @@ static func _end(c: GenContext, s: Dictionary, dir: int) -> Vector2i:
 		return Vector2i(int(s["x"]), int(s["y"]))
 	var st: Array = p["street"]
 	return Vector2i(int(st[1]) if dir > 0 else int(st[0]), int(st[2]))
+
+## A road from feet cell a to feet cell b (a.x < b.x): graded up to each barrier between them,
+## then along its crossing as it stands (a pass, a bridge, a ford). Returns the feet cells.
+static func way(c: GenContext, a: Vector2i, b: Vector2i, bridge: int, rng: RandomNumberGenerator) -> Array:
+	var out: Array = []
+	var from := a
+	for x: Dictionary in Barriers.crossings(c, a.x, b.x):
+		var cells: Array = x["cells"]
+		var leg := grade(c, from, cells[0], bridge, rng)
+		out.append_array(leg if out.is_empty() else leg.slice(1))
+		out.append_array(cells.slice(1))
+		from = cells[-1]
+	var last := grade(c, from, b, bridge, rng)
+	out.append_array(last if out.is_empty() else last.slice(1))
+	return out
 
 ## Grade a road from feet cell a to feet cell b (a.x < b.x); returns the feet cells.
 static func grade(c: GenContext, a: Vector2i, b: Vector2i, bridge: int, _rng: RandomNumberGenerator) -> Array:

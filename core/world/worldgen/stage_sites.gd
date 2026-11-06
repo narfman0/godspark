@@ -12,6 +12,7 @@ extends RefCounted
 
 const GenContext := preload("gen_context.gd")
 const StageBiomes := preload("stage_biomes.gd")
+const Barriers := preload("stage_barriers.gd")
 
 static func ruins(c: GenContext, rng: RandomNumberGenerator) -> void:
 	var cb: Array = c.bands["caves"]
@@ -119,7 +120,7 @@ static func sites(c: GenContext, rng: RandomNumberGenerator) -> void:
 	for _try in 200:
 		var x := rng.randi_range(30, c.w - 31)
 		var mouth := int(c.ascent.get("x1", -1000))
-		if _flat_gap(c, x) < 40 or absi(x - mouth) < 40:
+		if _flat_gap(c, x) < 40 or absi(x - mouth) < 40 or Barriers.reserved_in(c, x - 8, x + 8):
 			continue
 		var y := c.surface[x] + 1
 		if absi(c.surface[x - 3] - c.surface[x + 3]) <= 2 and _headroom(c, x, y, 6):
@@ -186,9 +187,9 @@ static func routes(c: GenContext, _rng: RandomNumberGenerator) -> void:
 	for i in surface_towns.size() - 1:
 		var a: Dictionary = surface_towns[i]
 		var b: Dictionary = surface_towns[i + 1]
-		var length := 0
+		var length := Barriers.cost(c, Barriers.crossings(c, int(a["x"]), int(b["x"])))
 		for x in range(int(a["x"]), int(b["x"])):
-			length += 1 + absi(c.surface[x + 1] - c.surface[x])
+			length += 1 + absi(Barriers.way_y(c, x + 1) - Barriers.way_y(c, x))
 		_route(c, a["id"], b["id"], "road", length)
 	for i in deep_towns.size() - 1:
 		var a: Dictionary = deep_towns[i]

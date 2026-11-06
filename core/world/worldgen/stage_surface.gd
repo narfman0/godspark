@@ -7,6 +7,7 @@ extends RefCounted
 
 const GenContext := preload("gen_context.gd")
 const StageBiomes := preload("stage_biomes.gd")
+const Barriers := preload("stage_barriers.gd")
 
 const KEYS := ["base", "big", "mid", "fine", "ridge", "dune"]
 ## Share of the surface band under its top where heights start easing off.
@@ -42,6 +43,9 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 				+ float(p["fine"][x]) * fine.get_noise_1d(x) * amp_fine
 		raw[x] = _ease_top(v, top, band * KNEE)
 
+	# Barriers draw from an RNG of their own, so they never reshuffle the ground around them.
+	var brng := WorldGen.rng_for(c.world_seed, "barrier_plan")
+	var held_spans: Array = Barriers.plan_ranges(c, brng, raw, BLEND)
 	# Flat stretches, one per slot across the width.
 	var n := maxi(2, c.w / 340)
 	var slot := c.w / n
@@ -53,6 +57,8 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 		centre = clampi(centre, fw + 8, c.w - fw - 8)
 		var x0 := centre - fw / 2
 		var x1 := x0 + fw - 1
+		if Barriers.reserved_in(c, x0 - int(BLEND), x1 + int(BLEND)):
+			continue                       # no town on a range
 		var level := 0.0
 		for x in range(x0, x1 + 1):
 			level += raw[x]
@@ -69,6 +75,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 				raw[x] = lerpf(level, raw[x], smoothstep(0.0, 1.0, d / BLEND))
 		c.flats.append({"x0": x0, "x1": x1, "y": int(level)})
 
+	held_spans.append_array(Barriers.plan_rivers(c, brng, raw, BLEND))
 	for x in c.w:
 		c.ground[x] = clampi(roundi(raw[x]), int(bottom), int(top))
 	# Never more than the biome's step between neighbours (keeps the surface walkable). The
@@ -78,6 +85,9 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	held.resize(c.w)
 	for f: Dictionary in c.flats:
 		for x in range(int(f["x0"]), int(f["x1"]) + 1):
+			held[x] = 1
+	for span: Array in held_spans:
+		for x in range(int(span[0]), int(span[1]) + 1):
 			held[x] = 1
 	for x in range(1, c.w):
 		if held[x] == 0:
@@ -89,6 +99,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 			c.ground[x] = clampi(c.ground[x], c.ground[x + 1] - st, c.ground[x + 1] + st)
 	for f: Dictionary in c.flats:  # the band clamp may have moved a flat
 		f["y"] = c.ground[(int(f["x0"]) + int(f["x1"])) / 2]
+	Barriers.raise(c, brng)
 
 ## Heights above the knee ease toward the top of the band instead of being cut flat there.
 static func _ease_top(v: float, top: float, knee: float) -> float:

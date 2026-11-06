@@ -31,6 +31,7 @@
 extends RefCounted
 
 const GenContext := preload("gen_context.gd")
+const Barriers := preload("stage_barriers.gd")
 
 const JUMP_UP := 4
 const JUMP_ACROSS := 4
@@ -582,6 +583,10 @@ class Passer extends RefCounted:
 
 	# --- 1. spots ----------------------------------------------------------------------------
 
+	## A spot needs three open rows in two columns over a floor, so only rows just above a floor
+	## are tried. The grid is turned on its side (each column contiguous, rows ascending) with
+	## everything open made 0, and native searches jump over the rock between open runs: this
+	## runs once per look, and walking 18 million cells of a medium world took a look 1.7 s.
 	func build_spots() -> void:
 		var t0 := Time.get_ticks_usec()
 		var fg := c.fg
@@ -589,19 +594,67 @@ class Passer extends RefCounted:
 		sid.resize(w * h)
 		sid.fill(-1)
 		keep.resize(w * h)
-		# open run above each cell, capped at 3, column by column (two columns at a time)
-		var up_a := PackedByteArray()
-		var up_b := PackedByteArray()
-		up_a.resize(top + 4)
-		up_b.resize(top + 4)
-		_col_up(0, up_b)
+		var tall := top + 4
+		var img := Image.create_from_data(w, h, false, Image.FORMAT_R8, fg).get_region(Rect2i(0, 0, w, tall))
+		img.rotate_90(COUNTERCLOCKWISE)      # (x, y) goes to y + (w - 1 - x) * tall
+		var col := img.get_data()
+		var cand: Array = []                 # per column: rows that stand on something
+		cand.resize(w)
+		var mark := PackedInt32Array()       # the same for walkways and ladders: cell in col
+		for id in solid.size():
+			if solid[id] != 0 or id == c.AIR:
+				continue
+			var i := col.find(id)
+			while i >= 0:
+				col[i] = 0
+				if oneway[id] != 0 or climb[id] != 0:
+					mark.append(i)
+				i = col.find(id, i + 1)
+		mark.sort()
+		var im := mark.size() - 1            # high offsets are low columns: walked from the end
+		for x in w:
+			var mine := PackedInt32Array()
+			var base := (w - 1 - x) * tall
+			var end := base + tall
+			while im >= 0 and mark[im] >= base:
+				mine.append(mark[im] - base + 1)
+				im -= 1
+			var marks := mine.size()
+			var i := col.find(0, base)
+			while i >= 0 and i < end:
+				mine.append(i - base)        # the first open row over rock
+				i += 1
+				while i + 64 <= end and col.slice(i, i + 64).count(0) == 64:
+					i += 64
+				while i < end and col[i] == 0:
+					i += 1
+				i = col.find(0, i)
+			if marks > 0:
+				mine.sort()
+			cand[x] = mine
 		for x in w - 1:
-			var tmp := up_a
-			up_a = up_b
-			up_b = tmp
-			_col_up(x + 1, up_b)
-			for y in range(1, top):
-				if up_a[y] < 3 or up_b[y] < 3:
+			var ca: PackedInt32Array = cand[x]
+			var cb: PackedInt32Array = cand[x + 1]
+			var na := ca.size()
+			var nb := cb.size()
+			var ia := 0
+			var ib := 0
+			var oa := (w - 1 - x) * tall
+			var ob := oa - tall
+			var last := -1
+			while ia < na or ib < nb:
+				var y: int
+				if ib >= nb or (ia < na and ca[ia] <= cb[ib]):
+					y = ca[ia]
+					ia += 1
+				else:
+					y = cb[ib]
+					ib += 1
+				if y == last or y < 1 or y >= top:
+					continue
+				last = y
+				if col[oa + y] != 0 or col[oa + y + 1] != 0 or col[oa + y + 2] != 0 \
+						or col[ob + y] != 0 or col[ob + y + 1] != 0 or col[ob + y + 2] != 0:
 					continue
 				var a := fg[x + (y - 1) * w]
 				var b := fg[x + 1 + (y - 1) * w]
@@ -616,17 +669,6 @@ class Passer extends RefCounted:
 		net.resize(spx.size())
 		stats["spots"] = spx.size()
 		stats["spots_ms"] = (Time.get_ticks_usec() - t0) / 1000
-
-	func _col_up(x: int, out: PackedByteArray) -> void:
-		var fg := c.fg
-		var solid := c.solid
-		var run := 0
-		for y in range(top + 3, -1, -1):
-			if solid[fg[x + y * w]] != 0:
-				run = 0
-			elif run < 3:
-				run += 1
-			out[y] = run
 
 	# --- 2. two-way moves ----------------------------------------------------------------------
 
@@ -667,22 +709,27 @@ class Passer extends RefCounted:
 	func join_moves() -> void:
 		var t0 := Time.get_ticks_usec()
 		var edges := 0
+		var lifted := log_edges
 		for s in spx.size():
 			var x := spx[s]
 			var y := spy[s]
+			var i := x + y * w
 			var walk_r := false
-			var walk_l := spot(x - 1, y) >= 0 or (spot(x - 1, y + 1) >= 0 and open(x + 1, y + 3)) \
-				or (spot(x - 1, y - 1) >= 0 and open(x - 1, y + 2) and open(x, y + 2))
-			var t := spot(x + 1, y)
+			var walk_l := sid[i - 1] >= 0 or (sid[i - 1 + w] >= 0 and open(x + 1, y + 3) and _lifts(x, y, -1)) \
+				or (sid[i - 1 - w] >= 0 and open(x - 1, y + 2) and open(x, y + 2) and _lifts(x - 1, y - 1, 1))
+			var t := sid[i + 1]
 			if t >= 0:
+				if lifted:
+					_link(s, t, 1)
+				else:
+					union(s, t)
+				walk_r = true
+			t = sid[i + 1 + w]
+			if t >= 0 and open(x, y + 3) and _lifts(x, y, 1):
 				_link(s, t, 1)
 				walk_r = true
-			t = spot(x + 1, y + 1)
-			if t >= 0 and open(x, y + 3):
-				_link(s, t, 1)
-				walk_r = true
-			t = spot(x + 1, y - 1)
-			if t >= 0 and open(x + 2, y + 2) and open(x + 1, y + 2):
+			t = sid[i + 1 - w]
+			if t >= 0 and open(x + 2, y + 2) and open(x + 1, y + 2) and _lifts(x + 1, y - 1, -1):
 				_link(s, t, 1)
 				walk_r = true
 			if walk_r and walk_l:
@@ -709,8 +756,8 @@ class Passer extends RefCounted:
 							break
 						if dx >= 2:
 							t = spot(x + dx * dir, y + dy)
-							if t >= 0 and _footing(t, dx * dir):
-								_link(s, t, 3)
+							if t >= 0 and _footing(t, dx * dir) and _footing(s, -dx * dir):
+								_link(s, t, 3)       # a link is two-way: footing at both ends
 		# ladders and ropes: every spot along a climbable run (the climbable cells are found
 		# with a native search, not a walk over every cell)
 		var fg := c.fg
@@ -745,6 +792,17 @@ class Passer extends RefCounted:
 						_link(first, k, 4)
 		stats["floor_ends"] = edges
 		stats["moves_ms"] = (Time.get_ticks_usec() - t0) / 1000
+
+	## Does a body walking from the spot at (x, y) in direction dir (+1, -1) rise a row? Only
+	## for something solid in its way at the feet's row, or a stair tread in the column its
+	## leading edge enters. A walkway or a ladder top one row up is one-way: the body walks in
+	## under it and is not lifted, so that step goes down only, and a link would join two
+	## ways nobody can walk both ways (a ruin on medium seed 2 hung off one such step).
+	func _lifts(x: int, y: int, dir: int) -> bool:
+		var nl := x + dir
+		if c.solid[c.fg[nl + y * w]] != 0 or c.solid[c.fg[nl + 1 + y * w]] != 0:
+			return true
+		return TileDefs.stairs[c.fg[(nl + 1 if dir > 0 else nl) + y * w]] != 0
 
 	## A landing a jump makes reliably, coming from direction dir: floor under the column on
 	## the side it comes from (a body landing on a corner whose floor is on the far side slides
@@ -823,6 +881,8 @@ class Passer extends RefCounted:
 			if r == root:
 				continue
 			var m: Array = members[r]
+			if _on_a_peak(int(m[0])):
+				continue               # a range's walls stay unclimbed: the pass is the way
 			if m.size() >= MIN_SPOTS and (m.size() >= BIG_SPOTS or c.band_at(spy[int(m[0])]) in ["caves", "surface", "sky"]):
 				todo.append(r)
 		todo.sort()
@@ -991,7 +1051,6 @@ class Passer extends RefCounted:
 	## must: a site's or route end's component: if every cheap pair runs into something built,
 	## look through the dearer ones too (only then: it scans the whole network).
 	func _nearest(m: Array, radius: int, must := false) -> Array:
-		var best := []
 		var best_cost := INF
 		var cands: Array = []
 		var stride := maxi(1, m.size() / (SAMPLES if radius < 200 else 8))     # far searches: fewer samples
@@ -1037,24 +1096,56 @@ class Passer extends RefCounted:
 			if not _hits_built(Vector2i(spx[cd[1]], spy[cd[1]]), Vector2i(spx[cd[2]], spy[cd[2]])):
 				return [cd[1], cd[2]]
 		if not must:
-			return best
-		var all_pairs: Array = []
-		for bkey: int in blocks:
-			var a: int = blocks[bkey]
-			for key: int in buckets:
-				for b: int in buckets[key]:
-					var dx := absi(spx[b] - spx[a])
-					var dy := absi(spy[b] - spy[a])
-					if dx <= radius and dy <= radius:
-						all_pairs.append([dx + 0.6 * dy, a, b])
-		all_pairs.sort_custom(func(p: Array, q: Array) -> bool: return p[0] < q[0])
+			return []
+		var all_pairs := _dear_pairs(blocks, radius)
 		for k in mini(all_pairs.size(), MUST_TRIES):
 			var cd: Array = all_pairs[k]
 			var pa := Vector2i(spx[cd[1]], spy[cd[1]])
 			var pb := Vector2i(spx[cd[2]], spy[cd[2]])
 			if not _forbidden(pa.x, pa.y, pb.x, pb.y) and not _hits_built(pa, pb):
 				return [cd[1], cd[2]]
-		return best
+		return []
+
+	## The MUST_TRIES cheapest pairs of the sampled component spots with network spots within
+	## radius, cheapest first. Looks only at the blocks in reach, and cuts the list down as it
+	## goes: a search at the world's width would otherwise sort millions of pairs.
+	func _dear_pairs(blocks: Dictionary, radius: int) -> Array:
+		var pairs: Array = []
+		var cut := INF
+		var rb := (radius >> 4) + 1
+		var whole := (2 * rb + 1) * (2 * rb + 1) * blocks.size() >= buckets.size()
+		for bkey: int in blocks:
+			var a: int = blocks[bkey]
+			var ax := spx[a]
+			var ay := spy[a]
+			var keys: Array = buckets.keys() if whole else _keys_near(ax >> 4, ay >> 4, rb)
+			for key: int in keys:
+				for b: int in buckets[key]:
+					var dx := absi(spx[b] - ax)
+					var dy := absi(spy[b] - ay)
+					var cost := dx + 0.6 * dy
+					if dx <= radius and dy <= radius and cost < cut:
+						pairs.append([cost, a, b])
+				if pairs.size() >= 4 * MUST_TRIES:
+					pairs.sort_custom(func(p: Array, q: Array) -> bool: return p[0] < q[0])
+					pairs.resize(MUST_TRIES)
+					cut = pairs[-1][0]
+		pairs.sort_custom(func(p: Array, q: Array) -> bool: return p[0] < q[0])
+		return pairs
+
+	func _keys_near(bx: int, by: int, rb: int) -> Array:
+		var out: Array = []
+		for gy in range(maxi(0, by - rb), by + rb + 1):
+			for gx in range(maxi(0, bx - rb), bx + rb + 1):
+				var key := gx | (gy << 16)
+				if buckets.has(key):
+					out.append(key)
+		return out
+
+	## Is this spot over a pass, on the rock of the range?
+	func _on_a_peak(s: int) -> bool:
+		var py := c.pass_y[spx[s]]
+		return py >= 0 and spy[s] > py + Barriers.PASS_CLEAR
 
 	func _forbidden(ax: int, ay: int, bx: int, by: int) -> bool:
 		var r := Rect2i(mini(ax, bx) - 2, mini(ay, by) - 2, absi(ax - bx) + 5, absi(ay - by) + TALL + 5)
@@ -1096,8 +1187,8 @@ class Passer extends RefCounted:
 			return true
 		var i := x + y * w
 		var id := c.fg[i]
-		if id == c.BEDROCK or keep[i] != 0:
-			return true      # bedrock, a floor a join laid, the floor under a site
+		if id == c.BEDROCK or (keep[i] != 0 and c.solid[id] != 0):
+			return true      # bedrock, a solid floor a join stands on, the floor under a site
 		if final and id >= PLACE_TILES:
 			return true      # a road, a bridge, a building: never cut
 		if id != c.COBBLE or c.solid[c.fg[i + w]] != 0:

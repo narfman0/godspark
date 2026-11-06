@@ -1,9 +1,9 @@
 ## Cave and world reachability over several generated worlds.
 ##   godot --headless -s res://tools/cave_nav.gd -- [seeds=3,5,7,11,13] [pairs=24] [mode=pairs|sites|both]
-##                                                   [size=dev] [back=1] [passages=0|1]
+##                                                   [size=dev] [back=1] [passages=0|1] [pairs_size=medium]
 ## pairs: the monsters track's cave nav test (tests/test_monster_nav.gd _caves: a Medium walker
 ##   and a Large climber, air-connected spots ~40 tiles apart in the caves band of a 1024x512
-##   world) per seed, and the totals.
+##   world, or pairs_size, a WorldGen size) per seed, and the totals.
 ## sites: on a `size` world, a Medium walker from the spawn settlement (the first surface
 ##   settlement) to every other site, on foot: one flood of the nav graph from the spawn (the
 ##   graph's jumps are recorded from the real controller), then the real body walks each
@@ -20,17 +20,17 @@ func _initialize() -> void:
 	var mode := String(opts.get("mode", "pairs"))
 	var seeds := String(opts.get("seeds", "3,5,7,11,13")).split(",")
 	if mode == "pairs" or mode == "both":
-		_pairs(seeds, int(opts.get("pairs", 24)))
+		_pairs(seeds, int(opts.get("pairs", 24)), WorldGen.SIZES.get(opts.get("pairs_size", ""), Vector2i(1024, 512)))
 	if mode == "sites" or mode == "both":
 		_sites(seeds, String(opts.get("size", "dev")), opts.get("back", "1") != "0", opts.get("passages", "1") != "0",
 			opts.get("walk", "1") != "0")
 	quit()
 
-func _pairs(seeds: PackedStringArray, pairs: int) -> void:
+func _pairs(seeds: PackedStringArray, pairs: int, size: Vector2i) -> void:
 	var test: Object = load("res://tests/test_monster_nav.gd").new()
 	var tot := [[0, 0], [0, 0]]
 	for s in seeds:
-		var r: Array = test.call("_caves", TestLog.new(), int(s), pairs)
+		var r: Array = test.call("_caves", TestLog.new(), int(s), pairs, size)
 		for k in 2:
 			tot[k][0] += int(r[k][0])
 			tot[k][1] += int(r[k][1])
