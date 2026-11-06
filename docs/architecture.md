@@ -196,7 +196,9 @@ As built ([tracks/hardening.md](tracks/hardening.md)). Changes to the contracts 
   draws it moonlit.
 - **Living world.** `WorldHost.sim` = `WorldSim.from_meta(world.meta, seed)` for worlds
   with sites. It follows the clock under `SIM_BUDGET_US` per tick, is saved exactly in
-  `sim.bin`, and its new chronicle entries go to clients as text lines.
+  `sim.bin`, and its new chronicle entries go to clients as text lines. Protocol 8: CHRONICLE
+  says whether it is history, from before that player arrived (`cw.chronicle` keeps it,
+  `chronicle_history`); only the rest is `chronicle_lines`, the feed.
 - **Dressing.** `Dressing` (core) holds the id table, from `data/dressing.json`'s
   append-only `ids`, and the rules. Records `(id, x, y, variant)` live in their anchor
   chunk (`Chunk.objects`). The worldgen stage `dressing` places them; they are saved and
@@ -705,7 +707,8 @@ DealsSystem (HostSystem.DEALS): talk(e, person_id) -> "" | word; choose(e, optio
 DealsTalk.situation / line / rumours; DealsShop.shelves / rack / piece / buy_mult / sell_mult / sell_each;
 DealsQuests.offers / check; DealsPatron.tier / gift; Deals.where / at_site / day   (pure, hash-seeded)
 DealsClient: conversation, shop, quests, rumours, patrons; talk_changed, shop_changed, quests_changed,
-  rumour_heard, patron_changed, note; talk, choose, leave, buy, sell, service, accept, abandon, turn_in
+  rumour_heard, rumours_reset, patron_changed, note; talk, choose, leave, buy, sell, service, accept, abandon,
+  turn_in; nearest_person() and would_talk(id): the prompt (DealsTalk.reach, shared with can_talk)
 SYS (JSON): TALK 1, SHOP 2, QUESTS 3, RUMOUR 4, PATRON 5, NOTE 6; TALK_TO 64 ... TURN_IN 72, CHEAT 79
 data/deals/lines.json, prices.json, quests.json
 # hooks in other tracks

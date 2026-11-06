@@ -140,6 +140,21 @@ Never played (beyond the first session)
 - A tilted cart on a 45-degree road still looks stiff; no cart model.
 - XP pacing rests on assumed fight lengths; only play can check it.
 
+## Fix round ([tracks/fix-round.md](tracks/fix-round.md))
+- The talk prompt cannot know a grudge: the host alone holds it, so a person with one still
+  answers "hostile" after a prompt. Everything else the host refuses, the prompt now checks.
+- A person walking away at the prompt's edge is in reach for 300 ms of round trip. Past that
+  they can answer "far"; the range was worked out from the numbers, not played at real latency.
+- `NEWS_DAYS` (7), the plates' `STACK` (3) and `BAR_ROWS` (3), `flee_again_s` (45): first
+  guesses. Fleeing once is a rule of every creature that flees, not only raiders; not played.
+- Past the bars' rows a plate shows nothing: a raid of a dozen in one spot has some fighters
+  with no bar until they spread out or the cursor is on one.
+- The chronicle's history is the last few lines, by L. There is still no screen for it.
+- Not seen again, so not explained: one run in which a party held all 12 goods and the hand-in
+  said "missing" (before the fixes; that story no longer exists). A caravan with 3 of 8 was
+  never seen in 64 runs here (lowest 5 of 8); if it comes, the test will fail on it and it
+  needs sorting.
+
 ## Passability ([tracks/passability.md](tracks/passability.md); met: point-to-point, every site, the follower)
 - Met: Medium point-to-point 94% (target above 85%); every site and route end on foot in 10
   of 10 dev and 3 of 3 small worlds (nav graph); real-body site walks 94%; the follower
