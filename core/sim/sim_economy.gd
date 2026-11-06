@@ -466,6 +466,11 @@ static func caravan_arrive(sim: WorldSim, p: SimParty) -> void:
 		return
 	var d: SimSettlement = sim.settlements[here]
 	var sold_value := 0.0
+	# what it brought, before the market takes it (Deals: did most of an escorted cargo arrive?)
+	var brought := 0
+	for g in p.cargo:
+		brought += int(p.cargo[g])
+	p.plan["brought"] = brought
 	for g in SimData.good_names:
 		var n: int = p.cargo.get(g, 0)
 		if n <= 0:

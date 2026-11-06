@@ -354,6 +354,7 @@ func _reset(h: WorldHost) -> void:
 	for pid: int in road.active.keys():
 		road.fold(h, pid)
 	road.clashes.clear()
+	road.settled.clear()
 	road._paths.clear()
 	_sim = h.sim
 

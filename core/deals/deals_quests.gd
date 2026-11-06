@@ -90,7 +90,10 @@ static func _make(sim: WorldSim, world_seed: int, sid: int, day: int, kind: Stri
 				if p.kind == "caravan" and p.home == sid and p.state == "travel" and not p.frozen and String(p.plan.get("leg", "out")) == "out" \
 						and p.leg == 0 and p.frac < 0.35 and p.path.size() >= 2:
 					var dest: int = p.path[p.path.size() - 1]
-					target = {"party": pid, "dest": dest, "base": p.size()}
+					var units := 0
+					for g: String in p.cargo:
+						units += int(p.cargo[g])
+					target = {"party": pid, "dest": dest, "base": p.size(), "cargo": units}
 					vars["dest"] = sim._site_label(dest)
 					vars.merge(Deals.where(sim, sid, dest))
 					x = p.size()
@@ -265,7 +268,10 @@ static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 				return "failed"
 			if String(p.plan.get("leg", "out")) == "home":
 				var with := float(t.get("with", 0)) / maxf(1.0, float(t.get("seen", 0)))
-				if p.size() * 2 >= int(t["base"]) and with >= 0.5:
+				# most of its people and most of its cargo (what it brought, recorded by the sim on
+				# arrival before the market took it; older quests without a load count people only)
+				var cargo_ok := int(t.get("cargo", 0)) <= 0 or int(p.plan.get("brought", 0)) * 2 >= int(t["cargo"])
+				if p.size() * 2 >= int(t["base"]) and with >= 0.5 and cargo_ok:
 					return "done"
 				return "failed"
 			if not p.held and p.state == "travel":
@@ -287,7 +293,9 @@ static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 					var won := k == "raid" and bool(e.get("won", false))
 					if won:
 						return "failed"
-					return "done" if not (at.call(sid, 30.0) as Array).is_empty() else "beaten"
+					# adventurers who cut the raid down outside the walls were there too
+					var theirs := k == "raid_repelled" and String(e.get("by", "")) == "adventurers"
+					return "done" if theirs or not (at.call(sid, 30.0) as Array).is_empty() else "beaten"
 			t["mark"] = sim.chronicle.size()
 			if not sim.parties.has(int(t["party"])):
 				return "lapsed"

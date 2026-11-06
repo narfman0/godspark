@@ -138,7 +138,9 @@ func filter_input(inp: PlayerInput) -> PlayerInput:
 
 ## A scripted fighter (bots, smoke tests): walk at the nearest live monster this client can
 ## see and attack it when in reach. Returns the input to use; attacks through attack().
-func fight_step(inp: PlayerInput, reach := 3.0) -> PlayerInput:
+## `pick` (optional, RemoteEntity -> bool) chooses which remotes count as foes; by default
+## every remote that is not a player or one of Life's people.
+func fight_step(inp: PlayerInput, reach := 3.0, pick := Callable()) -> PlayerInput:
 	if cw == null or cw.body == null:
 		return inp
 	var best: ClientWorld.RemoteEntity = null
@@ -148,7 +150,10 @@ func fight_step(inp: PlayerInput, reach := 3.0) -> PlayerInput:
 	for r: ClientWorld.RemoteEntity in cw.remotes.values():
 		if r.kind == HostEntity.Kind.PLAYER or (r.max_hp > 0 and r.hp <= 0):
 			continue
-		if life != null and life.has_method("is_person") and bool(life.call("is_person", r.id)):
+		if pick.is_valid():
+			if not bool(pick.call(r)):
+				continue
+		elif life != null and life.has_method("is_person") and bool(life.call("is_person", r.id)):
 			continue      # Life's townsfolk, guards and travellers are not monsters to hunt
 		var p: Vector2 = cw.sample_remote(r.id).get("pos", r.pos)    # as drawn (interpolated)
 		var d := p.distance_to(cw.body.pos)

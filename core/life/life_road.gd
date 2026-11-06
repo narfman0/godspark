@@ -18,6 +18,9 @@ var life: LifeSystem
 var active := {}
 ## "ra:v" -> {ra, v, rid, nr, nv, fv, players: {}}: real-time ambushes being fought
 var clashes := {}
+## "ra:v" -> true: ambushes already settled (their outcome written to the sim once). The two
+## parties' people may go on trading blows while they part; that is not a new ambush.
+var settled := {}
 var _paths := {}
 
 func _init(l: LifeSystem) -> void:
@@ -99,6 +102,10 @@ func scan(h: WorldHost, players: Array) -> void:
 			var d := LifeSystem.nearest(players, party_pos(h, p))
 			if d > keep:
 				p.frozen = false
+	for k: String in settled.keys():
+		var ab := k.split(":")
+		if not sim.parties.has(int(ab[0])) or not sim.parties.has(int(ab[1])):
+			settled.erase(k)
 	if players.is_empty():
 		return
 	var x0 := INF
@@ -274,6 +281,8 @@ func clash(h: WorldHost, pa: int, pb: int, by_player := 0) -> void:
 	if a.kind != "raid":
 		return
 	var key := "%d:%d" % [a.id, b.id]
+	if settled.has(key):
+		return
 	if not clashes.has(key):
 		clashes[key] = {"ra": a.id, "v": b.id, "rid": a.route, "nr": a.size(), "nv": b.size(),
 			"fv": b.size() - b.people, "players": {}, "ra_obj": a, "v_obj": b}
@@ -434,6 +443,7 @@ func _resolve(h: WorldHost) -> void:
 		if won < 0:
 			continue
 		clashes.erase(k)
+		settled[k] = true
 		for pid: int in [ra.id, v.id]:
 			if active.has(pid):
 				active[pid]["hold"] = false

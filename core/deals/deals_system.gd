@@ -740,12 +740,25 @@ func turn_in(e: HostEntity, qid: String) -> String:
 	if DealsQuests.delivers(q):
 		var base := "trade:" + String(q["target"]["good"])
 		var need := int(q["target"]["n"])
-		var inv := e.character.inventory
-		if inv.count_base(base) < need:
+		# the party pools what it carries: goods picked up by whoever touched them first
+		var carriers: Array = [e]
+		var have := e.character.inventory.count_base(base)
+		for name: String in q["players"]:
+			var o := host.player_named(name)
+			if o != null and o != e and o.character != null \
+					and Deals.at_site(host.world, host.sim, sid, o.body.pos, float(Deals.quests()["turn_in_margin"])):
+				carriers.append(o)
+				have += o.character.inventory.count_base(base)
+		if have < need:
 			return "missing"
 		if not host.sim.player_trade(sid, String(q["target"]["good"]), float(need), 0.0):
 			return "gone"
-		inv.remove_base(base, need)
+		var left := need
+		for c: HostEntity in carriers:
+			var take := mini(left, c.character.inventory.count_base(base))
+			if take > 0:
+				c.character.inventory.remove_base(base, take)
+				left -= take
 		q["progress"]["have"] = need
 	elif String(q["state"]) != "ready":
 		return "not_ready"
