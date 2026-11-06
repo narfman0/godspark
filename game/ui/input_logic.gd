@@ -37,3 +37,8 @@ static func movement_allowed(text_focus: bool) -> bool:
 ## Hotbar slot for a hotbar_N action (keys 1-9 then 0): N - 1.
 static func hotbar_index(n: int) -> int:
 	return clampi(n - 1, 0, Inventory.HOTBAR - 1)
+
+## May the number keys pick hotbar slots? Not while a text field has focus or a conversation
+## takes them for its options.
+static func hotbar_keys_allowed(text_focus: bool, numbers_taken: bool) -> bool:
+	return not text_focus and not numbers_taken

@@ -722,6 +722,20 @@ items rows trade:food | timber | ore | tools | luxuries; ore rows carry good, un
   reward goes through `player_trade` (the audit stays clean). Offers are fixed per site per
   day and saved; quests are world state shared by the players who accept them.
 
+### Interface (M4, as built: docs/tracks/m4-interface.md)
+
+```
+SYS Deals ATLAS (7), h->c JSON: on join {t, sites, routes, seen, all}; {t, sites} when the list
+  changes (checked every 5 s); {t, seen} when a player first stands at a site
+  site: {id, kind, name, culture?, tier?, pop?, faction?, state?, work?, lair?, apex?, ruin?}
+  route: {id, a, b, kind, name, path: every 8th feet cell}
+DealsSystem.seen (saved in save_player as seen), atlas_sites(), atlas_routes(), work_roles(sid)
+DealsClient: sites, routes, seen, sim_t, sim_hour(), site_name(sid), atlas_changed(fresh)
+Life PEOPLE: party members also carry party, home, dest
+GameUi: deals_ui (DealsUi), marks (PeopleMarks), number_keys_taken(); screens shop, quests (J),
+  map (M), standing (P), help (F1 / H); main.gd world_tour=DIR
+```
+
 ### Traversal (as built: docs/tracks/traversal.md)
 
 - `S` (down) held 0.1 s (`MoveStats.drop_hold`) from a press made standing drops through

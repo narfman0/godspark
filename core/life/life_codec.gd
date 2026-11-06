@@ -4,7 +4,8 @@
 ##                 sim's factions change
 ##   STANDING (2): {faction, value, why, n}                             one player's change
 ##   PEOPLE (3):   {people: [{id, role, kind, of, faction, talk, name}]} actors Life spawned
-##                 (kind settlement | party, of = site or party id)
+##                 (kind settlement | party, of = site or party id); party people also
+##                 carry party (caravan | raid | ...), home and dest (site ids, at spawn)
 ##   GONE (4):     {ids: [id]}                                          actors removed or dead
 class_name LifeCodec
 extends RefCounted

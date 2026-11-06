@@ -51,13 +51,15 @@ func step(cam: Camera3D, hovered: int) -> void:
 	var now := Time.get_ticks_msec()
 	var me := cw.view_pos()
 	var cand: Array = []
+	var lc := cw.system(HostSystem.LIFE) as LifeClient
 	for r: ClientWorld.RemoteEntity in cw.remotes.values():
 		var player := r.kind == HostEntity.Kind.PLAYER
 		if not player:
 			if r.max_hp <= 0 or r.hp <= 0:
 				continue
 			var fighting := r.hp < r.max_hp or now - int(active.get(r.id, -100000)) < FIGHT_SECS * 1000.0
-			if not fighting and r.id != hovered:
+			# Life's calm people get the interface's name plate on hover (GameUi PeopleMarks)
+			if not fighting and (r.id != hovered or (lc != null and lc.is_person(r.id))):
 				continue
 		cand.append([r.pos.distance_squared_to(me), r])
 	cand.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])

@@ -199,7 +199,8 @@ smith, quests or patron; `offers` (quests view) carry title, why, goal, giver, r
 Prices in SHOP are what this player pays (modifiers applied); `sell` maps inventory slots to
 what the town pays each. Quest `where` is the target's tile position; `target_site` its site.
 
-**The stopgap** (`game/ui/deals_stopgap.gd`, replace it): the context prompt shows
+**The stopgap** (`game/ui/deals_stopgap.gd`, since replaced by the M4 Interface track's
+screens, [m4-interface.md](m4-interface.md); it also added the ATLAS message): the context prompt shows
 "E: talk to <name>, <role>" within 4 tiles; E opens the talk; a parchment panel (top left)
 and the log list the options by number: 1-9 choose; in a shop 1-9 buy one, Shift+1-9 sell one
 of the n-th sellable stack, Ctrl+1-9 the whole stack; in work 1-9 accept; 0 or Esc back or

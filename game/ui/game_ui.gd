@@ -20,8 +20,10 @@ var combat: CombatClient
 var monsters: Object
 var quick := QuickSlots.new()
 var prompts := ContextPrompts.new()
-## STOPGAP (Deals): keyboard talk and trade until the Interface track's screens.
-var deals_ui: DealsStopgap
+## Talk, trade, work and standing (DealsUi: the dialogue panel, toasts); null without Deals.
+var deals_ui: DealsUi
+## Marks, the talk prompt and plates over people (with Life).
+var marks: PeopleMarks
 var root: Control
 var hud: Hud
 ## Screens by name (built on first open): inventory, character, constellation, choices, spells.
@@ -71,6 +73,8 @@ func _fit() -> void:
 	for c in root.get_children():
 		if c is Control and c != catcher:
 			(c as Control).size = root.size
+	if deals_ui != null:
+		deals_ui.layout(root.size)
 
 ## Virtual size the interface lays itself out in.
 func vsize() -> Vector2:
@@ -92,7 +96,9 @@ func attach(client: ClientWorld, pres: Node) -> void:
 		items.note.connect(_on_item_note)
 	if rules != null:
 		rules.leveled.connect(_on_leveled)
-		rules.notice.connect(func(t: String) -> void: toast(t))
+		rules.notice.connect(func(t: String) -> void:
+			if deals_ui == null or not deals_ui.is_arrival_note(t):
+				toast(t))
 		rules.xp_gained.connect(func(n: int, src: String) -> void: hud.xp_toast(n, src))
 		rules.prefs_arrived.connect(func(p: Dictionary) -> void: quick.load_prefs(p))
 		quick.load_prefs(rules.prefs)
@@ -105,8 +111,13 @@ func attach(client: ClientWorld, pres: Node) -> void:
 	hud.attach()
 	prompts.attach(self)
 	if cw.system(HostSystem.DEALS) != null:
-		deals_ui = DealsStopgap.new()
+		deals_ui = DealsUi.new()
 		deals_ui.attach(self)
+		marks = PeopleMarks.new()
+		marks.gu = self
+		root.add_child(marks)
+		root.move_child(marks, 0)
+		marks.size = root.size
 	for s: Control in screens.values():
 		if s.has_method("attach"):
 			s.call("attach")
@@ -129,6 +140,10 @@ func mouse_over_ui() -> bool:
 func text_focus() -> bool:
 	return _text_focus
 
+## Do the number keys belong to the interface now (a conversation's options), not the hotbar?
+func number_keys_taken() -> bool:
+	return deals_ui != null and deals_ui.talking() and deals_ui.dialogue.visible
+
 func quick_spell(i: int) -> Dictionary:
 	return quick.spell_for(i, combat.spells if combat != null else [])
 
@@ -146,6 +161,11 @@ func register_screens() -> void:
 	factories["constellation"] = func() -> Control: return ConstellationScreen.new()
 	factories["spells"] = func() -> Control: return SpellScreen.new()
 	factories["character"] = func() -> Control: return CharacterSheet.new()
+	factories["shop"] = func() -> Control: return ShopScreen.new()
+	factories["quests"] = func() -> Control: return QuestLogScreen.new()
+	factories["map"] = func() -> Control: return WorldMapScreen.new()
+	factories["standing"] = func() -> Control: return StandingScreen.new()
+	factories["help"] = func() -> Control: return HelpScreen.new()
 
 func screen(name: String) -> Control:
 	if screens.has(name):
@@ -165,6 +185,8 @@ func screen(name: String) -> Control:
 	return s
 
 func open(name: String) -> void:
+	if name == "map" and deals_ui != null:
+		deals_ui.fresh_marks = 0
 	var s := screen(name)
 	if s == null:
 		return
@@ -226,12 +248,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	for pair: Array in [["inventory", "inventory"], ["character", "character"], ["constellation", "constellation"],
-			["spellbook", "spells"], ["levelup", "choices"]]:
+			["spellbook", "spells"], ["levelup", "choices"], ["quest_log", "quests"], ["world_map", "map"], ["standing", "standing"],
+			["help", "help"]]:
 		if event.is_action_pressed(pair[0]):
 			toggle(pair[1])
 			get_viewport().set_input_as_handled()
 			return
 	if event.is_action_pressed("ui_cancel") and close_top():
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("ui_cancel") and deals_ui != null and deals_ui.talking():
+		deals_ui.dc.leave()
 		get_viewport().set_input_as_handled()
 
 # --- toasts and events ------------------------------------------------------------------------
@@ -302,6 +329,10 @@ func _process(_delta: float) -> void:
 		_fit()
 	prompts.tick(_delta)
 	hud.tick(_delta)
+	if marks != null:
+		marks.step()
+	if deals_ui != null:
+		deals_ui.tick_places(_delta)
 	frame_usec.append(Time.get_ticks_usec() - t0)
 	if frame_usec.size() > 4000:
 		frame_usec = frame_usec.slice(2000)

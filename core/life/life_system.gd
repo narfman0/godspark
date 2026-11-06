@@ -286,10 +286,18 @@ func unspawn(h: WorldHost, id: int) -> void:
 
 func _info(e: HostEntity) -> Dictionary:
 	var s: Dictionary = e.get_meta("sim", {})
-	return {"id": e.id, "role": String(s.get("role", "")), "kind": String(s.get("kind", "")), "of": int(s.get("id", -1)),
+	var d := {"id": e.id, "role": String(s.get("role", "")), "kind": String(s.get("kind", "")), "of": int(s.get("id", -1)),
 		"faction": Life.faction_of(e), "talk": bool(e.get_meta("talk", false)), "name": e.name,
 		"torch": String(s.get("role", "")) == "guard" and String(s.get("kind", "")) == "settlement",
 		"wagon": String(s.get("role", "")) == "wagon"}
+	# Interface: who a road party is (its plate: "Caravan of X, bound for Y"), as spawned
+	if String(s.get("kind", "")) == "party":
+		d["party"] = String(s.get("party", ""))
+		var p: SimParty = host.sim.parties.get(int(s.get("id", -1))) if host != null and host.sim != null else null
+		if p != null:
+			d["home"] = p.home
+			d["dest"] = p.dest
+	return d
 
 func actors_at(site_id: int) -> Array[HostEntity]:
 	return town.actors_at(host, site_id)

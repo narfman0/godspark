@@ -85,7 +85,9 @@ first attack.
 | Attack with your weapon, whatever is selected (hold) | F |
 | Pick a hotbar slot | 1-9, 0; Ctrl + mouse wheel; mouse wheel over the hotbar; click a slot |
 | Zoom | Mouse wheel; = and - |
-| Interact: hold at a campfire to rest, sleep in a bed, kindle at a shrine, hold by a downed friend to haul them up, wake after dying; talk to the person beside you | E |
+| Interact: talk to the person beside you (the prompt over their head says who); hold at a campfire to rest, sleep in a bed, kindle at a shrine, hold by a downed friend to haul them up, wake after dying | E |
+| Hang a rope from the hotbar: select it, click where it should hang; climb it with W and S | 1-0, Left mouse, W / S |
+| In a conversation: answer by number; farewell | 1-9; 0 or Esc |
 | Quick spells: hold to aim (areas show where they land), let go to cast | Q, R, T, G |
 | Dash (with the Dash spark) | Shift, or tap a direction twice |
 | Inventory and paper doll | Tab or I |
@@ -93,6 +95,10 @@ first attack.
 | Constellation | K |
 | Spells (assign Q R T G) | B |
 | Choices waiting (level-ups, Knacks) | U |
+| World map | M |
+| Work (the quest log) | J |
+| Standing and patrons | P |
+| The controls card | F1 or H |
 | Show or hide the world-history log | L |
 | Close the top screen | Esc |
 | Debug, host only: one game hour / one game day passes | F6 / F7 |
@@ -107,25 +113,32 @@ click outside the panel to drop what you hold. Ten ring slots, five under each h
 A game day lasts 20 real minutes. You carry a torch (the Lantern spark widens it); caves are
 dark without one.
 
-## Talking and trading (stopgap)
+## Talking, trading and work
 
 Walk up to a townsperson, keeper, merchant, smith, priest or guard (or a caravan's escort):
-the prompt says "E: talk to <name>, <role>". E opens the conversation; a plain panel at the
-top left (and the log) lists what you can do, by number. This is a **stopgap** until the
-dialogue, shop and quest screens are built.
+the prompt over their head says "E: talk to <name>". Marks over heads say who sells (a coin),
+who smiths (an anvil), who has work today (a red diamond), who waits for work you have done (a
+green tick) and who speaks for your patron (a plum star). E opens the conversation in a panel
+low on the screen; the world keeps running. Answer with the buttons or the number keys (they
+do not switch hotbar slots while you talk); 0 or Esc says farewell. Walking off, a fight or
+the person leaving ends it, and the panel says why.
 
-| In | Keys |
-|---|---|
-| a conversation | 1-9 pick (news, the shop or the smith's rack, work, a bed, healing, your patron, hand in work, farewell); 0 or Esc leave |
-| a shop or the rack | 1-9 buy one; Shift+1-9 sell one of the listed stack; Ctrl+1-9 sell the whole stack; 0 back |
-| the work list | 1-9 take the job; 0 back |
+- **News**: real history, each a note with the place named and a "mark on map" box.
+- **Shops and smiths**: their goods with stock and what you pay, your pack with what they pay;
+  click buys or sells the amount set by the nudge, Shift-click the whole stack. A line says
+  why prices are what they are (plenty, scarcity, your standing, your Bond, your patron) and
+  the town's purse says why a poor town pays little. Esc goes back to the talk.
+- **Work** (J): on offer, under way, and done; accept from the conversation, hand in to the
+  town that gave it, abandon (it says what that costs). Pin one to the HUD for a pointer.
+- **Map** (M): the places you have seen or heard of, the roads between them, the pinned work;
+  drag, wheel, Home. **Standing** (P): every people you know, your standing with them, how
+  their guards take you, and patronage (tiers at 25, 50 and 75 bring gifts).
 
 What a town sells, and at what price, comes from its stocks in the world simulation; selling
 ore you dug or trade goods you carried pays the local price, gear about a quarter of its
-value. News is real history with where it happened; work comes from what is going on (a lair
-on the roads, a hungry town, a caravan leaving, raiders on the way); standing with a people
-lowers prices and, from 25, brings a patron and gifts. See
-[docs/tracks/deals.md](docs/tracks/deals.md).
+value. Work comes from what is going on (a lair on the roads, a hungry town, a caravan
+leaving, raiders on the way). See [docs/tracks/deals.md](docs/tracks/deals.md) and
+[docs/tracks/m4-interface.md](docs/tracks/m4-interface.md).
 
 ## Screens
 
@@ -137,6 +150,9 @@ lowers prices and, from 25, brings a patron and gifts. See
   the ground as glinting cards.
 - **Inventory** (Tab), **character sheet** (C), **constellation** (K: your sparks as stars;
   kindle at a shrine), **spells** (B), **choices** (U: class-level picks and Knack cards).
+- **The living world**: the dialogue panel, the shop, work (J), the map (M), standing (P), the
+  controls card (F1 or H); a place's banner as you enter it; plates over caravans and raiders;
+  the pinned work on the HUD with a pointer; buttons for the screens under the clock.
 
 `tools/fetch_fonts.sh` (run by `tools/bootstrap.sh`) fetches the two OFL fonts the interface
 uses; without them it falls back to the engine font.

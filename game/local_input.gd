@@ -69,8 +69,9 @@ func read() -> PlayerInput:
 	var cw := presenter.cw if presenter != null else null
 	var items: ClientSystem = cw.system(HostSystem.ITEMS) if cw != null else null
 	var live := items != null and bool(items.get("live"))
+	var hot_ok := InputLogic.hotbar_keys_allowed(not keys_ok, ui != null and ui.has_method("number_keys_taken") and bool(ui.call("number_keys_taken")))
 	for i in Inventory.HOTBAR:
-		if keys_ok and Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
+		if hot_ok and Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
 			if items != null:
 				items.call("select_hotbar", InputLogic.hotbar_index(i + 1))
 			if i < PLACEABLE.size():

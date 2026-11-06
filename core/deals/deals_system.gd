@@ -45,6 +45,10 @@ var quests := {}
 var sold := {}
 ## chronicle name -> site id, for rumours about places that have since fallen
 var names := {}
+## player id -> {site id: true}: sites the player has stood at (saved; the map's discovery)
+var seen := {}
+## The last ATLAS site list sent (a digest), to send it again only on change.
+var _atlas_digest := ""
 var stats := {"talks": 0, "refused": 0, "bought": 0, "sold": 0, "coin_in": 0, "coin_out": 0, "accepted": 0,
 	"done": 0, "failed": 0, "lapsed": 0, "beaten": 0, "rumours": 0, "gifts": 0}
 
@@ -76,7 +80,7 @@ func _seed() -> int:
 
 func save_player(e: HostEntity) -> Dictionary:
 	return {"known": (known.get(e.id, []) as Array).duplicate(true), "log": (logs.get(e.id, {}) as Dictionary).duplicate(true),
-		"gifts": (gifts.get(e.id, {}) as Dictionary).duplicate()}
+		"gifts": (gifts.get(e.id, {}) as Dictionary).duplicate(), "seen": (seen.get(e.id, {}) as Dictionary).keys()}
 
 func load_player(e: HostEntity, d: Dictionary) -> void:
 	var k: Array = []
@@ -96,6 +100,10 @@ func load_player(e: HostEntity, d: Dictionary) -> void:
 		for f: String in gs:
 			g[f] = int(gs[f])
 	gifts[e.id] = g
+	var sn := {}
+	for sid: Variant in d.get("seen", []):
+		sn[int(sid)] = true
+	seen[e.id] = sn
 
 static func _rumour_clean(r: Dictionary) -> Dictionary:
 	var out := r.duplicate()
@@ -151,9 +159,14 @@ func entity_added(h: WorldHost, e: HostEntity) -> void:
 		logs[e.id] = {}
 	if not gifts.has(e.id):
 		gifts[e.id] = {}
+	if not seen.has(e.id):
+		seen[e.id] = {}
 	_send(e.id, DealsCodec.Msg.RUMOUR, {"rumours": known[e.id], "all": true})
 	_send_quests(e)
 	_patron_sent.erase(e.id)
+	if h.sim != null:
+		_send(e.id, DealsCodec.Msg.ATLAS, {"t": h.sim.t, "sites": atlas_sites(), "routes": atlas_routes(),
+			"seen": (seen[e.id] as Dictionary).keys(), "all": true})
 
 func entity_removed(_h: WorldHost, e: HostEntity) -> void:
 	talks.erase(e.id)
@@ -992,6 +1005,104 @@ func tick(h: WorldHost) -> void:
 		for e: HostEntity in h.entities.values():
 			if e.is_player():
 				_send_patrons(e)
+	if h.tick_count % 30 == 19:
+		_atlas_tick(h)
+
+# --- the atlas (Interface: the world map, place banners) ----------------------------------------
+
+## Every site as the map shows it: settlements with name, culture, tier, people, faction, their
+## situation (DealsTalk.situation) and who has work today; lairs with name and kind; ruins.
+func atlas_sites() -> Array:
+	var out: Array = []
+	var sim := host.sim
+	var fallen := {}
+	for n: String in names:
+		fallen[int(names[n])] = n
+	for s: Dictionary in sim.sites:
+		var sid := int(s["id"])
+		var d := {"id": sid, "kind": String(s["kind"])}
+		if sim.settlements.has(sid):
+			var st: SimSettlement = sim.settlements[sid]
+			d.merge({"name": st.name, "culture": st.culture, "tier": st.tier, "pop": st.pop(), "faction": str(st.faction),
+				"state": DealsTalk.situation(sim, sid)})
+			if _player_near(sid):
+				d["work"] = work_roles(sid)
+		elif sim.lairs.has(sid):
+			var l: SimLair = sim.lairs[sid]
+			d.merge({"name": l.name, "lair": l.kind, "apex": l.apex})
+		else:
+			d["ruin"] = sim.ruins.has(sid) or String(s["kind"]) == "ruin" or String(s["kind"]) == "settlement"
+			d["name"] = String(fallen.get(sid, ""))
+		out.append(d)
+	return out
+
+## Roles at a settlement with ordinary work on offer today, for the marks over people. Reads
+## the day's offers when someone has asked already, else previews them (DealsQuests.offers is
+## pure) without keeping them, so the first real ask still makes the day's list.
+func work_roles(sid: int) -> Array:
+	var day := Deals.day(host.sim)
+	var rec: Dictionary = offers.get(sid, {})
+	var list: Array
+	var roles := roles_at(sid)
+	if int(rec.get("day", -1)) == day:
+		list = offers_at(sid)
+	else:
+		list = DealsQuests.offers(host.sim, _seed(), sid, day)
+		for q: Dictionary in list:
+			q["giver"] = DealsQuests.giver_for(String(q["kind"]), roles)
+	var out := {}
+	for q: Dictionary in list:
+		if String(q["state"]) == "offered" and not bool(q.get("patron", false)):
+			out[String(q.get("giver", "keeper"))] = true
+	return out.keys()
+
+## Route paths, every 8th feet cell and both ends (static: sent on join).
+func atlas_routes() -> Array:
+	var out: Array = []
+	for r: Dictionary in host.world.meta.get("routes", []):
+		var path := Places.route_path(host.world, int(r["id"]))
+		var pts: Array = []
+		for i in path.size():
+			if i % 8 == 0 or i == path.size() - 1:
+				pts.append([path[i].x, path[i].y])
+		var sr: Dictionary = host.sim.route_by_id.get(int(r["id"]), {}) if host.sim != null else {}
+		out.append({"id": int(r["id"]), "a": int(r["a"]), "b": int(r["b"]), "kind": String(r.get("kind", "")),
+			"name": String(sr.get("name", "")), "path": pts})
+	return out
+
+func _player_near(sid: int) -> bool:
+	for e: HostEntity in host.entities.values():
+		if e.is_player() and Deals.at_site(host.world, host.sim, sid, e.body.pos, 120.0):
+			return true
+	return false
+
+## Once a second: sites players reach for the first time; the site list when it changed.
+func _atlas_tick(h: WorldHost) -> void:
+	for e: HostEntity in h.entities.values():
+		if not e.is_player():
+			continue
+		var sn: Dictionary = seen.get(e.id, {})
+		seen[e.id] = sn
+		var fresh: Array = []
+		for s: Dictionary in h.sim.sites:
+			var sid := int(s["id"])
+			if not sn.has(sid) and Deals.at_site(h.world, h.sim, sid, e.body.pos, 8.0 if String(s["kind"]) == "settlement" else 4.0):
+				sn[sid] = true
+				fresh.append(sid)
+		if not fresh.is_empty():
+			_send(e.id, DealsCodec.Msg.ATLAS, {"t": h.sim.t, "seen": fresh})
+	if h.tick_count % 150 != 19:
+		return
+	var sites := atlas_sites()
+	var dig := JSON.stringify(sites.map(func(d: Dictionary) -> Dictionary:
+		var c := d.duplicate()
+		c["pop"] = int(c.get("pop", 0)) / 10
+		return c)).md5_text()
+	if dig != _atlas_digest:
+		_atlas_digest = dig
+		for e: HostEntity in h.entities.values():
+			if e.is_player():
+				_send(e.id, DealsCodec.Msg.ATLAS, {"t": h.sim.t, "sites": sites})
 
 # --- cheats (tests, tools, smokes) -------------------------------------------------------------
 

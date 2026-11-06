@@ -23,6 +23,14 @@ var prompt_box: Control
 var toasts: VBoxContainer
 var banner_box: Control
 var downed_box: Control
+## Entering a place: its name, what it is, its state (DealsUi.arrive).
+var place_box: Control
+var _place := {}
+var _place_t := -1.0
+## The pinned quest (M4) and the row of screen buttons under the clock (map, work, standing, help).
+var tracker: QuestTracker
+var ledger: HBoxContainer
+var map_btn: Button
 ## Entities the own player has damaged (for kills in the deed tally, and nameplates).
 var hurt_by_me := {}
 ## SRD condition names on the own player (CONDITION events).
@@ -48,6 +56,9 @@ var prompt := {}
 var downed := {}
 var _night_t := -1.0
 var _night_h := 0.0
+## Coin changes floating off the purse: [{d, t}]
+var _coin_fx: Array = []
+var _coin_seen := -1
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -61,12 +72,29 @@ func _ready() -> void:
 	prompt_box.z_index = 20
 	banner_box = _canvas("banner", _draw_banner)
 	downed_box = _canvas("downed", _draw_downed)
+	place_box = _canvas("place", _draw_place)
 	toasts = VBoxContainer.new()
 	toasts.name = "toasts"
 	toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	toasts.add_theme_constant_override("separation", 6)
 	toasts.z_index = 20      # over screens too
 	add_child(toasts)
+	tracker = QuestTracker.new()
+	tracker.gu = gu
+	tracker.visible = false
+	add_child(tracker)
+	ledger = HBoxContainer.new()
+	ledger.name = "ledger"
+	ledger.add_theme_constant_override("separation", 4)
+	for b: Array in [["Map  M", "map"], ["Work  J", "quests"], ["Standing  P", "standing"], ["Help  F1", "help"]]:
+		var btn := UiTheme.button(String(b[0]), UiTheme.TINY)
+		btn.add_theme_stylebox_override("normal", UiTheme.button_box(UiTheme.PARCHMENT))
+		var scr := String(b[1])
+		btn.pressed.connect(func() -> void: gu.toggle(scr))
+		ledger.add_child(btn)
+		if scr == "map":
+			map_btn = btn
+	add_child(ledger)
 	resized.connect(_layout)
 	_layout()
 
@@ -89,12 +117,18 @@ func _layout() -> void:
 	bar.position = Vector2((s.x - w) * 0.5, s.y - bar.size.y - 8)
 	prompt_box.size = Vector2(520, 70)
 	prompt_box.position = Vector2((s.x - 520) * 0.5, bar.position.y - 84)
+	place_box.size = Vector2(560, 104)
+	place_box.position = Vector2((s.x - 560) * 0.5, 150)
 	banner_box.size = Vector2(620, 110)
 	banner_box.position = Vector2((s.x - 620) * 0.5, 70)
 	downed_box.size = s
 	downed_box.position = Vector2.ZERO
 	toasts.position = Vector2(s.x - 332, 100)
 	toasts.size = Vector2(320, 300)
+	if ledger != null:
+		ledger.position = Vector2(s.x - 12 - ledger.get_combined_minimum_size().x, 92)
+		tracker.position = Vector2(s.x - 12 - QuestTracker.W, 126)
+		_toast_y()
 
 func attach() -> void:
 	if gu.items != null:
@@ -115,7 +149,18 @@ func set_dimmed(d: bool) -> void:
 	vitals.visible = not d
 	clock.visible = not d
 	banner_box.visible = not d
-	toasts.position.y = 4.0 if d else 100.0
+	ledger.visible = not d
+	tracker.modulate.a = 0.0 if d else 1.0
+	_toast_y()
+
+## Toasts sit under the clock, the screen buttons and the pinned quest (at the top over screens).
+func _toast_y() -> void:
+	if _dimmed:
+		toasts.position.y = 4.0
+	elif tracker != null and tracker.visible:
+		toasts.position.y = tracker.position.y + QuestTracker.H + 8
+	else:
+		toasts.position.y = 126.0 if ledger != null and ledger.visible and gu.deals_ui != null else 100.0
 
 # --- per frame (cheap: redraws only what changed) ----------------------------------------
 
@@ -124,10 +169,17 @@ func set_dimmed(d: bool) -> void:
 const HINT := "Left click: use what is selected.   F: always attack.   Right click: dig."
 var hint_alpha := 1.0
 var _hint_fading := false
+## The second first-minutes hint (M4): talking. Fades after the first conversation opens.
+const TALK_HINT := "E: talk to people.   M: map   J: work   F1: all the keys."
+var talk_hint_alpha := 1.0
+var talk_hint_fading := false
 
 func tick(delta: float) -> void:
 	if _hint_fading and hint_alpha > 0.0:
 		hint_alpha = maxf(0.0, hint_alpha - delta / 2.5)
+		bar.queue_redraw()
+	if talk_hint_fading and talk_hint_alpha > 0.0:
+		talk_hint_alpha = maxf(0.0, talk_hint_alpha - delta / 2.5)
 		bar.queue_redraw()
 	var cw := gu.cw
 	var hp := Vector2i(cw.hp, cw.max_hp)
@@ -142,6 +194,16 @@ func tick(delta: float) -> void:
 		if _hp_ghost_t <= 0.0:
 			_hp_ghost = maxf(float(hp.x), _hp_ghost - delta * maxf(8.0, hp.y * 0.6))
 		vitals.queue_redraw()
+	if gu.items != null:
+		var coin := gu.items.coin()
+		if _coin_seen >= 0 and coin != _coin_seen:
+			_coin_fx.append({"d": coin - _coin_seen, "t": 0.0})
+		_coin_seen = coin
+	if not _coin_fx.is_empty():
+		for f: Dictionary in _coin_fx:
+			f["t"] = float(f["t"]) + delta
+		_coin_fx = _coin_fx.filter(func(f: Dictionary) -> bool: return float(f["t"]) < 1.6)
+		clock.queue_redraw()
 	_clock_t -= delta
 	if _clock_t <= 0.0:
 		_clock_t = 1.0
@@ -167,6 +229,11 @@ func tick(delta: float) -> void:
 		banner_box.queue_redraw()
 		if _banner_t > 4.5:
 			_banner_t = -1.0
+	if _place_t >= 0.0:
+		_place_t += delta
+		place_box.queue_redraw()
+		if _place_t > 5.5:
+			_place_t = -1.0
 	if _xp_t >= 0.0:
 		_xp_t += delta
 		if _xp_t > 1.2:
@@ -186,6 +253,21 @@ func tick(delta: float) -> void:
 	if not downed.is_empty() or downed_box.visible or _night_t >= 0.0:
 		downed_box.visible = not downed.is_empty() or _night_t >= 0.0
 		downed_box.queue_redraw()
+	if gu.deals_ui != null:
+		var was := tracker.visible
+		tracker.tick(delta)
+		if was != tracker.visible:
+			_toast_y()
+		if map_btn != null:
+			var fresh := gu.deals_ui.fresh_marks > 0
+			map_btn.modulate = Color.WHITE.lerp(UiTheme.GOLD.lightened(0.3), 0.5 + 0.5 * sin(Time.get_ticks_msec() / 220.0)) if fresh else Color.WHITE
+			var t := "Map  M  (%d new)" % gu.deals_ui.fresh_marks if fresh else "Map  M"
+			if map_btn.text != t:
+				map_btn.text = t
+				ledger.reset_size()
+		ledger.position.x = size.x - 12 - ledger.get_combined_minimum_size().x
+	elif ledger.visible:
+		ledger.visible = false
 	prompt_box.visible = not prompt.is_empty() and not _dimmed
 	if prompt_box.visible:
 		prompt_box.queue_redraw()
@@ -403,6 +485,19 @@ func _draw_clock(c: Control) -> void:
 		c.draw_circle(Vector2(x - 12, cy), 8, ItemIcons.BRASS)
 		c.draw_arc(Vector2(x - 12, cy), 8, 0, TAU, 16, UiTheme.INK, 2.0, true)
 		c.draw_arc(Vector2(x - 12, cy), 4.5, 0, TAU, 12, UiTheme.INK_SOFT, 1.0, true)
+		# coin changes drift down from the purse and fade; the coin pulses as they land
+		var k := 0
+		for cf: Dictionary in _coin_fx:
+			var ft := float(cf["t"])
+			var d := int(cf["d"])
+			var a := clampf((1.6 - ft) / 0.5, 0.0, 1.0)
+			var s := ("+%d" % d) if d > 0 else str(d)
+			var ty := cy + 7 - ft * 8 - k * 18
+			UiTheme.text(c, Vector2(x - 26 - UiTheme.text_width(s, UiTheme.HEADING) - ft * 10, ty), s, UiTheme.HEADING,
+				Color(UiTheme.GOLD if d > 0 else UiTheme.VERMILION.lightened(0.2), a), false, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
+			if ft < 0.3:
+				c.draw_arc(Vector2(x - 12, cy), 8 + ft * 30, 0, TAU, 20, Color(UiTheme.GOLD, 1.0 - ft / 0.3), 2.0, true)
+			k += 1
 
 ## Rects of the bar's parts, in bar coordinates.
 func hotbar_rect(i: int) -> Rect2:
@@ -431,10 +526,15 @@ func _draw_bar(c: Control) -> void:
 	# the hotbar
 	var hb: Array = gu.items.hotbar() if gu.items != null else []
 	var sel := gu.items.selected() if gu.items != null else 0
-	if hint_alpha > 0.0:
+	var talking := gu.deals_ui != null and gu.deals_ui.talking()
+	if hint_alpha > 0.0 and not talking:
 		var hx := hotbar_rect(0).position.x
 		UiTheme.text(c, Vector2(hx, -14), HINT, UiTheme.SMALL, Color(UiTheme.TEXT_LIGHT, hint_alpha), false,
 			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 4)
+	if talk_hint_alpha > 0.0 and gu.deals_ui != null and not talking:
+		var hx2 := hotbar_rect(0).position.x
+		UiTheme.text(c, Vector2(hx2, -14 - (20 if hint_alpha > 0.0 else 0)), TALK_HINT, UiTheme.SMALL, Color(UiTheme.GOLD.lightened(0.4), talk_hint_alpha),
+			false, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 4)
 	for i in 10:
 		var r := hotbar_rect(i)
 		var it: Dictionary = hb[i] if i < hb.size() else {}
@@ -575,6 +675,35 @@ func _draw_banner(c: Control) -> void:
 	UiTheme.star(c, Vector2(r.end.x - 56, r.get_center().y), 16, 6, UiTheme.GOLD, 4, UiTheme.INK, -_banner_t)
 	UiTheme.text(c, Vector2(0, r.position.y + 46), _banner_title, UiTheme.TITLE + 8, UiTheme.VERMILION.darkened(0.15), true, HORIZONTAL_ALIGNMENT_CENTER, c.size.x)
 	UiTheme.text(c, Vector2(0, r.position.y + 74), _banner_line, UiTheme.BODY, UiTheme.INK, false, HORIZONTAL_ALIGNMENT_CENTER, c.size.x)
+
+## A place banner: {name, line, state, color, kind (settlement | lair | ruin | portal), tier}.
+func place_banner(d: Dictionary) -> void:
+	_place = d
+	_place_t = 0.0
+	place_box.queue_redraw()
+
+func _draw_place(c: Control) -> void:
+	if _place_t < 0.0 or _place.is_empty() or _dimmed:
+		return
+	var a := clampf(_place_t / 0.4, 0.0, 1.0) * clampf((5.5 - _place_t) / 0.8, 0.0, 1.0)
+	c.modulate.a = a
+	var w := c.size.x
+	var col: Color = _place.get("color", UiTheme.INK)
+	# a thin inked cartouche: rules either side of the name
+	var nm := String(_place.get("name", ""))
+	var nw := UiTheme.text_width(nm, UiTheme.TITLE + 4, true)
+	var y := 40.0
+	UiTheme.text(c, Vector2(0, y), nm, UiTheme.TITLE + 4, UiTheme.TEXT_LIGHT, true, HORIZONTAL_ALIGNMENT_CENTER, w, 6)
+	for sx: float in [-1.0, 1.0]:
+		var x0 := w * 0.5 + sx * (nw * 0.5 + 14)
+		var x1 := w * 0.5 + sx * (nw * 0.5 + 90)
+		c.draw_line(Vector2(x0, y - 10), Vector2(x1, y - 10), UiTheme.INK, 5.0)
+		c.draw_line(Vector2(x0, y - 10), Vector2(x1, y - 10), col.lightened(0.2), 2.5)
+		UiTheme.star(c, Vector2(x1 + sx * 8, y - 10), 7, 2.5, col, 4, UiTheme.INK)
+	UiTheme.text(c, Vector2(0, y + 26), String(_place.get("line", "")), UiTheme.BODY, UiTheme.TEXT_LIGHT, false, HORIZONTAL_ALIGNMENT_CENTER, w, 4)
+	var st := String(_place.get("state", ""))
+	if st != "":
+		UiTheme.text(c, Vector2(0, y + 50), st, UiTheme.SMALL, UiTheme.STARLIGHT, false, HORIZONTAL_ALIGNMENT_CENTER, w, 4)
 
 ## The clock jumped `hours` forward (everyone slept, or a debug key): fade through the night.
 func night(hours: float) -> void:
