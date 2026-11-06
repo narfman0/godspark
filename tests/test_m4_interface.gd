@@ -144,6 +144,25 @@ func _input(t: TestLog) -> void:
 	t.eq(DealsLogic.option_index(KEY_9), 8, "9 the ninth")
 	t.eq(DealsLogic.option_index(KEY_0), -1, "0 is not an option (it leaves)")
 	t.eq(DealsLogic.option_index(KEY_E), -1, "letters are not options")
+	# the new screen keys exist and do not clash with the old ones
+	var want := {"quest_log": KEY_J, "world_map": KEY_M, "standing": KEY_P, "help": KEY_F1}
+	var used := {}
+	for a: StringName in InputMap.get_actions():
+		if String(a).begins_with("ui_"):
+			continue
+		for ev: InputEvent in InputMap.action_get_events(a):
+			if ev is InputEventKey:
+				var k := (ev as InputEventKey).physical_keycode
+				if used.has(k) and used[k] != String(a):
+					t.check(false, "key %s is bound to both %s and %s" % [OS.get_keycode_string(k), used[k], a])
+				used[k] = String(a)
+	for a: String in want:
+		t.eq(used.get(want[a], ""), a, "%s is on %s" % [a, OS.get_keycode_string(want[a])])
+	var readme := FileAccess.get_file_as_string("res://README.md")
+	for row: Array in Controls.GROUPS[3][1]:
+		if String(row[0]).contains(" / "):
+			continue
+		t.check(readme.contains("| %s |" % row[0]) or readme.contains(String(row[0])), "README names the %s key" % row[0])
 
 ## A generated world over the loopback: the atlas arrives, people show, a conversation opens
 ## and the dialogue takes the number keys; the new screens build.

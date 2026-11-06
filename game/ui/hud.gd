@@ -169,10 +169,17 @@ func _toast_y() -> void:
 const HINT := "Left click: use what is selected.   F: always attack.   Right click: dig."
 var hint_alpha := 1.0
 var _hint_fading := false
+## The second first-minutes hint (M4): talking. Fades after the first conversation opens.
+const TALK_HINT := "E: talk to people.   M: map   J: work   F1: all the keys."
+var talk_hint_alpha := 1.0
+var talk_hint_fading := false
 
 func tick(delta: float) -> void:
 	if _hint_fading and hint_alpha > 0.0:
 		hint_alpha = maxf(0.0, hint_alpha - delta / 2.5)
+		bar.queue_redraw()
+	if talk_hint_fading and talk_hint_alpha > 0.0:
+		talk_hint_alpha = maxf(0.0, talk_hint_alpha - delta / 2.5)
 		bar.queue_redraw()
 	var cw := gu.cw
 	var hp := Vector2i(cw.hp, cw.max_hp)
@@ -519,10 +526,15 @@ func _draw_bar(c: Control) -> void:
 	# the hotbar
 	var hb: Array = gu.items.hotbar() if gu.items != null else []
 	var sel := gu.items.selected() if gu.items != null else 0
-	if hint_alpha > 0.0 and not (gu.deals_ui != null and gu.deals_ui.talking()):
+	var talking := gu.deals_ui != null and gu.deals_ui.talking()
+	if hint_alpha > 0.0 and not talking:
 		var hx := hotbar_rect(0).position.x
 		UiTheme.text(c, Vector2(hx, -14), HINT, UiTheme.SMALL, Color(UiTheme.TEXT_LIGHT, hint_alpha), false,
 			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 4)
+	if talk_hint_alpha > 0.0 and gu.deals_ui != null and not talking:
+		var hx2 := hotbar_rect(0).position.x
+		UiTheme.text(c, Vector2(hx2, -14 - (20 if hint_alpha > 0.0 else 0)), TALK_HINT, UiTheme.SMALL, Color(UiTheme.GOLD.lightened(0.4), talk_hint_alpha),
+			false, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 4)
 	for i in 10:
 		var r := hotbar_rect(i)
 		var it: Dictionary = hb[i] if i < hb.size() else {}

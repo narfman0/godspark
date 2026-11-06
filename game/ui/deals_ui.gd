@@ -258,6 +258,8 @@ func set_marked(rid: int, on: bool) -> void:
 # --- events -----------------------------------------------------------------------------------------
 
 func _on_talk(c: Dictionary) -> void:
+	if not c.is_empty():
+		gu.hud.talk_hint_fading = true      # they found talking: let the hint go
 	if c.is_empty():
 		if gu.is_open("shop"):
 			gu.close("shop")

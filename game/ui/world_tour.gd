@@ -125,6 +125,10 @@ func patron() -> void:
 	await wait(0.5)
 	await shot("21_standing")
 	ui.close("standing")
+	ui.open("help")
+	await wait(0.4)
+	await shot("22_help")
+	ui.close("help")
 
 ## Work from the keeper: the offers in the dialogue, accepted; the log; the tracker.
 func work() -> void:
