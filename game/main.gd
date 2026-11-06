@@ -339,6 +339,9 @@ func _report() -> void:
 	var life: Variant = h.system(HostSystem.LIFE)
 	if life != null:
 		print("HOSTSTATS life: " + String(life.call("summary")))
+	var deals: Variant = h.system(HostSystem.DEALS)
+	if deals != null:
+		print("HOSTSTATS deals: " + String(deals.call("summary")))
 	print("HOSTSTATS traffic by message type:\n" + ep.traffic_report())
 
 ## Debug keys on a host with a local player: F6 one game hour, F7 one game day.

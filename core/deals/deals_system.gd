@@ -636,7 +636,7 @@ func offers_at(sid: int) -> Array:
 	var rec: Dictionary = offers.get(sid, {})
 	if int(rec.get("day", -1)) != day:
 		var roles := roles_at(sid)
-		var list := DealsQuests.offers(host.sim, _seed(), sid, day)
+		var list: Array = DealsQuests.offers(host.sim, _seed(), sid, day)
 		for q: Dictionary in list:
 			q["giver"] = DealsQuests.giver_for(String(q["kind"]), roles)
 		rec = {"day": day, "list": list}
@@ -722,7 +722,7 @@ func turn_in(e: HostEntity, qid: String) -> String:
 	var sid := int(q["site"])
 	if host.sim == null or not host.sim.settlements.has(sid):
 		return "gone"
-	if e.body.pos.distance_to(Deals.site_xy(host.sim, sid)) > float(Deals.quests()["turn_in_tiles"]):
+	if not Deals.at_site(host.world, host.sim, sid, e.body.pos, float(Deals.quests()["turn_in_margin"])):
 		return "far"
 	if DealsQuests.delivers(q):
 		var base := "trade:" + String(q["target"]["good"])
@@ -872,6 +872,15 @@ func _near(q: Dictionary, pos: Vector2, tiles: float) -> Array:
 			out.append(name)
 	return out
 
+## Names of a quest's players at a site (its place's rect grown by margin).
+func _at(q: Dictionary, site: int, margin: float) -> Array:
+	var out: Array = []
+	for name: String in q["players"]:
+		var p := host.player_named(name)
+		if p != null and Deals.at_site(host.world, host.sim, site, p.body.pos, margin):
+			out.append(name)
+	return out
+
 func _check_quests() -> void:
 	var sim := host.sim
 	for qid: String in WorldSim._sorted_keys(quests):
@@ -884,7 +893,8 @@ func _check_quests() -> void:
 		if String(q["kind"]) == "escort":
 			_escort_hold(q)
 		var before := JSON.stringify(q["progress"])
-		var ctx := {"near": func(pos: Vector2, tiles: float) -> Array: return _near(q, pos, tiles), "party_pos": _party_pos}
+		var ctx := {"near": func(pos: Vector2, tiles: float) -> Array: return _near(q, pos, tiles), "party_pos": _party_pos,
+			"at": func(site: int, margin: float) -> Array: return _at(q, site, margin)}
 		var now := DealsQuests.check(sim, q, ctx)
 		match now:
 			"":
@@ -1022,6 +1032,16 @@ func cheat(e: HostEntity, d: Dictionary) -> String:
 			if life() == null:
 				return "no_life"
 			life().add_standing(e.id, String(d.get("faction", "")), int(d.get("n", 0)), "cheat")
+			return ""
+		"report":
+			var qs := quest_log(e)
+			var last: Dictionary = qs[qs.size() - 1] if not qs.is_empty() else {}
+			var f := String(last.get("faction", ""))
+			var l := life()
+			print("DEALSCHECK host name=%s coin=%d rope=%d ore=%d quest=%s standing=%d rumours=%d" % [e.name, e.character.inventory.coin,
+				e.character.inventory.count_base("tile:rope"), e.character.inventory.count_base("ore:iron"), String(last.get("state", "-")),
+				l.standing(e.id, f) if l != null and f != "" else 0, (known.get(e.id, []) as Array).size()])
+			print("HOSTSTATS deals: " + summary())
 			return ""
 		"complete":
 			var q: Dictionary = quests.get(String(d.get("q", "")), {})

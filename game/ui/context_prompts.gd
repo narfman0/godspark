@@ -134,6 +134,9 @@ func tick(dt: float) -> void:
 	elif _revive != 0:
 		rules.revive_stop()
 		_revive = 0
+	# someone to talk to (Deals; the stopgap until the Interface track's dialogue screen)
+	if gu.deals_ui != null and gu.deals_ui.prompt(e_down):
+		return
 	# stations
 	if Nearby.has(cw, Nearby.CAMPFIRE, 3):
 		var sub2 := _refusal if _refusal_t > 0.0 else "Short rest: spend Hit Point Dice to heal."

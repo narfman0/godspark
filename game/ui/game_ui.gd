@@ -20,6 +20,8 @@ var combat: CombatClient
 var monsters: Object
 var quick := QuickSlots.new()
 var prompts := ContextPrompts.new()
+## STOPGAP (Deals): keyboard talk and trade until the Interface track's screens.
+var deals_ui: DealsStopgap
 var root: Control
 var hud: Hud
 ## Screens by name (built on first open): inventory, character, constellation, choices, spells.
@@ -102,6 +104,9 @@ func attach(client: ClientWorld, pres: Node) -> void:
 	cw.world.tile_changed.connect(_on_tile_changed)
 	hud.attach()
 	prompts.attach(self)
+	if cw.system(HostSystem.DEALS) != null:
+		deals_ui = DealsStopgap.new()
+		deals_ui.attach(self)
 	for s: Control in screens.values():
 		if s.has_method("attach"):
 			s.call("attach")
@@ -216,6 +221,9 @@ func _catcher_input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _text_focus:
+		return
+	if deals_ui != null and deals_ui.input(event):
+		get_viewport().set_input_as_handled()
 		return
 	for pair: Array in [["inventory", "inventory"], ["character", "character"], ["constellation", "constellation"],
 			["spellbook", "spells"], ["levelup", "choices"]]:

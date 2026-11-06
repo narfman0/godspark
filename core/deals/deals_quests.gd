@@ -231,11 +231,13 @@ static func target_pos(sim: WorldSim, q: Dictionary, party_pos: Callable) -> Vec
 ## Advance an active quest from the sim and the players' positions. Returns the new state
 ## ("ready", "done", "failed", "lapsed", "beaten") or "" when nothing changed (progress may
 ## have). ctx: {near: Callable(pos, tiles) -> Array[player names in q.players],
+## at: Callable(site id, margin) -> Array[those players at the site (its place)],
 ## party_pos: Callable(SimParty) -> Vector2}. Escort holding and release are DealsSystem's.
 static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 	var t: Dictionary = q["target"]
 	var pr: Dictionary = q["progress"]
 	var near: Callable = ctx["near"]
+	var at: Callable = ctx["at"]
 	var nt := float(_Q()["near_tiles"])
 	var sid := int(q["site"])
 	if not sim.settlements.has(sid) or str(sim.settlements[sid].faction) != String(q["faction"]):
@@ -268,8 +270,8 @@ static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 				return "failed"
 			if not p.held and p.state == "travel":
 				t["seen"] = int(t.get("seen", 0)) + 1
-				var at: Vector2 = (ctx["party_pos"] as Callable).call(p)
-				if not (near.call(at, 60.0) as Array).is_empty():
+				var ppos: Vector2 = (ctx["party_pos"] as Callable).call(p)
+				if not (near.call(ppos, 60.0) as Array).is_empty():
 					t["with"] = int(t.get("with", 0)) + 1
 			pr["text"] = "%d of %d with the caravan" % [p.size(), int(t["base"])]
 		"recover":
@@ -285,12 +287,12 @@ static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 					var won := k == "raid" and bool(e.get("won", false))
 					if won:
 						return "failed"
-					return "done" if not (near.call(Deals.site_xy(sim, sid), nt) as Array).is_empty() else "beaten"
+					return "done" if not (at.call(sid, 30.0) as Array).is_empty() else "beaten"
 			t["mark"] = sim.chronicle.size()
 			if not sim.parties.has(int(t["party"])):
 				return "lapsed"
 		"message":
-			if not bool(t.get("visited", false)) and not (near.call(Deals.site_xy(sim, int(t["site"])), 30.0) as Array).is_empty():
+			if not bool(t.get("visited", false)) and not (at.call(int(t["site"]), 8.0) as Array).is_empty():
 				t["visited"] = true
 				pr["have"] = 1
 				pr["text"] = "visited; go back"
@@ -299,7 +301,7 @@ static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 			var oid := int(t["site"])
 			if not sim.settlements.has(oid) or str(sim.settlements[oid].faction) != String(q["faction"]):
 				return "failed"
-			if not (near.call(Deals.site_xy(sim, oid), nt) as Array).is_empty():
+			if not (at.call(oid, 30.0) as Array).is_empty():
 				t["visited"] = true
 			if sim.settlements[oid].besieged_by < 0:
 				return "done" if bool(t.get("visited", false)) else "beaten"

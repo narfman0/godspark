@@ -49,6 +49,19 @@ if [ "$ALL" = 1 ]; then
 	BOT2_EXTRA="rules=1 rules_role=revive fight=2 places=0"
 	RULES=1
 fi
+DEALS=${DEALS:-0}
+if [ "$DEALS" = 1 ]; then
+	# bot1 talks to a merchant, buys a rope, sells ore, takes work from the keeper (or a guard),
+	# completes it (cheat), turns it in; both sides must agree (DEALSCHECK), and after the
+	# rejoin the bot checks coin, quest log, standing and rumours came back
+	WORLD=${WORLD:-gen=dev seed=3}
+	SPAWN=${SPAWN:-goblin-warrior:0}
+	SEE=${SEE:-the Merchant}
+	SPAWNS=${SPAWNS:-0}
+	LIMIT=${LIMIT:-90}
+	HOST_EXTRA="${HOST_EXTRA:-} cheats"
+	BOT1_EXTRA="${BOT1_EXTRA:-} deals=1 places=0"
+fi
 LIFE=${LIFE:-0}
 if [ "$LIFE" = 1 ]; then
 	WORLD=${WORLD:-gen=dev seed=3}
@@ -195,6 +208,19 @@ if [ "$LIFE" = 1 ]; then
 	grep -h "^LIFE" "$LOGS/host.log" | sed 's/^/  host /'
 	grep -q "^LIFE cheat: raid [0-9]" "$LOGS/host.log" || fail+=("life: the raid was not sent")
 	grep -q "^HOSTSTATS life: towns [1-9][0-9]*, .* spawned [1-9]" "$LOGS/host.log" || fail+=("life: no town materialized: $(grep -h '^HOSTSTATS life' "$LOGS/host.log")")
+fi
+if [ "$DEALS" = 1 ]; then
+	dh=$(grep -o "^DEALSCHECK host name=bot1 .*" "$LOGS/host.log" | tail -1 | sed 's/^DEALSCHECK host //')
+	dc=$(grep -o "^DEALSCHECK client name=bot1 .*" "$LOGS/bot1.log" | tail -1 | sed 's/^DEALSCHECK client //')
+	echo "  deals host:   ${dh:-none}"
+	echo "  deals client: ${dc:-none}"
+	if [ -z "$dh" ] || [ "$dh" != "$dc" ]; then
+		fail+=("deals: host and client disagree (host: ${dh:-none}; client: ${dc:-none})")
+	fi
+	grep -q "quest=done" <<<"$dh" || fail+=("deals: the quest was not done")
+	for want in "bot1 deals bought a rope" "bot1 deals sold 6 iron ore" "bot1 deals turned in" "bot1 deals rejoin ok"; do
+		grep -qh "^BOT $want" "$LOGS/bot1.log" || fail+=("deals: no \"BOT $want\" line")
+	done
 fi
 grep -h "^HOSTSTATS" -A 14 "$LOGS/host.log" | grep -v "^saved" | sed 's/^/  /'
 

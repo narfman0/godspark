@@ -66,6 +66,15 @@ static func site_xy(sim: WorldSim, sid: int) -> Vector2:
 	var s: Dictionary = sim.site_by_id.get(sid, {})
 	return Vector2(float(s.get("x", 0)), float(s.get("y", 0)))
 
+## Is pos at a site: inside its place's rect grown by `margin` tiles, or (a site without a
+## place) within `margin` + 30 tiles of its cell.
+static func at_site(world: TileWorld, sim: WorldSim, sid: int, pos: Vector2, margin: float) -> bool:
+	var pl := Places.place(world, sid) if world != null else {}
+	var r: Array = pl.get("rect", [])
+	if r.size() == 4:
+		return Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])).grow(margin).has_point(pos)
+	return pos.distance_to(site_xy(sim, sid)) <= margin + 30.0
+
 ## Where `to` lies from `from`: a rough direction and distance in words, and the tiles.
 static func where(sim: WorldSim, from: int, to: int) -> Dictionary:
 	var a := site_xy(sim, from)

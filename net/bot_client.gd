@@ -67,6 +67,10 @@ var _rules_evs: Array = []
 var _rules_other := 0
 var _rules_corr := 0
 var _rules_asked := false
+## Deals scenario (deals=1, host with cheats and Life): see _deals_step.
+var deals_mode := false
+var _dn := {}           # request kind -> last answer word ("" until answered)
+var _dv := {}           # scenario values (coin before, listing, quest id ...)
 
 func _ready() -> void:
 	_wood = TileDefs.id("rubble")     # what digging gives (M4)
@@ -81,6 +85,8 @@ func _ready() -> void:
 				rules_role = kv[1] if kv.size() > 1 else ""
 			"fight":
 				fight_soft = kv.size() > 1 and kv[1] == "2"
+			"deals":
+				deals_mode = kv.size() < 2 or kv[1] != "0"
 
 func _say(s: String) -> void:
 	print("BOT %s %s" % [bot_name, s])
@@ -145,6 +151,9 @@ func _process(delta: float) -> void:
 		"join", "rejoin":
 			var c := cw()
 			if c != null and c.area_ready():
+				if phase == "rejoin" and deals_mode and _dv.has("state") and _t < 8.0 and (_quest_mirror(String(_dv["quest"])).is_empty() \
+						or _life() == null or _life().factions.is_empty() or (cw().system(HostSystem.ITEMS) as ItemsClient).coin() == 0):
+					return      # wait for QUESTS, FACTIONS and SLOTS
 				var ep := session.client_ep
 				var objs := 0
 				for k: Vector2i in c.loaded:
@@ -159,6 +168,8 @@ func _process(delta: float) -> void:
 					_go("fight")
 					return
 				if phase == "rejoin":
+					if deals_mode and not _deals_rejoin():
+						return
 					if rules_mode:
 						var lv := _rules().level() if _rules() != null else -1
 						if lv != rules_level:
@@ -171,6 +182,8 @@ func _process(delta: float) -> void:
 					_go("settle_final")
 				elif rules_mode:
 					_rules_start()
+				elif deals_mode:
+					_deals_start()
 				else:
 					_go("walk")
 			elif _t > 15.0:
@@ -217,6 +230,8 @@ func _process(delta: float) -> void:
 					_go("settle_final")
 			elif _t > 5.0:
 				_fail("no check answer")
+		"d_goto", "d_talk", "d_shop", "d_buy", "d_give", "d_sell", "d_keeper", "d_ktalk", "d_quests", "d_accept", "d_complete", "d_turn", "d_report":
+			_deals_step()
 		"r_back", "r_level", "r_fire", "r_short", "r_bed", "r_sleep", "r_down", "r_dead", "r_up", "r_revive", "r_wait":
 			_rules_step()
 		"leave":
@@ -548,3 +563,226 @@ func _rules_step() -> void:
 				_go("walk")
 			if _t > 25.0 * _patience():
 				_fail("rules: no one to revive")
+
+# --- deals scenario (deals=1) -----------------------------------------------------------------
+
+func _deals() -> DealsClient:
+	return cw().system(HostSystem.DEALS) as DealsClient if cw() != null else null
+
+func _life() -> LifeClient:
+	return cw().system(HostSystem.LIFE) as LifeClient if cw() != null else null
+
+func _deals_start() -> void:
+	var dc := _deals()
+	if dc == null or _life() == null:
+		_fail("deals: no deals or life client system")
+		return
+	dc.note.connect(func(op: int, _ok: bool, word: String) -> void: _dn[op] = word)
+	_dv["role"] = "merchant"
+	_go("d_goto")
+
+## Ask the host (a cheat) to stand us beside the nearest `role`; retried until the town shows.
+func _ask(kind: int, d: Dictionary) -> void:
+	_dn.erase(kind)
+	if kind == DealsCodec.Msg.CHEAT:
+		_deals().cheat(d)
+
+func _person_near(role: String) -> int:
+	var lc := _life()
+	var best := 0
+	var bd := 6.0
+	for id: int in lc.people:
+		var p: Dictionary = lc.people[id]
+		var r: ClientWorld.RemoteEntity = cw().remotes.get(id)
+		if r != null and String(p.get("role", "")) == role and bool(p.get("talk", false)):
+			var d := r.pos.distance_to(cw().body.pos)
+			if d < bd:
+				bd = d
+				best = id
+	return best
+
+func _slot_of(base: String) -> int:
+	var it := cw().system(HostSystem.ITEMS) as ItemsClient
+	for i in Inventory.SIZE:
+		if String(it.item(i).get("base", "")) == base:
+			return i
+	return -1
+
+func _count_of(base: String) -> int:
+	var it := cw().system(HostSystem.ITEMS) as ItemsClient
+	return it.inventory.count_base(base)
+
+func _deals_step() -> void:
+	var dc := _deals()
+	var items := cw().system(HostSystem.ITEMS) as ItemsClient
+	match phase:
+		"d_goto", "d_keeper":
+			if not _dn.has(DealsCodec.Msg.CHEAT) and _t > 0.2 and not _dv.has("asked"):
+				_dv["asked"] = true
+				_ask(DealsCodec.Msg.CHEAT, {"op": "goto", "role": _dv["role"]})
+			elif _dn.has(DealsCodec.Msg.CHEAT):
+				_dv.erase("asked")
+				if _dn[DealsCodec.Msg.CHEAT] == "ok":
+					_dn.erase(DealsCodec.Msg.CHEAT)
+					_go("d_talk" if phase == "d_goto" else "d_ktalk")
+				else:
+					_dn.erase(DealsCodec.Msg.CHEAT)     # the town is not shown yet: ask again
+			if _t > 20.0:
+				_fail("deals: never stood beside a %s" % _dv["role"])
+		"d_talk", "d_ktalk":
+			if _t > 0.6 and not dc.talking() and not _dv.has("talk_sent"):
+				_dv["talk_sent"] = true
+				get_tree().create_timer(1.0).timeout.connect(func() -> void: _dv.erase("talk_sent"))
+				var id := _person_near(String(_dv["role"]))
+				if id != 0:
+					dc.talk(id)
+			if dc.talking():
+				_say("deals talk %s, %s: \"%s\"" % [dc.conversation["name"], dc.conversation["role"], dc.conversation["line"]])
+				if phase == "d_talk":
+					dc.choose("rumours")
+					dc.choose("shop")
+					_go("d_shop")
+				else:
+					dc.choose("quests")
+					_go("d_quests")
+			elif _t > 10.0:
+				_fail("deals: could not talk to the %s (%s)" % [_dv["role"], _dn.get(DealsCodec.Msg.TALK_TO, "no answer")])
+		"d_shop":
+			if dc.shopping():
+				var rope := {}
+				for l: Dictionary in dc.shop["listings"]:
+					if String(l["item"]["base"]) == "tile:rope" and int(l["n"]) > 0:
+						rope = l
+				if rope.is_empty():
+					_fail("deals: no rope on the shelves")
+					return
+				_dv["rope"] = rope
+				_ask(DealsCodec.Msg.CHEAT, {"op": "coin", "n": 200})
+				_go("d_buy")
+			elif _t > 5.0:
+				_fail("deals: the shop never opened")
+		"d_buy":
+			if not _dv.has("coin0") and _dn.get(DealsCodec.Msg.CHEAT, "") == "ok" and _t > 0.5:
+				_dv["coin0"] = items.coin()
+				_dv["ropes0"] = _count_of("tile:rope")
+				_dn.erase(DealsCodec.Msg.BUY)
+				dc.buy(String(_dv["rope"]["id"]), 1)
+			if _dn.has(DealsCodec.Msg.BUY) and _t > 1.0:
+				if _dn[DealsCodec.Msg.BUY] != "ok":
+					_fail("deals: buy refused: " + String(_dn[DealsCodec.Msg.BUY]))
+					return
+				if items.coin() == int(_dv["coin0"]) - int(_dv["rope"]["price"]) and _count_of("tile:rope") == int(_dv["ropes0"]) + 1:
+					_say("deals bought a rope for %d coin (coin %d -> %d)" % [int(_dv["rope"]["price"]), int(_dv["coin0"]), items.coin()])
+					_ask(DealsCodec.Msg.CHEAT, {"op": "give", "base": "ore:iron", "n": 6})
+					_go("d_give")
+			if _t > 8.0:
+				_fail("deals: the rope never arrived (coin %d, ropes %d)" % [items.coin(), _count_of("tile:rope")])
+		"d_give":
+			if _slot_of("ore:iron") >= 0:
+				_dv["coin1"] = items.coin()
+				_dn.erase(DealsCodec.Msg.SELL)
+				dc.sell(_slot_of("ore:iron"), 6)
+				_go("d_sell")
+			elif _t > 5.0:
+				_fail("deals: the ore never arrived")
+		"d_sell":
+			if _dn.has(DealsCodec.Msg.SELL):
+				if _dn[DealsCodec.Msg.SELL] != "ok":
+					_fail("deals: sale refused: " + String(_dn[DealsCodec.Msg.SELL]))
+					return
+				if _slot_of("ore:iron") < 0 and items.coin() > int(_dv["coin1"]):
+					_say("deals sold 6 iron ore for %d coin" % (items.coin() - int(_dv["coin1"])))
+					dc.leave()
+					_dv["role"] = "keeper"
+					_dn.erase(DealsCodec.Msg.CHEAT)
+					_go("d_keeper")
+			if _t > 6.0:
+				_fail("deals: the sale never showed")
+		"d_quests":
+			var offers: Array = dc.conversation.get("offers", []) if dc.talking() else []
+			if dc.talking() and (dc.conversation.get("view", "") == "quests" or _t > 1.5):
+				var pick := {}
+				for q: Dictionary in offers:
+					if String(q["kind"]) in ["message", "bounty", "hunt"] and String(q["state"]) == "offered":
+						pick = q
+						break
+				if pick.is_empty():
+					if _dv["role"] == "keeper":
+						dc.leave()
+						_dv["role"] = "guard"
+						_dn.erase(DealsCodec.Msg.CHEAT)
+						_go("d_keeper")     # try the guards' bounties
+						return
+					_fail("deals: no message or bounty offered (%s)" % ", ".join(offers.map(func(q: Dictionary) -> String: return q["kind"])))
+					return
+				_dv["quest"] = String(pick["id"])
+				_dn.erase(DealsCodec.Msg.ACCEPT)
+				dc.accept(String(pick["id"]))
+				_go("d_accept")
+			elif _t > 5.0:
+				_fail("deals: no work list")
+		"d_accept":
+			var q := _quest_mirror(String(_dv["quest"]))
+			if not q.is_empty() and String(q["state"]) == "active":
+				_say("deals accepted %s: %s" % [q["title"], q["goal"]])
+				_ask(DealsCodec.Msg.CHEAT, {"op": "complete", "q": _dv["quest"]})
+				_go("d_complete")
+			elif _t > 5.0:
+				_fail("deals: accepting gave %s" % _dn.get(DealsCodec.Msg.ACCEPT, "no answer"))
+		"d_complete":
+			var q := _quest_mirror(String(_dv["quest"]))
+			if not q.is_empty() and String(q["state"]) == "ready":
+				_dv["coin2"] = items.coin()
+				_dn.erase(DealsCodec.Msg.TURN_IN)
+				dc.turn_in(String(_dv["quest"]))
+				_go("d_turn")
+			elif _t > 5.0:
+				_fail("deals: the quest never became ready (%s)" % _dn.get(DealsCodec.Msg.CHEAT, "no answer"))
+		"d_turn":
+			var q := _quest_mirror(String(_dv["quest"]))
+			if not q.is_empty() and String(q["state"]) == "done" and _t > 1.0:
+				var lc := _life()
+				var f := String(q.get("faction", ""))
+				_say("deals turned in %s: done, coin %d -> %d, standing %d" % [q["title"], int(_dv["coin2"]), items.coin(), lc.standing(f)])
+				dc.leave()
+				_ask(DealsCodec.Msg.CHEAT, {"op": "report"})
+				_go("d_report")
+			elif _dn.get(DealsCodec.Msg.TURN_IN, "ok") != "ok":
+				_fail("deals: turn in refused: " + String(_dn[DealsCodec.Msg.TURN_IN]))
+			elif _t > 6.0:
+				_fail("deals: the quest was never done")
+		"d_report":
+			if _dn.get(DealsCodec.Msg.CHEAT, "") == "ok" and _t > 1.0:
+				_dv["state"] = _deals_state()
+				print("DEALSCHECK client name=%s %s" % [bot_name, _dv["state"]])
+				_go("walk")
+			elif _t > 5.0:
+				_fail("deals: no report")
+
+func _quest_mirror(qid: String) -> Dictionary:
+	for q: Dictionary in _deals().quests:
+		if String(q["id"]) == qid:
+			return q
+	return {}
+
+## What both sides must agree on: coin, ropes, ore, the quest's state, standing with its faction.
+func _deals_state() -> String:
+	var items := cw().system(HostSystem.ITEMS) as ItemsClient
+	var q := _quest_mirror(String(_dv.get("quest", "")))
+	var f := String(q.get("faction", ""))
+	return "coin=%d rope=%d ore=%d quest=%s standing=%d rumours=%d" % [items.coin(), _count_of("tile:rope"), _count_of("ore:iron"),
+		String(q.get("state", "-")), _life().standing(f) if f != "" else 0, _deals().rumours.size()]
+
+## After the rejoin: the quest log, coin, standing and rumours came back.
+func _deals_rejoin() -> bool:
+	var dc := _deals()
+	if dc == null or not _dv.has("state"):
+		return true
+	var now := _deals_state()
+	var was := String(_dv["state"])
+	# coin and the rest must match what was there when it left (the walk does not trade)
+	if now.get_slice(" rope=", 1) != was.get_slice(" rope=", 1) or now.get_slice(" ", 0) != was.get_slice(" ", 0):
+		_fail("deals: after the rejoin %s, before %s" % [now, was])
+		return false
+	_say("deals rejoin ok " + now)
+	return true
