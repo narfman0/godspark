@@ -72,6 +72,9 @@ var deals_mode := false
 var _dn := {}           # request kind -> last answer word ("" until answered)
 var _dv := {}           # scenario values (coin before, listing, quest id ...)
 
+## Deals: do the message for real, along the road and back, instead of the complete cheat.
+var deals_walk := false
+
 func _ready() -> void:
 	_wood = TileDefs.id("rubble")     # what digging gives (M4)
 	for a in OS.get_cmdline_user_args():
@@ -87,6 +90,9 @@ func _ready() -> void:
 				fight_soft = kv.size() > 1 and kv[1] == "2"
 			"deals":
 				deals_mode = kv.size() < 2 or kv[1] != "0"
+			"deals_walk":
+				deals_mode = true
+				deals_walk = kv.size() < 2 or kv[1] != "0"
 
 func _say(s: String) -> void:
 	print("BOT %s %s" % [bot_name, s])
@@ -230,7 +236,7 @@ func _process(delta: float) -> void:
 					_go("settle_final")
 			elif _t > 5.0:
 				_fail("no check answer")
-		"d_goto", "d_talk", "d_shop", "d_buy", "d_give", "d_sell", "d_keeper", "d_ktalk", "d_quests", "d_accept", "d_complete", "d_turn", "d_report":
+		"d_goto", "d_talk", "d_shop", "d_buy", "d_give", "d_sell", "d_keeper", "d_ktalk", "d_quests", "d_accept", "d_complete", "d_turn", "d_report", "d_walk":
 			_deals_step()
 		"r_back", "r_level", "r_fire", "r_short", "r_bed", "r_sleep", "r_down", "r_dead", "r_up", "r_revive", "r_wait":
 			_rules_step()
@@ -725,10 +731,16 @@ func _deals_step() -> void:
 			var q := _quest_mirror(String(_dv["quest"]))
 			if not q.is_empty() and String(q["state"]) == "active":
 				_say("deals accepted %s: %s" % [q["title"], q["goal"]])
-				_ask(DealsCodec.Msg.CHEAT, {"op": "complete", "q": _dv["quest"]})
-				_go("d_complete")
+				if deals_walk and _walk_start(q):
+					dc.leave()
+					_go("d_walk")
+				else:
+					_ask(DealsCodec.Msg.CHEAT, {"op": "complete", "q": _dv["quest"]})
+					_go("d_complete")
 			elif _t > 5.0:
 				_fail("deals: accepting gave %s" % _dn.get(DealsCodec.Msg.ACCEPT, "no answer"))
+		"d_walk":
+			_walk_step()
 		"d_complete":
 			var q := _quest_mirror(String(_dv["quest"]))
 			if not q.is_empty() and String(q["state"]) == "ready":
@@ -758,6 +770,85 @@ func _deals_step() -> void:
 				_go("walk")
 			elif _t > 5.0:
 				_fail("deals: no report")
+
+## The road from the quest's town to its target (the atlas path, every 8th cell), or false.
+func _walk_start(q: Dictionary) -> bool:
+	_dv["from"] = Vector2i(cw().body.pos)
+	var to := int(q.get("target_site", -1))
+	var from := int(q.get("site", -1))
+	for r: Dictionary in _deals().routes:
+		if (int(r["a"]) == from and int(r["b"]) == to) or (int(r["a"]) == to and int(r["b"]) == from):
+			var path: Array = (r["path"] as Array).duplicate()
+			if int(r["a"]) != from:
+				path.reverse()
+			_dv["path"] = path
+			_dv["wi"] = 0
+			_dv["back"] = false
+			_dv["bx"] = cw().body.pos.x
+			_dv["bt"] = 0.0
+			_say("deals walking the %s to %d: %d points" % [r.get("name", "road"), to, path.size()])
+			return true
+	# no stored road (a trail): straight across country
+	var w: Variant = q.get("where")
+	if w is Array and (w as Array).size() == 2:
+		var a := Vector2i(cw().body.pos)
+		var b := Vector2i(int(w[0]), int(w[1]))
+		var path: Array = []
+		for k in range(1, 1 + maxi(1, absi(b.x - a.x) / 8)):
+			var n := maxi(1, absi(b.x - a.x) / 8)
+			path.append(Vector2i(a.x + (b.x - a.x) * k / n, a.y + (b.y - a.y) * k / n))
+		_dv["path"] = path
+		_dv["wi"] = 0
+		_dv["back"] = false
+		_dv["bx"] = cw().body.pos.x
+		_dv["bt"] = 0.0
+		_say("deals walking across country to %s: %d points" % [b, path.size()])
+		return true
+	return false
+
+## Run along the path: W where it rises, S where it falls, jump when stuck; at the far end (the
+## quest ready) turn round; back at the start hand it in.
+func _walk_step() -> void:
+	var path: Array = _dv["path"]
+	var i := int(_dv["wi"])
+	var body := cw().body
+	var q := _quest_mirror(String(_dv["quest"]))
+	if not bool(_dv["back"]) and String(q.get("state", "")) == "ready":
+		_dv["back"] = true
+		_say("deals walked to the far town in %.0f s" % _t)
+		var back: Array = path.slice(0, i + 1)
+		back.reverse()
+		back.append(_dv["from"])
+		_dv["path"] = back
+		_dv["wi"] = 0
+		return
+	input = PlayerInput.new()
+	if i >= path.size():
+		if bool(_dv["back"]):
+			_say("deals walked back in %.0f s" % _t)
+			_dv["coin2"] = (cw().system(HostSystem.ITEMS) as ItemsClient).coin()
+			_dn.erase(DealsCodec.Msg.TURN_IN)
+			_deals().turn_in(String(_dv["quest"]))
+			_go("d_turn")
+		elif _t > 150.0:
+			_fail("deals: the road's end is not the town")
+		return
+	var tgt: Vector2i = path[i]
+	var dx := tgt.x + 0.5 - body.pos.x
+	if absf(dx) < 3.0:
+		_dv["wi"] = i + 1
+	input.move_x = signf(dx)
+	input.up = tgt.y > body.pos.y + 0.5
+	input.down = tgt.y < body.pos.y - 3.0 and absf(dx) < 4.0
+	_dv["bt"] = float(_dv["bt"]) + get_process_delta_time()
+	if float(_dv["bt"]) > 0.3:
+		if absf(body.pos.x - float(_dv["bx"])) < 0.3:
+			input.jump = true
+			input.jump_pressed = true
+		_dv["bx"] = body.pos.x
+		_dv["bt"] = 0.0
+	if _t > 170.0:
+		_fail("deals: lost on the road at %s, heading for %s" % [body.pos, tgt])
 
 func _quest_mirror(qid: String) -> Dictionary:
 	for q: Dictionary in _deals().quests:

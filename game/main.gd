@@ -347,6 +347,9 @@ func _report() -> void:
 	var life: Variant = h.system(HostSystem.LIFE)
 	if life != null:
 		print("HOSTSTATS life: " + String(life.call("summary")))
+		if h.sim != null:
+			var bad: Array = h.sim.audit()
+			print("HOSTSTATS audit: %s" % ("clean" if bad.is_empty() else str(bad)))
 	var deals: Variant = h.system(HostSystem.DEALS)
 	if deals != null:
 		print("HOSTSTATS deals: " + String(deals.call("summary")))

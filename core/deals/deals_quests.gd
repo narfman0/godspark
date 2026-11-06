@@ -224,6 +224,9 @@ static func target_pos(sim: WorldSim, q: Dictionary, party_pos: Callable) -> Vec
 	match String(q["kind"]):
 		"bounty", "hunt":
 			return Deals.site_xy(sim, int(t["lair"]))
+		"recover":
+			if t.has("site"):
+				return Deals.site_xy(sim, int(t["site"]))
 		"escort":
 			var p: SimParty = sim.parties.get(int(t["party"]))
 			return party_pos.call(p) if p != null else Vector2.INF
@@ -282,7 +285,9 @@ static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 			pr["text"] = "%d of %d with the caravan" % [p.size(), int(t["base"])]
 		"recover":
 			if not sim.parties.has(int(t["party"])) and String(q["state"]) == "active":
-				pr["text"] = "the raiders are home; the goods may be anywhere"
+				# the goods went into the raiders' town's stock: still to be had, if not cheaply
+				t["site"] = int(t.get("from", q["site"]))
+				pr["text"] = "the raiders are home: the goods went to their town"
 		"defend":
 			var mark := int(t.get("mark", 0))
 			var town: String = sim.settlements[sid].name

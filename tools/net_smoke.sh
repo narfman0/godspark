@@ -23,6 +23,11 @@
 #   LIFE=1 tools/net_smoke.sh     Life on a generated world: the bots stand in the spawn town
 #                                 while a debug-forced raid arrives (host life_raid=4); the town
 #                                 must materialize and the run end with matching state
+#   WORLD_LIFE=1 tools/net_smoke.sh   the living world in short, with real processes: bot1 trades,
+#                                 takes a message from the keeper, walks the road to the next town
+#                                 and back and hands it in, while a raid hits the spawn town where
+#                                 bot2 stands; host and client must agree (DEALSCHECK), the raid
+#                                 must run, the books stay clean
 #   ALL=1 tools/net_smoke.sh      everything at once on a generated world with the director on:
 #                                 the host spawns a ranked goblin pack (pack=, the director's path)
 #                                 and gives 10x kill XP; a fighter and a wizard fight it (kills and
@@ -48,6 +53,14 @@ if [ "$ALL" = 1 ]; then
 	BOT1_EXTRA="rules=1 rules_role=down places=0"
 	BOT2_EXTRA="rules=1 rules_role=revive fight=2 places=0"
 	RULES=1
+fi
+WORLD_LIFE=${WORLD_LIFE:-0}
+if [ "$WORLD_LIFE" = 1 ]; then
+	DEALS=1
+	LIFE=1
+	LIMIT=${LIMIT:-200}
+	BOT1_EXTRA="deals_walk=1"
+	HOST_EXTRA="life_raid=6 life_caravan=12"
 fi
 DEALS=${DEALS:-0}
 if [ "$DEALS" = 1 ]; then
@@ -187,8 +200,10 @@ elif [ "$FIGHT" != 0 ] && ! grep -q "^BOT bot1 fight killed=[1-9].* done" "$LOGS
 fi
 if [ "$RULES" = 1 ]; then
 	WAITER="bot1 rules waiting for bot2"
-	if [ "$ALL" = 1 ]; then   # with fights in between, either bot may get to bed first
-		grep -qh "^BOT bot[12] rules waiting for bot[12]" "$LOGS/bot1.log" "$LOGS/bot2.log" || fail+=("all: no bot waited in bed for the other")
+	if [ "$ALL" = 1 ]; then
+		# with fights in between either bot may get to bed first, or both in the same moment
+		# (then nobody ever waits): both "slept" lines below are the proof that the night passed
+		# with both in bed; RULES=1 keeps the strict "one waited for the other" check
 		WAITER="bot1 rules slept"
 	fi
 	for want in "bot1 rules short_rest" "bot2 rules short_rest" "$WAITER" "bot1 rules slept" \
@@ -219,6 +234,10 @@ if [ "$DEALS" = 1 ]; then
 		fail+=("deals: host and client disagree (host: ${dh:-none}; client: ${dc:-none})")
 	fi
 	grep -q "quest=done" <<<"$dh" || fail+=("deals: the quest was not done")
+	if [ "$WORLD_LIFE" = 1 ]; then
+		grep -qh "^BOT bot1 deals walked back" "$LOGS/bot1.log" || fail+=("world life: bot1 did not walk the road")
+		grep -q "^HOSTSTATS audit: clean" "$LOGS/host.log" || fail+=("world life: the audit is not clean: $(grep -h '^HOSTSTATS audit' "$LOGS/host.log")")
+	fi
 	for want in "bot1 deals bought a rope" "bot1 deals sold 6 iron ore" "bot1 deals turned in" "bot1 deals rejoin ok"; do
 		grep -qh "^BOT $want" "$LOGS/bot1.log" || fail+=("deals: no \"BOT $want\" line")
 	done
