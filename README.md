@@ -61,14 +61,15 @@ godot --headless -s res://tools/run_tests.gd     # prints ALL PASS
 
 ```bash
 tools/bootstrap.sh          # optional: fetch the art (about 57 MB, git-ignored); runs without it
-godot                       # host a new dev world and play it (listen server on port 24650)
+godot                       # host a new world and play it (listen server on port 24650)
 godot -- join=HOST[:PORT] name=ann          # join someone's game
 godot -- offline gen=dev seed=7             # single-player, no network port
 godot --headless -- dedicated port=24650 world=/path/to/world   # a server with no local player
 ```
 
-Options (after `--`): `gen=dev|small|medium|large` and `seed=N` pick a new world;
-`world=DIR` is where it is saved and loaded (default `user://worlds/dev`; a saved world there
+Options (after `--`): `gen=dev|small|medium|large` (default `medium`, 8192 x 2560, which takes
+about half a minute behind a loading screen) and `seed=N` pick a new world;
+`world=DIR` is where it is saved and loaded (default `user://worlds/<gen>`; a saved world there
 is loaded instead of generating one); `gen=test` is the small flat test world; `name=X`;
 `port=N`; `class=fighter|rogue|wizard|cleric` for a new character; `cheats` (debug keys and
 DEBUG messages); `spawns=0|1` turns the spawn director off or on; `pack=goblin-warrior` (or

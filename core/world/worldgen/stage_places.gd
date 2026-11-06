@@ -159,7 +159,7 @@ static func _ramp(c: GenContext, x_start: int, dir: int, level: int) -> void:
 		var nw := prev + signi(nat - prev)
 		var top := c.col_top[x]
 		if nw > nat:
-			for yy in range(nat + 1, nw + 1):
+			for yy in range(nat, nw + 1):
 				c.fg[x + yy * c.w] = c.col_soil[x]
 		else:
 			for yy in range(nw + 1, nat + 1):

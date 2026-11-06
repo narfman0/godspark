@@ -5,6 +5,8 @@
 ##   var world := WorldGen.generate(2048, 1024, 42)
 ##   var world := WorldGen.generate_named("dev", 42)
 ##   WorldGen.last_timings   # {stage: msec} of the last run
+##   WorldGen.stage_index    # the stage running now, for a loading screen on another thread
+##   WorldGen.cancel = true  # stops a run on another thread at the next stage; it returns null
 ##
 ## opts: {"stop_after": "<stage name>"} stops early (debugging); meta is still filled.
 ##       {"only_biome": "meadow"} one biome across the whole width (scenario tests).
@@ -56,13 +58,19 @@ const SIZES := {
 }
 
 static var last_timings := {}
+static var stage_index := -1
+static var cancel := false
 
 static func generate(width: int, height: int, world_seed: int, opts := {}) -> TileWorld:
 	var c := GenContext.new(width, height, world_seed, opts)
 	last_timings = {}
 	var stop: String = opts.get("stop_after", "")
 	var total := Time.get_ticks_usec()
-	for st: Array in STAGES:
+	for i in STAGES.size():
+		var st: Array = STAGES[i]
+		stage_index = i
+		if cancel:
+			return null
 		var t0 := Time.get_ticks_usec()
 		(st[1] as Script).call(st[2], c, rng_for(world_seed, st[0]))
 		last_timings[st[0]] = (Time.get_ticks_usec() - t0) / 1000
@@ -70,6 +78,7 @@ static func generate(width: int, height: int, world_seed: int, opts := {}) -> Ti
 			break
 	if stop != "" and not stop in ["routes", "places", "roads", "passages", "dressing"]:
 		c.survey()
+	stage_index = STAGES.size()
 	var t1 := Time.get_ticks_usec()
 	var world := c.to_world()
 	last_timings["pack"] = (Time.get_ticks_usec() - t1) / 1000

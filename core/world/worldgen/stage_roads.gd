@@ -5,8 +5,8 @@
 ## to its town) are graded between the street ends: the road follows the ground, closed over
 ## dips narrower than DIP (cave mouths, pits), never more than one tile up or down per
 ## column, cut where the ground is higher and filled (up to FILL_MAX deep) where it is lower;
-## deeper or over a tunnel it is a bridge of walkway tiles. The road surface is the `road`
-## tile. A road path runs from one place's street end to the next one's.
+## deeper or over a tunnel it is a bridge of walkway tiles. The road surface is the biome's
+## road tile (c.col_road). A road path runs from one place's street end to the next one's.
 ## Deep routes (deep_road) follow the tiles: a breadth-first walk over feet cells (3 open
 ## rows, a floor below) with at most one tile up or down per column. When no such walk
 ## exists (caves still to be made passable) the route gets the path a jumper and faller
@@ -25,7 +25,6 @@ const BODY_H := 3
 
 static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	Dressing.ensure()
-	var road := TileDefs.id("road")
 	var bridge := TileDefs.id("bridge")
 	var graded := {}   # columns a road already runs over
 	var by_id := {}
@@ -40,7 +39,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 			var right := b if left == a else a
 			var ea := _end(c, left, 1)
 			var eb := _end(c, right, -1)
-			path = grade(c, ea, eb, road, bridge, rng)
+			path = grade(c, ea, eb, bridge, rng)
 			for p: Vector2i in path:
 				graded[p.x] = true
 			_signs(c, rng, path)
@@ -65,7 +64,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 						crosses = true   # a road already runs there: the walk follows it
 						break
 				if not crosses:
-					var leg := grade(c, p0 if dir > 0 else te, te if dir > 0 else p0, road, bridge, rng)
+					var leg := grade(c, p0 if dir > 0 else te, te if dir > 0 else p0, bridge, rng)
 					_signs(c, rng, leg)
 				if surf_a:
 					ea = te
@@ -96,7 +95,7 @@ static func _end(c: GenContext, s: Dictionary, dir: int) -> Vector2i:
 	return Vector2i(int(st[1]) if dir > 0 else int(st[0]), int(st[2]))
 
 ## Grade a road from feet cell a to feet cell b (a.x < b.x); returns the feet cells.
-static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: int, _rng: RandomNumberGenerator) -> Array:
+static func grade(c: GenContext, a: Vector2i, b: Vector2i, bridge: int, _rng: RandomNumberGenerator) -> Array:
 	var xa := a.x + 1
 	var xb := b.x - 1
 	var la := a.y - 1
@@ -143,7 +142,7 @@ static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: in
 			for yy in range(r + 1, nat + 1):
 				c.fg[x + yy * c.w] = c.AIR
 				c.bg[x + yy * c.w] = 0
-			c.fg[x + r * c.w] = road
+			c.fg[x + r * c.w] = c.col_road[x]
 			c.surface[x] = r
 		elif r > nat:
 			var tunnel := false
@@ -151,9 +150,9 @@ static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: in
 				if c.bg[x + yy * c.w] == c.W_COBBLE:
 					tunnel = true
 			if r - nat <= FILL_MAX and not tunnel:
-				for yy in range(nat + 1, r):
+				for yy in range(nat, r):      # from the old top: it is buried now
 					c.fg[x + yy * c.w] = c.col_soil[x]
-				c.fg[x + r * c.w] = road
+				c.fg[x + r * c.w] = c.col_road[x]
 				c.surface[x] = r
 			elif r != prev0:
 				# a sloping span over air is a flight of stairs (one-way like the bridge, and
@@ -162,7 +161,7 @@ static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: in
 			else:
 				c.fg[x + r * c.w] = bridge
 		else:
-			c.fg[x + r * c.w] = road
+			c.fg[x + r * c.w] = c.col_road[x]
 		for yy in range(r + 1, mini(c.h - 1, r + 1 + BODY_H + 1)):
 			if c.solid[c.fg[x + yy * c.w]] != 0:
 				c.fg[x + yy * c.w] = c.AIR

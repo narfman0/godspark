@@ -22,6 +22,7 @@ var bed := PackedInt32Array()      ## rows below this are bedrock, per column
 var col_biome := PackedByteArray() ## index into biome_defs per column
 var col_top := PackedByteArray()   ## top tile per column (layers), with seams and snow
 var col_soil := PackedByteArray()  ## soil tile per column (layers), for patching the ground
+var col_road := PackedByteArray()  ## road surface tile per column (layers)
 var biome_defs: Array = []
 var biomes: Array = []             ## meta strip [{x0, x1, biome, temp}]
 var climate := {}                  ## meta: {order}

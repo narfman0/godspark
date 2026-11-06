@@ -12,6 +12,20 @@ func run(t: TestLog) -> void:
 	_ground(t)
 	_seams(t)
 	_tables(t)
+	_on_a_thread(t)
+
+## The game generates behind a loading screen: on a thread the world comes out the same.
+func _on_a_thread(t: TestLog) -> void:
+	var here := WorldGen.generate(512, 256, 11)
+	var th := Thread.new()
+	th.start(func() -> TileWorld: return WorldGen.generate(512, 256, 11))
+	var w: TileWorld = th.wait_to_finish()
+	t.eq(w.content_hash(), here.content_hash(), "a thread makes the same world")
+	t.eq(JSON.stringify(w.meta), JSON.stringify(here.meta), "and the same meta")
+	t.eq(WorldGen.stage_index, WorldGen.STAGES.size(), "stage_index ends past the last stage")
+	WorldGen.cancel = true
+	t.eq(WorldGen.generate(512, 256, 11), null, "cancel stops a run")
+	WorldGen.cancel = false
 
 ## Just the biome and surface stages of a world.
 func _plan(w: int, h: int, sd: int) -> GenContext:
@@ -179,9 +193,12 @@ func _tables(t: TestLog) -> void:
 	Items.ensure()
 	var ores: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/worldgen/ores.json"))
 	for d: Dictionary in StageBiomes.load_defs():
-		for k: String in ["top", "soil", "stone"]:
+		for k: String in ["top", "road", "soil", "stone"]:
 			t.check(TileDefs.id(d[k]) > 0, "%s %s is a tile" % [d["name"], k])
-			t.eq(Items.tile_drop(TileDefs.id(d[k])), "tile:rubble", "digging %s gives rubble" % d[k])
+			if k == "road":
+				t.check(TileDefs.id(d[k]) >= 96, "%s is a Places tile, so the passages stage never cuts a road" % d[k])
+			if d[k] != "road":      # the meadow's road is the old road tile, which gives itself
+				t.eq(Items.tile_drop(TileDefs.id(d[k])), "tile:rubble", "digging %s gives rubble" % d[k])
 		for k: String in ["soil_wall", "stone_wall"]:
 			t.check(TileDefs.wall_id(d[k]) > 0, "%s %s is a wall" % [d["name"], k])
 		t.check(String(d["stone"]) in ores["ores"][0]["replace"], "ore can form in %s" % d["stone"])

@@ -13,11 +13,11 @@ static var _world: TileWorld
 
 static func world() -> TileWorld:
 	if _world == null:
-		_world = WorldGen.generate(1024, 512, 5)
+		_world = WorldGen.generate(1024, 512, 1)
 	return _world
 
 static func rig(life := true, rules := false) -> Dictionary:
-	var w := WorldGen.generate(1024, 512, 5)
+	var w := WorldGen.generate(1024, 512, 1)
 	var host := WorldHost.new(w)
 	Dice.rng = host.rng
 	var out := {"host": host}

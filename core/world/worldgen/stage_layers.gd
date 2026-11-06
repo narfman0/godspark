@@ -2,8 +2,8 @@
 ## slate below the deeps line, stone, the biome's stone from just under the surface band up, a soil
 ## layer (biome soil) and the biome top tile. Background walls behind everything under the top
 ## tile. Some soil pockets in the upper stone. Across a biome border the skin dithers and the
-## rock interleaves in fingers, so a seam is never a vertical line. Writes c.col_top and
-## c.col_soil, the tiles later stages use to patch the ground.
+## rock interleaves in fingers, so a seam is never a vertical line. Writes c.col_top,
+## c.col_soil and c.col_road, the tiles later stages use to patch the ground and pave it.
 extends RefCounted
 
 const GenContext := preload("gen_context.gd")
@@ -34,7 +34,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	for d: Dictionary in c.biome_defs:
 		var depth: Array = d["soil_depth"]
 		var snow: Dictionary = d.get("snow", {})
-		defs.append({"top": TileDefs.id(d["top"]), "soil": TileDefs.id(d["soil"]), "stone": TileDefs.id(d["stone"]),
+		defs.append({"top": TileDefs.id(d["top"]), "road": TileDefs.id(d["road"]), "soil": TileDefs.id(d["soil"]), "stone": TileDefs.id(d["stone"]),
 			"soil_wall": TileDefs.wall_id(d["soil_wall"]), "stone_wall": TileDefs.wall_id(d["stone_wall"]),
 			"soil_lo": int(depth[0]), "soil_range": int(depth[1]) - int(depth[0]),
 			"snow": TileDefs.id(snow["tile"]) if not snow.is_empty() else -1,
@@ -57,6 +57,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 
 	c.col_top.resize(c.w)
 	c.col_soil.resize(c.w)
+	c.col_road.resize(c.w)
 	var w := c.w
 	var fg := c.fg
 	var bg := c.bg
@@ -74,6 +75,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 		var soil_wall: int = d["soil_wall"]
 		c.col_top[x] = top
 		c.col_soil[x] = soil
+		c.col_road[x] = d["road"]
 		var bed := 2 + int((nbed.get_noise_1d(x) + 1.0) * 1.0)
 		c.bed[x] = bed
 		var soil_depth := int(d["soil_lo"]) + int((nsoil.get_noise_1d(x) + 1.0) * 0.5 * int(d["soil_range"]))

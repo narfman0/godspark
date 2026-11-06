@@ -57,6 +57,10 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 		for x in range(x0, x1 + 1):
 			level += raw[x]
 		level = roundf(level / fw)
+		if not c.flats.is_empty():      # within a walk of the flat before it
+			var prev: Dictionary = c.flats[-1]
+			var reach := float(maxi(0, x0 - int(prev["x1"])) * int(p["step"][x0]))
+			level = clampf(level, float(prev["y"]) - reach, float(prev["y"]) + reach)
 		for x in range(maxi(0, x0 - int(BLEND)), mini(c.w - 1, x1 + int(BLEND)) + 1):
 			var d := maxf(x0 - x, x - x1)
 			if d <= 0:
@@ -67,13 +71,22 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 
 	for x in c.w:
 		c.ground[x] = clampi(roundi(raw[x]), int(bottom), int(top))
-	# Never more than the biome's step between neighbours (keeps the surface walkable).
+	# Never more than the biome's step between neighbours (keeps the surface walkable). The
+	# flats hold their level: the slopes around them give way, so a town on a ridge sits in a
+	# notch instead of its ground being dragged off level.
+	var held := PackedByteArray()
+	held.resize(c.w)
+	for f: Dictionary in c.flats:
+		for x in range(int(f["x0"]), int(f["x1"]) + 1):
+			held[x] = 1
 	for x in range(1, c.w):
-		var st := int(p["step"][x])
-		c.ground[x] = clampi(c.ground[x], c.ground[x - 1] - st, c.ground[x - 1] + st)
+		if held[x] == 0:
+			var st := int(p["step"][x])
+			c.ground[x] = clampi(c.ground[x], c.ground[x - 1] - st, c.ground[x - 1] + st)
 	for x in range(c.w - 2, -1, -1):
-		var st := int(p["step"][x])
-		c.ground[x] = clampi(c.ground[x], c.ground[x + 1] - st, c.ground[x + 1] + st)
+		if held[x] == 0:
+			var st := int(p["step"][x])
+			c.ground[x] = clampi(c.ground[x], c.ground[x + 1] - st, c.ground[x + 1] + st)
 	for f: Dictionary in c.flats:  # the band clamp may have moved a flat
 		f["y"] = c.ground[(int(f["x0"]) + int(f["x1"])) / 2]
 

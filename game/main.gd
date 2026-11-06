@@ -4,8 +4,10 @@
 ##                                                      after N clients said a final BYE
 ##   join=ADDR[:PORT] [name=X]                          join a host
 ##   join=ADDR[:PORT] bot [name=X] [digs=N] [places=M] [dir=1|-1] [delay=S] [rejoin=0|1] [fight=1]
-##   host modes: gen=dev|small|medium|large [seed=N] for a new world, gen=test or size=WxH
-##             for the fixed test world; a world saved in world=DIR is loaded instead
+##   host modes: gen=dev|small|medium|large [seed=N] for a new world (default medium, saved
+##             in user://worlds/<gen>), gen=test or size=WxH for the fixed test world; a world
+##             saved in world=DIR is loaded instead. A window shows a loading screen while a
+##             new world generates on its own thread; headless runs generate in place.
 ##   host modes: spawn=SLUG[:N] places N (default 1) of an SRD monster near the spawn point,
 ##             standing still (no brain), e.g. spawn=goblin-warrior:3; spawn_dx=N: the first
 ##             one N tiles from the spawn point (default -24)
@@ -44,6 +46,11 @@ var _world_loaded := false
 var _shut_down := false
 var _frame_delay := 0
 var _worst_frame := 0.0
+var _gen_thread: Thread              # a new world generating behind the loading screen
+var _loading: LoadingScreen
+var _gen_world: TileWorld            # finished; the host starts on the next frame
+var _gen_dedicated := false
+var _fps_after := 0
 
 func _ready() -> void:
 	opts = parse_args(OS.get_cmdline_user_args())
@@ -79,10 +86,21 @@ static func split_address(s: String) -> Array:
 		port = int(s.substr(colon + 1))
 	return [host, port]
 
+## The default size of a new world.
+const DEFAULT_GEN := "medium"
+
 ## Where the world comes from: the saved world in `world_dir`, else a generated one
 ## (gen=dev|small|medium|large, seed=N), else with gen=test or size=WxH the fixed test world.
 func world_source() -> TileWorld:
-	var gen := String(opts.get("gen", "dev"))
+	var w := _existing_world()
+	return w if w != null else _generate()
+
+func _gen_name() -> String:
+	return String(opts.get("gen", DEFAULT_GEN))
+
+## The test world or a saved one; null when a new world has to be generated.
+func _existing_world() -> TileWorld:
+	var gen := _gen_name()
 	if gen == "test" or opts.has("size"):
 		var size := String(opts.get("size", "1024x256")).split("x")
 		var w := int(size[0]) if size.size() == 2 else 1024
@@ -92,11 +110,15 @@ func world_source() -> TileWorld:
 	if saved != null:
 		_world_loaded = true
 		print("loaded world %dx%d seed %d from %s" % [saved.width, saved.height, saved.world_seed, world_dir])
-		return saved
+	return saved
+
+func _generate() -> TileWorld:
+	var gen := _gen_name()
 	var world_seed := int(opts["seed"]) if opts.has("seed") else int(Time.get_unix_time_from_system())
 	var t0 := Time.get_ticks_msec()
 	var world := WorldGen.generate_named(gen, world_seed)
-	print("generated %s world %dx%d seed %d in %d ms" % [gen, world.width, world.height, world_seed, Time.get_ticks_msec() - t0])
+	if world != null:
+		print("generated %s world %dx%d seed %d in %d ms" % [gen, world.width, world.height, world_seed, Time.get_ticks_msec() - t0])
 	return world
 
 ## Players start at the first surface settlement site when the world has one.
@@ -113,14 +135,44 @@ static func spawn_for(world: TileWorld, fallback: Vector2) -> Vector2:
 	return fallback
 
 func _start_host(headless: bool, dedicated: bool) -> void:
-	world_dir = String(opts.get("world", "user://worlds/dev"))
+	world_dir = String(opts.get("world", "user://worlds/" + _gen_name()))
+	var world := _existing_world()
+	if world == null and not headless:
+		# generating takes half a minute at the default size: keep the window alive
+		_gen_dedicated = dedicated
+		WorldGen.cancel = false
+		_loading = LoadingScreen.new()
+		add_child(_loading)
+		_fps_after = Engine.max_fps
+		Engine.max_fps = 30              # the generator wants the CPU more than the bar does
+		_gen_thread = Thread.new()
+		_gen_thread.start(_generate)
+		return
+	_host_world(world if world != null else _generate(), headless, dedicated)
+
+## The thread finished: show the last line for a frame, then start the host on the next one
+## (starting it blocks this thread for a moment).
+func _poll_generation() -> void:
+	if _gen_world != null:
+		var w := _gen_world
+		_gen_world = null
+		Engine.max_fps = _fps_after
+		_host_world(w, false, _gen_dedicated)
+		_loading.queue_free()
+		_loading = null
+	elif _gen_thread != null and not _gen_thread.is_alive():
+		_gen_world = _gen_thread.wait_to_finish()
+		_gen_thread = null
+		_loading.show_line("Waking the world")
+
+func _host_world(world: TileWorld, headless: bool, dedicated: bool) -> void:
 	var port := 0 if opts.has("offline") else int(opts.get("port", NetSession.DEFAULT_PORT))
 	var local_name := "" if dedicated else String(opts.get("name", "host"))
 	session = NetSession.new()
 	session.threaded = String(opts.get("host_thread", "1")) != "0"
 	session.player_class = String(opts.get("class", ""))
 	add_child(session)
-	var err := session.start_host(world_source(), port, local_name)
+	var err := session.start_host(world, port, local_name)
 	if err != OK:
 		printerr("could not host on port %d: %s" % [port, error_string(err)])
 		_quit(1)
@@ -276,6 +328,7 @@ func _process(delta: float) -> void:
 	if _frame_delay > 0:
 		OS.delay_msec(_frame_delay)    # debug: simulate a slow renderer
 	_worst_frame = maxf(_worst_frame, delta) if _frames > 10 else 0.0
+	_poll_generation()
 	if presenter != null:
 		presenter.frame(delta)
 	if opts.has("shot") and _exit_code < 0 and _elapsed > float(opts.get("shot_after", 6.0)):
@@ -302,6 +355,10 @@ func _shutdown_and_exit() -> void:
 	if _shut_down:
 		return
 	_shut_down = true
+	if _gen_thread != null:          # closed while generating: stop at the next stage
+		WorldGen.cancel = true
+		_gen_thread.wait_to_finish()
+		_gen_thread = null
 	print("FRAMES %d in %.1f s (%.1f fps, worst frame %.0f ms after the first 10)" % [_frames, _elapsed,
 			_frames / maxf(0.001, _elapsed), _worst_frame * 1000.0])
 	if session != null and session.host != null:
