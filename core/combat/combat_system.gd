@@ -337,6 +337,11 @@ func _rules_has(m: String) -> bool:
 
 # --- brain and system API -------------------------------------------------------------------
 
+## Did e deal or take a blow within the last `s` seconds?
+func fought_within(e: HostEntity, s: float) -> bool:
+	var a: Actor = actors.get(e.id)
+	return a != null and now - a.last_hostile <= s
+
 func actor(e: HostEntity) -> Actor:
 	return actors.get(e.id) if e != null else null
 

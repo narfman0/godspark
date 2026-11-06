@@ -210,7 +210,7 @@ func drop(pos: Vector2, items: Array, from := 0) -> void:
 ## spark rank from the depth band; Scavenger and drop_find/coin_find tags of the nearest
 ## player within 24 tiles count.
 func on_kill(victim: HostEntity) -> Array:
-	if victim == null or victim.body == null:
+	if victim == null or victim.body == null or not _loots(victim):
 		return []
 	var slug := String(victim.look.get("slug", ""))
 	var info := Loot.victim_info(slug if not slug.begins_with("player") else "", rank_of(victim),
@@ -228,6 +228,21 @@ func on_kill(victim: HostEntity) -> Array:
 	drop(victim.body.center(), items)
 	_flush()
 	return items
+
+## Loot follows XP: a body drops only when a player's blow helped kill it and it was a foe
+## (Life.xp_foe), or nobody's blow did (a fall). Guards' kills and murdered townsfolk give
+## nothing. Life drops a raider's share of its cargo by itself, whoever killed it.
+func _loots(victim: HostEntity) -> bool:
+	var combat := host.system(HostSystem.COMBAT)
+	var a: Variant = combat.call("actor", victim) if combat != null and combat.has_method("actor") else null
+	if a == null or (a.killers as Array).is_empty():
+		return true
+	var life := host.system(HostSystem.LIFE)
+	for id: int in a.killers:
+		var k := host.entity(id)
+		if k != null and k.is_player() and (life == null or not life.has_method("xp_foe") or bool(life.call("xp_foe", k, victim))):
+			return true
+	return false
 
 static func rank_of(e: HostEntity) -> String:
 	var meta: Variant = e.get("meta")

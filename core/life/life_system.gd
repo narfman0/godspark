@@ -131,6 +131,15 @@ static func _raid_targets(sim: WorldSim, x: HostEntity) -> Array:
 	var p: SimParty = sim.parties.get(int(info.get("id", -1)))
 	return LifeRoad._raid_victims(sim, p) if p != null else []
 
+## Is x a foe the player may earn from? Wild creatures (not one of a Bond's kind), raiders,
+## and people hostile by standing. A grudge does not count: attacking a town's people makes
+## them fight you, not worth XP.
+func xp_foe(p: HostEntity, x: HostEntity) -> bool:
+	var fx := Life.faction_of(x)
+	if fx == "wild":
+		return _vs_player(p, x, fx) != Life.FRIENDLY
+	return _vs_player(p, x, fx) == Life.HOSTILE
+
 func _vs_player(p: HostEntity, x: HostEntity, fx: String) -> int:
 	if fx == "wild":
 		if x.brain is MonsterBrain:

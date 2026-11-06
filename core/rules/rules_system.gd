@@ -4,7 +4,7 @@
 ## is RulesCodec. Contract and numbers: docs/tracks/rules.md.
 ##
 ## Calls other systems make (host thread):
-##   rules.on_kill(victim, killers)        XP to living players near the victim, kill deeds
+##   rules.on_kill(victim, killers)        XP for foes the players' side defeated, kill deeds
 ##   rules.award_xp(entity_id, n)          XP from anything else (quests, debug)
 ##   rules.add_deed(entity_id, counter, n) a deed counter (Knacks lists them)
 ##   rules.refresh(e)                      rebuild the combatant and move stats (gear, sparks)
@@ -26,6 +26,10 @@ const K := RulesCodec.K
 
 ## Players within this many tiles of a kill (body centres) get its XP in full.
 const XP_RANGE := 24.0
+## A kill made only by others: the share of its XP for a player in that fight, and how recent
+## "in that fight" is (seconds since dealing or taking a blow).
+const GUARD_SHARE := 0.25
+const FIGHT_WINDOW_S := 10.0
 ## XP multiplier by monster rank (HostEntity meta "rank"); meta "xp_mult" overrides it and
 ## meta "xp" replaces the stat block's XP.
 const RANK_XP := {"minion": 0.25, "standard": 1.0, "elite": 2.0, "champion": 4.0, "boss": 6.0}
@@ -292,8 +296,15 @@ func tick(h: WorldHost) -> void:
 
 # --- experience and levels -------------------------------------------------------------
 
-## XP for a kill: the victim's stat block XP times its rank multiplier, in full to every
-## player (not dead) within XP_RANGE of it and to the killers; kill deeds for each of them.
+## Who earns a kill. XP (the victim's stat block XP times its rank multiplier) goes only for
+## a foe of the players' side (Life.xp_foe: wild creatures, raiders, people already hostile by
+## standing; never friendly or neutral people, whose deaths cost standing in Life):
+## - a player's blow landed on it: full XP to each player who landed one and to every other
+##   living player within XP_RANGE (the party shares), with kill deeds;
+## - only others' blows (guards, a rival pack): GUARD_SHARE of it, no deeds, to a player within
+##   XP_RANGE who was in the fight (dealt or took a blow within FIGHT_WINDOW_S); nothing to one
+##   who stood by;
+## - no blows at all (a fall, a trap): as the first case.
 func on_kill(victim: HostEntity, killers: Array = []) -> void:
 	if victim == null or victim.is_player():
 		return
@@ -308,11 +319,24 @@ func on_kill(victim: HostEntity, killers: Array = []) -> void:
 		ctype = "beast"
 	var beast := Knacks.beast_kind(slug)
 	var at := victim.body.center() if victim.body != null else Vector2.ZERO
+	var players_hit := killers.is_empty()
+	for id: int in killers:
+		var k := host.entity(id)
+		if k != null and k.is_player():
+			players_hit = true
+	var life := host.system(HostSystem.LIFE)
+	var combat := host.system(HostSystem.COMBAT)
 	for e: HostEntity in host.entities.values():
 		var ps := _ps(e)
 		if not e.is_player() or ps == null or ps.down == Down.DEAD:
 			continue
 		if not (e.id in killers) and e.body.center().distance_to(at) > XP_RANGE:
+			continue
+		if life != null and life.has_method("xp_foe") and not bool(life.call("xp_foe", e, victim)):
+			continue
+		if not players_hit:
+			if combat != null and combat.has_method("fought_within") and bool(combat.call("fought_within", e, FIGHT_WINDOW_S)):
+				award_xp(e.id, roundi(total * GUARD_SHARE), victim.name)
 			continue
 		award_xp(e.id, total, victim.name)
 		add_deed(e.id, "kill", 1)

@@ -79,7 +79,7 @@ static func beside(host: WorldHost, p: HostEntity, x: HostEntity) -> void:
 	TileCollision.depenetrate(host.world, p.body)
 
 func run(t: TestLog) -> void:
-	for f: String in ["_codec", "_talk", "_shop", "_quests", "_patron", "_wander"]:
+	for f: String in ["_codec", "_talk", "_shop", "_quests", "_patron", "_credit", "_wander"]:
 		var t0 := Time.get_ticks_msec()
 		call(f, t)
 		print("  %s: %d ms" % [f, Time.get_ticks_msec() - t0])
@@ -489,6 +489,92 @@ func _quests(t: TestLog) -> void:
 	t.eq((d2.logs[p.id] as Dictionary).keys().size(), (deals.logs[p.id] as Dictionary).keys().size(), "the log survives")
 	t.eq(int((d2.offers.get(sid, {}) as Dictionary).get("day", -1)), Deals.day(host.sim), "today's offers survive (the same all day)")
 	t.check(rules != null, "rules present")
+
+# --- who earns a kill (rules.on_kill, items.on_kill, life.xp_foe) --------------------------------
+
+func _credit(t: TestLog) -> void:
+	var r := rig()
+	var host: WorldHost = r["host"]
+	var life: LifeSystem = r["life"]
+	var rules: RulesSystem = r["rules"]
+	var items: ItemsSystem = r["items"]
+	var combat: CombatSystem = r["combat"]
+	var sid := town_of(host)
+	var s: SimSettlement = host.sim.settlements[sid]
+	var p := put(host, "cat", LifeTown.site_pos(host, sid) + Vector2(0, 3))
+	var p2 := put(host, "dan", LifeTown.site_pos(host, sid) + Vector2(4, 3))
+	ticks(host, 70)
+	var nb := neighbour(host, sid)
+	var far := -1
+	for o: int in WorldSim._sorted_keys(host.sim.settlements):
+		if host.sim.settlements[o].faction != s.faction:
+			far = o
+	var pid := life.cheat_party("raid", far if far >= 0 else nb, sid, 0.5)
+	t.check(pid > 0, "raiders (scene)")
+	host.sim.parties[pid].frozen = true
+	# a raider's point is on the road, wherever that is: bring the players to it
+	var at := life.road.party_pos(host, host.sim.parties[pid])
+	p.body.pos = at
+	p2.body.pos = at + Vector2(3, 0)
+	ticks(host, 70)
+	var raiders := life.actors_of(pid)
+	t.check(raiders.size() >= 3, "they are shown (%d)" % raiders.size())
+	var raider: HostEntity = raiders[0]
+	var folk: HostEntity = null
+	p.body.pos = LifeTown.site_pos(host, sid) + Vector2(0, 3)
+	ticks(host, 70)
+	var guard := person(life, sid, "guard")
+	folk = person(life, sid, "townsfolk")
+	t.check(guard != null and folk != null, "a guard and a townsman")
+	var at_home := func(e: HostEntity, id: int) -> void:
+		combat.actor(e).killers.clear()
+		combat.actor(e).killers.append(id)
+		e.body.pos = p.body.pos + Vector2(1, 0)
+	var xp := [p.character.xp, p2.character.xp]
+	p2.body.pos = p.body.pos + Vector2(3, 0)
+	combat.actor(p).last_hostile = -1000.0
+	combat.actor(p2).last_hostile = -1000.0
+	# 1. a guard dies by a raider's hand beside the players: nothing
+	at_home.call(guard, raider.id)
+	rules.on_kill(guard, combat.actor(guard).killers)
+	t.eq(p.character.xp, int(xp[0]), "no XP when a guard dies")
+	t.check(not items._loots(guard), "and no loot")
+	# 2. a raider killed by guards with the players looking on: nothing; one in the fight: a share
+	var base := host.srd.monster_xp(String(raider.look.get("slug", "")))
+	at_home.call(raider, guard.id)
+	rules.on_kill(raider, combat.actor(raider).killers)
+	t.eq(p.character.xp, int(xp[0]), "standing by while guards kill a raider earns nothing")
+	t.check(not items._loots(raider), "guards' kills drop no loot")
+	combat.actor(p).last_hostile = combat.now
+	rules.on_kill(raider, combat.actor(raider).killers)
+	t.eq(p.character.xp, int(xp[0]) + roundi(base * RulesSystem.GUARD_SHARE), "in the fight: a share (%d of %d)" % [p.character.xp - int(xp[0]), base])
+	t.eq(p2.character.xp, int(xp[1]), "the other, standing by, none")
+	xp = [p.character.xp, p2.character.xp]
+	var deeds: int = int(p.character.deeds.get("kill", 0))
+	# 3. a player's blow on a raider: full, and shared with a friend nearby, with deeds and loot
+	at_home.call(raider, p.id)
+	combat.actor(raider).killers.append(guard.id)
+	rules.on_kill(raider, combat.actor(raider).killers)
+	t.eq(p.character.xp, int(xp[0]) + base, "a player's blow earns the raider in full, guards helping or not")
+	t.eq(p2.character.xp, int(xp[1]) + base, "and the friend beside them")
+	t.check(int(p.character.deeds.get("kill", 0)) > deeds, "a kill deed")
+	t.check(items._loots(raider), "and it drops loot")
+	# 4. murder: no XP, no loot, even with the grudge the first blow made; standing falls
+	xp = [p.character.xp, p2.character.xp]
+	var st := life.standing(p.id, str(s.faction))
+	life.on_combat_damage(folk, 1, p.id)
+	t.check(life.stance(p, folk) == Life.HOSTILE, "the attacked turn hostile")
+	at_home.call(folk, p.id)
+	rules.on_kill(folk, combat.actor(folk).killers)
+	t.eq(p.character.xp, int(xp[0]), "no XP for a townsman, hostile grudge or not")
+	t.check(not items._loots(folk), "no loot from him")
+	life._died(host, folk, folk.brain)
+	t.check(life.standing(p.id, str(s.faction)) < st - 10, "and standing falls (%d -> %d)" % [st, life.standing(p.id, str(s.faction))])
+	# 5. a wild creature and no blows at all: as before
+	var gob := host.add_srd_monster("goblin-warrior", p.body.pos + Vector2(2, 0))
+	var g0 := p.character.xp
+	rules.on_kill(gob, [])
+	t.eq(p.character.xp, g0 + host.srd.monster_xp("goblin-warrior"), "a monster that fell to its death still counts")
 
 # --- 4. patrons --------------------------------------------------------------------------------
 
