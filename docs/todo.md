@@ -62,6 +62,15 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 - Invented names come from `data/sim/names.json`; `data/setting/names.json` is still empty.
   One should become the single source.
 
+## Life (M4) ([tracks/life.md](tracks/life.md))
+- Watched caravans and raids move at the sim's pace (about 0.04 tiles a second): decide
+  whether parties need time compression on screen (it would make watched history differ).
+- Needs Places data: anchors and route paths; on today's worlds people spread over the site
+  and parties stand on straight lines (in rock on shaft roads).
+- Items has no trade-good rows (dropped cargo is coin); returning cargo is not a deed yet.
+- The view ignores `look.light` (guards' torches) and the wagon look.
+- The `ALL=1` smoke runs with `places=0`: bots' placing is flaky in a peopled town.
+
 ## M2 after the integration pass ([tracks/m2-integration.md](tracks/m2-integration.md))
 
 Open from the integration pass
