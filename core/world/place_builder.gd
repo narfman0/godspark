@@ -215,10 +215,18 @@ static func lot_writes(place: Dictionary, i: int, state: String, world_seed := 0
 					bg = back if dy < keep_bg[dx] else 0
 			_put(cells, x0 + dx, y0 + dy, fg, bg)
 	if ruin and building:
-		# Rubble: one tile high, so a walker steps over it (the street stays open).
-		for k in rng.randi_range(1, 3):
-			var rx := x0 + rng.randi_range(1, w - 2)
-			_put(cells, rx, y0, pal["masonry"], KEEP)
+		# The skin: a broken wall at the back and a rubble heap; rubble tiles between them,
+		# one tile high, so a walker steps over them (the street stays open).
+		var kit := String(st.get("kit", ""))
+		var rw := Dressing.id(PlaceStyles.kit_piece(kit, "ruin_wall"))
+		var rr := Dressing.id(PlaceStyles.kit_piece(kit, "ruin_rubble"))
+		if rw >= 0 and w >= 6:
+			objects.append([rw, x0 + 1, y0, rng.randi() & 0xff])
+		if rr >= 0 and w >= 9:
+			objects.append([rr, x0 + w - 4, y0, rng.randi() & 0xff])
+		for k in rng.randi_range(1, 2):
+			if w >= 11:
+				_put(cells, x0 + rng.randi_range(5, w - 5), y0, pal["masonry"], KEEP)
 	# Roof.
 	if t.get("roof", true):
 		var r: Dictionary = st["roof"]
@@ -246,9 +254,32 @@ static func lot_writes(place: Dictionary, i: int, state: String, world_seed := 0
 		for p: Array in t.get("pieces", []):
 			var dn := PlaceStyles.kit_piece(String(st.get("kit", "")), String(p[0]))
 			var id := Dressing.id(dn) if dn != "" else -1
+			if id >= 0 and not _fits(t, id, int(p[1]), int(p[2])):
+				id = -1   # the piece does not fit in this template
 			if id >= 0:
 				objects.append([id, x0 + int(p[1]), y0 + int(p[2]), rng.randi() & 0xff])
 	return {"cells": cells, "objects": objects}
+
+## A ground piece fits where its footprint cells are open in the template and the row
+## under it is solid (a floor, the foundation, or the ground under an open lot).
+static func _fits(t: Dictionary, id: int, dx: int, dy: int) -> bool:
+	var fp := Dressing.footprint(id)
+	var w := int(t["w"])
+	var h := int(t["h"])
+	var cs: PackedByteArray = t["cells"]
+	for i in fp.x:
+		var x := dx + i
+		if x < 0 or x >= w:
+			return false
+		if dy > 0 and not char(cs[x + (dy - 1) * w]) in ["=", "+", "#"]:
+			return false
+		for j in fp.y:
+			var y := dy + j
+			if y >= h:
+				return false
+			if char(cs[x + y * w]) in ["=", "+", "#", "-", "^"]:
+				return false
+	return true
 
 static func _put(cells: PackedInt32Array, x: int, y: int, fg: int, bg: int) -> void:
 	cells.append_array(PackedInt32Array([x, y, fg, bg]))

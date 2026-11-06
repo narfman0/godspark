@@ -26,6 +26,8 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 		var where: Dictionary = d.get("where", {})
 		if Dressing.is_ceiling(i):
 			continue        # nothing hangs yet
+		if String(where.get("band", "surface")) == "place":
+			continue        # building pieces: placed by the places stage only
 		if String(where.get("band", "surface")) == "cave":
 			cave.append(i)
 		else:

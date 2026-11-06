@@ -146,9 +146,10 @@ func _dressing(t: TestLog) -> void:
 		var d: Dictionary = defs[id]
 		var fp: Array = d.get("footprint", [])
 		var ok: bool = String(d.get("model", "")).begins_with("res://assets/meshes/") and fp.size() == 2 \
-			and int(fp[0]) >= 1 and int(fp[1]) >= 1 and d.get("anchor", "") in ["ground", "ceiling"] \
-			and float(d.get("fit_h", 0)) > 0.0 and float(d.get("weight", 0)) > 0.0 \
-			and d.get("where", {}).get("band", "") in ["surface", "cave"]
+			and int(fp[0]) >= 1 and int(fp[1]) >= 1 and d.get("anchor", "") in ["ground", "ceiling", "wall"] \
+			and float(d.get("fit_h", 0)) > 0.0 \
+			and ((float(d.get("weight", 0)) > 0.0 and d.get("where", {}).get("band", "") in ["surface", "cave"])
+				or d.get("where", {}).get("band", "") == "place")   # building pieces are placed, not scattered
 		if not ok:
 			bad.append(id)
 	t.eq(bad, [], "every dressing object is well formed")

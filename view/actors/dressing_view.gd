@@ -133,7 +133,7 @@ static func placement(def: Dictionary, top_m: float, x: int, y: int) -> Transfor
 	var r2 := float((h >> 16) & 0xffff) / 65535.0
 	var s := float(def.get("fit_h", 1.0)) * t / top_m
 	s *= 1.0 + float(def.get("jitter", 0.0)) * (r1 * 2.0 - 1.0)
-	var yaw := (r2 * 2.0 - 1.0) * 0.6
+	var yaw := deg_to_rad(float(def.get("turn", 0.0))) + (0.0 if def.get("still", false) else (r2 * 2.0 - 1.0) * 0.6)
 	var b := Basis.from_scale(Vector3(1, 1, float(def.get("depth", 1.0)))) * Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3.ONE * s)
 	var pos := Vector3((x + float(fp[0]) * 0.5) * t, y * t, float(def.get("z", 0.0)) * t)
 	if String(def.get("anchor", "ground")) == "ceiling":

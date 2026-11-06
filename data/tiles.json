@@ -32,7 +32,7 @@
 		{"id": 107, "name": "awning", "solid": false, "opaque": false, "platform": true, "hardness": 0.3, "color": "#b5463a"},
 		{"id": 108, "name": "elf_wood", "solid": true, "opaque": true, "hardness": 0.8, "color": "#c2b384"},
 		{"id": 109, "name": "leaf_roof", "solid": true, "opaque": true, "hardness": 0.4, "color": "#4f7d3c"},
-		{"id": 110, "name": "fae_lamp", "solid": false, "opaque": false, "hardness": 0.1, "emit": 11, "color": "#c08cff"},
+		{"id": 110, "name": "fae_lamp", "solid": false, "opaque": false, "hardness": 0.1, "emit": 14, "color": "#c08cff"},
 		{"id": 111, "name": "bridge", "solid": false, "opaque": false, "platform": true, "hardness": 0.6, "color": "#8f6a43"}
 	],
 	"walls": [

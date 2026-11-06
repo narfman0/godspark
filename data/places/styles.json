@@ -24,7 +24,7 @@
 		},
 		"dwarf": {
 			"palette": {"wall": "dressed_stone", "floor": "dressed_stone", "masonry": "dressed_stone", "roof": "dressed_stone", "base": "dressed_stone",
-				"street": "road", "lamp": "lamp", "awning": "awning", "walk": "platform", "back": "dressed_wall"},
+				"street": "cobblestone", "lamp": "lamp", "awning": "awning", "walk": "platform", "back": "dressed_wall"},
 			"roof": {"shape": "flat", "step": 0, "overhang": 0},
 			"tall": 0.6, "kit": "dwarf", "plan": "town"
 		},
@@ -36,7 +36,7 @@
 		},
 		"drow": {
 			"palette": {"wall": "dark_stone", "floor": "dark_stone", "masonry": "dark_stone", "roof": "dark_stone", "base": "dark_stone",
-				"street": "road", "lamp": "fae_lamp", "awning": "awning", "walk": "platform", "back": "dark_wall"},
+				"street": "cobblestone", "lamp": "fae_lamp", "awning": "awning", "walk": "platform", "back": "dark_wall"},
 			"roof": {"shape": "flat", "step": 0, "overhang": 0},
 			"tall": 0.7, "kit": "drow", "plan": "town"
 		},

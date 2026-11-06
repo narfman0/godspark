@@ -91,6 +91,18 @@ func _layout(t: TestLog, world: TileWorld) -> void:
 			if world.is_solid(int(d[0]), int(d[1])) or int(d[1]) != y:
 				anchors_ok = false
 		t.check(anchors_ok, "site %s: anchors and doors are open feet cells with a floor" % k)
+	# every dressing record in the world (building pieces, signposts) stands where it holds
+	var bad := []
+	var pieces := 0
+	for cy in world.chunks_y:
+		for cx in world.chunks_x:
+			for r: Dictionary in Dressing.records_in(world, cx, cy):
+				if String(Dressing.def(r["id"]).get("where", {}).get("band", "")) == "place":
+					pieces += 1
+				if not Dressing.holds(world, r["id"], r["x"], r["y"]):
+					bad.append([Dressing.name_of(r["id"]), r["x"], r["y"]])
+	t.check(pieces > 20, "places are dressed (%d pieces)" % pieces)
+	t.check(bad.is_empty(), "every dressing record holds where it stands %s" % [bad.slice(0, 5)])
 	for kind in ["home", "shrine", "smithy", "market"]:
 		t.check(kinds.has(kind), "some place has a " + kind)
 

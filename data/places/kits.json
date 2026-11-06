@@ -1,0 +1,16 @@
+{
+	"_comment": "The skin of each style: a building piece role (data/places/buildings.json 'pieces', and the place-wide roles below) -> a dressing id in data/dressing.json. _base: a kit to fall back to for roles this one lacks. Place-wide roles: ruin_wall and ruin_rubble (on ruined lots), signpost and milestone (roads), camp (raider lots, beside each tent). Roles a kit cannot fill are skipped: the tiles alone still read as the building.",
+	"kits": {
+		"human": {"bed": "bed", "table": "table", "chair": "chair", "shelf": "shelf", "anvil": "anvil", "forge": "forge",
+			"counter": "counter", "bar": "counter", "barrel": "barrel", "crate": "crate", "throne": "throne", "candles": "candles",
+			"stall": "stall", "well": "well", "statue": "statue", "post_shrine": "brazier",
+			"ruin_wall": "wall_ruin", "ruin_rubble": "rubble"},
+		"halfling": {"_base": "human"},
+		"dwarf": {"_base": "human", "bed": "dwarf_bed", "chair": "barrel"},
+		"elf": {"_base": "human", "well": "elf_well"},
+		"drow": {"_base": "human", "bed": "dwarf_bed", "well": "elf_well", "statue": "candles"},
+		"raider": {"bed": "bones", "table": "crate", "anvil": "anvil", "forge": "brazier", "counter": "crate", "barrel": "barrel",
+			"crate": "crate", "throne": "bones", "well": "brazier", "post_shrine": "bones", "stall": "crate",
+			"ruin_wall": "wall_ruin", "ruin_rubble": "rubble"}
+	}
+}

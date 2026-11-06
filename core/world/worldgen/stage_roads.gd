@@ -111,20 +111,23 @@ static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: in
 	h.resize(n)
 	for i in n:
 		h[i] = c.surface[xa + i]
+	# a morphological closing (max filter, then min filter, radius DIP / 2) fills dips
+	# narrower than DIP without lifting the road beside them
+	var k := DIP / 2
+	var d := PackedInt32Array()
+	d.resize(n)
+	for i in n:
+		var m := -1000000
+		for j in range(i - k, i + k + 1):
+			m = maxi(m, h[j] if j >= 0 and j < n else (la if j < 0 else lb))
+		d[i] = m
 	var t := PackedInt32Array()
 	t.resize(n)
 	for i in n:
-		var lm := -1000000
-		var rm := -1000000
-		for k in range(maxi(0, i - DIP), i + 1):
-			lm = maxi(lm, h[k])
-		for k in range(i, mini(n, i + DIP + 1)):
-			rm = maxi(rm, h[k])
-		if i - DIP < 0:
-			lm = maxi(lm, la)
-		if i + DIP >= n:
-			rm = maxi(rm, lb)
-		t[i] = maxi(h[i], mini(lm, rm))
+		var m := 1000000
+		for j in range(maxi(0, i - k), mini(n - 1, i + k) + 1):
+			m = mini(m, d[j])
+		t[i] = maxi(h[i], m)
 	var prev := la
 	for i in n:
 		var x := xa + i
