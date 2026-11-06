@@ -129,7 +129,7 @@ func _stance(t: TestLog) -> void:
 	t.eq(life.stance(p, guard), Life.HOSTILE, "bad standing: hostile")
 	var hit := false
 	for i in 900:
-		p.body.pos = guard.body.pos + Vector2(2, 0)
+		p.body.pos = guard.body.pos + Vector2(0.5, 0)
 		host.tick()
 		if p.combatant.current_hp < hp:
 			hit = true
@@ -388,6 +388,18 @@ static func neighbour(host: WorldHost, sid: int) -> int:
 				best = o
 	return best
 
+## The nearest settlement of another faction with a way to sid, or -1.
+static func foreign(host: WorldHost, sid: int) -> int:
+	var best := -1
+	for o: int in WorldSim._sorted_keys(host.sim.settlements):
+		if o == sid or host.sim.settlements[o].faction == host.sim.settlements[sid].faction:
+			continue
+		if host.sim.path_between(o, sid, WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK).is_empty():
+			continue
+		if best < 0 or absf(host.sim.settlements[o].x - host.sim.settlements[sid].x) < absf(host.sim.settlements[best].x - host.sim.settlements[sid].x):
+			best = o
+	return best
+
 static func follow(host: WorldHost, life: LifeSystem, p: HostEntity, pid: int) -> void:
 	var sp: SimParty = host.sim.parties.get(pid)
 	if sp == null:
@@ -437,7 +449,8 @@ func _roads(t: TestLog) -> void:
 	var host: WorldHost = r["host"]
 	var life: LifeSystem = r["life"]
 	var combat: CombatSystem = r["combat"]
-	var from := neighbour(host, sid)
+	var from := foreign(host, sid)
+	t.check(from >= 0 and host.sim.settlements[from].faction != host.sim.settlements[sid].faction, "raiders of another faction")
 	var rid := life.cheat_party("raid", from, sid, 0.5, 5)
 	var hero := put(host, "hero", host.spawn)
 	follow(host, life, hero, rid)

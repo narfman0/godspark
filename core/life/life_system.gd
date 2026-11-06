@@ -368,6 +368,8 @@ func _died(h: WorldHost, e: HostEntity, b: MonsterBrain) -> void:
 	if combat != null and combat.actor(e) != null:
 		killers = Array(combat.actor(e).killers)
 	var info: Dictionary = actors.get(e.id, {})
+	if debug:
+		print("LIFE died %s (%s) killers %s" % [e.name, info.get("role", "-"), killers.map(func(k: int) -> String: return h.entity(k).name if h.entity(k) != null else str(k))])
 	if not info.is_empty():
 		actors.erase(e.id)
 		_out_gone.append(e.id)

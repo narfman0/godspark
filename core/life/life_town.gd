@@ -126,7 +126,8 @@ func _spot(h: WorldHost, sid: int, cells: Array, k: int, spread: float, slug: St
 		p.x += off
 	var ms := life.monsters(h)
 	if ms != null:
-		var q := ms.director._stand_near(h, p + Vector2(0, 2), slug)
+		# a real anchor is a feet cell: stand right there (lifting it would land on a roof)
+		var q := ms.director._stand_near(h, (Vector2(c.x, c.y) if _has_places(h, sid) else p + Vector2(0, 2)), slug)
 		if q != Vector2.INF:
 			return q
 	return p
