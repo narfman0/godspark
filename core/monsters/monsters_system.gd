@@ -34,6 +34,9 @@ var director: SpawnDirector
 var lairs: LairLink
 var director_enabled := -1
 var lairs_enabled := true
+## Tests: plan a fixed number of search slices per tick instead of a time budget, so the same
+## inputs give the same paths on any machine and load.
+var nav_fixed_slices := 0
 var _queue: Array = []           # [{id, goal, tol, search}]
 var _dirty: Array[Vector2i] = []
 var _known := {}                 # player id -> {monster id: true}
@@ -204,10 +207,11 @@ func _nav_tick() -> void:
 	var t0 := Time.get_ticks_usec()
 	var h := host
 	var guard := 0
-	while not _queue.is_empty() and Time.get_ticks_usec() - t0 < NAV_BUDGET_US and guard < 64:
+	var fixed := nav_fixed_slices > 0
+	while not _queue.is_empty() and (fixed or Time.get_ticks_usec() - t0 < NAV_BUDGET_US) and guard < (nav_fixed_slices if fixed else 64):
 		guard += 1
 		var left0 := NAV_BUDGET_US - (Time.get_ticks_usec() - t0)
-		if left0 < 200:
+		if left0 < 200 and not fixed:
 			break
 		var q: Dictionary = _queue.pop_front()
 		var e := h.entity(int(q["id"]))
@@ -216,9 +220,11 @@ func _nav_tick() -> void:
 			continue
 		if q["search"] == null:
 			q["search"] = MonsterNav.start(h.world, profile_of(e), e.body.pos, q["goal"], q["tol"], true, NAV_MAX_EXPAND)
+			if "max_drop" in brain:
+				(q["search"] as NavSearch).max_drop = int(brain.get("max_drop"))
 		var s: NavSearch = q["search"]
 		var left := NAV_BUDGET_US - (Time.get_ticks_usec() - t0)
-		if s.step(NAV_SLICE, maxi(left, 50)):
+		if s.step(NAV_SLICE, 1 << 30 if fixed else maxi(left, 50)):
 			stats["plans"] += 1
 			stats["plan_usec"] += s.usec
 			var p := s.result()

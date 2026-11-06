@@ -14,6 +14,8 @@ var post := Vector2.ZERO
 var safe := Vector2.INF
 var post_span := 2.0
 var alarmed_until := -1.0
+## Paths never include a drop that would hurt (people must not die of their own pathing).
+var max_drop := MonsterNav.SAFE_FALL
 var _prov_at := {}
 var _calm_at := 0.0
 

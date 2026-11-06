@@ -29,6 +29,7 @@ static func rig(life := true, rules := false) -> Dictionary:
 	var ms := MonstersSystem.new()
 	ms.director_enabled = 0
 	ms.lairs_enabled = false
+	ms.nav_fixed_slices = 8           # deterministic planning, independent of machine load
 	host.add_system(ms)
 	out["ms"] = ms
 	if life:

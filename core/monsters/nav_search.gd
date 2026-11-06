@@ -26,6 +26,9 @@ var goal: Vector2i
 var tol := Vector2i(1, 1)
 var partial := true
 var max_expand := 6000
+## Longest drop (rows) the search may plan, off a ledge or through a one-way floor. Life's
+## people use MonsterNav.SAFE_FALL: they never plan a fall that would hurt them.
+var max_drop := MonsterNav.MAX_FALL
 var expanded := 0
 var done := false
 ## Microseconds spent in step() so far.
@@ -298,7 +301,7 @@ func _ground(k: int, g0: float, L: int, y: int, dir: int, st: bool) -> void:
 
 ## Walk off (or let go) at column nl and fall to the first floor or water below.
 func _fall(k: int, g0: float, L: int, y: int, nl: int) -> void:
-	for d in range(1, MonsterNav.MAX_FALL + 1):
+	for d in range(1, max_drop + 1):
 		var c := _clear_at(nl, y - d)
 		if c != 1:
 			return
@@ -319,7 +322,7 @@ func _platform_drop(k: int, g0: float, L: int, y: int) -> void:
 			any = true
 	if not any:
 		return
-	for d in range(1, MonsterNav.MAX_FALL + 1):
+	for d in range(1, max_drop + 1):
 		if _clear_at(L, y - d) != 1:
 			return
 		# the controller ignores one-way tops only down to the row it dropped through: the

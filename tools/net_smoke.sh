@@ -66,7 +66,7 @@ LIFE=${LIFE:-0}
 if [ "$LIFE" = 1 ]; then
 	WORLD=${WORLD:-gen=dev seed=3}
 	SPAWN=${SPAWN:-goblin-warrior:0}
-	SEE=${SEE:-guard of}
+	SEE=${SEE:-none}       # checked below on either bot (people appear within a second of a join)
 	SPAWNS=${SPAWNS:-0}
 	HOST_EXTRA="${HOST_EXTRA:-} life_raid=4"
 fi
@@ -172,7 +172,7 @@ for bot in bot1 bot2; do
 	echo "  $bot: $hn chunks, digest ${hh:0:16}..., host pos $hp, client pos $cp"
 	grep -h "^BOT $bot " "$LOGS/$bot.log" | sed 's/^/    /'
 done
-if [ -n "$SEE" ] && ! grep -q "^BOT bot1 vitals .*$SEE" "$LOGS/bot1.log"; then
+if [ -n "$SEE" ] && [ "$SEE" != none ] && ! grep -q "^BOT bot1 vitals .*$SEE" "$LOGS/bot1.log"; then
 	fail+=("bot1 never reported seeing \"$SEE\"")
 fi
 if [ "$ALL" = 1 ]; then
@@ -207,6 +207,7 @@ fi
 if [ "$LIFE" = 1 ]; then
 	grep -h "^LIFE" "$LOGS/host.log" | sed 's/^/  host /'
 	grep -q "^LIFE cheat: raid [0-9]" "$LOGS/host.log" || fail+=("life: the raid was not sent")
+	grep -qh "^BOT bot[12] vitals .*guard of" "$LOGS/bot1.log" "$LOGS/bot2.log" || fail+=("life: no bot saw a town guard")
 	grep -q "^HOSTSTATS life: towns [1-9][0-9]*, .* spawned [1-9]" "$LOGS/host.log" || fail+=("life: no town materialized: $(grep -h '^HOSTSTATS life' "$LOGS/host.log")")
 fi
 if [ "$DEALS" = 1 ]; then
