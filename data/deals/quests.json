@@ -1,8 +1,8 @@
 {
-	"_doc": "Quests from the sim's state (core/deals/deals_quests.gd). Offers are made once per settlement per game day from the sim as it stands when someone first asks, choices by a hash of (world seed, site, day), and kept for the day. Per kind: givers (roles, first present wins; keeper stands in when the town has none of them), days (time limit), coin (base + per, bounded by wealth_share of the town's wealth), standing, xp, item (chance of a smith-made piece), why (lines with placeholders), goal (one line). Placeholders: {town}, {lair}, {what}, {dest}, {raiders}, {good}, {n}, {site}, {dir}, {dist}, {faction}. abandon: standing lost when the party gives up (escort and defence only). beaten: share of the coin and standing paid when someone else got there first. Distances are tiles from the town.",
+	"_doc": "Quests from the sim's state (core/deals/deals_quests.gd). Offers are made once per settlement per game day from the sim as it stands when someone first asks, choices by a hash of (world seed, site, day), and kept for the day. Per kind: givers (roles, first present wins; keeper stands in when the town has none of them), days (time limit), coin (base + per, bounded by wealth_share of the town's wealth), standing, xp, item (chance of a smith-made piece), why (lines with placeholders), goal (one line). Placeholders: {town}, {lair}, {what}, {dest}, {raiders}, {good}, {n}, {site}, {dir}, {dist}, {faction}. abandon: standing lost when the party gives up (escort and defence only). beaten: share of the coin and standing paid when someone else got there first. Distances are tiles from the town. turn_in_margin: tiles around the giver town's place (its rect) within which work is handed in.",
 	"max_offers": 4,
 	"wealth_share": 0.2,
-	"turn_in_tiles": 60,
+	"turn_in_margin": 20,
 	"near_tiles": 90,
 	"kinds": {
 		"bounty": {"givers": ["guard"], "days": 8, "coin": [40, 6], "standing": 6, "xp": 120, "item": 0.35, "reach": 900,
