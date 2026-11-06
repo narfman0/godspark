@@ -3,7 +3,9 @@
 ## walking at run speed, talking, trading and taking work at random, hitting what comes near.
 ## Real ticks, no clients (their bodies are moved along the route cells by the script), at
 ## K.TICK_HZ of host time: a game day is K.DAY_SECONDS of host time.
-##   godot --headless -s res://tools/soak.gd -- [days=3] [seed=3] [size=2048x1024]
+##   godot --headless -s res://tools/soak.gd -- [days=3] [seed=3] [size=2048x1024] [age=60]
+## age: game days the world lives before anyone arrives (news, parties). Every six game hours a
+## raid or a caravan is scheduled at the town a player last stood in.
 ## Reports script errors, tick times (and what the worst was doing), memory growth, entities
 ## over time, the sim's audit, what is materialized against the sim's books, chronicle lines,
 ## and quests offered, taken, completed, lapsed. Exit 1 on script errors or a dirty audit.
@@ -28,6 +30,7 @@ var errors := ScriptErrors.new()
 var walkers: Array = []
 var routes_at := {}
 var seen_offers := {}
+var stirred := 0
 var counts := {"talks": 0, "buys": 0, "sells": 0, "takes": 0, "turnins": 0, "legs": 0, "swings": 0}
 
 func _initialize() -> void:
@@ -47,6 +50,14 @@ func _initialize() -> void:
 	host = WorldHost.new(w)
 	Systems.install_host(host)
 	host.profile = true
+	var age := float(o.get("age", 60))
+	host.sleep(age * 24.0)
+	var guard := 0
+	while host.sim_behind() > 0 and guard < 40000:
+		host.tick()
+		host.drain()
+		guard += 1
+	print("SOAK aged %.0f days: %d parties, %d chronicle lines" % [age, host.sim.parties.size(), host.sim.chronicle.size()])
 	_routes()
 	for i in 2:
 		var e := host.add_player("soak%d" % i, i + 2, {"class": ["fighter", "cleric"][i]})
@@ -64,12 +75,16 @@ func _initialize() -> void:
 	var mem0 := Performance.get_monitor(Performance.MEMORY_STATIC)
 	var hourly := int(K.DAY_SECONDS * K.TICK_HZ / 6.0)
 	var quiet := true
+	var stir := int(K.DAY_SECONDS * K.TICK_HZ / 4.0)
 	print("SOAK %d ticks (%.1f game days)" % [ticks, days])
 	for t in ticks:
 		_script_step()
 		var a := Time.get_ticks_usec()
 		host.tick()
 		var d := Time.get_ticks_usec() - a
+		host.drain()                # the endpoint's job: no clients here
+		if t % stir == stir - 1:
+			_stir()
 		us[t] = d
 		if d > worst and t > 300:
 			worst = d
@@ -99,6 +114,13 @@ func _initialize() -> void:
 	print("SOAK script errors %d %s" % [errors.count, errors.first])
 	OS.remove_logger(errors)
 	quit(0 if errors.count == 0 and audit.is_empty() and quiet else 1)
+
+## Every six game hours something comes at the town nearest a player: a raid, then a caravan.
+func _stir() -> void:
+	var life: LifeSystem = host.system(HostSystem.LIFE)
+	var w: Dictionary = walkers[rng.randi_range(0, 1)]
+	stirred += 1
+	life.schedule("raid" if stirred % 2 == 1 else "caravan", 1.0, int(w["sid"]))
 
 func _sys_times() -> String:
 	var parts := PackedStringArray()

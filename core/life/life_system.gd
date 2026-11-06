@@ -579,6 +579,8 @@ func _run_scheduled(h: WorldHost) -> void:
 		_scheduled.remove_at(i)
 		var to := int(job["to"])
 		var sim := h.sim
+		if not sim.settlements.has(to):
+			to = -1          # a lair, a ruin, or a town gone since: the settlement nearest the spawn
 		if to < 0:
 			var bd := INF
 			for sid: int in WorldSim._sorted_keys(sim.settlements):
