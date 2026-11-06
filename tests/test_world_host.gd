@@ -162,7 +162,9 @@ func _validation(t: TestLog) -> void:
 	host.tick()
 	t.eq(host.submit_state(a.id, 1, 16, at + Vector2(0.4, 0), Vector2.ZERO, 3), SC.OK, "the corrected client is accepted again")
 	host.tick()
-	var under := Vector2(at.x, host.world.height / 2 - 0.5)
+	# a quarter tile into the ground: the fall there is within reach of 2 steps at terminal
+	# velocity, so it is the rock that refuses it, not the speed check
+	var under := Vector2(at.x, host.world.height / 2 - 0.25)
 	t.eq(host.submit_state(a.id, 1, 18, under, Vector2.ZERO, 3), SC.IN_SOLID, "a position inside rock is refused")
 	t.eq(host.submit_state(a.id, 2, 20, Vector2(-5, 70), Vector2.ZERO, 3), SC.OUT_OF_BOUNDS, "outside the world is refused")
 	t.eq(host.submit_state(a.id, 3, 22, Vector2(NAN, 70), Vector2.ZERO, 3), SC.OUT_OF_BOUNDS, "NaN is refused")
@@ -176,7 +178,9 @@ func _validation(t: TestLog) -> void:
 	b.body.pos = Vector2(40.5, 120)
 	for i in 30:
 		host.tick()
-	t.eq(host.submit_state(b.id, 0, 60, Vector2(40.5, 85), Vector2(0, -40), 0), SC.OK, "a 35-tile fall in a second is fine")
+	var fall := b.stats.terminal_fall
+	t.eq(host.submit_state(b.id, 0, 60, Vector2(40.5, 120 - fall * 0.875), Vector2(0, -fall), 0), SC.OK,
+		"a fall of 7/8 of terminal velocity for a second is fine")
 
 func _monster_slot(t: TestLog) -> void:
 	var host := WorldHost.new(TileWorld.make_test())
