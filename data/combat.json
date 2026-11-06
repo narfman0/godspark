@@ -53,7 +53,7 @@
 		"prone_crawl": 0.5,
 		"prone_stand_s": 1.0
 	},
-	"fall": {"_comment": "net drop from the last footing; dice = floor(ft / ft_per_die) once over free_ft", "free_ft": 10.0, "ft_per_die": 10.0, "max_dice": 20},
+	"fall": {"_comment": "net drop from the last footing; dice = floor(ft / ft_per_die) once over free_ft; the roll times damage_mult, rounded down", "free_ft": 20.0, "ft_per_die": 10.0, "max_dice": 20, "damage_mult": 0.5},
 	"death": {"monster_linger_s": 1.5, "player_respawn_s": 3.0},
 	"in_combat_s": 5.0,
 	"push_tiles_per_5ft": 2.0,

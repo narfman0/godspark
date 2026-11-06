@@ -159,7 +159,7 @@ func revive(target_id: int) -> void:
 func revive_stop() -> void:
 	revive(0)
 
-## Wake at your bed, a shrine or the spawn now (only when dead).
+## Wake at the closest rest spot now (when dead, or down and giving up).
 func respawn() -> void:
 	_send(RulesCodec.K.RESPAWN, PackedByteArray())
 

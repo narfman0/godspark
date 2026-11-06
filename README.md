@@ -26,7 +26,7 @@ long road to godhood. Working title.
   message, bounty, escort, defend, relief, recover, and for patrons hunts and sieges.
 - **Standing**: each faction remembers. It moves prices, who attacks you and what patrons give.
   Killing friendly or neutral people costs standing and pays nothing.
-- **Rooms**: a keeper's paid room is your respawn point, and a bed while you stay near it.
+- **Rooms**: a keeper's paid room is a place you can respawn, and a bed while you stay near it.
 
 ## What M2 added
 

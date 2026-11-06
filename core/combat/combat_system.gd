@@ -195,7 +195,8 @@ func _step_brainless(a: Actor) -> void:
 	e.flags = HostEntity.body_flags(e.body)
 
 ## Fall damage: the net drop from the last footing (floor, ladder, water, wall, flight)
-## to the landing, in feet; SRD 1d6 per 10 ft once over free_ft, at most 20d6. Players'
+## to the landing, in feet; SRD 1d6 per 10 ft at most 20d6, but gentler: nothing up to free_ft
+## (20), and the roll times damage_mult (0.5). Players'
 ## bodies are the host's copy from accepted states (flags carry on_floor and modes).
 func _fall(a: Actor) -> void:
 	var b := a.e.body
@@ -209,7 +210,7 @@ func _fall(a: Actor) -> void:
 
 func _fall_damage(a: Actor, ft: float) -> void:
 	var f := CombatTempo.section("fall")
-	if ft <= float(f.get("free_ft", 10.0)):
+	if ft <= float(f.get("free_ft", 20.0)):
 		return
 	var dice := mini(floori(ft / float(f.get("ft_per_die", 10.0))), int(f.get("max_dice", 20)))
 	if dice < 1:
@@ -218,7 +219,7 @@ func _fall_damage(a: Actor, ft: float) -> void:
 	var resist := clampf(_tag(a.e, "fall_resist"), 0.0, 1.0)
 	if resist >= 1.0:
 		return
-	var amount := floori(Dice.roll_nd(dice, 6) * (1.0 - resist))
+	var amount := floori(Dice.roll_nd(dice, 6) * float(f.get("damage_mult", 0.5)) * (1.0 - resist))
 	if amount > 0:
 		damage(0, a.e, amount, SRD.DamageType.BLUDGEONING, {"what": "fall"})
 

@@ -57,8 +57,8 @@ const REVIVE_SECONDS := 2.0
 const REVIVE_REACH := 3.0
 ## A downed body may drift this far (tiles) before the host puts it back; it may fall.
 const DOWNED_SLIP := 0.3
-## Respawn: the nearest shrine within this many tiles of where you died.
-const SHRINE_SEARCH := 96
+## Respawn: rest spots within this many tiles of where you fell.
+const SPOT_SEARCH := 96
 ## Ticks between sheet checks (sent only when something but current HP changed).
 const SYNC_EVERY := 15
 
@@ -268,7 +268,7 @@ func handle(_h: WorldHost, e: HostEntity, kind: int, data: PackedByteArray) -> v
 					_note(e, "revive refused: " + why)
 		K.RESPAWN:
 			if not respawn(e):
-				_note(e, "respawn refused: you are not dead")
+				_note(e, "respawn refused: you are not down")
 		K.SET_PREFS:
 			var pm := RulesCodec.decode_json(data, RulesCodec.PREFS_MAX)
 			e.character.prefs = Character.clean_prefs(pm)
@@ -1071,13 +1071,13 @@ func revive(e: HostEntity, target_id: int) -> String:
 		ps.revive_t = 0.0
 	return ""
 
-## A dead player wakes at their bed (if it still stands), else the nearest shrine within
-## SHRINE_SEARCH tiles of where they died, else the world spawn, rested: full HP, Hit Point
-## Dice, slots and uses. False if not dead.
+## A dead player, or a downed one who gives up (hold E), wakes at the closest rest spot
+## (respawn_point) rested: full HP, Hit Point Dice, slots and uses. False if up.
 func respawn(e: HostEntity) -> bool:
 	var ps := _ps(e)
-	if ps == null or ps.down != Down.DEAD:
+	if ps == null or ps.down == Down.UP:
 		return false
+	var to := respawn_point(e)
 	var c := e.combatant
 	c.death_saves.revive()
 	c.conditions.remove(SRD.Condition.UNCONSCIOUS)
@@ -1087,34 +1087,36 @@ func respawn(e: HostEntity) -> bool:
 	ps.last_hp = c.stats.current_hp
 	ps.dirty = true
 	_capture(e)
-	teleport(e, respawn_point(e))
+	teleport(e, to)
 	_send_down(e)
 	return true
 
-## Where e would respawn now.
+## Where e would respawn now: the closest to where they fell of their own bed or paid room,
+## and any bed, campfire or shrine within SPOT_SEARCH tiles. With none of those, the world spawn.
 func respawn_point(e: HostEntity) -> Vector2:
-	var bed: Variant = e.character.bed
-	if bed is Vector2i and host.world.in_bounds(bed.x, bed.y) and host.world.get_fg(bed.x, bed.y) == _bed:
-		return Vector2(bed.x + 0.5, bed.y)
-	if bed is Vector2i and e.character.bed_inn and host.world.in_bounds(bed.x, bed.y) and host.world.in_bounds(bed.x, bed.y + 1) \
-			and not TileDefs.solid[host.world.get_fg(bed.x, bed.y)] and not TileDefs.solid[host.world.get_fg(bed.x, bed.y + 1)]:
-		return Vector2(bed.x + 0.5, bed.y)
 	var ps := _ps(e)
-	var from := ps.died_at if ps != null else e.body.pos
+	var from := ps.died_at if ps != null and ps.down == Down.DEAD else e.body.pos
+	var best := host.spawn
+	var bd := INF
+	var bed: Variant = e.character.bed
+	if bed is Vector2i and host.world.in_bounds(bed.x, bed.y):
+		var inn: bool = e.character.bed_inn and host.world.in_bounds(bed.x, bed.y + 1) \
+				and not TileDefs.solid[host.world.get_fg(bed.x, bed.y)] and not TileDefs.solid[host.world.get_fg(bed.x, bed.y + 1)]
+		if inn or host.world.get_fg(bed.x, bed.y) == _bed:
+			best = Vector2(bed.x + 0.5, bed.y)
+			bd = best.distance_squared_to(from)
 	var fx := floori(from.x)
 	var fy := floori(from.y)
-	var best := NONE
-	var bd := INF
-	for y in range(maxi(0, fy - SHRINE_SEARCH), mini(host.world.height, fy + SHRINE_SEARCH + 1)):
-		for x in range(maxi(0, fx - SHRINE_SEARCH), mini(host.world.width, fx + SHRINE_SEARCH + 1)):
-			if host.world.get_fg(x, y) == _shrine:
-				var d := Vector2(x + 0.5, y).distance_squared_to(from)
+	for y in range(maxi(0, fy - SPOT_SEARCH), mini(host.world.height, fy + SPOT_SEARCH + 1)):
+		for x in range(maxi(0, fx - SPOT_SEARCH), mini(host.world.width, fx + SPOT_SEARCH + 1)):
+			var t := host.world.get_fg(x, y)
+			if t == _bed or t == _campfire or t == _shrine:
+				var p := Vector2(x + 0.5, y)
+				var d := p.distance_squared_to(from)
 				if d < bd:
 					bd = d
-					best = Vector2i(x, y)
-	if best != NONE:
-		return Vector2(best.x + 0.5, best.y)
-	return host.spawn
+					best = p
+	return best
 
 ## A paid bed (Deals: a room at an inn) becomes e's respawn point: the feet cell `cell`, held
 ## while it stays open (no bed tile needed). The sheet's `bed` follows.

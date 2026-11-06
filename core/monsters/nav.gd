@@ -46,7 +46,7 @@ const STAIR := 64       # a stair tread (also ONEWAY)
 const KNOWN := 128
 const SOFT_HARDNESS := 0.6
 const ROCK_HARDNESS := 2.0
-## Falls longer than this (tiles) cost extra (fall damage starts past 10 ft = 4 tiles).
+## Falls longer than this (tiles) cost extra (well inside the free 20 ft = 8 tiles of fall damage).
 const SAFE_FALL := 4
 const MAX_FALL := 24
 ## Hold times (ticks) and steering delays (ticks) of the recorded jumps.

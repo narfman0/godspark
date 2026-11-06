@@ -910,9 +910,10 @@ func _recover() -> void:
 	for attempt in 3:
 		for d: Drops.Drop in items.drops.list.values():
 			if String(d.item.get("base", "")) == "trade:tools":
-				walk_x(0, d.pos.x, 10.0)
+				# past it from either side: arriving above a drop on a ledge doesn't reach it
+				walk_x(0, d.pos.x + [0.0, -2.5, 2.5][attempt], 10.0)
 				rig.run(0.5)
-	t.check(int(held.call()) >= need, "the goods are in the players' packs (%d)" % held.call())
+	t.check(int(held.call()) >= need, "the goods are in the players' packs (%d of %d, %d left on the ground)" % [held.call(), need, items.drops.list.values().filter(func(d: Drops.Drop) -> bool: return String(d.item.get("base", "")) == "trade:tools").size()])
 	# carry them home
 	var back := walk(0, 120.0)
 	t.check(back >= 0.0, "and home along the road (%.0f s; ann %s, bob %s)" % [back, rig.cw(0).body.pos, rig.cw(1).body.pos])

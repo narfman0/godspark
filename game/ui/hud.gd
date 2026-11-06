@@ -733,7 +733,7 @@ func _draw_downed(c: Control) -> void:
 		c.draw_rect(Rect2(0, 0, m * 1.4, s.y), Color(UiTheme.BLOOD_DARK.darkened(0.6), 0.12))
 		c.draw_rect(Rect2(s.x - m * 1.4, 0, m * 1.4, s.y), Color(UiTheme.BLOOD_DARK.darkened(0.6), 0.12))
 	var w := 420.0
-	var r := Rect2((s.x - w) * 0.5, s.y * 0.30, w, 132)
+	var r := Rect2((s.x - w) * 0.5, s.y * 0.30, w, 132 if dead else 164)
 	UiTheme.ink_rect(c, r, UiTheme.PARCHMENT, UiTheme.INK, 3.0)
 	UiTheme.text(c, Vector2(r.position.x, r.position.y + 38), String(downed.get("title", "")), UiTheme.TITLE, UiTheme.BLOOD_DARK, true, HORIZONTAL_ALIGNMENT_CENTER, w)
 	UiTheme.text(c, Vector2(r.position.x, r.position.y + 62), String(downed.get("line", "")), UiTheme.SMALL, UiTheme.INK_SOFT, false, HORIZONTAL_ALIGNMENT_CENTER, w)
@@ -750,5 +750,9 @@ func _draw_downed(c: Control) -> void:
 		var next := float(downed.get("next", -1.0))
 		if next >= 0.0:
 			UiTheme.ink_bar(c, Rect2(r.position.x + 40, y + 18, w - 80, 7), 1.0 - clampf(next / 4.0, 0.0, 1.0), UiTheme.INK_SOFT, UiTheme.PARCH_SHADE)
+		UiTheme.text(c, Vector2(r.position.x, y + 44), String(downed.get("sub", "")), UiTheme.SMALL, UiTheme.INK, false, HORIZONTAL_ALIGNMENT_CENTER, w)
+		var hold := float(downed.get("give_up", -1.0))
+		if hold >= 0.0:
+			UiTheme.ink_bar(c, Rect2(r.position.x + 40, y + 54, w - 80, 7), clampf(hold, 0.0, 1.0), UiTheme.VERMILION, UiTheme.PARCH_SHADE)
 	else:
 		UiTheme.text(c, Vector2(r.position.x, r.position.y + 100), String(downed.get("sub", "")), UiTheme.BODY, UiTheme.INK, false, HORIZONTAL_ALIGNMENT_CENTER, w)

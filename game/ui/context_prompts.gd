@@ -1,7 +1,8 @@
 ## What E does here, and the prompts that say so: rest at a campfire (hold E, a ring fills over
 ## the 5 s; the reason when refused), sleep in a bed (who is still awake), kindle at a shrine
 ## (opens the constellation), revive a downed ally (hold E), and, when down, the death-save
-## overlay; when dead, the respawn prompt (nothing is lost). Also the night-passing fade when
+## overlay, where holding E gives up and wakes you at the closest rest spot; when dead, the
+## respawn prompt (nothing is lost). Also the night-passing fade when
 ## the clock jumps. Pickup is automatic and needs no key. All requests go to RulesClient.
 class_name ContextPrompts
 extends RefCounted
@@ -9,6 +10,7 @@ extends RefCounted
 const SHORT_REST_S := 5.0
 const REVIVE_S := 2.0
 const SAVE_EVERY := 4.0
+const GIVE_UP_S := 1.0
 
 var gu: GameUi
 var _rest_t0 := -1.0
@@ -21,6 +23,7 @@ var _down_t := 0.0
 var _last_hours := -1.0
 var _holding_rest := false
 var _e_prev := false
+var _give_up := -1.0
 
 func attach(g: GameUi) -> void:
 	gu = g
@@ -80,16 +83,28 @@ func tick(dt: float) -> void:
 	if st != RulesCodec.Down.UP:
 		_down_t += dt
 		var d: Dictionary = rules.downed.get(me, {})
+		# the hold starts with a fresh press, so an E held while going down doesn't count
+		if not e_held:
+			_give_up = -1.0
+		elif e_down:
+			_give_up = 0.0
 		if st == RulesCodec.Down.DEAD:
 			hud.downed = {"dead": true, "title": "Dead", "line": "Nothing is lost: your pack and your stars wait for you.",
-				"sub": "Press E to wake at your bed (or the nearest shrine)."}
+				"sub": "Press E to wake at the closest bed, fire or shrine."}
 			if e_down:
 				rules.respawn()
 		else:
+			if _give_up >= 0.0:
+				_give_up += dt
+				if _give_up >= GIVE_UP_S:
+					_give_up = -1.0
+					rules.respawn()
 			hud.downed = {"title": "Down!" if st == RulesCodec.Down.DOWNED else "Stable",
 				"line": "A death save every 4 s. An ally can hold E to haul you up." if st == RulesCodec.Down.DOWNED else "Breathing. You'll come round in a moment.",
 				"successes": int(d.get("successes", 0)), "failures": int(d.get("failures", 0)),
-				"next": SAVE_EVERY - fmod(_down_t, SAVE_EVERY) if st == RulesCodec.Down.DOWNED else -1.0}
+				"next": SAVE_EVERY - fmod(_down_t, SAVE_EVERY) if st == RulesCodec.Down.DOWNED else -1.0,
+				"sub": "Hold E to give up and wake at the closest bed, fire or shrine.",
+				"give_up": _give_up / GIVE_UP_S}
 		hud.prompt = {}
 		return
 	hud.downed = {}

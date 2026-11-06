@@ -550,8 +550,9 @@ func _rules_step() -> void:
 			if _rules_corr > 0 and rc.state_of(c.my_id) == RulesCodec.Down.UP and c.corrections >= _rules_corr:
 				var bed: Variant = rc.sheet["bed"]
 				var at := Vector2(bed.x + 0.5, bed.y) if bed is Vector2i else Vector2.INF
-				if c.body.pos.distance_to(at) > 1.0:
-					_fail("rules: respawned at %s, bed at %s" % [c.body.pos, bed])
+				var spot := c.world.get_fg(floori(c.body.pos.x), floori(c.body.pos.y))
+				if c.body.pos.distance_to(at) > 1.0 and not spot in [TileDefs.id("bed"), TileDefs.id("campfire"), TileDefs.id("shrine")]:
+					_fail("rules: respawned at %s, not a rest spot; bed at %s" % [c.body.pos, bed])
 					return
 				_say("rules respawned at bed %s hp=%d/%d" % [bed, c.hp, c.max_hp])
 				_go("walk")

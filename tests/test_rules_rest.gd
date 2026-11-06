@@ -293,9 +293,26 @@ func _respawn(t: TestLog) -> void:
 	rules.debug(ann, RulesCodec.Debug.DIE, 0)
 	rules.respawn(ann)
 	t.eq(ann.body.pos, Vector2(near.x + 0.5, near.y), "bed gone: the nearest shrine")
-	# nothing: the spawn, and on its own after the delay
+	# the closest wins: a campfire nearer than the bed you own
 	host.world.set_fg(near.x, near.y, TileDefs.AIR)
 	host.world.set_fg(far.x, far.y, TileDefs.AIR)
+	host.world.set_fg(bed.x, bed.y, TileDefs.id("bed"))
+	var fire := cell(ann, 5)
+	host.world.set_fg(fire.x, fire.y, TileDefs.id("campfire"))
+	rules.debug(ann, RulesCodec.Debug.DIE, 0)
+	rules.respawn(ann)
+	t.eq(ann.body.pos, Vector2(fire.x + 0.5, fire.y), "the closest rest spot, not the further bed")
+	# down, not dead: holding E gives up and goes there at once
+	ann.combatant.stats.current_hp = 0
+	host.tick()
+	t.check(rules.is_downed(ann) and not rules.is_dead(ann), "down")
+	t.check(rules.respawn(ann), "giving up while down respawns")
+	t.check(not rules.is_downed(ann), "up again")
+	t.eq(ann.body.pos, Vector2(fire.x + 0.5, fire.y), "at the closest rest spot")
+	t.eq(ann.combatant.stats.current_hp, ann.combatant.stats.max_hp, "full HP")
+	# nothing: the spawn, and on its own after the delay
+	host.world.set_fg(fire.x, fire.y, TileDefs.AIR)
+	host.world.set_fg(bed.x, bed.y, TileDefs.AIR)
 	rules.debug(ann, RulesCodec.Debug.DIE, 0)
 	secs(host, RulesSystem.RESPAWN_SECONDS - 1.0)
 	t.check(rules.is_dead(ann), "still dead before the delay")

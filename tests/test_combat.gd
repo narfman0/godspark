@@ -478,18 +478,18 @@ func _fall(t: TestLog) -> void:
 	ticks(r, 1)
 	var dmg := evs(r, Ev.DAMAGE, 0, h.id)
 	t.eq(dmg.size(), 1, "a 20-tile (50 ft) fall deals damage once")
-	t.check(dmg.size() == 1 and int(dmg[0]["amount"]) >= 5 and int(dmg[0]["amount"]) <= 30, "5d6 bludgeoning")
+	t.check(dmg.size() == 1 and int(dmg[0]["amount"]) >= 2 and int(dmg[0]["amount"]) <= 15, "5d6 bludgeoning, halved")
 	var r2 := rig(52)
 	var h2 := hero(r2)
 	ticks(r2, 1)
-	h2.body.pos.y = GROUND + 4
+	h2.body.pos.y = GROUND + 8
 	ticks(r2, 1)
 	h2.body.on_floor = false
 	ticks(r2, 1)
 	h2.body.pos.y = GROUND
 	h2.body.on_floor = true
 	ticks(r2, 1)
-	t.eq(evs(r2, Ev.DAMAGE, 0, h2.id).size(), 0, "10 ft is free")
+	t.eq(evs(r2, Ev.DAMAGE, 0, h2.id).size(), 0, "20 ft is free")
 	# a brainless monster falls (the host only steps bodies with a brain)
 	var gob: HostEntity = r2["host"].add_srd_monster("goblin-warrior", Vector2(90.5, GROUND + 12), null)
 	ticks(r2, 60)

@@ -613,7 +613,7 @@ Rules as built: `RulesSystem` / `RulesClient` (`core/rules/`), wire format in
 Downed and respawned players are held and moved by the host through `WorldHost.teleport`. Short rest: campfire within 3 tiles, nothing hostile within
 12, 5 s. Long rest: bed within 2 tiles, no daily limit (if it is safe, you can sleep); the night passes (to 06:00)
 when every living player is in bed. Downed: a death save every 4 s; revive is a 2 s hold
-within 3 tiles; respawn at the bed, else the nearest shrine within 96 tiles, else the spawn. Presentation is wave 2: in wave 1 a track may add one
+within 3 tiles; holding E for 1 s while down gives up. Respawn is at the closest of the own bed or paid room and any bed, campfire or shrine within 96 tiles of the fall, else the spawn. Presentation is wave 2: in wave 1 a track may add one
 optional no-op method to `Presenter` (the log presenter prints it) and nothing else in
 `game/` or `view/`, except that Combat owns the attack and cast inputs.
 
