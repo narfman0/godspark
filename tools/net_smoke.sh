@@ -111,7 +111,7 @@ sleep "${HOST_WAIT:-1.5}"
 # shellcheck disable=SC2086
 run bot1 join=127.0.0.1:"$PORT" bot name=bot1 digs=4 places=3 dir=1 fight="$FIGHT" $BOT1_EXTRA
 # shellcheck disable=SC2086
-run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=3 places=4 dir=-1 delay=2 class=wizard $BOT2_EXTRA
+run bot2 join=127.0.0.1:"$PORT" bot name=bot2 digs=4 places=4 dir=-1 delay=2 class=wizard $BOT2_EXTRA
 
 fail=()
 names=(host bot1 bot2)

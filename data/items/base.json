@@ -1,11 +1,24 @@
 {
 	"_comment": "Base item rows that are not SRD weapons, armour or magic items. Those come from the addon at load: every SRD weapon and armour by slug (kind weapon / armor / shield) and every SRD magic item by slug (kind from magic.json). Tiles come from data/tiles.json: every breakable tile is an item tile:<name>; tile_drops says what digging a tile gives when it is not itself. Row fields: name, kind (tile, material, consumable, coin, spark, gear), stack (most per slot), value (coin), weight (lb), use (consumables: heal dice), tags.",
 	"tile_drops": {
-		"grass": "tile:dirt"
+		"_comment": "Digging terrain gives plain rubble (M4: no block types to collect); ore gives an ore trade good; built things (walkways, stairs, ladders, ropes, torches, campfire, bed, shrine) give themselves. Old tile:wood, tile:dirt... items in saves stay valid and placeable.",
+		"dirt": "tile:rubble",
+		"grass": "tile:rubble",
+		"stone": "tile:rubble",
+		"wood": "tile:rubble",
+		"cobblestone": "tile:rubble",
+		"slate": "tile:rubble",
+		"copper_ore": "ore:copper",
+		"iron_ore": "ore:iron",
+		"silver_ore": "ore:silver"
 	},
 	"tile_stack": 999,
 	"rows": {
 		"coin": {"name": "Coin", "kind": "coin", "stack": 1000000, "value": 1, "weight": 0},
+		"supplies": {"name": "Supplies", "kind": "material", "stack": 999, "value": 1, "weight": 0.5, "text": "Cord, nails, oil and timber offcuts: makes torches, a campfire, a bed, ladders, walkways, stairs and rope."},
+		"ore:copper": {"name": "Copper Ore", "kind": "material", "trade": true, "stack": 999, "value": 1, "weight": 2},
+		"ore:iron": {"name": "Iron Ore", "kind": "material", "trade": true, "stack": 999, "value": 2, "weight": 2},
+		"ore:silver": {"name": "Silver Ore", "kind": "material", "trade": true, "stack": 999, "value": 8, "weight": 2},
 		"spark": {"name": "Spark", "kind": "spark", "stack": 20, "value": 250, "weight": 0},
 		"ingot:copper": {"name": "Copper Ingot", "kind": "material", "stack": 999, "value": 2, "weight": 1},
 		"ingot:iron": {"name": "Iron Ingot", "kind": "material", "stack": 999, "value": 5, "weight": 1},

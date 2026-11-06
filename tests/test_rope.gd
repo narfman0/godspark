@@ -175,14 +175,14 @@ func _net(t: TestLog) -> void:
 	t.eq(Rope.run_of(rig.cw(0).world, Vector2i(100, 63)).size(), Rope.length(), "ann sees the whole rope")
 	t.eq(Rope.run_of(rig.cw(1).world, Vector2i(100, 63)).size(), Rope.length(), "bob sees the whole rope")
 	t.check(rig.in_sync(0) and rig.in_sync(1), "worlds in sync")
-	t.eq(ai.inventory.count_base("tile:rope"), 1, "one rope left in ann's mirror")
+	t.eq(ai.inventory.count_base("tile:rope"), 3, "one rope used (the kit's two and two more held)")
 	rig.inputs[0].target = Vector2i(100, 62)
 	rig.inputs[0].place = true
 	rig.frame()
 	rig.inputs[0].place = false
 	rig.run(0.5)
 	t.eq(Rope.run_of(rig.cw(1).world, Vector2i(100, 63)).size(), 0, "ann reels it in: bob sees it gone")
-	t.eq(ai.inventory.count_base("tile:rope"), 2, "and ann has both ropes")
+	t.eq(ai.inventory.count_base("tile:rope"), 4, "and ann has all four ropes back")
 	t.check(rig.in_sync(0) and rig.in_sync(1), "still in sync")
 	t.eq(rig.cw(0).rolled_back, 0, "nothing rolled back")
 

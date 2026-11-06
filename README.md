@@ -64,8 +64,10 @@ clock, the world history and the players are saved on exit.
 
 Terraria-like: the selected hotbar item decides what the left mouse button does. Hotbar slot 1 is the
 attack slot: a new character starts with it selected and empty (it shows the wielded weapon,
-which lives on the paper doll), so a left click fights; the kit's blocks, torches, campfire,
-potions and bed are on slots 2-6, and loot never lands in slot 1. A hint above the hotbar
+which lives on the paper doll), so a left click fights; the kit's torches, campfire, potions,
+bed, two ropes and supplies are on slots 2-7, and loot never lands in slot 1. Digging gives
+plain rubble (ore gives ore to sell), which you can place again to bridge or block; camp gear,
+walkways, stairs, ladders and rope are made from supplies. A hint above the hotbar
 ("Left click: use what is selected. F: always attack. Right click: dig.") fades after your
 first attack.
 **Digging moved from the left to the right mouse button.**
@@ -74,6 +76,8 @@ first attack.
 |---|---|
 | Move left / right | A / D, or Left / Right |
 | Climb up / down (ladders, ropes, walls) | W / S, or Up / Down |
+| Take a staircase up from its foot or where it crosses your walkway (running on stays level; once on the stairs you keep to them) | Hold W as you reach it |
+| Hang a rope: select it and click a cell beside rock or under a walkway; it unrolls down to the floor (30 tiles at most). Click the rope again with a rope selected, or dig it, to take it back | Left mouse button |
 | Drop through a walkway (or stairs, a ladder top) to what is below: hold S a moment (a brush does nothing; after climbing down onto a walkway, press S again), or S + Jump at once | S |
 | Jump (hold for higher) | Space |
 | Use the selected hotbar item toward the mouse: a weapon (or an empty slot) attacks and keeps attacking while held, a block places, a potion is drunk | Left mouse button |
@@ -126,8 +130,9 @@ uses; without them it falls back to the engine font.
 - XP pacing: early levels take about 5-8 minutes, but the deep bands level too fast (the
   whole climb to 100 is about 10 hours, not the 40 planned). See
   [docs/tracks/m2-integration.md](docs/tracks/m2-integration.md).
-- Caves: worldgen opens pinch points and hangs ladders in tall shafts, but about half of cave
-  spots 40 tiles apart are still out of a walker's reach without digging.
+- Caves: worldgen joins every cave region to the rest with steps, bridges, ladders and ropes
+  (docs/tracks/traversal.md), but about a quarter of cave spots 40 tiles apart still defeat a
+  monster's path follower, and a few deep sites are only reachable the long way round.
 - Species and background are labels only; Epic Boons, tool and language Knacks and Bonds are
   recorded but not used yet.
 

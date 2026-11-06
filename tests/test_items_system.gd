@@ -69,10 +69,13 @@ func _kit(t: TestLog) -> void:
 	t.eq(String(ch.equipment.at("armor").get("base")), "chain-mail", "chain mail")
 	t.eq(String(ch.equipment.at("off_hand").get("base")), "shield", "and a shield")
 	t.check(ch.inventory.at(0).is_empty() and ch.inventory.selected == Inventory.ATTACK_SLOT, "hotbar 1: the empty attack slot, selected")
-	t.eq(ch.inventory.at(1), {"base": "tile:wood", "count": 30}, "hotbar 2: wood")
-	t.eq(String(ch.inventory.at(2)["base"]), "tile:torch", "hotbar 3: torches")
-	t.eq(String(ch.inventory.at(3)["base"]), "tile:campfire", "hotbar 4: a campfire")
-	t.eq(int(ch.inventory.at(4)["count"]), 2, "hotbar 5: two healing potions")
+	t.eq(String(ch.inventory.at(1)["base"]), "tile:torch", "hotbar 2: torches")
+	t.eq(String(ch.inventory.at(2)["base"]), "tile:campfire", "hotbar 3: a campfire")
+	t.eq(int(ch.inventory.at(3)["count"]), 2, "hotbar 4: two healing potions")
+	t.eq(String(ch.inventory.at(4)["base"]), "tile:bed", "hotbar 5: a bed")
+	t.eq(ch.inventory.at(5), {"base": "tile:rope", "count": 2}, "hotbar 6: two ropes")
+	t.eq(String(ch.inventory.at(6)["base"]), "supplies", "hotbar 7: supplies")
+	t.eq(ch.inventory.count_base("tile:wood"), 0, "no blocks in the kit")
 	ch.inventory.add(Items.make("gem", 1))
 	t.check(ch.inventory.at(0).is_empty(), "new loot never lands in the attack slot")
 	t.eq(e.combatant.weapon.slug, "longsword", "the wielded weapon is the combatant's")
@@ -235,11 +238,18 @@ func _edit_flow(t: TestLog) -> void:
 	t.eq(host.request_dig(e.id, 1, fx + 2, gy), WorldHost.Reason.OK, "dig starts")
 	_ticks(20)
 	t.eq(host.world.get_fg(fx + 2, gy), TileDefs.AIR, "dug")
-	t.eq(inv.count_base("tile:dirt"), 1, "digging grass gives dirt")
-	var wood := TileDefs.id("wood")
-	var before := inv.count_base("tile:wood")
-	t.eq(host.request_place(e.id, 2, fx + 2, gy, wood), WorldHost.Reason.OK, "place wood")
-	t.eq(inv.count_base("tile:wood"), before - 1, "placing takes one wood")
+	t.eq(inv.count_base("tile:rubble"), 1, "digging grass gives rubble")
+	t.eq(inv.count_base("tile:dirt"), 0, "and no dirt block")
+	inv.add(Items.make("tile:rubble", 4))
+	var wood := TileDefs.id("rubble")
+	var before := inv.count_base("tile:rubble")
+	t.eq(host.request_place(e.id, 2, fx + 2, gy, wood), WorldHost.Reason.OK, "place rubble")
+	t.eq(host.world.get_fg(fx + 2, gy), wood, "a rubble tile")
+	t.eq(inv.count_base("tile:rubble"), before - 1, "placing takes one rubble")
+	# an old save's wood block still places
+	inv.add(Items.make("tile:wood", 1))
+	t.eq(host.request_place(e.id, 20, fx + 4, gy + 1, TileDefs.id("wood")), WorldHost.Reason.OK, "an old wood block still places")
+	t.eq(inv.count_base("tile:wood"), 0, "and is used")
 	host.drain()
 	t.eq(host.request_place(e.id, 3, fx + 3, gy + 1, TileDefs.id("stone")), WorldHost.Reason.NO_ITEM, "no stone held: refused")
 	t.eq(host.world.get_fg(fx + 3, gy + 1), TileDefs.AIR, "and nothing placed")
@@ -263,7 +273,14 @@ func _edit_flow(t: TestLog) -> void:
 	host.world.set_fg(fx - 2, gy - 1, TileDefs.id("copper_ore"))
 	host.request_dig(e.id, 7, fx - 2, gy - 1)
 	_ticks(60)
-	t.eq(inv.count_base("tile:copper_ore"), 1, "copper ore gives copper ore")
+	t.eq(inv.count_base("ore:copper"), 1, "copper ore gives a copper ore trade good")
+	t.eq(Items.tile_of(Items.make("ore:copper")), 0, "which does not place")
+	t.check(Items.value(Items.make("ore:copper")) > 0, "and has a value to sell")
+	# built things give themselves
+	for n: String in ["platform", "stairs_r", "ladder", "torch", "campfire"]:
+		t.eq(Items.tile_drop(TileDefs.id(n)), "tile:" + n, "digging a %s gives it back" % n)
+	for n: String in ["dirt", "stone", "slate", "cobblestone", "wood", "rubble"]:
+		t.eq(Items.tile_drop(TileDefs.id(n)), "tile:rubble", "digging %s gives rubble" % n)
 	# Full inventory: the dug item falls to the ground.
 	for i in Inventory.SIZE:
 		inv.put(i, Items.make("longsword"))
@@ -271,8 +288,8 @@ func _edit_flow(t: TestLog) -> void:
 	_ticks(30)
 	var found := false
 	for d: Drops.Drop in sys.drops.list.values():
-		found = found or String(d.item["base"]) == "tile:wood"
-	t.check(found, "full inventory: the dug wood is on the ground")
+		found = found or String(d.item["base"]) == "tile:rubble"
+	t.check(found, "full inventory: the dug rubble is on the ground")
 
 func _drops(t: TestLog) -> void:
 	_fresh()
@@ -311,12 +328,13 @@ func _drops(t: TestLog) -> void:
 	t.eq(ga + gb, 1, "two players on one drop: it is picked up once")
 	t.eq(ga, 1, "by the first to touch it (entity order)")
 	# Your own drop waits before you can pick it back up.
-	sys.drop_item(a, 0, 3)
+	var torches := a.character.inventory.count_base("tile:torch")
+	sys.drop_item(a, a.character.inventory.tile_slot(TileDefs.id("torch")), 3)
 	_ticks(10)
 	t.check(sys.drops.list.size() >= 1, "a dropped stack stays on the ground a moment")
 	b.body.pos.x += 40
 	_ticks(90)
-	t.eq(a.character.inventory.count_base("tile:wood"), 30, "then the dropper picks it back up")
+	t.eq(a.character.inventory.count_base("tile:torch"), torches, "then the dropper picks it back up")
 	# Magnet widens the pickup radius.
 	sys.drop(Vector2(a.body.pos.x + 5.0, ground + 1), [Items.make("cloth", 1)])
 	_ticks(30)
@@ -438,15 +456,18 @@ func _use_and_craft(t: TestLog) -> void:
 	_fresh()
 	var e := host.add_player("pot", 1)
 	var s := e.combatant.stats
-	t.eq(sys.use_item(e, 4), "full_hp", "no potion at full hit points")
+	t.eq(sys.use_item(e, 3), "full_hp", "no potion at full hit points")
 	s.current_hp = 1
-	t.eq(sys.use_item(e, 4), "", "drink a potion")
+	t.eq(sys.use_item(e, 3), "", "drink a potion")
 	t.check(s.current_hp >= 5, "healed 2d4+2 (%d)" % s.current_hp)
-	t.eq(int(e.character.inventory.at(4)["count"]), 1, "one potion left")
-	t.eq(sys.craft(e, "platform", 3), "", "craft platforms from wood")
-	t.eq(e.character.inventory.count_base("tile:platform"), 6, "3 wood: 6 platforms")
-	t.eq(e.character.inventory.count_base("tile:wood"), 27, "the wood is used")
-	t.eq(sys.craft(e, "bed", 4), "missing", "not enough wood for four beds")
+	t.eq(int(e.character.inventory.at(3)["count"]), 1, "one potion left")
+	t.eq(sys.craft(e, "platform", 3), "", "craft walkways from supplies")
+	t.eq(e.character.inventory.count_base("tile:platform"), 9, "3 supplies: 9 walkway planks")
+	t.eq(e.character.inventory.count_base("supplies"), 9, "the supplies are used")
+	t.eq(sys.craft(e, "rope", 1), "", "a rope from supplies")
+	t.eq(e.character.inventory.count_base("tile:rope"), 3, "two from the kit and one made")
+	t.eq(sys.craft(e, "stairs_r", 1), "", "stairs from supplies")
+	t.eq(sys.craft(e, "bed", 4), "missing", "not enough supplies for four beds")
 	t.eq(sys.craft(e, "nonsense", 1), "unknown", "unknown recipe")
 
 func _persistence(t: TestLog) -> void:

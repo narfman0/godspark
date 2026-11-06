@@ -1,10 +1,13 @@
 {
-	"_comment": "Hand-crafting (no station needed): id -> {in: {base: count}, out: item record}. Wood is the tile:wood item. Ores and ingots craft into nothing yet (a smith comes later).",
+	"_comment": "Hand-crafting (no station needed): id -> {in: {base: count}, out: item record}. Camp gear and ways are made from one supply item (M4); ores and ingots craft into nothing (they are trade goods; smiths come later). Old tile:wood in saves still places but is no longer an ingredient.",
 	"recipes": {
-		"platform": {"in": {"tile:wood": 1}, "out": {"base": "tile:platform", "count": 2}},
-		"ladder": {"in": {"tile:wood": 1}, "out": {"base": "tile:ladder", "count": 2}},
-		"torch": {"in": {"tile:wood": 1}, "out": {"base": "tile:torch", "count": 3}},
-		"campfire": {"in": {"tile:wood": 5}, "out": {"base": "tile:campfire", "count": 1}},
-		"bed": {"in": {"tile:wood": 8}, "out": {"base": "tile:bed", "count": 1}}
+		"torch": {"in": {"supplies": 1}, "out": {"base": "tile:torch", "count": 3}},
+		"campfire": {"in": {"supplies": 4}, "out": {"base": "tile:campfire", "count": 1}},
+		"bed": {"in": {"supplies": 6}, "out": {"base": "tile:bed", "count": 1}},
+		"ladder": {"in": {"supplies": 1}, "out": {"base": "tile:ladder", "count": 3}},
+		"platform": {"in": {"supplies": 1}, "out": {"base": "tile:platform", "count": 3}},
+		"stairs_r": {"in": {"supplies": 1}, "out": {"base": "tile:stairs_r", "count": 3}},
+		"stairs_l": {"in": {"supplies": 1}, "out": {"base": "tile:stairs_l", "count": 3}},
+		"rope": {"in": {"supplies": 3}, "out": {"base": "tile:rope", "count": 1}}
 	}
 }
