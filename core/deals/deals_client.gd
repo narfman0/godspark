@@ -1,0 +1,165 @@
+## The client half of Deals: the open conversation, the shop as this player would pay, the
+## quest log, the rumours heard (with site ids for a map) and patron tiers. Every request is
+## validated on the host; answers come back as `note(op, ok, word)` and the mirrors update.
+##
+##   var dc := cw.system(HostSystem.DEALS) as DealsClient
+##   dc.talk_changed.connect(func(c): ...)      c: {open, id, name, role, site, line, options, ...}
+##   dc.talk(entity_id); dc.choose("shop"); dc.buy("s2", 1); dc.sell(14, 5); dc.leave()
+##   dc.accept(qid); dc.turn_in(qid); dc.abandon(qid); dc.service("bed")
+## State: conversation, shop, quests, rumours, patrons (see the signals). Docs:
+## docs/tracks/deals.md ("The client surface").
+class_name DealsClient
+extends ClientSystem
+
+signal talk_changed(conversation: Dictionary)
+signal shop_changed(shop: Dictionary)
+signal quests_changed(quests: Array)
+signal rumour_heard(rumours: Array)
+signal patron_changed(patrons: Dictionary)
+signal note(op: int, ok: bool, word: String)
+
+var cw: ClientWorld
+## {} when closed; else {open, id, name, role, site, faction, line, view, options: [{id, label}],
+## rumours?, offers?}
+var conversation := {}
+## {} when closed; else {open, kind, site, town, listings: [{id, item, n, price}], sell: {slot: price}, wealth}
+var shop := {}
+## The quest log: open quests (with progress and `where`) and ended ones (state done, failed,
+## lapsed, beaten, abandoned).
+var quests: Array = []
+## Rumours heard, oldest first: {id, text, kind, t, site, dir, dist, tiles}.
+var rumours: Array = []
+## faction id -> {tier, standing, given, suspended, name}
+var patrons := {}
+## The last closing reason and line ({why, line}).
+var closed := {}
+## The last answer from the host per request kind.
+var last_note := {}
+
+func sys_id() -> int:
+	return HostSystem.DEALS
+
+func attach(c: ClientWorld) -> void:
+	cw = c
+
+func handle(kind: int, data: PackedByteArray) -> void:
+	var d := DealsCodec.read(data)
+	match kind:
+		DealsCodec.Msg.TALK:
+			if bool(d.get("open", false)):
+				d["id"] = int(d.get("id", 0))
+				d["site"] = int(d.get("site", -1))
+				for k: String in ["rumours", "new"]:
+					if d.has(k):
+						d[k] = (d[k] as Array).map(func(r: Variant) -> Dictionary: return _rumour(r))
+				if d.has("offers"):
+					d["offers"] = (d["offers"] as Array).map(func(q: Variant) -> Dictionary: return _quest(q))
+				conversation = d
+			else:
+				conversation = {}
+				shop = {}
+				closed = {"why": String(d.get("why", "")), "line": String(d.get("line", ""))}
+			talk_changed.emit(conversation)
+		DealsCodec.Msg.SHOP:
+			if bool(d.get("open", false)):
+				var ls: Array = []
+				for l: Dictionary in d.get("listings", []):
+					ls.append({"id": String(l["id"]), "item": DealsCodec.item(l["item"]), "n": int(l["n"]), "price": int(l["price"])})
+				d["listings"] = ls
+				var sp := {}
+				for k: String in d.get("sell", {}):
+					sp[int(k)] = int(d["sell"][k])
+				d["sell"] = sp
+				d["site"] = int(d.get("site", -1))
+				d["wealth"] = int(d.get("wealth", 0))
+				shop = d
+			else:
+				shop = {}
+			shop_changed.emit(shop)
+		DealsCodec.Msg.QUESTS:
+			quests = (d.get("quests", []) as Array).map(func(q: Variant) -> Dictionary: return _quest(q))
+			quests_changed.emit(quests)
+		DealsCodec.Msg.RUMOUR:
+			var list: Array = (d.get("rumours", []) as Array).map(func(r: Variant) -> Dictionary: return _rumour(r))
+			if bool(d.get("all", false)):
+				rumours = list
+			else:
+				rumours.append_array(list)
+			rumour_heard.emit(list)
+		DealsCodec.Msg.PATRON:
+			patrons = {}
+			var src: Dictionary = d.get("patrons", {})
+			for f: String in src:
+				var p: Dictionary = src[f]
+				patrons[f] = {"tier": int(p.get("tier", 0)), "standing": int(p.get("standing", 0)), "given": int(p.get("given", 0)),
+					"suspended": bool(p.get("suspended", false)), "name": String(p.get("name", ""))}
+			patron_changed.emit(patrons)
+		DealsCodec.Msg.NOTE:
+			var op := int(d.get("op", 0))
+			last_note[op] = String(d.get("word", ""))
+			note.emit(op, bool(d.get("ok", false)), String(d.get("word", "")))
+
+static func _rumour(r: Variant) -> Dictionary:
+	var d: Dictionary = (r as Dictionary).duplicate() if r is Dictionary else {}
+	for k: String in ["id", "t", "site", "tiles"]:
+		d[k] = int(d.get(k, -1))
+	return d
+
+static func _quest(q: Variant) -> Dictionary:
+	return DealsCodec.quest(q)
+
+# --- state ---------------------------------------------------------------------------------
+
+func talking() -> bool:
+	return not conversation.is_empty()
+
+func shopping() -> bool:
+	return not shop.is_empty()
+
+## Quests by state ("active" includes "ready").
+func quests_in(state: String) -> Array:
+	return quests.filter(func(q: Dictionary) -> bool:
+		var s := String(q.get("state", ""))
+		return s == state or (state == "active" and s == "ready"))
+
+## Rumours with a place, for the map: [{site, text, dir, dist}].
+func map_marks() -> Array:
+	return rumours.filter(func(r: Dictionary) -> bool: return int(r["site"]) >= 0)
+
+# --- requests (validated on the host) -------------------------------------------------------
+
+func talk(entity_id: int) -> void:
+	_send(DealsCodec.Msg.TALK_TO, {"e": entity_id})
+
+func choose(option_id: String) -> void:
+	_send(DealsCodec.Msg.CHOOSE, {"o": option_id})
+
+func leave() -> void:
+	_send(DealsCodec.Msg.LEAVE, {})
+
+func buy(listing_id: String, n := 1) -> void:
+	_send(DealsCodec.Msg.BUY, {"l": listing_id, "n": n})
+
+func sell(inventory_slot: int, n := 1) -> void:
+	_send(DealsCodec.Msg.SELL, {"s": inventory_slot, "n": n})
+
+func service(id: String) -> void:
+	_send(DealsCodec.Msg.SERVICE, {"id": id})
+
+func accept(quest_id: String) -> void:
+	_send(DealsCodec.Msg.ACCEPT, {"q": quest_id})
+
+func abandon(quest_id: String) -> void:
+	_send(DealsCodec.Msg.ABANDON, {"q": quest_id})
+
+func turn_in(quest_id: String) -> void:
+	_send(DealsCodec.Msg.TURN_IN, {"q": quest_id})
+
+## Cheats (the host must run with `cheats`): {op: goto, role} / {op: coin, n} / {op: give, base, n}
+## / {op: standing, faction, n} / {op: complete, q}.
+func cheat(d: Dictionary) -> void:
+	_send(DealsCodec.Msg.CHEAT, d)
+
+func _send(kind: int, d: Dictionary) -> void:
+	if cw != null:
+		cw.send_sys(sys_id(), kind, DealsCodec.write(d))

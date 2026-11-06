@@ -1,0 +1,87 @@
+{
+	"_doc": "What people say (core/deals/deals_talk.gd). A line is picked by a hash of (world seed, person, game day, hour band), never by the sim's generator. Placeholders: {town} the settlement, {name} the speaker's given name, {faction}, {foe} a faction at war with this one, {dest} where a due caravan comes from. greet: by role. time: morning 5-11, day 11-17, evening 17-21, night 21-5. situation: from the sim (hungry, prosperous, war, raided, besieged, caravan_due, quiet); the first that applies is used, in this order. culture: an extra word now and then (one in three). knows: chronicle event kinds a role passes on as rumours ('*' = all). rumour_none: when nothing is known. offers: the labels of the options.",
+	"greet": {
+		"keeper": ["Mind the step. Everyone trips on it once.", "You look like someone with questions.", "Sit if you like. The stool wobbles; that's its job.", "Ah. A face I don't owe money to."],
+		"merchant": ["Looking costs nothing. Touching costs a little.", "Everything here is honest. The prices less so.", "Buying or selling? Both is also allowed.", "Fresh stock. Some of it."],
+		"smith": ["Don't stand there. The sparks bite.", "If it's sharp, I made it. If it's blunt, someone else did.", "Steel's cooling. Talk fast.", "You're holding that blade wrong. Everyone does."],
+		"priest": ["Peace on you. Mostly.", "The gods listen. They rarely reply.", "Come in out of the weather, whatever it is today.", "Hurt? Most people who come in here are."],
+		"guard": ["Keep your hands where I like them.", "Move along. Or don't; just don't make trouble.", "Quiet watch. Let's keep it that way.", "Visitor. Noted."],
+		"townsfolk": ["Oh. Hello.", "Fine weather for it, whatever it is.", "Don't ask me, I only live here.", "Lost? Most people here are."],
+		"escort": ["Keep pace or keep out of the way.", "Long road. Longer with company.", "Eyes on the hills, friend."],
+		"drover": ["The ox doesn't like you. The ox doesn't like anyone.", "Wheels hold, we arrive. That's the whole plan."],
+		"migrant": ["We're just passing. Everyone is, eventually.", "Anywhere with bread will do."],
+		"soldier": ["Orders. Don't ask which."],
+		"_": ["Yes?", "Hm?"]
+	},
+	"time": {
+		"morning": ["Early for it.", "The day's barely started and already it's long.", "First light. Best light."],
+		"day": ["Busy day.", "Middle of the day; middle of everything.", "Sun's high. So are prices."],
+		"evening": ["Getting dark. The lamps go on soon.", "Supper soon, if there's supper.", "Evening's the honest hour."],
+		"night": ["Bit late to be wandering.", "Night. Most sensible people are asleep.", "Keep to the lamps after dark."]
+	},
+	"situation": {
+		"besieged": ["There's an army at the walls. You noticed?", "Nobody gets in or out. Except you, apparently."],
+		"raided": ["We buried people this month. Don't ask who.", "Raiders came through. We're counting what's left.", "The walls held. Mostly. The fences didn't."],
+		"war": ["We're at war with {foe}. Nobody asked me.", "War with {foe}. Good for smiths, bad for everyone else.", "Watch the roads; {foe} watches them too."],
+		"hungry": ["Bread's dear and getting dearer.", "The granary echoes. That's never a good sound.", "People are eating things I won't mention."],
+		"caravan_due": ["A caravan's due from {dest}. Everyone's suddenly my friend.", "Wagons coming from {dest}, they say. We'll see."],
+		"prosperous": ["Good year. Don't tell the tax man.", "Full barns, full purses. It won't last; enjoy it.", "Money's about. Some of it might even land here."],
+		"quiet": ["Nothing happens here. We like it that way.", "Quiet. Too quiet, my aunt says; she says that about everything.", "Same as yesterday. Probably same as tomorrow."]
+	},
+	"culture": {
+		"dwarf": ["Stone remembers.", "Mind the beard."],
+		"elf": ["Seasons come and go. So do visitors.", "Walk softly; the trees gossip."],
+		"halfling": ["Have you eaten? You look like you haven't.", "Second breakfast is a right, not a privilege."],
+		"gnome": ["Don't touch the thing. The other thing either.", "It mostly doesn't explode."],
+		"human": ["Same as anywhere, really.", "Busy, busy."],
+		"orc": ["Strength first. Talk later.", "You are small but you walk like a fighter."],
+		"dragonborn": ["Honour the clan, honour the deal.", "Speak plainly. We do."],
+		"goliath": ["Every climb is a contest.", "Keep your footing."],
+		"tiefling": ["Stare all you like. Everyone does.", "Horns are not a personality."],
+		"drow": ["Light is for those with nothing to hide.", "Speak quietly. The dark is listening."],
+		"goblinoid": ["Shiny? You got shiny?", "Boss says be nice. I'm being nice."],
+		"kobold": ["Not a trap. Probably.", "Dragons are great. Ask anyone."],
+		"gnoll": ["Hungry. Always hungry."],
+		"bandit": ["Coin first, questions never.", "You didn't see me. Nobody does."]
+	},
+	"knows": {
+		"guard": ["raid", "raid_repelled", "ambush", "patrol_clash", "lair_attack", "monster_raid", "lair_new", "lair_cleared", "lair_cleared_players", "expedition_failed", "army", "siege", "siege_broken", "siege_lifted", "outlaws", "war", "peace", "apex_wrath", "slain_by_players"],
+		"merchant": ["trade_opened", "famine", "bad_harvest", "ambush", "tier_up", "tier_down", "tribute", "apex_tribute", "lair_attack", "founded", "war", "peace", "sacked"],
+		"smith": ["army", "war", "siege", "lair_new", "ambush", "trade_opened", "tier_up"],
+		"keeper": ["*"],
+		"priest": ["famine", "bad_harvest", "abandoned", "sacked", "monster_raid", "raid", "migrants", "apex_wrath", "lair_attack", "slain_by_players", "conquered", "faction_fell", "outlaws"],
+		"townsfolk": ["famine", "raid", "war", "founded", "tier_up", "abandoned", "lair_new"],
+		"escort": ["ambush", "lair_attack", "patrol_clash", "raid_repelled", "trade_opened"],
+		"drover": ["ambush", "lair_attack", "trade_opened", "famine"],
+		"migrant": ["famine", "abandoned", "migrants", "raid"],
+		"soldier": ["war", "army", "siege", "peace"]
+	},
+	"rumour_lead": {
+		"keeper": ["Here's what's going round:", "You hear things behind a bar. For instance:"],
+		"merchant": ["Prices tell you everything, if you listen:", "Talk of the market:"],
+		"smith": ["Folk talk while they wait for a blade:"],
+		"priest": ["The ones who come to pray say:"],
+		"guard": ["What the watch knows:", "Off the record:"],
+		"_": ["They say:", "Word is:"]
+	},
+	"rumour_none": ["Nothing worth repeating.", "Quiet lately. I'll make something up if you like.", "Ask me again when something happens."],
+	"offers": {
+		"rumours": "Any news?",
+		"shop": "Show me what you have.",
+		"smith": "Let me see the rack.",
+		"quests": "Any work?",
+		"bed": "A bed for the night ({price} coin).",
+		"bed_free": "A bed for the night (on the house).",
+		"heal": "Tend my wounds ({price} coin).",
+		"patron": "About my standing with {faction}.",
+		"turn_in": "About the work: {title}.",
+		"bye": "Farewell."
+	},
+	"closing": {
+		"far": "You walked off mid-sentence.",
+		"gone": "They are no longer here.",
+		"fight": "No time for talk now.",
+		"hostile": "They will not speak to you.",
+		"left": "Farewell."
+	}
+}

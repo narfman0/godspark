@@ -1,0 +1,40 @@
+{
+	"_doc": "Quests from the sim's state (core/deals/deals_quests.gd). Offers are made once per settlement per game day from the sim as it stands when someone first asks, choices by a hash of (world seed, site, day), and kept for the day. Per kind: givers (roles, first present wins; keeper stands in when the town has none of them), days (time limit), coin (base + per, bounded by wealth_share of the town's wealth), standing, xp, item (chance of a smith-made piece), why (lines with placeholders), goal (one line). Placeholders: {town}, {lair}, {what}, {dest}, {raiders}, {good}, {n}, {site}, {dir}, {dist}, {faction}. abandon: standing lost when the party gives up (escort and defence only). beaten: share of the coin and standing paid when someone else got there first. Distances are tiles from the town.",
+	"max_offers": 4,
+	"wealth_share": 0.2,
+	"turn_in_tiles": 60,
+	"near_tiles": 90,
+	"kinds": {
+		"bounty": {"givers": ["guard"], "days": 8, "coin": [40, 6], "standing": 6, "xp": 120, "item": 0.35, "reach": 900,
+			"why": ["The {what} at {lair} has been hunting the roads out of {town}.", "{lair} again. Something has to be done about the {what}."],
+			"goal": "Kill {n} of the {what} at {lair} ({dist} {dir}).", "beaten": 0.25},
+		"escort": {"givers": ["merchant"], "days": 2, "coin": [30, 2], "standing": 6, "xp": 80, "item": 0.0, "abandon": -4, "hold_h": 3,
+			"why": ["Our wagons leave for {dest}. The road has teeth lately.", "A caravan for {dest} wants another blade beside it."],
+			"goal": "Walk with the caravan to {dest} and see most of it arrive."},
+		"recover": {"givers": ["merchant"], "days": 10, "coin": [20, 1], "standing": 5, "xp": 100, "item": 0.2,
+			"why": ["{raiders} took our {good}. They're still out there with it.", "Raiders from {site} hit our wagons. The {good} was ours."],
+			"goal": "Bring back {n} {good} taken by raiders from {site}.", "beaten": 0.0},
+		"relief": {"givers": ["priest", "keeper"], "days": 12, "coin": [10, 0], "standing": 8, "xp": 90, "item": 0.0,
+			"why": ["{town} is hungry. Bread is dear and the granary is thin.", "We are eating the seed corn. Bring food, any food."],
+			"goal": "Bring {n} food (trade goods) to {town}."},
+		"defend": {"givers": ["guard"], "days": 2, "coin": [60, 4], "standing": 10, "xp": 150, "item": 0.5, "abandon": -3,
+			"why": ["Raiders from {site} are on their way here. We need every arm.", "{raiders} are coming for {town}. Stand with the watch."],
+			"goal": "Be in {town} when the raiders from {site} arrive, and beat them."},
+		"message": {"givers": ["keeper"], "days": 6, "coin": [8, 0.02], "standing": 2, "xp": 40, "item": 0.0,
+			"why": ["Someone ought to look in on {site}. It's been too quiet.", "Take word to {site} and tell me what you find."],
+			"goal": "Go to {site} ({dist} {dir}) and come back."},
+		"hunt": {"givers": ["keeper", "priest"], "patron": true, "days": 14, "coin": [200, 15], "standing": 15, "xp": 600, "item": 1.0,
+			"why": ["The {what} of {lair} takes what it likes from us. Our patron asks you to end it.", "No one else can face {lair}. We ask you."],
+			"goal": "Clear the {what} at {lair} ({dist} {dir}).", "beaten": 0.25},
+		"siege": {"givers": ["keeper", "priest"], "patron": true, "days": 6, "coin": [250, 0], "standing": 15, "xp": 500, "item": 1.0,
+			"why": ["{site} is under siege by {raiders}. Break it.", "Our people in {site} are starving behind their walls."],
+			"goal": "Break the siege of {site}."}
+	},
+	"done_lines": {
+		"done": "Done, and well done.",
+		"beaten": "Someone got there first. Take this for the walk.",
+		"failed": "It didn't go the way we hoped.",
+		"lapsed": "The world moved on without us.",
+		"abandoned": "Given up. I'll remember that."
+	}
+}

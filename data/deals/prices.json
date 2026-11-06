@@ -1,0 +1,82 @@
+{
+	"_doc": "Trade and patronage numbers (core/deals/deals_shop.gd, deals_patron.gd). Prices are in coin. A shelf row sells an item drawn from a sim good: `units` of the good per item (taken out of the settlement's stock when bought); its price is the item's list value scaled by the good's local price over its base price (trade goods: the local price itself), times buy_markup. keep: the share of a stock a store will never sell (the town eats too). max: most of one row on the shelf. Selling: trade goods and ore (rows with `good`) at the local price times sell_trade (the price already falls where a good is plentiful); gear at sell_gear of its value, other things at sell_other; worthless rows are refused; a town never pays more than wealth_cap of its wealth in one sale. Modifiers multiply the buy price (sell price by the inverse, capped): standing per point, a Bond with the people, the Silver Tongue spark (tag price_mult), each patron tier; buy_floor and sell_ceiling clamp the total.",
+	"buy_markup": 1.25,
+	"sell_trade": 0.85,
+	"sell_gear": 0.25,
+	"sell_other": 0.3,
+	"wealth_cap": 0.25,
+	"keep": 0.6,
+	"standing_per_point": 0.002,
+	"bond": 0.05,
+	"patron_tier": 0.05,
+	"buy_floor": 0.6,
+	"sell_ceiling": 1.3,
+	"shelves": [
+		{"base": "supplies", "good": "timber", "units": 0.5, "max": 60, "tiers": ["hamlet", "village", "town", "city"]},
+		{"base": "tile:torch", "good": "timber", "units": 0.1, "max": 40, "value": 1, "tiers": ["hamlet", "village", "town", "city"]},
+		{"base": "tile:rope", "good": "timber", "units": 1.0, "max": 10, "value": 2, "tiers": ["hamlet", "village", "town", "city"]},
+		{"base": "tile:campfire", "good": "timber", "units": 2.0, "max": 3, "value": 5, "tiers": ["village", "town", "city"]},
+		{"base": "potions-of-healing", "magic": true, "good": "luxuries", "units": 0.5, "max": 2, "tiers": ["village"]},
+		{"base": "potions-of-healing", "magic": true, "good": "luxuries", "units": 0.5, "max": 5, "tiers": ["town", "city"]},
+		{"base": "trade:food", "good": "food", "units": 1.0, "max": 400, "tiers": ["hamlet", "village", "town", "city"]},
+		{"base": "trade:timber", "good": "timber", "units": 1.0, "max": 100, "tiers": ["hamlet", "village", "town", "city"]},
+		{"base": "trade:ore", "good": "ore", "units": 1.0, "max": 60, "tiers": ["village", "town", "city"]},
+		{"base": "trade:tools", "good": "tools", "units": 1.0, "max": 30, "tiers": ["village", "town", "city"]},
+		{"base": "trade:luxuries", "good": "luxuries", "units": 1.0, "max": 20, "tiers": ["town", "city"]}
+	],
+	"smith": {
+		"_doc": "The rack: pieces by tier, scaled by ore (stock over its target, 0.25..1.25) and tools (0.5..1.1); no ore at all, at most one crude piece. quality: weights by tier, shifted one step up when the town is rich (wealth per person >= rich) and down when poor (< poor). materials: weights by tier; silver needs ore stock >= silver_ore, mithral only in the cultures listed. level: the level_hint ItemGen gets for affixes by tier; common pieces carry none. ore_per_piece: ore units a sold piece takes out of the stock. kinds: per culture, weighted bases ('_' for any culture not listed); armour share by culture.",
+		"pieces": {"hamlet": 2, "village": 4, "town": 7, "city": 10},
+		"quality": {
+			"hamlet": {"crude": 60, "common": 40},
+			"village": {"crude": 30, "common": 60, "fine": 10},
+			"town": {"crude": 10, "common": 60, "fine": 25, "masterwork": 5},
+			"city": {"common": 45, "fine": 40, "masterwork": 15}
+		},
+		"rich": 3.0,
+		"poor": 0.5,
+		"materials": {
+			"hamlet": {"copper": 60, "iron": 40},
+			"village": {"copper": 30, "iron": 70},
+			"town": {"copper": 10, "iron": 75, "silver": 15},
+			"city": {"iron": 65, "silver": 25, "mithral": 10}
+		},
+		"silver_ore": 40,
+		"mithral_cultures": ["dwarf", "elf", "drow", "goliath"],
+		"level": {"hamlet": 3, "village": 8, "town": 18, "city": 32},
+		"ore_per_piece": 1.0,
+		"kinds": {
+			"dwarf": {"warhammer": 4, "battleaxe": 4, "war-pick": 3, "greataxe": 2, "handaxe": 2, "light-crossbow": 1, "chain-mail": 3, "splint-armor": 2, "plate-armor": 1, "shield": 3, "half-plate-armor": 1},
+			"elf": {"longbow": 4, "shortbow": 3, "scimitar": 3, "rapier": 3, "shortsword": 3, "dagger": 2, "leather-armor": 3, "studded-leather-armor": 3, "chain-shirt": 2},
+			"drow": {"hand-crossbow": 4, "rapier": 3, "shortsword": 3, "dagger": 3, "scimitar": 2, "studded-leather-armor": 3, "chain-shirt": 3},
+			"halfling": {"sling": 4, "dagger": 3, "shortsword": 3, "light-hammer": 2, "hand-crossbow": 1, "padded-armor": 2, "leather-armor": 3, "studded-leather-armor": 1},
+			"gnome": {"light-crossbow": 3, "dagger": 3, "light-hammer": 3, "sling": 2, "shortsword": 2, "leather-armor": 3, "chain-shirt": 1},
+			"human": {"longsword": 4, "spear": 3, "mace": 3, "shortbow": 2, "light-crossbow": 2, "halberd": 1, "greatsword": 1, "leather-armor": 2, "chain-shirt": 2, "chain-mail": 2, "scale-mail": 1, "shield": 3},
+			"orc": {"greataxe": 5, "battleaxe": 3, "javelin": 3, "spear": 2, "maul": 2, "hide-armor": 3, "ring-mail": 2, "scale-mail": 1, "shield": 1},
+			"dragonborn": {"glaive": 3, "greatsword": 3, "longsword": 3, "javelin": 2, "scale-mail": 3, "breastplate": 2, "shield": 2},
+			"goliath": {"greatclub": 3, "maul": 3, "greataxe": 3, "javelin": 3, "hide-armor": 3, "breastplate": 1},
+			"tiefling": {"rapier": 3, "scimitar": 3, "light-crossbow": 2, "dagger": 2, "studded-leather-armor": 3, "chain-shirt": 2},
+			"goblinoid": {"scimitar": 4, "shortbow": 3, "javelin": 2, "spear": 2, "leather-armor": 3, "hide-armor": 2, "shield": 2},
+			"kobold": {"dagger": 4, "sling": 4, "spear": 3, "padded-armor": 3, "leather-armor": 2},
+			"gnoll": {"spear": 4, "longbow": 2, "flail": 2, "hide-armor": 3},
+			"bandit": {"scimitar": 3, "shortsword": 3, "light-crossbow": 3, "dagger": 3, "leather-armor": 3, "studded-leather-armor": 2},
+			"_": {"longsword": 3, "spear": 3, "mace": 2, "shortbow": 2, "dagger": 2, "leather-armor": 2, "chain-shirt": 2, "shield": 2}
+		}
+	},
+	"services": {
+		"_doc": "bed: a room at the tavern (the keeper), price by tier; free to a patron of the faction; sets the respawn point (Rules set_bed). heal: the shrine's priest restores all hit points for per_hp coin each (at least min).",
+		"bed": {"role": "keeper", "building": "tavern", "price": {"hamlet": 2, "village": 3, "town": 5, "city": 8}},
+		"heal": {"role": "priest", "building": "shrine", "per_hp": 1.0, "min": 5}
+	},
+	"patron": {
+		"_doc": "Standing thresholds for patron tiers; a Bond with the people raises standing to Life's bond_floor (30), which reaches the first tier. gift: what each tier brings once (gear: a made-to-order piece a quality step above the town's best; magic: an SRD magic item of the rarity, from the pool). suspend_below: patronage lapses (no prices, bed or work) under the first threshold; gifts already given stay given. work_tier: harder quests are offered from this tier. roles: who acts as patron (and the building that shows it).",
+		"tiers": [25, 50, 75],
+		"gift": [{"kind": "gear"}, {"kind": "magic", "rarity": "uncommon"}, {"kind": "magic", "rarity": "rare"}],
+		"work_tier": 2,
+		"roles": {"keeper": "hall", "priest": "shrine"},
+		"pools": {
+			"uncommon": ["cloak-of-protection", "gauntlets-of-ogre-power", "goggles-of-night", "brooch-of-shielding", "headband-of-intellect", "ring-of-jumping", "slippers-of-spider-climbing", "boots-of-striding-and-springing", "bracers-of-archery", "periapt-of-health", "stone-of-good-luck-luckstone", "winged-boots", "weapon-1-2-or-3", "shield-1-2-or-3", "mithral-armor"],
+			"rare": ["amulet-of-health", "ring-of-protection", "bracers-of-defense", "ring-of-resistance", "armor-1-2-or-3", "flame-tongue", "boots-of-speed", "mace-of-smiting", "sword-of-wounding", "ring-of-evasion", "periapt-of-proof-against-poison", "ring-of-feather-falling", "vicious-weapon"]
+		}
+	}
+}
