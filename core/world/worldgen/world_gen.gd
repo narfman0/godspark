@@ -44,6 +44,7 @@ const STAGES := [
 	["routes", Sites, "routes"],
 	["places", PlacesStage, "run"],
 	["roads", RoadsStage, "run"],
+	["reach", Passages, "reach"],
 	["dressing", DressingStage, "run"],
 ]
 
@@ -67,7 +68,7 @@ static func generate(width: int, height: int, world_seed: int, opts := {}) -> Ti
 		last_timings[st[0]] = (Time.get_ticks_usec() - t0) / 1000
 		if st[0] == stop:
 			break
-	if stop != "" and not stop in ["routes", "places", "roads", "dressing"]:
+	if stop != "" and not stop in ["routes", "places", "roads", "reach", "dressing"]:
 		c.survey()
 	var t1 := Time.get_ticks_usec()
 	var world := c.to_world()

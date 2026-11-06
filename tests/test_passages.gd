@@ -21,29 +21,30 @@ func run(t: TestLog) -> void:
 			if TileDefs.rope[id] != 0 or TileDefs.stairs[id] != 0 or id == TileDefs.id("rubble"):
 				feats += 1
 	t.check(feats > 50, "ropes, stairs and rubble steps were laid (%d cells)" % feats)
-	# every site on foot from the spawn settlement
+	# every site and both ends of every route on foot from the spawn settlement (stage
+	# "reach" guarantees it; the monsters' nav graph, jumps recorded from the real controller,
+	# checks it), on this world and one more
+	_every_target(t, a, "1024x512 seed 5")
+	_every_target(t, WorldGen.generate(1024, 512, 2), "1024x512 seed 2")
+	var dev := WorldGen.generate_named("dev", 7)
+	_every_target(t, dev, "dev seed 7")
+	var rough := 0
+	for r: Dictionary in dev.meta["routes"]:
+		if r.get("rough", false):
+			rough += 1
+	t.check(rough * 4 <= (dev.meta["routes"] as Array).size(), "deep routes are walks, few rough (%d of %d)" % [rough, (dev.meta["routes"] as Array).size()])
+
+static func _every_target(t: TestLog, world: TileWorld, label: String) -> void:
 	var prof := MonsterNav.profile(MoveStats.from_srd({"walk": 30}, "medium"))
-	var spawn := Vector2.INF
-	for s: Dictionary in a.meta["sites"]:
-		if s["kind"] == "settlement" and s["band"] in ["surface", "sky"]:
-			spawn = Vector2(float(s["x"]) + 0.5, float(s["y"]))
-			break
-	var f := MonsterNav.start(a, prof, spawn, Vector2(-5000, -5000), Vector2i.ZERO, false, 20000000, Vector2i(a.width, a.height))
+	var tg: Array = load("res://tools/passability_sweep.gd")._targets(world)
+	var f := MonsterNav.start(world, prof, tg[0][1], Vector2(-5000, -5000), Vector2i.ZERO, false, 40000000, Vector2i(world.width, world.height))
 	while not f.step(1000000):
 		pass
 	var missed: Array = []
-	var n := 0
-	for s: Dictionary in a.meta["sites"]:
-		n += 1
-		var g := MonsterNav.node_of(prof, Vector2(float(s["x"]) + 0.5, float(s["y"])))
-		var ok := false
-		for o: Vector2i in [Vector2i.ZERO, Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(1, 1)]:
-			if f.path_to(g + o) != null:
-				ok = true
-				break
-		if not ok:
-			missed.append("%s %d" % [s["kind"], s["id"]])
-	t.check(missed.size() * 8 <= n, "sites reachable on foot from the spawn: %d of %d (missed %s)" % [n - missed.size(), n, missed])
+	for tt: Array in tg:
+		if not load("res://tools/passability_sweep.gd")._reached(f, prof, tt[1]):
+			missed.append(tt[0])
+	t.check(missed.is_empty(), "%s: every site and route end on foot from the spawn (%d targets; apart: %s)" % [label, tg.size(), missed])
 
 static func _all(w: TileWorld) -> Array:
 	var out: Array = []

@@ -26,6 +26,8 @@ const GenContext := preload("gen_context.gd")
 
 const JUMP_UP := 4
 const JUMP_ACROSS := 4
+## Rows clear over the box for a running jump across a gap (the arc rises that much).
+const ACROSS_ROOM := 2
 const MIN_SPOTS := 4
 ## In the deeps and the nadir only regions this big are joined (their pockets are sparse and
 ## a long straight tunnel to each would not look like a cave); small pockets anywhere are
@@ -40,6 +42,8 @@ const TALL := 5
 ## Network spots kept per 16 x 16 block, and component spots sampled, when aiming a join.
 const BUCKET_KEEP := 6
 const SAMPLES := 64
+## Tile ids from here up are the Places track's (roads, bridges, buildings).
+const PLACE_TILES := 96
 
 static var stats := {}
 
@@ -47,12 +51,14 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	if not bool(c.opts.get("passages", true)):
 		stats = {"skipped": true}
 		return            # opts {"passages": false}: the world as it was before this stage (tools)
+	var holes := _ramp_holes(c, c.ascent) + _ramp_holes(c, c.portal)
 	var p := Passer.new(c, rng)
 	p.build_spots()
 	p.join_moves()
 	p.connect_all()
 	p.caverns()
 	stats = p.stats
+	stats["ramp_holes"] = holes
 	# A second look at the world as it now is: a later join may have cut into an earlier one,
 	# and the cavern works add ways; whatever is still apart is joined again.
 	var p2 := Passer.new(c, rng)
@@ -63,6 +69,400 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 		"ms": int(p2.stats["spots_ms"]) + int(p2.stats["moves_ms"]) + int(p2.stats["join_ms"])}
 	if p.log_joins:
 		stats["log"] = p.join_log
+
+## A ramp (the ascent, the portal's) is paved only over rock: where it crosses a cave its
+## floor is open air. Those cells get a stair tread rising the ramp's way (a landing gets a
+## walkway plank): one-way, so the cave under it is not walled off. Not out in the open
+## above the ground at the ramp's mouth. Returns the cells floored.
+static func _ramp_holes(c: GenContext, ramp: Dictionary, avoid: Array = []) -> int:
+	var path: Array = ramp.get("path", [])
+	if path.size() < 2:
+		return 0
+	var dx := signi((path[1] as Vector2i).x - (path[0] as Vector2i).x)
+	var dy := signi((path[-1] as Vector2i).y - (path[0] as Vector2i).y)
+	var tread := TileDefs.id("stairs_r") if dx * dy > 0 else TileDefs.id("stairs_l")
+	var plank := TileDefs.id("platform")
+	var n := 0
+	for k in path.size():
+		var q: Vector2i = path[k]
+		if q.y - 1 < 1 or q.y - 1 > c.ground[q.x]:
+			continue
+		var i := q.x + (q.y - 1) * c.w
+		if c.fg[i] != c.AIR:
+			continue
+		var inside := false
+		for r: Rect2i in avoid:
+			if r.has_point(Vector2i(q.x, q.y - 1)):
+				inside = true
+				break
+		if inside:
+			continue
+		var level := (k == 0 or (path[k - 1] as Vector2i).y == q.y) and (k + 1 >= path.size() or (path[k + 1] as Vector2i).y == q.y)
+		c.fg[i] = plank if level else tread
+		n += 1
+	return n
+
+## Stage "reach" (after every stage that changes terrain: places and roads included): every
+## site and both ends of every route must be reachable on foot by a Medium body from the
+## spawn (the first surface settlement). The same two-way moves as above are flooded; any
+## target apart from the spawn's component is joined to it (the same features, never
+## through a place, a road or a built way), and the result is checked again, up to
+## REACH_ROUNDS times. Then deep routes flagged rough get their path walked again (they are
+## clean once the ramps are floored) and lose the flag. stats["reach"] reports.
+const REACH_ROUNDS := 3
+
+static var reach_stats := {}
+
+static func reach(c: GenContext, rng: RandomNumberGenerator) -> void:
+	reach_stats = {}
+	if not bool(c.opts.get("passages", true)) or c.sites.is_empty():
+		return
+	var t0 := Time.get_ticks_usec()
+	# the places stage cleared building lots, the ramps' floors in them too: floor the ramps
+	# again outside the lots
+	var lots: Array = []
+	for key: String in c.places:
+		var pl: Dictionary = c.places[key]
+		for i in (pl.get("lots", []) as Array).size():
+			lots.append(PlaceBuilder.lot_rect(pl, i))
+	reach_stats["ramp_holes"] = _ramp_holes(c, c.ascent, lots) + _ramp_holes(c, c.portal, lots)
+	var rounds: Array = []
+	for r in REACH_ROUNDS:
+		var p := Passer.new(c, rng)
+		p.final = true
+		p.build_spots()
+		p.join_moves()
+		var res := p.connect_targets(targets(c))
+		rounds.append(res)
+		if int(res["apart"]) == 0 or int(res["joined"]) == 0:
+			break
+	reach_stats["rounds"] = rounds
+	reach_stats["missing"] = rounds[-1]["missing"] if int(rounds[-1]["joined"]) == 0 else -1
+	reach_stats["clean"] = _clean_routes(c, lots)
+	reach_stats["ms"] = (Time.get_ticks_usec() - t0) / 1000
+
+## What must be reachable: [label, feet cell] for every site and both ends of every route's
+## path. The first surface settlement (the spawn) comes first.
+static func targets(c: GenContext) -> Array:
+	var out: Array = []
+	var spawn := -1
+	for s: Dictionary in c.sites:
+		if s["kind"] == "settlement" and String(s["band"]) in ["surface", "sky"]:
+			spawn = int(s["id"])
+			out.append(["spawn %d" % spawn, Vector2i(int(s["x"]), int(s["y"]))])
+			break
+	for s: Dictionary in c.sites:
+		if int(s["id"]) != spawn:
+			out.append(["%s %d" % [s["kind"], s["id"]], Vector2i(int(s["x"]), int(s["y"]))])
+	for r: Dictionary in c.routes:
+		var path: Array = r.get("path", [])
+		if path.size() >= 2:
+			out.append(["route %d a" % r["id"], Vector2i(int(path[0][0]), int(path[0][1]))])
+			out.append(["route %d b" % r["id"], Vector2i(int(path[-1][0]), int(path[-1][1]))])
+	return out
+
+## Deep routes flagged rough: walk them again one tile up or down per column; a clean walk
+## replaces the path and drops the flag. Where there is none, the route is graded: the
+## cheapest walk near its current path where a step that is not walkable costs the rock cut
+## for the body and the treads laid under it, which are then built. Returns how many became
+## clean.
+static func _clean_routes(c: GenContext, avoid: Array = []) -> int:
+	var Roads: Script = load("res://core/world/worldgen/stage_roads.gd")
+	var n := 0
+	for r: Dictionary in c.routes:
+		if not r.get("rough", false):
+			continue
+		var path: Array = r.get("path", [])
+		if path.size() < 2:
+			continue
+		var a := Vector2i(int(path[0][0]), int(path[0][1]))
+		var b := Vector2i(int(path[-1][0]), int(path[-1][1]))
+		var res: Array = Roads.call("walk", c, a, b, 1, 1)
+		if res.is_empty():
+			# where the jumping and falling walk steps more than a row, a short flight of
+			# treads down from the higher cell makes it a walk, then try again
+			var rough: Array = Roads.call("walk", c, a, b, 24, 6)
+			var built := 0
+			for i in range(1, rough.size()):
+				var p0: Vector2i = rough[i - 1]
+				var p1: Vector2i = rough[i]
+				if absi(p1.y - p0.y) > 1 and absi(p1.x - p0.x) == 1:
+					built += _flight(c, p0 if p0.y > p1.y else p1, p1 if p0.y > p1.y else p0)
+			if built > 0:
+				res = Roads.call("walk", c, a, b, 1, 1)
+		if res.is_empty():
+			var sa: Vector2i = Roads.call("_settle", c, a)
+			var sb: Vector2i = Roads.call("_settle", c, b)
+			res = _grade(c, _corridor(c, r, sa, sb) + path, sa, sb, avoid)
+		if res.is_empty():
+			continue
+		var out: Array = []
+		for q: Vector2i in res:
+			out.append([q.x, q.y])
+		r["path"] = out
+		r.erase("rough")
+		n += 1
+	return n
+
+## The line a deep route should follow, as feet cells [[x, y]]: from end a along the deep
+## road to the ramp it takes (the ascent's or the portal's), up or down the ramp, and on to
+## end b; straight lines between the pieces.
+static func _corridor(c: GenContext, r: Dictionary, a: Vector2i, b: Vector2i) -> Array:
+	var by_id := {}
+	for s: Dictionary in c.sites:
+		by_id[int(s["id"])] = s
+	var sa: Dictionary = by_id.get(int(r["a"]), {})
+	var sb: Dictionary = by_id.get(int(r["b"]), {})
+	var ramp: Array = []
+	if String(sa.get("kind", "")) == "portal" or String(sb.get("kind", "")) == "portal":
+		ramp = c.portal.get("path", [])
+	elif String(sa.get("band", "")) in ["surface", "sky"] or String(sb.get("band", "")) in ["surface", "sky"]:
+		ramp = c.ascent.get("path", [])
+	var pts: Array = [a]
+	if not ramp.is_empty():
+		var r0: Vector2i = ramp[0]
+		var r1: Vector2i = ramp[-1]
+		var fwd := absi(r0.x - a.x) + absi(r0.y - a.y) <= absi(r1.x - a.x) + absi(r1.y - a.y)
+		var start: Vector2i = r0 if fwd else r1
+		# along the deep road to the ramp's start, where the road runs
+		var step := signi(start.x - a.x)
+		var x := a.x
+		while step != 0 and x != start.x:
+			x += step
+			if c.road_x0 >= 0 and x >= c.road_x0 and x <= c.road_x1 and absi(c.road_floor[x - c.road_x0] - a.y) < 40:
+				pts.append(Vector2i(x, c.road_floor[x - c.road_x0]))
+		var seq: Array = ramp if fwd else ramp.duplicate()
+		if not fwd:
+			seq.reverse()
+		pts.append_array(seq)
+	pts.append(b)
+	var out: Array = []
+	for i in pts.size():
+		var p: Vector2i = pts[i]
+		if i > 0:
+			var q: Vector2i = pts[i - 1]
+			var n := maxi(absi(p.x - q.x), absi(p.y - q.y))
+			for k in range(1, n):
+				out.append([q.x + (p.x - q.x) * k / n, q.y + (p.y - q.y) * k / n])
+		out.append([p.x, p.y])
+	return out
+
+const GRADE_R := 8          # corridor half-width around a route's line
+const GRADE_CUT := 3        # cost of a rock cell cut for the body
+const GRADE_TREAD := 2      # cost of a tread or plank laid over air
+
+## The cheapest one-row-per-column walk from a to b (feet cells) within GRADE_R of `near`
+## (the route's old path, [[x, y]]), built: rock in the body's way is cut and air under the
+## feet floored (a tread where it rises, a plank where level). Never through bedrock, paved
+## floors, the Places track's tiles or the rects in `avoid`. [] when there is none.
+static func _grade(c: GenContext, near: Array, a: Vector2i, b: Vector2i, avoid: Array) -> Array:
+	if a.x < 0 or b.x < 0 or near.is_empty():
+		return []
+	var lo := Vector2i(mini(a.x, b.x), mini(a.y, b.y))
+	var hi := Vector2i(maxi(a.x, b.x), maxi(a.y, b.y))
+	for q: Array in near:
+		lo = Vector2i(mini(lo.x, int(q[0])), mini(lo.y, int(q[1])))
+		hi = Vector2i(maxi(hi.x, int(q[0])), maxi(hi.y, int(q[1])))
+	lo -= Vector2i(GRADE_R, GRADE_R)
+	hi += Vector2i(GRADE_R, GRADE_R)
+	lo = Vector2i(maxi(lo.x, 1), maxi(lo.y, 2))
+	hi = Vector2i(mini(hi.x, c.w - 2), mini(hi.y, c.h - 6))
+	var bw := hi.x - lo.x + 1
+	var bh := hi.y - lo.y + 1
+	var mask := PackedByteArray()
+	mask.resize(bw * bh)
+	# the corridor: cells within GRADE_R of the old path
+	for q: Array in near:
+		var qx := int(q[0]) - lo.x
+		var qy := int(q[1]) - lo.y
+		for dy in range(-GRADE_R, GRADE_R + 1):
+			var yy := qy + dy
+			if yy < 0 or yy >= bh:
+				continue
+			var row := yy * bw
+			for xx in range(maxi(0, qx - GRADE_R), mini(bw - 1, qx + GRADE_R) + 1):
+				mask[xx + row] = 1
+	# inside a building lot the walk may pass (the street runs through) but builds nothing
+	for r: Rect2i in avoid:
+		for yy in range(maxi(r.position.y, lo.y), mini(r.end.y, hi.y + 1)):
+			for xx in range(maxi(r.position.x, lo.x), mini(r.end.x, hi.x + 1)):
+				var mi := (xx - lo.x) + (yy - lo.y) * bw
+				if mask[mi] != 0:
+					mask[mi] = 2
+	for p: Vector2i in [a, b]:
+		mask[(p.x - lo.x) + (p.y - lo.y) * bw] = 1
+	var cost := PackedInt32Array()
+	cost.resize(bw * bh)
+	cost.fill(1 << 30)
+	var prev := PackedInt32Array()
+	prev.resize(bw * bh)
+	prev.fill(-1)
+	var si := (a.x - lo.x) + (a.y - lo.y) * bw
+	var gi := (b.x - lo.x) + (b.y - lo.y) * bw
+	cost[si] = 0
+	var hk := PackedInt32Array([si])
+	var hf := PackedInt32Array([0])
+	while not hk.is_empty():
+		var k := hk[0]
+		var f := hf[0]
+		_hpop(hk, hf)
+		if f > cost[k]:
+			continue
+		if k == gi:
+			break
+		var px := lo.x + k % bw
+		var py := lo.y + k / bw
+		for dx: int in [-1, 1]:
+			for dy: int in [-1, 0, 1]:
+				var nx := px + dx
+				var ny := py + dy
+				if nx < lo.x or nx > hi.x or ny < lo.y or ny > hi.y:
+					continue
+				var nk := (nx - lo.x) + (ny - lo.y) * bw
+				if mask[nk] == 0:
+					continue
+				var step := _grade_cost(c, px, py, nx, ny)
+				if step < 0 or (step > 0 and mask[nk] == 2):
+					continue
+				var nc := cost[k] + 1 + step
+				if nc < cost[nk]:
+					cost[nk] = nc
+					prev[nk] = k
+					_hpush(hk, hf, nk, nc)
+	if gi != si and prev[gi] < 0:
+		var near_b := a
+		var bd := 1 << 30
+		for k2 in cost.size():
+			if cost[k2] < (1 << 30):
+				var q := Vector2i(lo.x + k2 % bw, lo.y + k2 / bw)
+				var d := absi(q.x - b.x) + absi(q.y - b.y)
+				if d < bd:
+					bd = d
+					near_b = q
+		reach_stats["grade_fail"] = reach_stats.get("grade_fail", []) + [[a, b, near_b]]
+		return []
+	var cells: Array = []
+	var k := gi
+	while k >= 0:
+		cells.append(Vector2i(lo.x + k % bw, lo.y + k / bw))
+		k = prev[k]
+	cells.reverse()
+	# build it
+	var tr := TileDefs.id("stairs_r")
+	var tl := TileDefs.id("stairs_l")
+	var plank := TileDefs.id("platform")
+	for i in cells.size():
+		var q: Vector2i = cells[i]
+		var top := q.y + 3
+		if i + 1 < cells.size() and (cells[i + 1] as Vector2i).y > q.y:
+			top = q.y + 4                  # a step up needs a row over the column it leaves
+		for yy in range(q.y, top):
+			if c.solid[c.fg[q.x + yy * c.w]] != 0:
+				c.fg[q.x + yy * c.w] = c.AIR
+		var fi := q.x + (q.y - 1) * c.w
+		if c.fg[fi] == c.AIR:
+			var rise := 0
+			if i > 0:
+				rise = signi(q.y - (cells[i - 1] as Vector2i).y) * signi(q.x - (cells[i - 1] as Vector2i).x)
+			if rise == 0 and i + 1 < cells.size():
+				rise = signi((cells[i + 1] as Vector2i).y - q.y) * signi((cells[i + 1] as Vector2i).x - q.x)
+			c.fg[fi] = plank if rise == 0 else (tr if rise > 0 else tl)
+	return cells
+
+## Extra cost of stepping from feet cell (px, py) to (nx, ny) one column over: 0 when it is a
+## walk already, the cuts and floor it needs otherwise, -1 when it would touch something built.
+static func _grade_cost(c: GenContext, px: int, py: int, nx: int, ny: int) -> int:
+	var extra := 0
+	var w := c.w
+	for yy in range(ny, ny + 3):
+		var e := _cut_cost(c, nx + yy * w)
+		if e < 0:
+			return -1
+		extra += e
+	if ny > py:
+		var e := _cut_cost(c, px + (py + 3) * w)
+		if e < 0:
+			return -1
+		extra += e
+	var under := c.fg[nx + (ny - 1) * w]
+	if c.solid[under] == 0 and TileDefs.platform[under] == 0 and TileDefs.ladder[under] == 0:
+		if under != c.AIR:
+			return -1
+		extra += GRADE_TREAD
+	return extra
+
+static func _cut_cost(c: GenContext, i: int) -> int:
+	var id := c.fg[i]
+	if id >= PLACE_TILES:
+		return -1
+	if c.solid[id] == 0:
+		return 0
+	if id == c.BEDROCK or (id == c.COBBLE and c.solid[c.fg[i + c.w]] == 0):
+		return -1                          # bedrock, or a paved floor
+	return GRADE_CUT
+
+static func _hpush(hk: PackedInt32Array, hf: PackedInt32Array, k: int, f: int) -> void:
+	hk.append(k)
+	hf.append(f)
+	var i := hk.size() - 1
+	while i > 0:
+		var p := (i - 1) >> 1
+		if hf[p] <= f:
+			break
+		hk[i] = hk[p]
+		hf[i] = hf[p]
+		i = p
+	hk[i] = k
+	hf[i] = f
+
+static func _hpop(hk: PackedInt32Array, hf: PackedInt32Array) -> void:
+	var n := hk.size() - 1
+	var lk := hk[n]
+	var lf := hf[n]
+	hk.resize(n)
+	hf.resize(n)
+	if n == 0:
+		return
+	var i := 0
+	while true:
+		var ch := 2 * i + 1
+		if ch >= n:
+			break
+		if ch + 1 < n and hf[ch + 1] < hf[ch]:
+			ch += 1
+		if hf[ch] >= lf:
+			break
+		hk[i] = hk[ch]
+		hf[i] = hf[ch]
+		i = ch
+	hk[i] = lk
+	hf[i] = lf
+
+## Treads stepping down one row per column from feet cell hi toward the next column's lower
+## feet cell lo, through open air (rock in the way of the body is cut, never anything
+## built or a place's tiles), until they meet the floor. Returns the treads laid.
+static func _flight(c: GenContext, hi: Vector2i, lo: Vector2i) -> int:
+	var dir := signi(lo.x - hi.x)
+	var tread := TileDefs.id("stairs_l") if dir > 0 else TileDefs.id("stairs_r")   # rising back toward hi
+	var n := 0
+	for k in range(1, hi.y - lo.y):
+		var x := hi.x + k * dir
+		var fy := hi.y - k - 1             # the floor under feet row hi.y - k
+		if x < 1 or x >= c.w - 1 or fy < 1:
+			break
+		var i := x + fy * c.w
+		if c.solid[c.fg[i]] != 0 or TileDefs.platform[c.fg[i]] != 0:
+			break                          # the ground (or a floor) is here: the walk steps onto it
+		for yy in range(fy + 1, fy + 4):
+			var j := x + yy * c.w
+			if c.solid[c.fg[j]] != 0:
+				if c.fg[j] == c.BEDROCK or c.fg[j] == c.COBBLE or c.fg[j] >= PLACE_TILES:
+					return n
+				c.fg[j] = c.AIR
+		if c.fg[i] == c.AIR:
+			c.fg[i] = tread
+			n += 1
+	return n
 
 ## Spots that `x, y` area may belong to: for tools and tests.
 static func spot_ok(c: GenContext, x: int, y: int) -> bool:
@@ -93,9 +493,13 @@ class Passer extends RefCounted:
 	var ruins: Array = []                # Rect2i around each buried ruin room
 	var keep := PackedByteArray()        # floors joins laid or stand on: never cut later
 	var log_joins := false
+	var log_edges := false
+	var edge_log := PackedInt32Array()
 	var join_log: Array = []
 	var jump_up := JUMP_UP
 	var jump_across := JUMP_ACROSS                # Rect2i areas never carved or built in
+	## The final check (stage "reach"): places and roads exist; their tiles are never cut.
+	var final := false
 
 	func _init(ctx: GenContext, r: RandomNumberGenerator) -> void:
 		c = ctx
@@ -129,6 +533,11 @@ class Passer extends RefCounted:
 			if cav["settled"]:
 				var rx := int(cav["rx"])
 				no_go.append(Rect2i(int(cav["x"]) - rx * 3 / 4, int(cav["floor"]) - 2, rx * 3 / 2, int(cav["ry"])))
+		for key: String in c.places:
+			var pl: Dictionary = c.places[key]
+			var st: Array = pl.get("street", [])
+			if st.size() >= 3:       # the place: its street and the buildings over it
+				no_go.append(Rect2i(int(st[0]) - 3, int(st[2]) - 3, int(st[1]) - int(st[0]) + 7, 30))
 
 	static func spot_at(ctx: GenContext, x: int, y: int) -> bool:
 		if x < 0 or x + 1 >= ctx.w or y < 1 or y + 2 >= ctx.h:
@@ -201,6 +610,13 @@ class Passer extends RefCounted:
 			i = nx
 		return r
 
+	## Join two spots by a move (kind: 1 walk, 2 jump up, 3 jump across, 4 ladder or rope);
+	## with log_edges the move is kept (tools compare them with the nav graph).
+	func _link(a: int, b: int, kind: int) -> void:
+		if log_edges:
+			edge_log.append_array(PackedInt32Array([a, b, kind]))
+		union(a, b)
+
 	func union(a: int, b: int) -> void:
 		var ra := find(a)
 		var rb := find(b)
@@ -229,15 +645,15 @@ class Passer extends RefCounted:
 				or (spot(x - 1, y - 1) >= 0 and open(x - 1, y + 2) and open(x, y + 2))
 			var t := spot(x + 1, y)
 			if t >= 0:
-				union(s, t)
+				_link(s, t, 1)
 				walk_r = true
 			t = spot(x + 1, y + 1)
 			if t >= 0 and open(x, y + 3):
-				union(s, t)
+				_link(s, t, 1)
 				walk_r = true
 			t = spot(x + 1, y - 1)
 			if t >= 0 and open(x + 2, y + 2) and open(x + 1, y + 2):
-				union(s, t)
+				_link(s, t, 1)
 				walk_r = true
 			if walk_r and walk_l:
 				continue
@@ -246,14 +662,14 @@ class Passer extends RefCounted:
 			for dy in range(2, jump_up + 1):
 				for dx in range(-3, 4):
 					t = spot(x + dx, y + dy)
-					if t >= 0 and _clear_up(x, y, dx, dy):
-						union(s, t)
+					if t >= 0 and _footing(t) and _clear_up(x, y, dx, dy):
+						_link(s, t, 2)
 			for dx in range(2, jump_across + 2):
 				for dy in range(-1, 2):
 					for dir: int in [1, -1]:
 						t = spot(x + dx * dir, y + dy)
-						if t >= 0 and _clear_across(x, y, dx * dir, dy):
-							union(s, t)
+						if t >= 0 and _footing(t) and _clear_across(x, y, dx * dir, dy):
+							_link(s, t, 3)
 		# ladders and ropes: every spot along a climbable run
 		var fg := c.fg
 		for x in w:
@@ -267,16 +683,23 @@ class Passer extends RefCounted:
 					y1 += 1
 				var first := -1
 				for yy in range(y, y1 + 1):
-					for xx: int in [x - 1, x]:
+					for xx: int in [x - 1]:        # the box whose middle column holds the ladder
 						var k := spot(xx, yy)
 						if k >= 0:
 							if first < 0:
 								first = k
 							else:
-								union(first, k)
+								_link(first, k, 4)
 				y = y1
 		stats["floor_ends"] = edges
 		stats["moves_ms"] = (Time.get_ticks_usec() - t0) / 1000
+
+	## A landing a jump makes reliably: floor under both of the box's columns (a body coming
+	## down at a corner with one column over the edge slides off; the monsters' planner asks
+	## for half a tile of the landing box over floor).
+	func _footing(t: int) -> bool:
+		var i := spx[t] + (spy[t] - 1) * w
+		return (c.solid[c.fg[i]] != 0 or oneway[c.fg[i]] != 0) and (c.solid[c.fg[i + 1]] != 0 or oneway[c.fg[i + 1]] != 0)
 
 	## Rise straight up from (x, y) by dy, then across by dx at the top, with a row to spare
 	## over the box (the real arc rises past the landing).
@@ -299,7 +722,7 @@ class Passer extends RefCounted:
 		var x0 := mini(x, x + dx)
 		var x1 := maxi(x, x + dx) + 1
 		for xx in range(x0, x1 + 1):
-			for yy in range(yb, yb + 4):
+			for yy in range(yb, yb + 3 + ACROSS_ROOM):
 				if not open(xx, yy):
 					return false
 		return true
@@ -375,6 +798,77 @@ class Passer extends RefCounted:
 		stats["left"] = todo.size()
 		stats["features"] = kinds
 		stats["join_ms"] = (Time.get_ticks_usec() - t0) / 1000
+
+	## Stage "reach": join every target's component to the spawn's (targets[0]). Returns
+	## {targets, apart (before joining), joined, missing: [labels still apart or with no spot]}.
+	func connect_targets(tg: Array) -> Dictionary:
+		var t0 := Time.get_ticks_usec()
+		var tspot: Array = []
+		var missing: Array = []
+		for t: Array in tg:
+			var k := _spot_near(t[1])
+			tspot.append(k)
+			if k < 0:
+				missing.append("%s: no standing room at %s" % [t[0], t[1]])
+		var out := {"targets": tg.size(), "apart": 0, "joined": 0, "missing": missing, "kinds": {}}
+		if tspot.is_empty() or int(tspot[0]) < 0:
+			out["missing"].append("no spawn spot")
+			return out
+		var root := find(int(tspot[0]))
+		var want := {}
+		for k: int in tspot:
+			if k >= 0 and find(k) != root:
+				want[find(k)] = true
+		out["apart"] = want.size()
+		if want.is_empty():
+			out["ms"] = (Time.get_ticks_usec() - t0) / 1000
+			return out
+		var members := {}
+		for s in spx.size():
+			var r := find(s)
+			if r == root or want.has(r):
+				if not members.has(r):
+					members[r] = []
+				(members[r] as Array).append(s)
+		_add_net(members[root])
+		var todo: Array = want.keys()
+		todo.sort()
+		var kinds := {}
+		for radius: int in RADII + [maxi(w, h)]:
+			var progress := true
+			while progress and not todo.is_empty():
+				progress = false
+				var left: Array = []
+				for r: int in todo:
+					if net[int((members[r] as Array)[0])] != 0:
+						continue
+					var best := _nearest(members[r], radius)
+					if best.is_empty():
+						left.append(r)
+						continue
+					var kind := _join(best[0], best[1])
+					kinds[kind] = int(kinds.get(kind, 0)) + 1
+					out["joined"] = int(out["joined"]) + 1
+					_add_net(members[r])
+					progress = true
+				todo = left
+		out["kinds"] = kinds
+		for i in tg.size():
+			var k: int = tspot[i]
+			if k >= 0 and net[k] == 0 and find(k) != root:
+				missing.append("%s at %s" % [tg[i][0], tg[i][1]])
+		out["ms"] = (Time.get_ticks_usec() - t0) / 1000
+		return out
+
+	## The spot a body standing at feet cell q is on (its box's left column is q.x - 1 or
+	## q.x, a row up or down), or -1.
+	func _spot_near(q: Vector2i) -> int:
+		for o: Vector2i in [Vector2i(-1, 0), Vector2i(0, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(-1, -1), Vector2i(0, -1),
+				Vector2i(-2, 0), Vector2i(1, 0), Vector2i(-2, 1), Vector2i(1, 1)]:
+			var k := spot(q.x + o.x, q.y + o.y)
+			if k >= 0:
+				return k
+		return -1
 
 	func _add_net(m: Array) -> void:
 		for s: int in m:
@@ -469,6 +963,8 @@ class Passer extends RefCounted:
 		var id := c.fg[i]
 		if id == c.BEDROCK:
 			return true
+		if final and id >= PLACE_TILES:
+			return true      # a road, a bridge, a building: never cut
 		if id != c.COBBLE or c.solid[c.fg[i + w]] != 0:
 			return false
 		for r: Rect2i in ruins:

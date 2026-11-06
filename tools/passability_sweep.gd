@@ -1,0 +1,118 @@
+## Passability over many generated worlds: generation time, the joins the passages stage
+## built (by kind), what the final "reach" stage found apart and joined, and the check that
+## matters: a flood of the monsters' nav graph (Medium walker, jumps recorded from the real
+## controller) from the spawn settlement to every site and both ends of every route.
+##   godot --headless -s res://tools/passability_sweep.gd -- [seeds=3,5,7] [size=dev] [flood=1]
+##                                                            [passages=0|1]
+## Prints one line per world and a PASSWEEP total. flood=0 skips the nav check (timings only).
+extends SceneTree
+
+const SP := preload("res://core/world/worldgen/stage_passages.gd")
+
+func _initialize() -> void:
+	var opts := {}
+	for a in OS.get_cmdline_user_args():
+		var kv := a.split("=", true, 1)
+		opts[kv[0]] = kv[1] if kv.size() > 1 else ""
+	var seeds := String(opts.get("seeds", "3,5,7")).split(",")
+	var size := String(opts.get("size", "dev"))
+	var flood: bool = opts.get("flood", "1") != "0"
+	var gopts := {"passages": String(opts.get("passages", "1")) != "0"}
+	var prof := MonsterNav.profile(MoveStats.from_srd({"walk": 30}, "medium"))
+	var tot_ok := 0
+	var tot_n := 0
+	var worlds_ok := 0
+	var gen_ms := 0
+	var pass_ms := 0
+	var reach_ms := 0
+	var kinds_all := {}
+	var rough := 0
+	var routes := 0
+	for s in seeds:
+		var world := WorldGen.generate_named(size, int(s), gopts)
+		var tm: Dictionary = WorldGen.last_timings
+		gen_ms += int(tm["total"])
+		pass_ms += int(tm.get("passages", 0))
+		reach_ms += int(tm.get("reach", 0))
+		var st: Dictionary = SP.stats
+		var kinds := {}
+		for src: Dictionary in [st.get("features", {}), st.get("second", {}).get("features", {})]:
+			for k: String in src:
+				kinds[k] = int(kinds.get(k, 0)) + int(src[k])
+		var rs: Dictionary = SP.reach_stats
+		for rd: Dictionary in rs.get("rounds", []):
+			for k: String in rd.get("kinds", {}):
+				kinds["reach " + k] = int(kinds.get("reach " + k, 0)) + int(rd["kinds"][k])
+		for k: String in kinds:
+			kinds_all[k] = int(kinds_all.get(k, 0)) + int(kinds[k])
+		for r: Dictionary in world.meta["routes"]:
+			routes += 1
+			if r.get("rough", false):
+				rough += 1
+		var line := "seed %s %s: gen %d ms (passages %d, reach %d); joins %s; reach %s" % [s, size, tm["total"],
+			tm.get("passages", 0), tm.get("reach", 0), kinds, _brief(rs)]
+		if not flood:
+			print(line)
+			continue
+		var tg := _targets(world)
+		var spawn: Vector2 = tg[0][1]
+		var f := MonsterNav.start(world, prof, spawn, Vector2(-5000, -5000), Vector2i.ZERO, false, 40000000,
+			Vector2i(world.width, world.height))
+		while not f.step(1000000):
+			pass
+		var miss: Array = []
+		for t: Array in tg:
+			if not _reached(f, prof, t[1]):
+				miss.append("%s at %s" % [t[0], t[1]])
+		tot_ok += tg.size() - miss.size()
+		tot_n += tg.size()
+		if miss.is_empty():
+			worlds_ok += 1
+		print(line, "; on foot %d/%d" % [tg.size() - miss.size(), tg.size()])
+		for m: String in miss:
+			print("    apart: ", m)
+	var n := seeds.size()
+	print("PASSWEEP %s x%d: targets on foot %d/%d, every target in %d of %d worlds; rough routes %d/%d; gen %.0f ms avg (passages %.0f, reach %.0f); joins per world %s" % [
+		size, n, tot_ok, tot_n, worlds_ok, n if flood else 0, rough, routes, float(gen_ms) / n, float(pass_ms) / n,
+		float(reach_ms) / n, _per(kinds_all, n)])
+	quit()
+
+static func _brief(rs: Dictionary) -> String:
+	var parts := PackedStringArray()
+	for rd: Dictionary in rs.get("rounds", []):
+		parts.append("%d apart, %d joined" % [rd["apart"], rd["joined"]])
+	return "[%s] clean %s, %s ms" % [", ".join(parts), rs.get("clean", "-"), rs.get("ms", "-")]
+
+static func _per(d: Dictionary, n: int) -> Dictionary:
+	var out := {}
+	for k: String in d:
+		out[k] = snappedf(float(d[k]) / n, 0.1)
+	return out
+
+## [label, feet position] for every site and both ends of every route; the spawn first.
+static func _targets(world: TileWorld) -> Array:
+	var out: Array = []
+	var spawn := -1
+	for s: Dictionary in world.meta["sites"]:
+		if s["kind"] == "settlement" and s["band"] in ["surface", "sky"]:
+			spawn = int(s["id"])
+			out.append(["spawn %d" % spawn, Vector2(float(s["x"]) + 0.5, float(s["y"]))])
+			break
+	for s: Dictionary in world.meta["sites"]:
+		if int(s["id"]) != spawn:
+			out.append(["%s %d (%s)" % [s["kind"], s["id"], s["band"]], Vector2(float(s["x"]) + 0.5, float(s["y"]))])
+	for r: Dictionary in world.meta["routes"]:
+		var path: Array = r.get("path", [])
+		if path.size() >= 2:
+			out.append(["route %d a" % r["id"], Vector2(float(path[0][0]) + 0.5, float(path[0][1]))])
+			out.append(["route %d b" % r["id"], Vector2(float(path[-1][0]) + 0.5, float(path[-1][1]))])
+	return out
+
+static func _reached(f: NavSearch, prof: NavProfile, p: Vector2) -> bool:
+	var g := MonsterNav.node_of(prof, p)
+	for o: Vector2i in [Vector2i.ZERO, Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(1, 1),
+			Vector2i(0, -1), Vector2i(-2, 0), Vector2i(2, 0)]:
+		var k := f._key(g.x + o.x, g.y + o.y)
+		if k >= 0 and f._g[k] != INF:
+			return true
+	return false
