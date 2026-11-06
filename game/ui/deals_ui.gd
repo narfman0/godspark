@@ -29,6 +29,10 @@ var _turning_in := {}
 var _ptier := {}
 var _p_init := false
 var _stand := {}
+var _at := -1
+var _at_t := 0.0
+## site id -> msec of its last banner (no repeat within a minute)
+var _bannered := {}
 
 func attach(g: GameUi) -> void:
 	gu = g
@@ -68,12 +72,15 @@ func nearest() -> int:
 	var best := 0
 	var bd := RANGE
 	var me := gu.cw.body.center()
+	var fx: Variant = gu.presenter.get("fx") if gu.presenter != null else null
+	var active: Dictionary = fx.plates.active if fx != null and fx.plates != null else {}
+	var now := Time.get_ticks_msec()
 	for id: int in lc.people:
 		if not bool(lc.people[id].get("talk", false)):
 			continue
 		var r: ClientWorld.RemoteEntity = gu.cw.remotes.get(id)
-		if r == null:
-			continue
+		if r == null or now - int(active.get(id, -100000)) < 6000:
+			continue      # gone, or busy fighting: no talk now
 		var d := (r.pos + Vector2(0, r.size.y * 0.5)).distance_to(me)
 		if d <= bd:
 			bd = d
@@ -174,6 +181,65 @@ func patron_summary(fid: String) -> String:
 	var next := "the top tier" if t >= 3 else "tier %d at %d" % [t + 1, DealsLogic.TIERS[t]]
 	return "Tier %d, standing %d (%s next). Prices %d%% off, a free bed in their inns%s. Gifts given: %d of 3." % [t, v, next,
 		5 * t, ", their patron work" if t >= 2 else "", int(p.get("given", 0))]
+
+# --- arriving at places ------------------------------------------------------------------------------
+
+## Twice a second: entering a settlement shows its banner (name, what it is, whose, its
+## state); a ruin or lair whose name you know shows on approach.
+func tick_places(dt: float) -> void:
+	_at_t -= dt
+	if _at_t > 0.0 or dc == null or dc.sites.is_empty():
+		return
+	_at_t = 0.5
+	var meta: Dictionary = gu.cw.world.meta
+	var me := gu.cw.body.center()
+	var here := -1
+	var known := MapLogic.discovered(dc.seen, dc.rumours, dc.quests)
+	for s: Dictionary in meta.get("sites", []):
+		var sid := int(s["id"])
+		var kind := String(s["kind"])
+		if kind == "settlement":
+			if MapLogic.at_site(meta, sid, me, 4.0):
+				here = sid
+				break
+		elif absf(me.x - float(s["x"])) < 40.0 and absf(me.y - float(s["y"])) < 24.0 and known.has(sid) and dc.site_name(sid) != "":
+			here = sid
+			break
+	if here == _at:
+		return
+	_at = here
+	if here < 0:
+		return
+	var now := Time.get_ticks_msec()
+	if now - int(_bannered.get(here, -100000)) < 60000:
+		return
+	_bannered[here] = now
+	gu.hud.place_banner(place_banner(here))
+
+## The banner's words for a site.
+func place_banner(sid: int) -> Dictionary:
+	var a: Dictionary = dc.sites.get(sid, {})
+	var kind := String(a.get("kind", ""))
+	if kind == "settlement" and a.has("tier") and not bool(a.get("ruin", false)):
+		var f := faction_name(String(a.get("faction", "")))
+		var sl := DealsLogic.state_line(a)
+		var st := "%s. %s" % [sl[0], sl[1]] if String(sl[0]) != "Quiet" else String(sl[1])
+		return {"name": String(a.get("name", "")), "line": DealsLogic.cap(DealsLogic.place_line(a)) + (", " + f if f != "" else ""),
+			"state": st, "color": Emblems.culture_color(String(a.get("culture", ""))), "kind": "settlement"}
+	if kind == "lair":
+		return {"name": String(a.get("name", "")), "line": "A lair. Something lives here%s." % (", and it is not small" if bool(a.get("apex", false)) else ""),
+			"state": "Tread softly, or don't.", "color": UiTheme.VERMILION, "kind": "lair"}
+	if kind == "portal":
+		return {"name": String(a.get("name", "The portal")), "line": "The way to elsewhere.", "state": "", "color": UiTheme.PLUM, "kind": "portal"}
+	return {"name": String(a.get("name", "")), "line": "Ruins. Someone lived here once.", "state": "", "color": UiTheme.PARCH_DEEP, "kind": "ruin"}
+
+## The host's own arrival note ("Millburrow, a halfling town of 633 souls"): the banner says it.
+func is_arrival_note(t: String) -> bool:
+	for sid: int in dc.sites:
+		var n := String(dc.sites[sid].get("name", ""))
+		if n != "" and t.begins_with(n + ", a"):
+			return true
+	return false
 
 # --- marks on the map -------------------------------------------------------------------------------
 

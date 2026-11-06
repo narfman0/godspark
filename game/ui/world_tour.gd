@@ -20,7 +20,10 @@ func steps() -> void:
 	lc = cw.system(HostSystem.LIFE) as LifeClient
 	items = cw.system(HostSystem.ITEMS) as ItemsClient
 	pres.rig.zoom = 1.6
-	await wait(2.0)
+	# the arrival banner: show it again for the picture (it rose while the world loaded)
+	ui.deals_ui._bannered.clear()
+	ui.deals_ui._at = -1
+	await wait(1.5)
 	await shot("01_arrival")
 	await talk_to("merchant")
 	await shot("02_talk_prompt")
@@ -81,8 +84,8 @@ func road() -> void:
 		var me := me_host(h)
 		h.teleport(me, MapLogic.site_xy(h.world.meta, town) + Vector2(10, 1))
 		TileCollision.depenetrate(h.world, me.body))
-	await wait(3.0)
-	await shot("14_arrival_banner")
+	await wait(1.5)
+	await shot("14_raid_coming")
 	await wait(6.0)
 	await shot("15_raid")
 	await wait(8.0)

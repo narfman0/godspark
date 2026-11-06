@@ -96,7 +96,9 @@ func attach(client: ClientWorld, pres: Node) -> void:
 		items.note.connect(_on_item_note)
 	if rules != null:
 		rules.leveled.connect(_on_leveled)
-		rules.notice.connect(func(t: String) -> void: toast(t))
+		rules.notice.connect(func(t: String) -> void:
+			if deals_ui == null or not deals_ui.is_arrival_note(t):
+				toast(t))
 		rules.xp_gained.connect(func(n: int, src: String) -> void: hud.xp_toast(n, src))
 		rules.prefs_arrived.connect(func(p: Dictionary) -> void: quick.load_prefs(p))
 		quick.load_prefs(rules.prefs)
@@ -328,6 +330,8 @@ func _process(_delta: float) -> void:
 	hud.tick(_delta)
 	if marks != null:
 		marks.step()
+	if deals_ui != null:
+		deals_ui.tick_places(_delta)
 	frame_usec.append(Time.get_ticks_usec() - t0)
 	if frame_usec.size() > 4000:
 		frame_usec = frame_usec.slice(2000)

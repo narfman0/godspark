@@ -23,6 +23,10 @@ var prompt_box: Control
 var toasts: VBoxContainer
 var banner_box: Control
 var downed_box: Control
+## Entering a place: its name, what it is, its state (DealsUi.arrive).
+var place_box: Control
+var _place := {}
+var _place_t := -1.0
 ## The pinned quest (M4) and the row of screen buttons under the clock (map, work, standing, help).
 var tracker: QuestTracker
 var ledger: HBoxContainer
@@ -68,6 +72,7 @@ func _ready() -> void:
 	prompt_box.z_index = 20
 	banner_box = _canvas("banner", _draw_banner)
 	downed_box = _canvas("downed", _draw_downed)
+	place_box = _canvas("place", _draw_place)
 	toasts = VBoxContainer.new()
 	toasts.name = "toasts"
 	toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -112,6 +117,8 @@ func _layout() -> void:
 	bar.position = Vector2((s.x - w) * 0.5, s.y - bar.size.y - 8)
 	prompt_box.size = Vector2(520, 70)
 	prompt_box.position = Vector2((s.x - 520) * 0.5, bar.position.y - 84)
+	place_box.size = Vector2(560, 104)
+	place_box.position = Vector2((s.x - 560) * 0.5, 150)
 	banner_box.size = Vector2(620, 110)
 	banner_box.position = Vector2((s.x - 620) * 0.5, 70)
 	downed_box.size = s
@@ -215,6 +222,11 @@ func tick(delta: float) -> void:
 		banner_box.queue_redraw()
 		if _banner_t > 4.5:
 			_banner_t = -1.0
+	if _place_t >= 0.0:
+		_place_t += delta
+		place_box.queue_redraw()
+		if _place_t > 5.5:
+			_place_t = -1.0
 	if _xp_t >= 0.0:
 		_xp_t += delta
 		if _xp_t > 1.2:
@@ -651,6 +663,35 @@ func _draw_banner(c: Control) -> void:
 	UiTheme.star(c, Vector2(r.end.x - 56, r.get_center().y), 16, 6, UiTheme.GOLD, 4, UiTheme.INK, -_banner_t)
 	UiTheme.text(c, Vector2(0, r.position.y + 46), _banner_title, UiTheme.TITLE + 8, UiTheme.VERMILION.darkened(0.15), true, HORIZONTAL_ALIGNMENT_CENTER, c.size.x)
 	UiTheme.text(c, Vector2(0, r.position.y + 74), _banner_line, UiTheme.BODY, UiTheme.INK, false, HORIZONTAL_ALIGNMENT_CENTER, c.size.x)
+
+## A place banner: {name, line, state, color, kind (settlement | lair | ruin | portal), tier}.
+func place_banner(d: Dictionary) -> void:
+	_place = d
+	_place_t = 0.0
+	place_box.queue_redraw()
+
+func _draw_place(c: Control) -> void:
+	if _place_t < 0.0 or _place.is_empty() or _dimmed:
+		return
+	var a := clampf(_place_t / 0.4, 0.0, 1.0) * clampf((5.5 - _place_t) / 0.8, 0.0, 1.0)
+	c.modulate.a = a
+	var w := c.size.x
+	var col: Color = _place.get("color", UiTheme.INK)
+	# a thin inked cartouche: rules either side of the name
+	var nm := String(_place.get("name", ""))
+	var nw := UiTheme.text_width(nm, UiTheme.TITLE + 4, true)
+	var y := 40.0
+	UiTheme.text(c, Vector2(0, y), nm, UiTheme.TITLE + 4, UiTheme.TEXT_LIGHT, true, HORIZONTAL_ALIGNMENT_CENTER, w, 6)
+	for sx: float in [-1.0, 1.0]:
+		var x0 := w * 0.5 + sx * (nw * 0.5 + 14)
+		var x1 := w * 0.5 + sx * (nw * 0.5 + 90)
+		c.draw_line(Vector2(x0, y - 10), Vector2(x1, y - 10), UiTheme.INK, 5.0)
+		c.draw_line(Vector2(x0, y - 10), Vector2(x1, y - 10), col.lightened(0.2), 2.5)
+		UiTheme.star(c, Vector2(x1 + sx * 8, y - 10), 7, 2.5, col, 4, UiTheme.INK)
+	UiTheme.text(c, Vector2(0, y + 26), String(_place.get("line", "")), UiTheme.BODY, UiTheme.TEXT_LIGHT, false, HORIZONTAL_ALIGNMENT_CENTER, w, 4)
+	var st := String(_place.get("state", ""))
+	if st != "":
+		UiTheme.text(c, Vector2(0, y + 50), st, UiTheme.SMALL, UiTheme.STARLIGHT, false, HORIZONTAL_ALIGNMENT_CENTER, w, 4)
 
 ## The clock jumped `hours` forward (everyone slept, or a debug key): fade through the night.
 func night(hours: float) -> void:

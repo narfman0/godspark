@@ -222,6 +222,20 @@ func _live(t: TestLog) -> void:
 	rig.until(func() -> bool: return not dc.talking(), 3.0)
 	t.check(not dc.talking() and not gu.deals_ui.dialogue.visible, "the conversation ends and the panel goes")
 	t.check(not gu.number_keys_taken(), "number keys back to the hotbar")
+	var town := -1
+	for sid: int in dc.seen:
+		if String(dc.sites.get(sid, {}).get("kind", "")) == "settlement" and dc.sites[sid].has("tier"):
+			town = sid
+	if town >= 0:
+		var pb := gu.deals_ui.place_banner(town)
+		t.eq(String(pb["name"]), dc.site_name(town), "the place banner names the town")
+		t.check(String(pb["line"]).contains("souls"), "and says what it is (%s)" % pb["line"])
+		t.check(gu.deals_ui.is_arrival_note("%s, a human town of 9 souls" % dc.site_name(town)), "the host's arrival note is recognised (the banner says it)")
+		t.check(not gu.deals_ui.is_arrival_note("The star takes."), "other notes are not")
+		gu.deals_ui._at = -1
+		gu.deals_ui._at_t = 0.0
+		gu.deals_ui.tick_places(0.1)
+		t.check(gu.hud._place_t >= 0.0 or gu.deals_ui._at == town, "standing in the town raises its banner")
 	_screens(t, gu, rig)
 	gu.queue_free()
 	tree.root.remove_child(gu)
