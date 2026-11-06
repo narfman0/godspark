@@ -1,5 +1,5 @@
 ## Writes a PNG of a generated world: tiles by colour, background walls darker, sky above
-## the surface, sites and routes on top. One pixel per tile up to 2048 wide; larger worlds
+## the surface, sites, route paths (rough ones red) and places (street, building outlines) on top. One pixel per tile up to 2048 wide; larger worlds
 ## are sampled down. Prints stage timings and a site/route summary.
 ##   godot --headless -s res://tools/worldmap.gd -- seed=1 size=dev out=/tmp/map.png
 ##   (also: w=1024 h=512 instead of size, crop=x0,y0,x1,y1 for a 1:1 detail view)
@@ -13,6 +13,10 @@ const SITE_COLORS := {
 }
 const DEEP_TOWN := Color(0.2, 1.0, 1.0)
 const ROUTE_COLORS := {"road": Color(1.0, 0.85, 0.2), "deep_road": Color(1.0, 0.5, 0.1)}
+const ROUGH := Color(1.0, 0.2, 0.2)
+const KIND_COLORS := {"home": Color(0.95, 0.85, 0.6), "smithy": Color(1.0, 0.4, 0.1), "market": Color(1.0, 0.9, 0.2),
+	"tavern": Color(0.9, 0.5, 0.9), "shrine": Color(0.7, 0.8, 1.0), "gate": Color(0.6, 0.6, 0.6), "hall": Color(1.0, 0.3, 0.3),
+	"store": Color(0.4, 0.9, 0.5), "ruin": Color(0.5, 0.4, 0.4)}
 const SKY_TOP := Color(0.35, 0.55, 0.85)
 const SKY_LOW := Color(0.7, 0.82, 0.95)
 const VOID := Color(0.06, 0.05, 0.08)
@@ -99,7 +103,28 @@ static func render(world: TileWorld, crop := "") -> Image:
 	for r: Dictionary in world.meta.get("routes", []):
 		var a: Dictionary = sites[int(r["a"])]
 		var b: Dictionary = sites[int(r["b"])]
-		_line(img, to_px.call(a["x"], a["y"] + 2), to_px.call(b["x"], b["y"] + 2), ROUTE_COLORS.get(r["kind"], Color.WHITE))
+		var col: Color = ROUTE_COLORS.get(r["kind"], Color.WHITE)
+		if r.get("rough", false):
+			col = ROUGH
+		var path: Array = r.get("path", [])
+		if path.size() >= 2:   # the stored feet-cell path, drawn a little above the ground
+			for i in range(1, path.size()):
+				_line(img, to_px.call(path[i - 1][0], path[i - 1][1] + 1), to_px.call(path[i][0], path[i][1] + 1), col)
+		else:
+			_line(img, to_px.call(a["x"], a["y"] + 2), to_px.call(b["x"], b["y"] + 2), col)
+	# places: the street (white) and each building's outline (by kind)
+	for key: String in world.meta.get("places", {}):
+		var pl: Dictionary = world.meta["places"][key]
+		var st: Array = pl.get("street", [])
+		if st.size() == 3:
+			_line(img, to_px.call(st[0], st[2] - 1), to_px.call(st[1], st[2] - 1), Color.WHITE)
+		for bld: Dictionary in pl.get("buildings", []):
+			var rc: Array = bld["rect"]
+			var kc: Color = KIND_COLORS.get(bld["kind"], Color.WHITE)
+			var p0: Vector2i = to_px.call(rc[0], rc[1])
+			var p1: Vector2i = to_px.call(int(rc[0]) + int(rc[2]) - 1, int(rc[1]) + int(rc[3]) - 1)
+			for e: Array in [[p0, Vector2i(p1.x, p0.y)], [Vector2i(p0.x, p1.y), p1], [p0, Vector2i(p0.x, p1.y)], [Vector2i(p1.x, p0.y), p1]]:
+				_line(img, e[0], e[1], kc)
 	for s: Dictionary in sites.values():
 		var col: Color = SITE_COLORS.get(s["kind"], Color.WHITE)
 		if s["kind"] == "settlement" and s["band"] != "surface":

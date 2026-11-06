@@ -102,7 +102,7 @@ func _check_world(t: TestLog, world: TileWorld, label: String) -> void:
 	var deep_to_surface: Array = []
 	var deep_to_deep: Array = []
 	for r: Dictionary in m["routes"]:
-		t.check(r.keys() == ROUTE_KEYS, "%s: route keys %s" % [label, r.keys()])
+		t.check(r.keys().slice(0, ROUTE_KEYS.size()) == ROUTE_KEYS and r.has("path"), "%s: route keys %s" % [label, r.keys()])
 		t.check(sites.has(r["a"]) and sites.has(r["b"]) and r["a"] != r["b"], "%s: route %d endpoints exist" % [label, r["id"]])
 		t.check(r["kind"] in ["road", "deep_road"] and int(r["length"]) > 0, "%s: route %d kind and length" % [label, r["id"]])
 		kinds[r["kind"]] = true

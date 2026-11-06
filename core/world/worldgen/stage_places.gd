@@ -91,7 +91,7 @@ static func _usable(c: GenContext, x: int, y: int, deep: bool) -> bool:
 			return false   # a road or ramp passes here
 	if deep:
 		var fl := c.drop_to_floor(x, y + 3, 10)
-		return fl > 0 and absi(fl - y) <= 3
+		return fl > 0 and absi(fl - y) <= 1
 	var nat := c.surface[x]
 	if absi(nat - (y - 1)) > MAX_CUT:
 		return false
@@ -139,6 +139,9 @@ static func _level(c: GenContext, place: Dictionary, deep: bool) -> void:
 	if not deep:
 		_ramp(c, hi + 1, 1, y - 1)
 		_ramp(c, lo - 1, -1, y - 1)
+	else:
+		_ramp_deep(c, hi + 1, 1, y)
+		_ramp_deep(c, lo - 1, -1, y)
 
 ## Grade the ground from the street's level back to the natural surface, one tile per column.
 static func _ramp(c: GenContext, x_start: int, dir: int, level: int) -> void:
@@ -162,6 +165,31 @@ static func _ramp(c: GenContext, x_start: int, dir: int, level: int) -> void:
 				c.bg[x + yy * c.w] = 0
 		c.fg[x + nw * c.w] = top
 		c.surface[x] = nw
+		prev = nw
+		x += dir
+
+## In a cavern: from the street's feet row y, step the floor one tile per column back to
+## the natural floor (fill below, cut above, with 4 clear rows over the new feet cell).
+static func _ramp_deep(c: GenContext, x_start: int, dir: int, y: int) -> void:
+	var prev := y
+	var x := x_start
+	for k in RAMP_MAX:
+		if x < 1 or x >= c.w - 1:
+			return
+		var fl := c.drop_to_floor(x, prev + 4, 16)
+		if fl > 0 and absi(fl - prev) <= 1:
+			return
+		for yy in range(maxi(1, prev - 12), prev):
+			if c.bg[x + yy * c.w] == c.W_COBBLE:
+				return   # a ramp or road tunnel runs below: leave it open
+		var nw := prev + (signi(fl - prev) if fl > 0 else 0)
+		for yy in range(nw, nw + 4):
+			c.fg[x + yy * c.w] = c.AIR
+		if not c.is_solid(x, nw - 1):
+			var yy := nw - 1
+			while yy > 1 and yy >= nw - FILL_MAX and not c.is_solid(x, yy):
+				c.fg[x + yy * c.w] = c.STONE
+				yy -= 1
 		prev = nw
 		x += dir
 
