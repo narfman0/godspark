@@ -175,7 +175,8 @@ func _rumour_card(r: Dictionary, fresh: bool) -> Control:
 	v.add_theme_constant_override("separation", 1)
 	p.add_child(v)
 	var parts := DealsLogic.rumour_parts(String(r.get("text", "")))
-	var when := UiTheme.label(("New.  " if fresh else "") + parts[0], UiTheme.TINY, UiTheme.VERMILION.darkened(0.3) if fresh else UiTheme.INK_SOFT)
+	var date := ("%s, %s" % [parts[0], DealsLogic.ago(int(r.get("t", 0)), dc.sim_hour())]) if parts[0] != "" else ""
+	var when := UiTheme.label(("New.  " if fresh else "") + date, UiTheme.TINY, UiTheme.VERMILION.darkened(0.3) if fresh else UiTheme.INK_SOFT)
 	v.add_child(when)
 	var t := _text(parts[1], UiTheme.SMALL)
 	t.custom_minimum_size.x = side_box.custom_minimum_size.x - 20

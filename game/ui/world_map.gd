@@ -59,6 +59,7 @@ func attach() -> void:
 	if dc != null:
 		dc.atlas_changed.connect(func(_f: Array) -> void: _changed())
 		dc.rumour_heard.connect(func(_r: Array) -> void: _changed())
+		dc.rumours_reset.connect(_changed)
 		dc.quests_changed.connect(func(_q: Array) -> void: _changed())
 
 func _changed() -> void:

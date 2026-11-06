@@ -5,12 +5,15 @@
 ##   DealsTalk.situation(sim, sid) -> Array[String]     hungry, besieged, raided, war, ...
 ##   DealsTalk.line(sim, seed, person, sid, hour) -> String
 ##   DealsTalk.rumours(sim, sid, role, seen, n := -1) -> [{id, text, kind, site, dir, dist, tiles, t}]
+##   DealsTalk.is_news(t, now) -> bool       a rumour from sim hour t, at sim hour now
 ##   DealsTalk.reach(world, body, their_box, tiles, sight) -> "" or far, no_sight (host and client)
 class_name DealsTalk
 extends RefCounted
 
 ## How far back rumours go (game days).
 const RUMOUR_DAYS := 60
+## Younger than this, a rumour is news; older, it is old talk, however new to the listener.
+const NEWS_DAYS := 7
 ## Rumours told at once by role (others: 3).
 const TELL := {"keeper": 5, "guard": 4, "merchant": 4}
 ## Days since a raid that the town still talks about it.
@@ -26,6 +29,10 @@ static func reach(world: TileWorld, me: Body, them: Rect2, tiles: float, sight :
 	if sight and not HitShapes.line_to(world, CombatSight.eye_of(me), them):
 		return "no_sight"
 	return ""
+
+## Recent in the world? (New to the listener is DealsSystem.hear's half of "New".)
+static func is_news(t: float, now: float) -> bool:
+	return now - t < NEWS_DAYS * WorldSim.DAY_H
 
 ## The town's situation from the sim, most pressing first.
 static func situation(sim: WorldSim, sid: int) -> Array:

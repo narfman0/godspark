@@ -33,11 +33,41 @@ func run(t: TestLog) -> void:
 	t.eq(host.chronicle_sent, host.sim.chronicle.size(), "every new entry was sent")
 	t.check(ann.cw.chronicle.size() > 0, "the client received chronicle lines (%d)" % ann.cw.chronicle.size())
 	t.eq(ann.cw.chronicle[-1], host.sim.describe(host.sim.chronicle[-1]), "the newest line is the host's newest entry")
-	# A late joiner gets the last few lines.
+	# A late joiner gets the last few lines, as history: nothing on the news feed.
 	var bob := rig.add_client("bob")
+	var fed := {"news": [], "old": []}
+	bob.welcomed.connect(func(cw: ClientWorld) -> void:
+		cw.chronicle_lines.connect(func(l: PackedStringArray) -> void: fed["news"].append_array(l))
+		cw.chronicle_history.connect(func(l: PackedStringArray) -> void: fed["old"].append_array(l)))
 	rig.until(func() -> bool: return bob.cw != null and bob.cw.area_ready(), 5.0)
 	rig.run(0.2)
 	t.eq(bob.cw.chronicle.size(), mini(WorldHost.CHRONICLE_ON_JOIN, host.sim.chronicle.size()), "a joiner is sent the recent history")
+	t.eq((fed["news"] as Array).size(), 0, "none of it as news")
+	t.eq((fed["old"] as Array).size(), bob.cw.chronicle.size(), "all of it as history")
+	# What happens after arriving is news: to bob, and to ann.
+	var ann_news := {"n": 0}
+	ann.cw.chronicle_lines.connect(func(l: PackedStringArray) -> void: ann_news["n"] += l.size())
+	var was := host.sim.chronicle.size()
+	host.sim.log_event("raid_repelled", {"raiders": "dwarven", "rfrom": "Hazakdun", "site": "Clovergreen", "by": "defenders"})
+	host.sleep(2.0)
+	rig.run(0.5)
+	t.check(host.sim.chronicle.size() > was, "something happens")
+	t.check((fed["news"] as Array).size() >= 1, "and it reaches the feed of a player who was there (%d)" % (fed["news"] as Array).size())
+	t.check(int(ann_news["n"]) >= 1, "of both")
+	# A sim still catching up when a player arrives: its lines from before that are history.
+	var cara := rig.add_client("cara")
+	host.sleep(30.0 * 24.0)
+	var fed_c := {"news": [], "old": []}
+	cara.welcomed.connect(func(cw: ClientWorld) -> void:
+		cw.chronicle_lines.connect(func(l: PackedStringArray) -> void: fed_c["news"].append_array(l))
+		cw.chronicle_history.connect(func(l: PackedStringArray) -> void: fed_c["old"].append_array(l)))
+	var guard := 0
+	while host.sim_behind() > 0 and guard < 5000:
+		rig.frame()
+		guard += 1
+	rig.run(0.3)
+	print("  catching up as a player arrives: %d lines of history, %d of news" % [(fed_c["old"] as Array).size(), (fed_c["news"] as Array).size()])
+	t.eq((fed_c["news"] as Array).size(), 0, "a sim catching up as a player arrives: none of it is news")
 
 	# Exact save and restore: a restored host steps on to the same state as the original.
 	var dir := OS.get_user_data_dir().path_join("test_host_sim")
@@ -55,6 +85,7 @@ func run(t: TestLog) -> void:
 	t.eq(var_to_bytes(back.sim.to_dict()), var_to_bytes(host.sim.to_dict()), "and stays identical as both step on")
 	for f in ["host.json", "sim.bin"]:
 		DirAccess.remove_absolute(dir.path_join(f))
+	t.eq(Protocol.decode(Protocol.chronicle(PackedStringArray(["old"]), true)).get("history"), true, "history is marked")
 	var ok := Protocol.decode(Protocol.chronicle(PackedStringArray(["Year 1, spring: a thing", "é"])))
 	t.eq(ok.get("lines"), PackedStringArray(["Year 1, spring: a thing", "é"]), "CHRONICLE round-trips")
 	t.eq(Protocol.decode(Protocol.chronicle(PackedStringArray(["abc"])).slice(0, 4)), {}, "a short CHRONICLE is refused")

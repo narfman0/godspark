@@ -357,9 +357,14 @@ func choose(e: HostEntity, o: String) -> String:
 			var fresh := hear(e, told)
 			var L := Deals.lines()
 			var lead := String(Deals.pick(L["rumour_lead"].get(String(t["role"]), L["rumour_lead"]["_"]), [_seed(), e.name, sid, Deals.day(host.sim)]))
+			# "New": they had not heard it, and it is news in the world
+			var news := fresh.filter(func(r: Dictionary) -> bool: return DealsTalk.is_news(float(r["t"]), float(host.sim.t)))
+			var stale := not told.is_empty() and told.all(func(r: Dictionary) -> bool: return not DealsTalk.is_news(float(r["t"]), float(host.sim.t)))
+			if stale:
+				lead = String(Deals.pick(L["rumour_stale"], [_seed(), e.name, sid, Deals.day(host.sim)]))
 			var line := lead if not told.is_empty() else String(Deals.pick(L["rumour_none"], [_seed(), sid, Deals.day(host.sim)]))
 			t["view"] = "rumours"
-			_send_talk(e, {"line": line, "rumours": told, "new": fresh})
+			_send_talk(e, {"line": line, "rumours": told, "new": news})
 		"shop", "smith":
 			t["view"] = o
 			t["shop"] = "store" if o == "shop" else "smith"

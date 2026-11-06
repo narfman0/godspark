@@ -188,9 +188,10 @@ func _hello(p: PeerState, m: Dictionary) -> void:
 			e.body.pos, e.epoch, K.TICK_HZ, K.TICK_HZ / snapshot_every, radius))
 	_send(p.id, _meta())
 	_send(p.id, Protocol.clock(host.clock.ticks))
+	p.arrived_h = host.sim_now()
 	var recent := host.recent_chronicle()
 	if not recent.is_empty():
-		_send(p.id, Protocol.chronicle(recent))
+		_send(p.id, Protocol.chronicle(recent, true))
 	_update_interest(p)
 	_log("join peer %d as %s (entity %d) at %s" % [p.id, name, e.id, e.body.pos])
 	player_joined.emit(p.id, name)
@@ -252,12 +253,9 @@ func _route(events: Array[Dictionary]) -> void:
 						_flush_deltas(p)      # the tile change lands before the object goes
 						_send(p.id, msg)
 			WorldHost.Ev.CHRONICLE:
-				var lines: PackedStringArray = ev["lines"]
-				for i in range(0, lines.size(), 32):
-					var msg := Protocol.chronicle(lines.slice(i, i + 32))
-					for p: PeerState in peers.values():
-						if p.phase == PeerPhase.PLAYING:
-							_send(p.id, msg)
+				for p: PeerState in peers.values():
+					if p.phase == PeerPhase.PLAYING:
+						_send_chronicle(p, ev["lines"], ev["t"])
 			WorldHost.Ev.SYS:
 				var msg := Protocol.sys(ev["sys"], ev["kind"], ev["data"])
 				if msg.is_empty():
@@ -269,6 +267,21 @@ func _route(events: Array[Dictionary]) -> void:
 				if peers.has(int(ev["owner"])):
 					_flush_deltas(peers[ev["owner"]])     # the tile change lands before its result
 					_send(ev["owner"], Protocol.result(ev["req"], ev["reason"], ev["x"], ev["y"], ev["tile"]))
+
+## New lines for one peer: what happened before it arrived (a sim still catching up) is history
+## to it, not news.
+func _send_chronicle(p: PeerState, lines: PackedStringArray, hours: PackedInt32Array) -> void:
+	var old := PackedStringArray()
+	var news := PackedStringArray()
+	for i in lines.size():
+		if hours[i] < p.arrived_h:
+			old.append(lines[i])
+		else:
+			news.append(lines[i])
+	for i in range(0, old.size(), 32):
+		_send(p.id, Protocol.chronicle(old.slice(i, i + 32), true))
+	for i in range(0, news.size(), 32):
+		_send(p.id, Protocol.chronicle(news.slice(i, i + 32)))
 
 ## Who a SYS event goes to: one player's peer, every playing peer, or those whose interest
 ## area (radius, in chunks) covers `near`.
@@ -421,6 +434,8 @@ class PeerState extends RefCounted:
 	var name := ""
 	var entity_id := 0
 	var since := 0.0
+	## The sim hour it joined at: chronicle entries from before are history to it.
+	var arrived_h := 0
 	var center := Vector2i.ZERO
 	var interest_set := false
 	## Chunks the peer holds (sent and not unloaded): Vector2i -> true.

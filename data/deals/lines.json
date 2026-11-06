@@ -64,6 +64,7 @@
 		"guard": ["What the watch knows:", "Off the record:"],
 		"_": ["They say:", "Word is:"]
 	},
+	"rumour_stale": ["Nothing new. The old talk, if you want it:", "Nothing lately. Folk still go on about this:", "No news. Last season's, then:"],
 	"rumour_none": ["Nothing worth repeating.", "Quiet lately. I'll make something up if you like.", "Ask me again when something happens."],
 	"offers": {
 		"rumours": "Any news?",

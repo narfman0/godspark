@@ -207,6 +207,18 @@ func _live(t: TestLog) -> void:
 	tree.root.add_child(gu)
 	gu.attach(cw, null)
 	t.check(gu.deals_ui != null and gu.marks != null, "DealsUi and the people marks built")
+	var feed := ChronicleOverlay.new()
+	tree.root.add_child(feed)
+	feed.add_history(PackedStringArray(["Year 1, spring: an old thing", "Year 1, spring: another"]))
+	t.eq(feed._lines.size(), 0, "the chronicle feed shows no history on arrival")
+	feed.toggle()
+	t.eq(feed._lines.size(), 2, "L asks for it, and it is there")
+	feed.toggle()
+	t.eq(feed._lines.size(), 0, "L puts it away")
+	feed.toggle()
+	feed.add_lines(PackedStringArray(["Year 1, spring: this just happened"]))
+	t.eq(feed._lines.size(), 3, "what happens while you are here appears by itself")
+	feed.queue_free()
 	var who := 0
 	for id: int in lc.people:
 		if bool(lc.people[id].get("talk", false)) and cw.remotes.has(id):
@@ -234,6 +246,11 @@ func _live(t: TestLog) -> void:
 	t.check(gu.deals_ui.input(ev), "1 picks the first option")
 	rig.until(func() -> bool: return String(dc.conversation.get("view", "")) == "rumours", 3.0)
 	t.eq(String(dc.conversation.get("view", "")), "rumours", "the first option is the news")
+	var now_h := float(rig.host.sim.t)
+	for r: Dictionary in dc.conversation.get("new", []):
+		t.check(DealsTalk.is_news(float(r["t"]), now_h), "what is marked New is recent (%s)" % r.get("text", ""))
+	var told_old := (dc.conversation.get("rumours", []) as Array).filter(func(r: Dictionary) -> bool: return not DealsTalk.is_news(float(r["t"]), now_h))
+	print("  rumours told %d, marked new %d, old talk %d" % [(dc.conversation.get("rumours", []) as Array).size(), (dc.conversation.get("new", []) as Array).size(), told_old.size()])
 	var ev0 := InputEventKey.new()
 	ev0.keycode = KEY_0
 	ev0.pressed = true

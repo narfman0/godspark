@@ -150,6 +150,13 @@ func _talk(t: TestLog) -> void:
 	t.check(String(told[0]["text"]).contains(s.name), "in the chronicle's words")
 	t.check(DealsTalk.rumours(host.sim, sid, "smith", {}).filter(func(x: Dictionary) -> bool: return int(x["id"]) == told[0]["id"]).is_empty(),
 		"a smith does not pass on a monster raid (priests and keepers do)")
+	t.check(DealsTalk.is_news(float(told[0]["t"]), float(host.sim.t)), "what just happened is news")
+	var stale_h := float(host.sim.t) - (DealsTalk.NEWS_DAYS + 1) * WorldSim.DAY_H
+	t.check(not DealsTalk.is_news(stale_h, float(host.sim.t)), "a week and a day old is not")
+	t.check(not DealsTalk.is_news(float(host.sim.t) - DealsTalk.RUMOUR_DAYS * WorldSim.DAY_H, float(host.sim.t)), "and rumours go back further than news")
+	t.eq(DealsLogic.ago(host.sim.t - 2 * WorldSim.DAY_H, float(host.sim.t)), "2 days ago", "the card says how long ago")
+	t.eq(DealsLogic.heard_text([{"t": host.sim.t}, {"t": stale_h}], float(host.sim.t)), "Heard 1 new thing.", "the toast counts only news")
+	t.eq(DealsLogic.heard_text([{"t": stale_h}, {"t": stale_h}], float(host.sim.t)), "Heard 2 old stories.", "old talk is not called new")
 	t.eq(deals.choose(p, "rumours"), "", "asks for news")
 	t.check((deals.known[p.id] as Array).any(func(x: Dictionary) -> bool: return int(x["id"]) == int(told[0]["id"])), "hearing records it")
 	var n0 := (deals.known[p.id] as Array).size()

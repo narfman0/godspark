@@ -42,7 +42,8 @@
 ##              Sent once, right after WELCOME and before any chunk.
 ##   CLOCK      s64 game ticks (WorldClock.ticks)                   9
 ##              After META, every CLOCK_EVERY host ticks, and at once after a jump.
-##   CHRONICLE  u8 n, n x (u16 len, UTF-8 text <= 400 B)           2 + lines
+##   CHRONICLE  u8 history, u8 n, n x (u16 len, UTF-8 text <= 400 B)   3 + lines; history: from
+##              before this player arrived (kept, not shown as news)
 ##              New world-history lines (WorldSim.describe), and a few on join.
 ##   OBJECTS    s16 cx, s16 cy, u16 n, n x 5 B (Chunk.objects)     7 + 5n
 ##              A held chunk's whole dressing list, after a change (CHUNK carries it too).
@@ -55,7 +56,7 @@ class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 7
+const VERSION := 8
 ## ENT_ADD rank byte: index into this list.
 const RANKS := ["standard", "minion", "elite", "champion", "boss"]
 const MAX_STR := 64
@@ -349,8 +350,9 @@ static func objects(cx: int, cy: int, records: PackedByteArray) -> PackedByteArr
 	w.b.append_array(records.slice(0, records.size() / Chunk.OBJ_BYTES * Chunk.OBJ_BYTES))
 	return w.b
 
-static func chronicle(lines: PackedStringArray) -> PackedByteArray:
+static func chronicle(lines: PackedStringArray, history := false) -> PackedByteArray:
 	var w := Writer.new(T.CHRONICLE)
+	w.u8(1 if history else 0)
 	var n := mini(lines.size(), 255)
 	w.u8(n)
 	for i in n:
@@ -487,6 +489,7 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			var n := r.u16()
 			m["records"] = r.bytes(n * Chunk.OBJ_BYTES)
 		T.CHRONICLE:
+			m["history"] = r.u8() != 0
 			var n := r.u8()
 			var lines := PackedStringArray()
 			for i in n:

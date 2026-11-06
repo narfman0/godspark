@@ -64,6 +64,7 @@ func world_ready(world: TileWorld, id: int) -> void:
 		chronicle = ChronicleOverlay.new()
 		add_child(chronicle)
 		chronicle.set_margin(150.0, 460.0)
+	chronicle.add_history(cw.chronicle)
 	fx = FxView.new()
 	view.add_child(fx)
 	fx.setup(cw, view)
@@ -145,6 +146,10 @@ func _dress() -> void:
 func chronicle_lines(lines: PackedStringArray) -> void:
 	if chronicle != null:
 		chronicle.add_lines(lines)
+
+func chronicle_history(lines: PackedStringArray) -> void:
+	if chronicle != null:
+		chronicle.add_history(lines)
 
 func meta_arrived(_meta: Dictionary) -> void:
 	if light != null:

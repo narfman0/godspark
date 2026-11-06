@@ -264,13 +264,14 @@ func _on_shop(s: Dictionary) -> void:
 	dialogue.refresh()
 
 func _on_rumours(list: Array) -> void:
-	if list.size() > 12:
-		return          # the whole list on join
+	var marked := 0
 	for r: Dictionary in list:
 		if int(r.get("site", -1)) >= 0:
-			fresh_marks += 1
-	if not list.is_empty():
-		gu.toast("Heard %d new thing%s. Marked on the map [M]." % [list.size(), "" if list.size() == 1 else "s"], 3.0, UiTheme.SKY.darkened(0.4))
+			marked += 1
+	fresh_marks += marked
+	var text := DealsLogic.heard_text(list, dc.sim_hour())
+	if text != "":
+		gu.toast(text + (" Marked on the map [M]." if marked > 0 else ""), 3.0, UiTheme.SKY.darkened(0.4))
 
 func _on_note(op: int, ok: bool, word: String) -> void:
 	if ok:

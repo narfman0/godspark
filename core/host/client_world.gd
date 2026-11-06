@@ -23,7 +23,10 @@ signal corrected(pos: Vector2)
 ## The host's world meta arrived (biomes, bands, sites, surface): world.meta is set.
 signal meta_arrived(meta: Dictionary)
 ## New lines of world history from the host.
+## World history as it happens: only what happened since this player arrived.
 signal chronicle_lines(lines: PackedStringArray)
+## History from before this player arrived: kept in `chronicle`, never news.
+signal chronicle_history(lines: PackedStringArray)
 ## Hit points of an entity (remote or the own player, id == my_id) changed or became known.
 signal vitals_changed(id: int, hp: int, max_hp: int)
 
@@ -497,11 +500,14 @@ func apply_snapshot(tick: int, entries: Array) -> void:
 const CHRONICLE_KEEP := 50
 var chronicle := PackedStringArray()
 
-func apply_chronicle(lines: PackedStringArray) -> void:
+func apply_chronicle(lines: PackedStringArray, history := false) -> void:
 	chronicle.append_array(lines)
 	if chronicle.size() > CHRONICLE_KEEP:
 		chronicle = chronicle.slice(chronicle.size() - CHRONICLE_KEEP)
-	chronicle_lines.emit(lines)
+	if history:
+		chronicle_history.emit(lines)
+	else:
+		chronicle_lines.emit(lines)
 
 ## The host's game clock arrived (join, periodically, after a jump).
 func apply_clock(ticks: int) -> void:

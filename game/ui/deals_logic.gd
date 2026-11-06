@@ -73,6 +73,23 @@ static func rumour_parts(text: String) -> Array:
 		return [text.substr(0, i), rest.substr(0, 1).to_upper() + rest.substr(1)]
 	return ["", text]
 
+## How long ago a rumour's event was: "today", "yesterday", "5 days ago".
+static func ago(t: int, now_h: float) -> String:
+	var days := floori((now_h - t) / WorldSim.DAY_H)
+	if days <= 0:
+		return "today"
+	return "yesterday" if days == 1 else "%d days ago" % days
+
+## The toast for rumours just heard: "Heard 2 new things." or, when none is news in the world,
+## "Heard 2 old stories."
+static func heard_text(list: Array, now_h: float) -> String:
+	if list.is_empty():
+		return ""
+	var n := list.filter(func(r: Dictionary) -> bool: return DealsTalk.is_news(float(r["t"]), now_h)).size()
+	if n > 0:
+		return "Heard %d new thing%s." % [n, "" if n == 1 else "s"]
+	return "Heard %d old stor%s." % [list.size(), "y" if list.size() == 1 else "ies"]
+
 ## The context prompt over the nearest person: "E: talk to Dunton, merchant".
 static func talk_prompt(person: Dictionary) -> String:
 	var nm := String(person.get("name", ""))

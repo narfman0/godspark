@@ -18,6 +18,7 @@ func attach(client: ClientWorld) -> void:
 	cw.corrected.connect(corrected)
 	cw.meta_arrived.connect(meta_arrived)
 	cw.chronicle_lines.connect(chronicle_lines)
+	cw.chronicle_history.connect(chronicle_history)
 	cw.vitals_changed.connect(actor_vitals)
 	var combat := cw.system(HostSystem.COMBAT)
 	if combat != null and combat.has_signal("event"):
@@ -33,7 +34,8 @@ func detach() -> void:
 	for sig: Array in [[cw.actor_added, actor_added], [cw.actor_moved, actor_moved], [cw.actor_removed, actor_removed],
 			[cw.chunk_arrived, chunk_arrived], [cw.chunk_dropped, chunk_dropped], [cw.world.tile_changed, tile_changed],
 			[cw.edit_result, edit_result], [cw.corrected, corrected], [cw.meta_arrived, meta_arrived],
-			[cw.chronicle_lines, chronicle_lines], [cw.vitals_changed, actor_vitals]]:
+			[cw.chronicle_lines, chronicle_lines], [cw.chronicle_history, chronicle_history],
+			[cw.vitals_changed, actor_vitals]]:
 		if (sig[0] as Signal).is_connected(sig[1]):
 			(sig[0] as Signal).disconnect(sig[1])
 	var combat := cw.system(HostSystem.COMBAT)
@@ -81,6 +83,10 @@ func meta_arrived(_meta: Dictionary) -> void:
 	pass
 
 func chronicle_lines(_lines: PackedStringArray) -> void:
+	pass
+
+## What happened before this player arrived. Optional.
+func chronicle_history(_lines: PackedStringArray) -> void:
 	pass
 
 ## An actor's hit points (the own player too: id == cw.my_id). Optional.

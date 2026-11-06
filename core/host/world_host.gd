@@ -20,7 +20,7 @@ enum Reason { OK, OUT_OF_BOUNDS, OUT_OF_REACH, NOTHING_THERE, UNBREAKABLE, OCCUP
 ##   LEAVE        id                                     (an entity is gone)
 ##   CORRECT      id, owner, epoch, pos, vel, why        (a client's state was refused)
 ##   EDIT_RESULT  id, owner, req, reason, x, y, tile     (tile = the cell's fg id now)
-##   CHRONICLE    lines: PackedStringArray               (new world-history lines)
+##   CHRONICLE    lines: PackedStringArray, t: [sim hour]  (new world-history lines)
 ##   OBJECTS      cx, cy                                 (a chunk's dressing list changed)
 ##   SYS          sys, kind, data, to, near?             (a system message: to = an entity id
 ##                                                        or ALL; near: Vector2, players whose
@@ -166,10 +166,16 @@ func _step_sim() -> void:
 	sim_usec.append(Time.get_ticks_usec() - t0)
 	if sim.chronicle.size() > chronicle_sent:
 		var lines := PackedStringArray()
+		var hours := PackedInt32Array()
 		for i in range(chronicle_sent, sim.chronicle.size()):
 			lines.append(sim.describe(sim.chronicle[i]))
+			hours.append(int(sim.chronicle[i].get("t", 0)))
 		chronicle_sent = sim.chronicle.size()
-		outbox.append({"type": Ev.CHRONICLE, "lines": lines})
+		outbox.append({"type": Ev.CHRONICLE, "lines": lines, "t": hours})
+
+## The sim hour it is by the clock, whether or not the sim has caught up.
+func sim_now() -> int:
+	return clock.whole_hours() - sim_origin
 
 ## Sim hours still to catch up with the clock (0 when it is current or there is no sim).
 func sim_behind() -> int:

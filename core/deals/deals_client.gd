@@ -14,7 +14,9 @@ extends ClientSystem
 signal talk_changed(conversation: Dictionary)
 signal shop_changed(shop: Dictionary)
 signal quests_changed(quests: Array)
+## Rumours heard just now; rumours_reset: the whole list came back (on joining).
 signal rumour_heard(rumours: Array)
+signal rumours_reset()
 signal patron_changed(patrons: Dictionary)
 signal note(op: int, ok: bool, word: String)
 ## The atlas changed (sites, routes or seen); `fresh` the sites first stood at just now.
@@ -96,9 +98,10 @@ func handle(kind: int, data: PackedByteArray) -> void:
 			var list: Array = (d.get("rumours", []) as Array).map(func(r: Variant) -> Dictionary: return _rumour(r))
 			if bool(d.get("all", false)):
 				rumours = list
+				rumours_reset.emit()
 			else:
 				rumours.append_array(list)
-			rumour_heard.emit(list)
+				rumour_heard.emit(list)
 		DealsCodec.Msg.PATRON:
 			patrons = {}
 			var src: Dictionary = d.get("patrons", {})

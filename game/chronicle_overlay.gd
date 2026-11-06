@@ -1,6 +1,7 @@
-## A small log of world history at the bottom left of the screen: new chronicle lines appear,
-## stay for SHOW seconds and fade out over FADE. The toggle_chronicle action (L) hides it, or
-## shows the last few lines again.
+## A small log of world history at the bottom left of the screen: lines of what happens while
+## this player is in the world appear, stay for SHOW seconds and fade out over FADE. History from
+## before they arrived is not news and appears only on asking: the toggle_chronicle action (L)
+## shows the last few lines when nothing is showing, and otherwise hides or shows the log.
 class_name ChronicleOverlay
 extends CanvasLayer
 
@@ -45,6 +46,10 @@ func add_lines(lines: PackedStringArray) -> void:
 	if _recent.size() > MAX_LINES:
 		_recent = _recent.slice(_recent.size() - MAX_LINES)
 
+## Lines from before the player arrived: kept for L, not shown.
+func add_history(lines: PackedStringArray) -> void:
+	_recent = (lines + _recent).slice(-MAX_LINES)
+
 func _add(text: String) -> void:
 	var lab := Label.new()
 	lab.text = text
@@ -76,6 +81,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		toggle()
 
 func toggle() -> void:
+	if visible_log and _lines.is_empty() and not _recent.is_empty():
+		for s in _recent:
+			_add(s)
+		return
 	visible_log = not visible_log
 	for l: Dictionary in _lines:
 		(l["label"] as Label).queue_free()

@@ -135,7 +135,7 @@ func _handle(bytes: PackedByteArray) -> void:
 				Protocol.T.OBJECTS:
 					cw.apply_objects(m["cx"], m["cy"], m["records"])
 				Protocol.T.CHRONICLE:
-					cw.apply_chronicle(m["lines"])
+					cw.apply_chronicle(m["lines"], bool(m["history"]))
 				Protocol.T.CHUNK:
 					cw.apply_chunk(m["cx"], m["cy"], m["blob"])
 				Protocol.T.UNLOAD:
