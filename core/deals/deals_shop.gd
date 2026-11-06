@@ -177,12 +177,25 @@ static func good_of(item: Dictionary) -> Array:
 ## What the town pays for one (before mods): trade goods and ore at the local price, gear and
 ## magic at a fraction of their value, other things less; 0 for the worthless (rubble) and
 ## for coin and sparks.
+## The store's shelf row for camp gear (rope, torches, campfires: tile items sold on the
+## shelves), {} for anything else. Shops buy these back at sell_camp of their list value.
+static func camp_row(item: Dictionary) -> Dictionary:
+	if Items.kind(item) != "tile":
+		return {}
+	for row: Dictionary in _p()["shelves"]:
+		if String(row["base"]) == String(item.get("base", "")):
+			return row
+	return {}
+
 static func sell_each(sim: WorldSim, sid: int, item: Dictionary) -> float:
 	var s: SimSettlement = sim.settlements.get(sid)
 	if s == null or item.is_empty():
 		return 0.0
 	var P := _p()
 	var k := Items.kind(item)
+	var camp := camp_row(item)
+	if not camp.is_empty():
+		return float(camp.get("value", Items.value(item))) * good_factor(s, String(camp["good"])) * float(P["sell_camp"])
 	if k in ["coin", "spark", "tile"] or item.has("spark"):
 		return 0.0
 	var g := good_of(item)

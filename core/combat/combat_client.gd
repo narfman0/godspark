@@ -165,9 +165,13 @@ func fight_step(inp: PlayerInput, reach := 3.0, pick := Callable()) -> PlayerInp
 	if best == null:
 		return inp
 	var dx := bpos.x - cw.body.pos.x
-	if absf(dx) > reach:
+	# close until the boxes are in reach, height included: on a slope or stair a target 3 tiles
+	# across is 3 tiles up as well (M2's scripted fighters stopped there and swung at the air)
+	var them := Rect2(bpos - Vector2(best.size.x * 0.5, 0.0), best.size)
+	var near := HitShapes.gap(cw.body.rect(), them) <= minf(reach, 1.9)
+	if absf(dx) > reach or not near:
 		inp.move_x = signf(dx)
-	else:
+	if near:
 		cw.body.facing = 1 if dx >= 0.0 else -1
-		attack(bpos + Vector2(0, best.size.y * 0.5))
+		attack(them.get_center())
 	return filter_input(inp)

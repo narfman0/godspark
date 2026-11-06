@@ -644,6 +644,15 @@ func _contact(a: Actor, s: Dictionary, i: int) -> void:
 		"spell":
 			_cast_now(a, s["ab"], int(s["level"]), s["aim"])
 
+## Is a blow's way clear? From the middle of the body or from its shoulders: a creature on a
+## ledge or stair above the chest is still in reach of the arm over the edge.
+func _melee_from(center: Vector2, rect: Rect2, r: Rect2) -> Vector2:
+	return center if HitShapes.line_to(host.world, center, r) else Vector2(center.x, rect.end.y - 0.3)
+
+func _melee_line(center: Vector2, rect: Rect2, r: Rect2) -> bool:
+	return HitShapes.line_to(host.world, center, r) \
+		or HitShapes.line_to(host.world, Vector2(center.x, rect.end.y - 0.3), r)
+
 func _melee(a: Actor, s: Dictionary, step: Dictionary) -> void:
 	var c := a.e.combatant
 	var rect := _rect(a)
@@ -659,7 +668,7 @@ func _melee(a: Actor, s: Dictionary, step: Dictionary) -> void:
 		if not foe and not _aimed(a, b, s["aim"]):
 			continue
 		var r := b.e.body.rect()
-		if HitShapes.in_arc(rect, dir, reach, half, r) and HitShapes.line_to(host.world, center, r):
+		if HitShapes.in_arc(rect, dir, reach, half, r) and _melee_line(center, rect, r):
 			touched.append([HitShapes.gap(rect, r), r.get_center().distance_to(s["aim"]), b, foe])
 	if touched.is_empty():
 		counts["whiffs"] += 1
@@ -667,14 +676,14 @@ func _melee(a: Actor, s: Dictionary, step: Dictionary) -> void:
 	touched.sort_custom(func(x: Array, y: Array) -> bool: return (x[3] and not y[3]) or (x[3] == y[3] and (x[0] < y[0] - 0.01 or (absf(x[0] - y[0]) <= 0.01 and x[1] < y[1]))))
 	var primary: Actor = touched[0][2]
 	var opts := {"two_handed": bool(step.get("two", false))}
-	var ev := _weapon_attack(a, primary, opts, center)
+	var ev := _weapon_attack(a, primary, opts, _melee_from(center, rect, primary.e.body.rect()))
 	# cleave and sweeps touch foes only (with Life: never a friendly or neutral bystander)
 	var rest: Array = touched.slice(1).filter(func(x: Array) -> bool: return x[3]).map(func(x: Array) -> Actor: return x[2])
 	# Cleave (mastery): one more full attack, once per turn, on a creature within 5 ft of the first.
 	if ev.get("cleave_available", false):
 		for b: Actor in rest:
 			if HitShapes.gap(primary.e.body.rect(), b.e.body.rect()) <= _within5() + HitShapes.EPS and b.e.combatant.current_hp > 0:
-				_weapon_attack(a, b, {"two_handed": opts["two_handed"], "cleave": true}, center)
+				_weapon_attack(a, b, {"two_handed": opts["two_handed"], "cleave": true}, _melee_from(center, rect, b.e.body.rect()))
 				rest.erase(b)
 				break
 	for k in mini(int(s.get("sweep", 0)), rest.size()):
@@ -1117,7 +1126,7 @@ func _cast_now(a: Actor, ab: AbilityData, level: int, aim: Vector2) -> void:
 				if b == a or not _targetable(b) or not (hostile(a.e, b.e) or _aimed(a, b, aim)):
 					continue
 				var r := b.e.body.rect()
-				if HitShapes.in_arc(rect, dir, K.ft(5), half, r) and HitShapes.line_to(host.world, center, r) and HitShapes.gap(rect, r) < bg:
+				if HitShapes.in_arc(rect, dir, K.ft(5), half, r) and _melee_line(center, rect, r) and HitShapes.gap(rect, r) < bg:
 					bg = HitShapes.gap(rect, r)
 					best = b
 			if best != null:

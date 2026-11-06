@@ -26,6 +26,8 @@ var host: WorldHost:
 		return _host.get_ref() if _host != null else null
 var _host: WeakRef
 var cheats := false
+## Quest id -> where its moving target was last told to the players.
+var _pointed := {}
 var debug := false
 ## player id -> open conversation {person, site, kind, role, of, faction, view, shop}
 var talks := {}
@@ -550,6 +552,9 @@ func sell(e: HostEntity, slot: int, n: int) -> String:
 	if pay > s.wealth * float(Deals.prices()["wealth_cap"]):
 		return "poor"
 	var g := DealsShop.good_of(it)
+	var camp := DealsShop.camp_row(it)
+	if not camp.is_empty():
+		g = [String(camp["good"]), float(camp.get("units", 1.0))]
 	if not host.sim.player_trade(sid, String(g[0]), float(g[1]) * n, float(pay)):
 		return "poor"
 	inv.take(slot, n)
@@ -938,6 +943,19 @@ func _check_quests() -> void:
 			_:
 				_end(q, now)
 
+## An escort's target moves: its players' `where` is resent when the caravan has gone 3 tiles,
+## so the tracker's pointer keeps up with it (at most every 1.5 s, escorts only).
+func _refresh_moving() -> void:
+	for qid: String in quests:
+		var q: Dictionary = quests[qid]
+		if String(q["kind"]) != "escort" or not String(q["state"]) in DealsQuests.OPEN:
+			continue
+		var at := DealsQuests.target_pos(host.sim, q, _party_pos)
+		if at == Vector2.INF or at.distance_to(_pointed.get(qid, Vector2.INF)) < 3.0:
+			continue
+		_pointed[qid] = at
+		_send_quests_of(q)
+
 ## A held caravan leaves when one of its escorts is beside it, or after hold_h game hours.
 func _escort_hold(q: Dictionary) -> void:
 	var p: SimParty = host.sim.parties.get(int(q["target"]["party"]))
@@ -1020,6 +1038,8 @@ func tick(h: WorldHost) -> void:
 				_send_patrons(e)
 	if h.tick_count % 30 == 19:
 		_atlas_tick(h)
+	if h.tick_count % 45 == 11:
+		_refresh_moving()
 
 # --- the atlas (Interface: the world map, place banners) ----------------------------------------
 

@@ -131,6 +131,10 @@ func add_actor(id: int, look: Dictionary) -> Node3D:
 ## A caravan's wagon (Life: a draft horse with look.wagon): a plain cart box on two wheels
 ## hitched behind the horse. Primitive until a cart model is fetched.
 func _add_cart(root: Node3D) -> void:
+	var cart := Node3D.new()
+	cart.name = "cart"
+	root.add_child(cart)
+	root.set_meta("cart", cart)
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color(0.45, 0.3, 0.18)
 	var bed := MeshInstance3D.new()
@@ -139,7 +143,7 @@ func _add_cart(root: Node3D) -> void:
 	bed.mesh = box
 	bed.material_override = wood
 	bed.position = Vector3(-2.4 * T, 1.05 * T, 0.0)
-	root.add_child(bed)
+	cart.add_child(bed)
 	var cover := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
 	cyl.top_radius = 0.75 * T
@@ -151,7 +155,7 @@ func _add_cart(root: Node3D) -> void:
 	cover.material_override = cloth
 	cover.rotation = Vector3(0.0, 0.0, PI / 2.0)
 	cover.position = Vector3(-2.4 * T, 1.7 * T, 0.0)
-	root.add_child(cover)
+	cart.add_child(cover)
 	for wx: float in [-3.3, -1.5]:
 		var wheel := MeshInstance3D.new()
 		var wm := CylinderMesh.new()
@@ -162,7 +166,26 @@ func _add_cart(root: Node3D) -> void:
 		wheel.material_override = wood
 		wheel.rotation = Vector3(PI / 2.0, 0.0, 0.0)
 		wheel.position = Vector3(wx * T, 0.5 * T, 0.75 * T)
-		root.add_child(wheel)
+		cart.add_child(wheel)
+
+## Rest a cart on the road behind its horse: its pivot is the hitch; the tail goes up or down to
+## the floor under it (the horse's own feet are on the floor already).
+func _settle_cart(root: ActorBody, pos: Vector2, facing: int) -> void:
+	var cart: Node3D = root.get_meta("cart")
+	if world == null or cart == null:
+		return
+	var tail := pos.x - 2.4 * float(facing if facing != 0 else 1)
+	var x := floori(tail)
+	var y := floori(pos.y) + 3
+	var floor_y := INF
+	for k in 8:
+		var id := world.get_fg(x, y - 1 - k)
+		if TileDefs.solid[id] != 0 or TileDefs.platform[id] != 0:
+			floor_y = float(y - k)
+			break
+	var dy := clampf(floor_y - pos.y, -2.0, 2.0) if floor_y != INF else 0.0
+	var want := -atan2(dy, 2.4)
+	cart.rotation.z = lerp_angle(cart.rotation.z, want, 0.2)
 
 ## facing: +1 right, -1 left (0 keeps the last). state: idle | walk | run | jump | fall |
 ## climb | swim | fly | attack | hit | death ("dead" = death): see ActorBody. vel (tiles/s)
@@ -172,6 +195,8 @@ func move_actor(id: int, pos: Vector2, facing: int, state := "idle", vel := Vect
 	if root == null:
 		return
 	root.update(pos, facing, state, vel)
+	if root.has_meta("cart"):
+		_settle_cart(root, pos, facing)
 
 ## The ActorBody for an id, or null.
 func get_actor(id: int) -> ActorBody:

@@ -308,6 +308,10 @@ func _info(e: HostEntity) -> Dictionary:
 			d["dest"] = p.dest
 	return d
 
+## Tell the clients an actor's PEOPLE record again (it changed).
+func resend(e: HostEntity) -> void:
+	_out_people.append(_info(e))
+
 func actors_at(site_id: int) -> Array[HostEntity]:
 	return town.actors_at(host, site_id)
 

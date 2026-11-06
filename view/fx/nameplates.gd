@@ -106,6 +106,21 @@ func step(cam: Camera3D, hovered: int) -> void:
 			c.queue_redraw()
 		c.visible = true
 
+## A name that fits the plate: shortened at a word where it can be, "..." at the end.
+static func fit(s: String, size: int, w: float) -> String:
+	if UiTheme.text_width(s, size) <= w:
+		return s
+	var words := s.split(" ")
+	while words.size() > 1:
+		words.remove_at(words.size() - 1)
+		var t := " ".join(words) + "..."
+		if UiTheme.text_width(t, size) <= w:
+			return t
+	var t := s
+	while t.length() > 3 and UiTheme.text_width(t + "...", size) > w:
+		t = t.substr(0, t.length() - 1)
+	return t + "..."
+
 ## Frame colour and weight for a rank.
 static func rank_style(rank: String) -> Dictionary:
 	match rank:
@@ -149,7 +164,8 @@ func _draw_plate(c: Control, i: int) -> void:
 			var x := bar.get_center().x + s * (bar.size.x * 0.5 + 4)
 			c.draw_colored_polygon(PackedVector2Array([Vector2(x, bar.position.y - 3), Vector2(x + s * 7, bar.get_center().y), Vector2(x, bar.end.y + 3)]), UiTheme.VERMILION)
 	var fs := UiTheme.SMALL
+	nm = fit(nm, fs, W - 8.0)
 	UiTheme.text(c, Vector2(0, bar.position.y - 4), nm, fs, UiTheme.TEXT_LIGHT if String(d["rank"]) in ["", "minion"] else bc.lightened(0.3),
 		false, HORIZONTAL_ALIGNMENT_CENTER, W, 4)
 	if not affixes.is_empty():
-		UiTheme.text(c, Vector2(0, bar.position.y - 20), ", ".join(affixes), UiTheme.TINY, UiTheme.STARLIGHT, false, HORIZONTAL_ALIGNMENT_CENTER, W, 3)
+		UiTheme.text(c, Vector2(0, bar.position.y - 20), fit(", ".join(affixes), UiTheme.TINY, W - 8.0), UiTheme.TINY, UiTheme.STARLIGHT, false, HORIZONTAL_ALIGNMENT_CENTER, W, 3)

@@ -143,6 +143,12 @@ func roster(p: SimParty) -> Dictionary:
 
 func reconcile(h: WorldHost, p: SimParty) -> void:
 	var rec: Dictionary = active[p.id]
+	# it turned round (arrived, or was beaten): the plates say where it is bound now
+	if int(rec.get("dest", p.dest)) != p.dest:
+		for id: int in (rec["ids"] as Dictionary).keys() + (rec["wagons"] as Dictionary).keys():
+			if h.entity(id) != null:
+				life.resend(h.entity(id))
+	rec["dest"] = p.dest
 	var want := roster(p)
 	var have := {}
 	for id: int in (rec["ids"] as Dictionary).keys():

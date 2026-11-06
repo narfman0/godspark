@@ -324,6 +324,7 @@ func person_pos(i: int, id: int) -> Vector2:
 
 ## Walk up to a person of a role and open a conversation (through the client). "" or why not.
 func talk_to(i: int, role: String, site := -1) -> String:
+	rig.until(func() -> bool: return person_near(i, role, site) >= 0, 8.0)      # the town appears within a scan or two
 	var pid := person_near(i, role, site)
 	if pid < 0:
 		return "no %s known" % role
@@ -762,6 +763,15 @@ func _escort() -> void:
 			else:
 				rig.inputs[i] = _steer(i, cells, clampi(cell_near(pos) + (2 if i == 0 else -2), 0, cells.size() - 1))
 		st["frames"] = int(st["frames"]) + 1
+		if int(st["frames"]) % 30 == 0:
+			var w: Variant = mirror(0, qid).get("where")
+			if w is Array and Vector2(w[0], w[1]) != st.get("where", Vector2.ZERO):
+				st["where"] = Vector2(w[0], w[1])
+				st["pointer"] = int(st.get("pointer", 0)) + 1
+			for e: HostEntity in life().road.actors_of(rig.host, cid):
+				st["looked"] = int(st.get("looked", 0)) + 1
+				if e.body.on_floor or e.body.on_stairs:
+					st["grounded"] = int(st.get("grounded", 0)) + 1
 		if int(st["frames"]) % 600 == 0:
 			print("      t=%.0f caravan %s fr %.2f frozen %s %d | ann %s bob %s | raid %s" % [int(st["frames"]) / 60.0, pos, fr, cp.frozen, cp.size(),
 				he(0).body.pos, he(1).body.pos, "-" if raid == null else "%d %s" % [raid.size(), raid.state]])
@@ -774,6 +784,19 @@ func _escort() -> void:
 	print("    escort: %.0f s on the road, %.0f s fighting, beside it %d%% of the time; caravan %d of %d, plan %s; raid %s" % [took, st["fought"], roundi(100.0 * int(st["with"]) / maxi(1, int(st["frames"]))),
 		cp.size(), int(deals().quest(qid)["target"]["base"]), cp.plan, "gone" if raid == null or not sim().parties.has(raid.id) else "left %d" % raid.size()])
 	t.check(took >= 0.0, "the caravan reached %s (%.0f s)" % [n.name, took])
+	t.check(int(st.get("pointer", 0)) >= 20, "the escort's pointer kept up with it (%d updates)" % int(st.get("pointer", 0)))
+	t.check(int(st.get("grounded", 0)) * 100 >= int(st.get("looked", 0)) * 85, "its people and wagons walk on the road (%d of %d looks on a floor)" % [int(st.get("grounded", 0)), int(st.get("looked", 0))])
+	var dest_now := -1
+	for id: int in lc(0).people:
+		var pi: Dictionary = lc(0).people[id]
+		if String(pi.get("kind", "")) == "party" and int(pi.get("of", -1)) == cid:
+			dest_now = int(pi.get("dest", -1))
+	rig.run(1.5)
+	for id: int in lc(0).people:
+		var pi: Dictionary = lc(0).people[id]
+		if String(pi.get("kind", "")) == "party" and int(pi.get("of", -1)) == cid:
+			dest_now = int(pi.get("dest", -1))
+	t.eq(dest_now, T, "its plates now say it is bound home")
 	t.check(bool(st["ambushed"]) and float(st["fought"]) > 1.0, "the ambush on the way was fought (%.0f s)" % st["fought"])
 	t.check(raid != null and (not sim().parties.has(raid.id) or raid.size() < 3), "the raiders were beaten off")
 	t.check(cp.size() * 2 >= int(deals().quest(qid)["target"]["base"]), "it arrived with most of its people (%d)" % cp.size())

@@ -68,6 +68,9 @@ func setup(client: ClientWorld, v: WorldView) -> void:
 		# shown names ("Lantern-Eater"), not ids ("lantern_eater")
 		mons.connect("monster_info", func(id: int, inf: Dictionary) -> void:
 			plates.set_info(id, {"rank": inf.get("rank", ""), "affixes": inf.get("names", inf.get("affixes", []))}))
+		# what the client already heard before this view existed (a join, a rebuilt view)
+		for id: int in mons.get("infos"):
+			plates.set_info(id, {"rank": mons.get("infos")[id].get("rank", ""), "affixes": mons.get("infos")[id].get("names", [])})
 
 func _refresh_sigil() -> void:
 	var items := cw.system(HostSystem.ITEMS) as ItemsClient

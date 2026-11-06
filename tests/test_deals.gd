@@ -79,7 +79,7 @@ static func beside(host: WorldHost, p: HostEntity, x: HostEntity) -> void:
 	TileCollision.depenetrate(host.world, p.body)
 
 func run(t: TestLog) -> void:
-	for f: String in ["_codec", "_talk", "_shop", "_quests", "_patron", "_credit", "_wander"]:
+	for f: String in ["_codec", "_talk", "_shop", "_quests", "_patron", "_credit", "_camp_and_inn", "_wander"]:
 		var t0 := Time.get_ticks_msec()
 		call(f, t)
 		print("  %s: %d ms" % [f, Time.get_ticks_msec() - t0])
@@ -491,6 +491,64 @@ func _quests(t: TestLog) -> void:
 	t.check(rules != null, "rules present")
 
 # --- who earns a kill (rules.on_kill, items.on_kill, life.xp_foe) --------------------------------
+
+func _camp_and_inn(t: TestLog) -> void:
+	var r := rig()
+	var host: WorldHost = r["host"]
+	var deals: DealsSystem = r["deals"]
+	var life: LifeSystem = r["life"]
+	var rules: RulesSystem = r["rules"]
+	var sid := town_of(host)
+	var s: SimSettlement = host.sim.settlements[sid]
+	var p := put(host, "cat", LifeTown.site_pos(host, sid) + Vector2(0, 3))
+	ticks(host, 70)
+	# camp gear sells back at a fraction, into the good it was made of
+	var m := person(life, sid, "merchant")
+	beside(host, p, m)
+	t.eq(deals.talk(p, m.id), "", "talks to the merchant")
+	deals.choose(p, "shop")
+	p.character.inventory.coin = 100
+	var inv := p.character.inventory
+	inv.add(Items.make("tile:rope", 3))
+	inv.add(Items.make("tile:torch", 4))
+	var slot := -1
+	for i in Inventory.SIZE:
+		if String(inv.at(i).get("base", "")) == "tile:rope":
+			slot = i
+	var prices := deals.sell_prices(p, sid)
+	t.check(prices.has(str(slot)), "the shop offers for rope (%s)" % prices)
+	var timber0 := float(s.stock["timber"])
+	var c0 := inv.coin
+	t.eq(deals.sell(p, slot, 1), "", "sells a rope")
+	t.check(inv.coin > c0 and inv.coin - c0 < 3, "for less than it costs (%d)" % (inv.coin - c0))
+	t.check(float(s.stock["timber"]) > timber0, "back into the town's timber")
+	for i in Inventory.SIZE:
+		if String(inv.at(i).get("base", "")) == "tile:torch":
+			t.eq(deals.sell(p, i, 1), "", "a torch sells too")
+			break
+	deals._close(p.id, "left")
+	# a paid room: the night passes there without a bed tile, while you stay in the tavern
+	var k := person(life, sid, "keeper")
+	if DealsShop.has_building(host.world, sid, "tavern"):
+		beside(host, p, k)
+		t.eq(deals.talk(p, k.id), "", "talks to the keeper")
+		t.eq(deals.choose(p, "bed"), "", "takes a room")
+		t.check(bool(p.character.bed_inn), "the room is the respawn point")
+		var cell: Vector2i = p.character.bed
+		p.body.pos = Vector2(cell.x + 0.5, cell.y)
+		TileCollision.depenetrate(host.world, p.body)
+		ticks(host, 3)
+		deals._close(p.id, "left")
+		t.check(rules.in_paid_room(p), "standing in it")
+		var far := p.body.pos
+		p.body.pos.x += 40.0
+		t.check(not rules.in_paid_room(p), "not from down the road")
+		p.body.pos = far
+		var h0 := host.clock.hours()
+		t.eq(rules.start_long_rest(p), "", "lies down in the paid room")
+		ticks(host, 40)
+		t.check(host.clock.hours() > h0 + 1.0, "the night passes (%.1f -> %.1f)" % [h0, host.clock.hours()])
+		t.check(bool(p.character.bed_inn), "and the room is still the respawn point")
 
 func _credit(t: TestLog) -> void:
 	var r := rig()

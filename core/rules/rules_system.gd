@@ -29,6 +29,8 @@ const XP_RANGE := 24.0
 ## A kill made only by others: the share of its XP for a player in that fight, and how recent
 ## "in that fight" is (seconds since dealing or taking a blow).
 const GUARD_SHARE := 0.25
+## Tiles from a paid room's cell within which it counts as a bed.
+const INN_RANGE := 12.0
 static var _xp_cfg := {}
 const FIGHT_WINDOW_S := 10.0
 ## XP multiplier by monster rank (HostEntity meta "rank"); meta "xp_mult" overrides it and
@@ -94,6 +96,7 @@ class PState extends RefCounted:
 	var rest_t := 0.0
 	var rest_pos := Vector2.ZERO
 	var bed_cell := Vector2i.ZERO
+	var inn_room := false          ## this sleep is in a paid room (no bed tile)
 	var revive_target := 0
 	var revive_t := 0.0
 	var last_hp := -1
@@ -817,6 +820,9 @@ func start_long_rest(e: HostEntity) -> String:
 	if ps.resting == Resting.BED:
 		return ""
 	var cell := find_tile_near(e, _bed, BED_RANGE)
+	var inn := cell == NONE and in_paid_room(e)
+	if inn:
+		cell = e.character.bed
 	if cell == NONE:
 		return "no bed within %d tiles" % BED_RANGE
 	if not long_rest_ready(e):
@@ -827,10 +833,19 @@ func start_long_rest(e: HostEntity) -> String:
 	ps.resting = Resting.BED
 	ps.last_hp = e.combatant.stats.current_hp
 	ps.bed_cell = cell
+	ps.inn_room = inn
 	ps.rest_pos = e.body.pos
 	ps.waiting = PackedStringArray()
 	ps.dirty = true
 	return ""
+
+## A room paid for at a tavern (Deals: set_bed with inn) counts as a bed while the player stays
+## within INN_RANGE of it: there is no bed tile, the keeper's word is the bed.
+func in_paid_room(e: HostEntity) -> bool:
+	if e.character == null or not e.character.bed_inn or not (e.character.bed is Vector2i):
+		return false
+	var b: Vector2i = e.character.bed
+	return Vector2(b.x + 0.5, b.y).distance_to(e.body.pos) <= INN_RANGE
 
 func long_rest_ready(e: HostEntity) -> bool:
 	var ps := _ps(e)
@@ -930,7 +945,7 @@ func _tick_beds(players: Array) -> void:
 			continue
 		if e.body.pos.distance_to(ps.rest_pos) > BED_RANGE:
 			stand(e, "left the bed")
-		elif host.world.get_fg(ps.bed_cell.x, ps.bed_cell.y) != _bed:
+		elif not ps.inn_room and host.world.get_fg(ps.bed_cell.x, ps.bed_cell.y) != _bed:
 			stand(e, "the bed is gone")
 		else:
 			in_bed.append(e)
@@ -964,7 +979,8 @@ func night_passes(sleepers: Array) -> void:
 		SRDRest.long_rest_combatant(c)
 		c.stats.hit_dice_remaining = e.character.hit_dice_max()
 		e.character.bed = ps.bed_cell
-		e.character.bed_inn = false
+		e.character.bed_inn = ps.inn_room
+		ps.inn_room = false
 		ps.rest_at = start
 		ps.resting = Resting.NONE
 		ps.waiting = PackedStringArray()
@@ -1333,7 +1349,7 @@ func sheet(e: HostEntity) -> Dictionary:
 		"hit_dice_max": ch.hit_dice_max(), "slots": slots, "uses": uses, "spark_slots": ch.spark_slots(),
 		"knacks": ch.knacks.duplicate(), "bonds": ps.bonds.duplicate(), "boon": ps.boon, "pending": pend,
 		"state": ps.down, "successes": c.death_saves.successes, "failures": c.death_saves.failures,
-		"resting": ps.resting, "rest_ready": long_rest_ready(e), "bed": ch.bed}
+		"resting": ps.resting, "rest_ready": long_rest_ready(e), "bed": ch.bed, "room": in_paid_room(e)}
 
 ## Ticks between DEEDS messages at most (deeds change with every step taken).
 const DEEDS_EVERY := 60
