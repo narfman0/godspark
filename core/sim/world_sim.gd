@@ -748,6 +748,35 @@ func party_take_cargo(pid: int, good: String, n: int) -> int:
 			p.cargo.erase(good)
 	return k
 
+# ── Players' dealings (Deals track) ──────────────────────────────────────────
+# What players buy, sell, deliver and are paid enters the books here. None of these use the
+# sim's rng.
+
+## A settlement trades with players: `n` units of `good` come into its stock (n < 0: go out
+## of it) and `coin` leaves its wealth (coin < 0: comes in). good "" moves coin only (a
+## reward). Refused (false, nothing changes) when a stock or the wealth would go negative.
+func player_trade(sid: int, good: String, n: float, coin: float) -> bool:
+	var s: SimSettlement = settlements.get(sid)
+	if s == null or (good != "" and not s.stock.has(good)):
+		return false
+	if good != "" and float(s.stock[good]) + n < 0.0:
+		return false
+	if s.wealth - coin < 0.0:
+		return false
+	if good != "":
+		s.stock[good] = float(s.stock[good]) + n
+	s.wealth -= coin
+	stats_add("player_trades", 1)
+	return true
+
+## Hold a party where it stands (players getting ready to escort it) or let it go.
+func hold_party(pid: int, on: bool) -> bool:
+	var p: SimParty = parties.get(pid)
+	if p == null:
+		return false
+	p.held = on
+	return true
+
 # ── Queries ──────────────────────────────────────────────────────────────────
 
 ## Settlements, lairs and parties whose x lies in [x0, x1]: what a player's interest

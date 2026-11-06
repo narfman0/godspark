@@ -70,6 +70,9 @@ var slots_left: Array = []
 var uses_left := {}
 ## Where death and long rests return you: a Vector2i, or null for none.
 var bed: Variant = null
+## The bed is a paid room (an inn, Deals): the respawn point holds while the cell is open,
+## with no bed tile there.
+var bed_inn := false
 ## Interface preferences kept with the character (clean_prefs): {quick: [4 spell slugs]}.
 var prefs := {}
 
@@ -234,7 +237,7 @@ func to_dict() -> Dictionary:
 		"hp": hp, "hit_dice_left": hit_dice_left, "slots_left": slots_left.duplicate(),
 		"uses_left": uses_left.duplicate(true), "bed": [bed.x, bed.y] if bed is Vector2i else null,
 		"prefs": prefs.duplicate(true),
-	}
+	}.merged({"bed_inn": true} if bed_inn and bed is Vector2i else {})
 
 ## Inverse of to_dict, also after a trip through JSON (numbers come back as floats: the
 ## known integer fields are made ints again). Null if `d` is not a character.
@@ -262,6 +265,7 @@ static func from_dict(d: Dictionary) -> Character:
 	ch.uses_left = _ints(d.get("uses_left", {}))
 	var b: Variant = d.get("bed")
 	ch.bed = Vector2i(int(b[0]), int(b[1])) if b is Array and (b as Array).size() == 2 else null
+	ch.bed_inn = bool(d.get("bed_inn", false)) and ch.bed is Vector2i
 	ch.prefs = clean_prefs(d.get("prefs", {}))
 	return ch
 

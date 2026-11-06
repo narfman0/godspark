@@ -22,8 +22,8 @@ static func tick_parties(sim: WorldSim, hours: int) -> void:
 		if not sim.parties.has(pid):
 			continue
 		var p: SimParty = sim.parties[pid]
-		if p.frozen:
-			continue        # held by real time (Life)
+		if p.frozen or p.held:
+			continue        # held by real time (Life) or by players getting ready (Deals)
 		match p.state:
 			"travel":
 				_advance(sim, p, float(hours))

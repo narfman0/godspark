@@ -28,6 +28,9 @@ var plan := {}            # kind-specific extras; values are floats or strings o
 var watched := false
 ## Held by real time as well: the sim neither moves it nor runs its timers or arrival.
 var frozen := false
+## Held at its start by players (Deals: an escort getting ready); saved. The sim neither moves
+## it nor runs its timers while held; it never sets this itself.
+var held := false
 
 func size() -> int:
 	return SimData.count(members)
@@ -39,7 +42,7 @@ func to_dict() -> Dictionary:
 	return {"id": id, "kind": kind, "faction": faction, "culture": culture, "home": home,
 		"members": members.duplicate(), "people": people, "wagons": wagons, "cargo": cargo.duplicate(),
 		"coin": coin, "path": Array(path), "leg": leg, "frac": frac, "route": route, "state": state,
-		"timer": timer, "target": target, "dest": dest, "plan": plan.duplicate(true)}
+		"timer": timer, "target": target, "dest": dest, "plan": plan.duplicate(true)}.merged({"held": true} if held else {})
 
 static func from_dict(d: Dictionary) -> SimParty:
 	var p := SimParty.new()
@@ -56,4 +59,5 @@ static func from_dict(d: Dictionary) -> SimParty:
 	p.leg = int(d.leg); p.frac = float(d.frac); p.route = int(d.route); p.state = d.state
 	p.timer = float(d.timer); p.target = int(d.target); p.dest = int(d.dest)
 	p.plan = (d.plan as Dictionary).duplicate(true)
+	p.held = bool(d.get("held", false))
 	return p

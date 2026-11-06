@@ -930,6 +930,7 @@ func night_passes(sleepers: Array) -> void:
 		SRDRest.long_rest_combatant(c)
 		c.stats.hit_dice_remaining = e.character.hit_dice_max()
 		e.character.bed = ps.bed_cell
+		e.character.bed_inn = false
 		ps.rest_at = start
 		ps.resting = Resting.NONE
 		ps.waiting = PackedStringArray()
@@ -1045,6 +1046,9 @@ func respawn_point(e: HostEntity) -> Vector2:
 	var bed: Variant = e.character.bed
 	if bed is Vector2i and host.world.in_bounds(bed.x, bed.y) and host.world.get_fg(bed.x, bed.y) == _bed:
 		return Vector2(bed.x + 0.5, bed.y)
+	if bed is Vector2i and e.character.bed_inn and host.world.in_bounds(bed.x, bed.y) and host.world.in_bounds(bed.x, bed.y + 1) \
+			and not TileDefs.solid[host.world.get_fg(bed.x, bed.y)] and not TileDefs.solid[host.world.get_fg(bed.x, bed.y + 1)]:
+		return Vector2(bed.x + 0.5, bed.y)
 	var ps := _ps(e)
 	var from := ps.died_at if ps != null else e.body.pos
 	var fx := floori(from.x)
@@ -1061,6 +1065,17 @@ func respawn_point(e: HostEntity) -> Vector2:
 	if best != NONE:
 		return Vector2(best.x + 0.5, best.y)
 	return host.spawn
+
+## A paid bed (Deals: a room at an inn) becomes e's respawn point: the feet cell `cell`, held
+## while it stays open (no bed tile needed). The sheet's `bed` follows.
+func set_bed(e: HostEntity, cell: Vector2i, inn := true) -> void:
+	if e == null or e.character == null:
+		return
+	e.character.bed = cell
+	e.character.bed_inn = inn
+	var ps := _ps(e)
+	if ps != null:
+		ps.dirty = true
 
 ## Move a client-owned player: the host's copy jumps, the epoch is bumped and a CORRECT goes
 ## to its owner (the same event WorldHost.submit_state emits), so states from before are
