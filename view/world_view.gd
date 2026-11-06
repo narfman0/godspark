@@ -121,10 +121,48 @@ func add_actor(id: int, look: Dictionary) -> Node3D:
 	remove_actor(id)
 	var root := ActorBody.build(look, _actor_mat)
 	root.name = "actor_%d" % id
+	if bool(look.get("wagon", false)):
+		_add_cart(root)
 	root.set_meta("size", root.size)
 	add_child(root)
 	_actors[id] = root
 	return root
+
+## A caravan's wagon (Life: a draft horse with look.wagon): a plain cart box on two wheels
+## hitched behind the horse. Primitive until a cart model is fetched.
+func _add_cart(root: Node3D) -> void:
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.45, 0.3, 0.18)
+	var bed := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(2.6 * T, 1.1 * T, 1.4 * T)
+	bed.mesh = box
+	bed.material_override = wood
+	bed.position = Vector3(-2.4 * T, 1.05 * T, 0.0)
+	root.add_child(bed)
+	var cover := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.75 * T
+	cyl.bottom_radius = 0.75 * T
+	cyl.height = 2.4 * T
+	cover.mesh = cyl
+	var cloth := StandardMaterial3D.new()
+	cloth.albedo_color = Color(0.85, 0.8, 0.68)
+	cover.material_override = cloth
+	cover.rotation = Vector3(0.0, 0.0, PI / 2.0)
+	cover.position = Vector3(-2.4 * T, 1.7 * T, 0.0)
+	root.add_child(cover)
+	for wx: float in [-3.3, -1.5]:
+		var wheel := MeshInstance3D.new()
+		var wm := CylinderMesh.new()
+		wm.top_radius = 0.5 * T
+		wm.bottom_radius = 0.5 * T
+		wm.height = 0.2 * T
+		wheel.mesh = wm
+		wheel.material_override = wood
+		wheel.rotation = Vector3(PI / 2.0, 0.0, 0.0)
+		wheel.position = Vector3(wx * T, 0.5 * T, 0.75 * T)
+		root.add_child(wheel)
 
 ## facing: +1 right, -1 left (0 keeps the last). state: idle | walk | run | jump | fall |
 ## climb | swim | fly | attack | hit | death ("dead" = death): see ActorBody. vel (tiles/s)

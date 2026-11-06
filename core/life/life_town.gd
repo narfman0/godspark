@@ -124,8 +124,8 @@ func _real_cells(h: WorldHost, sid: int, role: String) -> Array:
 func _has_places(h: WorldHost, sid: int) -> bool:
 	return not Places.place(h.world, sid).is_empty()
 
-## Where person k of a list of cells stands. With a place: on the cell (the k-th person beyond
-## the number of cells a step or two aside); with no cells for the role, along the street.
+## Where person k of a list of cells stands. With a place: on the cell (a second person a step
+## aside); with no cells for the role, or more people than twice the cells, along the street.
 ## Without a place: spread over the site, keeping 24 tiles around its centre clear (the spawn
 ## point of a spawn town, where joining players dig and build).
 func _spot(h: WorldHost, sid: int, cells: Array, k: int, spread: float, slug: String) -> Vector2:
@@ -134,7 +134,7 @@ func _spot(h: WorldHost, sid: int, cells: Array, k: int, spread: float, slug: St
 	var feet: Vector2
 	if not place.is_empty():
 		var st: Array = place.get("street", [])
-		if cells.is_empty() and st.size() >= 3:
+		if (cells.is_empty() or k >= cells.size() * 2) and st.size() >= 3:
 			var x0 := int(st[0]) + 2
 			var w := maxi(1, int(st[1]) - 2 - x0)
 			feet = Vector2(x0 + (k * 37 + 11) % w, int(st[2]))
@@ -146,10 +146,15 @@ func _spot(h: WorldHost, sid: int, cells: Array, k: int, spread: float, slug: St
 			var dx := float((layer + 1) / 2) * 1.5 * (1.0 if layer % 2 == 1 else -1.0)
 			feet = Vector2(c.x + dx, c.y)
 		if ms != null:
-			var q := ms.director._stand_near(h, feet, slug)
-			if q != Vector2.INF:
-				return q
-		return feet + Vector2(0.5, 0)
+			# stay on that floor: a spot that is walled in would be lifted onto the roof
+			var tries: Array = [feet]
+			if not cells.is_empty():
+				tries.append(Vector2(cells[k % cells.size()]))
+			for f: Vector2 in tries:
+				var q := ms.director._stand_near(h, f, slug)
+				if q != Vector2.INF and q.y <= f.y + 0.5 and q.y >= f.y - 3.0:
+					return q
+		return Vector2(floorf(feet.x) + 0.5, feet.y)
 	var c2: Vector2i = cells[k % cells.size()] if not cells.is_empty() else Vector2i(LifeTown.site_pos(h, sid))
 	var p := Vector2(c2.x + 0.5, c2.y)
 	var m := (k * 7) % 13 - 6

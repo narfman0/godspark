@@ -6,6 +6,8 @@ class_name ViewPresenter
 extends Presenter
 
 const OWN_LIGHT := 1
+## Light ids of torches carried by other actors (Life's guards at night): base + entity id.
+const CARRIED_LIGHT := 1 << 24
 ## Carried light ids for remote actors: their entity id plus this.
 const REMOTE_LIGHT := 1 << 20
 
@@ -28,6 +30,8 @@ const DRESS_EVERY := 0.3
 var _dress_dirty := false
 var _dress_wait := 0.0
 var _actors := {}
+## id -> true while its carried torch is lit (look.light "torch": lit when the sun is low)
+var _carried := {}
 ## id -> [one-shot state, until msec (-1: held)] from combat events.
 var _oneshot := {}
 
@@ -95,6 +99,8 @@ func actor_added(id: int, look: Dictionary) -> void:
 		fx.actor_added(id, look)
 	if id == my_id:
 		light.add_light(OWN_LIGHT, cw.body.pos.x, cw.body.pos.y + 1.8, LightEngine.TORCH)
+	elif String(look.get("light", "")) == "torch":
+		_carried[id] = false
 
 func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 	if view == null or not _actors.has(id):
@@ -106,6 +112,15 @@ func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 		else:
 			_oneshot.erase(id)
 	view.move_actor(id, pos, facing, state)
+	if _carried.has(id):
+		var lit := light.sun < 0.5
+		if lit and not bool(_carried[id]):
+			light.add_light(CARRIED_LIGHT + id, pos.x + 0.6 * facing, pos.y + 1.8, LightEngine.TORCH)
+		elif lit:
+			light.move_light(CARRIED_LIGHT + id, pos.x + 0.6 * facing, pos.y + 1.8)
+		elif bool(_carried[id]):
+			light.remove_light(CARRIED_LIGHT + id)
+		_carried[id] = lit
 	if id == my_id:
 		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
 		var want := torch_strength()
@@ -169,6 +184,9 @@ func actor_vitals(id: int, hp: int, max_hp: int) -> void:
 
 func actor_removed(id: int) -> void:
 	_oneshot.erase(id)
+	if bool(_carried.get(id, false)):
+		light.remove_light(CARRIED_LIGHT + id)
+	_carried.erase(id)
 	if fx != null:
 		fx.actor_removed(id)
 	if view != null and _actors.erase(id):

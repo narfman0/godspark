@@ -47,6 +47,7 @@ func handle(kind: int, data: PackedByteArray) -> void:
 				p["of"] = int(p.get("of", -1))
 				people[p["id"]] = p
 				person_added.emit(p["id"], p)
+				_relook(p["id"])
 		LifeCodec.Msg.GONE:
 			for id: Variant in d.get("ids", []):
 				people.erase(int(id))
@@ -54,6 +55,28 @@ func handle(kind: int, data: PackedByteArray) -> void:
 
 func standing(faction: String) -> int:
 	return int(factions.get(faction, {}).get("standing", 0))
+
+## ClientWorld.add_remote asks before actor_added: guards carry a torch (the view lights it
+## at night), a wagon draws a cart.
+func decorate_look(id: int, look: Dictionary) -> void:
+	var p: Dictionary = people.get(id, {})
+	if bool(p.get("torch", false)):
+		look["light"] = "torch"
+	if bool(p.get("wagon", false)):
+		look["wagon"] = true
+
+## PEOPLE after the actor was added: add what it lacks and let the view rebuild it.
+func _relook(id: int) -> void:
+	if cw == null:
+		return
+	var r: Variant = cw.remotes.get(id)
+	if r == null:
+		return
+	var look: Dictionary = r.look.duplicate()
+	decorate_look(id, look)
+	if look != r.look:
+		r.look = look
+		cw.actor_added.emit(id, look)
 
 ## One of Life's people (not a monster to hunt).
 func is_person(id: int) -> bool:
