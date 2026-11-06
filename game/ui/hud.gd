@@ -48,6 +48,9 @@ var prompt := {}
 var downed := {}
 var _night_t := -1.0
 var _night_h := 0.0
+## Coin changes floating off the purse: [{d, t}]
+var _coin_fx: Array = []
+var _coin_seen := -1
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -142,6 +145,16 @@ func tick(delta: float) -> void:
 		if _hp_ghost_t <= 0.0:
 			_hp_ghost = maxf(float(hp.x), _hp_ghost - delta * maxf(8.0, hp.y * 0.6))
 		vitals.queue_redraw()
+	if gu.items != null:
+		var coin := gu.items.coin()
+		if _coin_seen >= 0 and coin != _coin_seen:
+			_coin_fx.append({"d": coin - _coin_seen, "t": 0.0})
+		_coin_seen = coin
+	if not _coin_fx.is_empty():
+		for f: Dictionary in _coin_fx:
+			f["t"] = float(f["t"]) + delta
+		_coin_fx = _coin_fx.filter(func(f: Dictionary) -> bool: return float(f["t"]) < 1.6)
+		clock.queue_redraw()
 	_clock_t -= delta
 	if _clock_t <= 0.0:
 		_clock_t = 1.0
@@ -403,6 +416,19 @@ func _draw_clock(c: Control) -> void:
 		c.draw_circle(Vector2(x - 12, cy), 8, ItemIcons.BRASS)
 		c.draw_arc(Vector2(x - 12, cy), 8, 0, TAU, 16, UiTheme.INK, 2.0, true)
 		c.draw_arc(Vector2(x - 12, cy), 4.5, 0, TAU, 12, UiTheme.INK_SOFT, 1.0, true)
+		# coin changes drift down from the purse and fade; the coin pulses as they land
+		var k := 0
+		for cf: Dictionary in _coin_fx:
+			var ft := float(cf["t"])
+			var d := int(cf["d"])
+			var a := clampf((1.6 - ft) / 0.5, 0.0, 1.0)
+			var ty := cy + 26 + ft * 18 + k * 20
+			var s := ("+%d" % d) if d > 0 else str(d)
+			UiTheme.text(c, Vector2(c.size.x - 8 - UiTheme.text_width(s, UiTheme.HEADING), ty), s, UiTheme.HEADING,
+				Color(UiTheme.GOLD if d > 0 else UiTheme.VERMILION.lightened(0.2), a), false, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
+			if ft < 0.3:
+				c.draw_arc(Vector2(x - 12, cy), 8 + ft * 30, 0, TAU, 20, Color(UiTheme.GOLD, 1.0 - ft / 0.3), 2.0, true)
+			k += 1
 
 ## Rects of the bar's parts, in bar coordinates.
 func hotbar_rect(i: int) -> Rect2:

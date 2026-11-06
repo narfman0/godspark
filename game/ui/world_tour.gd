@@ -32,9 +32,41 @@ func steps() -> void:
 	await shot("04_rumours")
 	await more()
 
-## Later beats (overridden as items land).
+## Later beats.
 func more() -> void:
-	pass
+	await trade()
+
+## Buy a rope and sell ore at the merchant; the smith's rack with a tooltip.
+func trade() -> void:
+	dc.cheat({"op": "coin", "n": 150})
+	dc.cheat({"op": "give", "base": "ore:iron", "n": 6})
+	await wait(0.3)
+	await talk_role("merchant")
+	ui.deals_ui.choose("shop")
+	await wait(1.0)
+	await shot("05_shop")
+	for l: Dictionary in dc.shop.get("listings", []):
+		if String(l["item"].get("base", "")) == "tile:rope":
+			dc.buy(String(l["id"]), 1)
+	for slot: int in dc.shop.get("sell", {}):
+		if String(items.item(slot).get("base", "")) == "ore:iron":
+			dc.sell(slot, Items.count(items.item(slot)))
+	await wait(0.35)
+	await shot("06_traded")
+	ui.close("shop")
+	await wait(0.3)
+	await talk_role("smith")
+	ui.deals_ui.choose("smith")
+	await wait(1.0)
+	var scr := ui.screen("shop") as ShopScreen
+	if scr != null and scr.goods_box.get_child_count() > 0:
+		var row := scr.goods_box.get_child(0) as Control
+		var ls: Array = dc.shop.get("listings", [])
+		if not ls.is_empty():
+			scr._tip(ls[0]["item"], row)
+	await wait(0.3)
+	await shot("07_smith")
+	ui.close("shop")
 
 ## Stand beside the nearest person of a role (Deals' goto cheat) and let the prompt settle.
 func talk_to(role: String) -> void:
@@ -74,6 +106,9 @@ func talk_role(role: String) -> void:
 			if d < bd:
 				bd = d
 				best = id
+	if dc.talking():
+		dc.leave()
+		await wait(0.4)
 	if best != 0:
 		var target := best
 		await host(func(h: WorldHost) -> void:

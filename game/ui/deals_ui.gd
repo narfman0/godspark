@@ -42,6 +42,9 @@ func attach(g: GameUi) -> void:
 	dc.rumour_heard.connect(_on_rumours)
 	dc.note.connect(_on_note)
 	dc.patron_changed.connect(_on_patrons)
+	gu.screen_changed.connect(func(n: String, _open: bool) -> void:
+		if n == "shop":
+			dialogue.refresh())
 	if lc != null:
 		lc.standing_changed.connect(_on_standing)
 		lc.factions_changed.connect(func() -> void:

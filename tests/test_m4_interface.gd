@@ -39,10 +39,13 @@ func _people_words(t: TestLog) -> void:
 	t.eq(DealsLogic.rumour_parts("plain news"), ["", "plain news"], "no date")
 
 func _prices(t: TestLog) -> void:
-	var food := Items.make("trade:food", 1)
+	var food := Items.make("trade:luxuries", 1)
 	var v := float(Items.value(food))
 	var cheap := {"item": food, "n": 10, "price": roundi(v * 1.25 * 0.6)}
-	var dear := {"item": Items.make("trade:luxuries", 1), "n": 2, "price": roundi(float(Items.value(Items.make("trade:luxuries", 1))) * 1.25 * 2.0)}
+	var sword := Items.make("longsword", 1)
+	var dear := {"item": sword, "n": 2, "price": roundi(float(Items.value(sword)) * 1.25 * 2.0)}
+	t.eq(DealsLogic.listing_ratio({"item": Items.make("torch", 1), "n": 5, "price": 2}, DealsLogic.price_mods(0, false, 0)), -1.0,
+		"a two-coin torch says nothing about the market")
 	var none := DealsLogic.price_mods(0, false, 0)
 	t.check(DealsLogic.listing_ratio(cheap, none) <= 0.8, "cheap food reads cheap")
 	var mood := DealsLogic.price_mood([cheap, dear], none)

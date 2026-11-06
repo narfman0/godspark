@@ -162,8 +162,8 @@ static func price_mods(standing: int, bonded: bool, patron_tier: int) -> Diction
 static func listing_ratio(l: Dictionary, mods: Dictionary) -> float:
 	var it: Dictionary = l.get("item", {})
 	var v := float(Items.value(it)) if not it.is_empty() else 0.0
-	if v <= 0.0:
-		return -1.0
+	if v * 1.25 < 6.0:
+		return -1.0       # a coin or two: rounding says more than the market does
 	var m := 1.0 + float(mods.get("standing", 0.0)) + float(mods.get("bond", 0.0)) + float(mods.get("patron", 0.0))
 	m = clampf(m, 0.6, 2.0)
 	return float(l.get("price", 0)) / (v * 1.25 * m)
