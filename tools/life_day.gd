@@ -215,10 +215,12 @@ func _perf(home: int, next: int) -> void:
 	TileCollision.depenetrate(host.world, q.body)
 	var c := life.cheat_party("caravan", next, home, 0.95, 10)
 	_run(130)
-	var r := life.cheat_party("raid", next, home, 0.93, 10)
-	_run(130)
+	var r := life.cheat_party("raid", next, home, 0.8, 10)
+	_run(70)
+	print("PERF raid %d materialized %s with %d shown" % [r, life.road.active.has(r), life.actors_of(r).size()])
 	tick_us.clear()
 	_run(1800)
+	var raid_left := life.actors_of(r).size()
 	var sorted := tick_us.duplicate()
 	sorted.sort()
 	var sum := 0
@@ -229,7 +231,7 @@ func _perf(home: int, next: int) -> void:
 		if not e.is_player():
 			n += 1
 	print("PERF %d actors (town %d, caravan %d, raid %d), 2 players: tick avg %.2f ms, p99 %.2f ms, max %.2f ms" % [n,
-		life.actors_at(home).size(), life.actors_of(c).size(), life.actors_of(r).size(), float(sum) / sorted.size() / 1000.0,
+		life.actors_at(home).size(), life.actors_of(c).size(), raid_left, float(sum) / sorted.size() / 1000.0,
 		sorted[floori(sorted.size() * 0.99)] / 1000.0, sorted[-1] / 1000.0])
 	# snapshot bytes for a player in the busy town (entity records in view)
 	var in_view := 0
