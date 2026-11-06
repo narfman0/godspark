@@ -13,6 +13,7 @@
 		{"id": 10, "name": "stairs_r", "solid": false, "opaque": false, "platform": true, "stairs": 1, "hardness": 0.3, "color": "#a57c4c"},
 		{"id": 11, "name": "stairs_l", "solid": false, "opaque": false, "platform": true, "stairs": 2, "hardness": 0.3, "color": "#a57c4c"},
 		{"id": 12, "name": "rope", "solid": false, "opaque": false, "ladder": true, "rope": true, "hardness": 0.1, "color": "#c9b48a"},
+		{"id": 13, "name": "rubble", "solid": true, "opaque": true, "hardness": 0.5, "color": "#8b8378"},
 		{"id": 16, "name": "copper_ore", "solid": true, "opaque": true, "hardness": 1.5, "color": "#c8733f"},
 		{"id": 17, "name": "iron_ore", "solid": true, "opaque": true, "hardness": 2.0, "color": "#a5674f"},
 		{"id": 18, "name": "silver_ore", "solid": true, "opaque": true, "hardness": 2.5, "color": "#d4dce6"},

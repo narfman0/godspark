@@ -301,12 +301,16 @@ func spawn_pack(pack: Array, spot: Vector2, band := "surface") -> Array:
 func _place_pack(h: WorldHost, pack: Array, spot: Vector2, group: int, band: String) -> Array:
 	var pid := sys.new_pack()
 	var out: Array = []
+	var viewers: Array = []
+	for p: HostEntity in h.entities.values():
+		if p.is_player():
+			viewers.append(p)
 	for i in pack.size():
 		var m: Dictionary = pack[i]
 		var off := (i - (pack.size() - 1) * 0.5) * 1.6
 		var pos := _stand_near(h, spot + Vector2(off, 0.0), String(m["slug"]))
-		if pos == Vector2.INF:
-			pos = spot
+		if pos == Vector2.INF or absf(pos.y - spot.y) > 4.0 or (group != 0 and _in_view(pos, viewers)):
+			pos = spot          # not down a shaft beside it, nor spread into a player's view
 		if band in ["surface", "sky"] and _flies(h, String(m["slug"])):
 			# fliers wait in the open sky above the spot
 			var up := pos + Vector2(0.0, 8.0 + rng.randf() * 6.0)

@@ -87,9 +87,9 @@ static func profile(stats: MoveStats, dig_hardness := 0.0) -> NavProfile:
 ## tiles, x and y) the end node must be to the goal node; partial: settle for the reachable
 ## node nearest the goal when the goal cannot be reached.
 static func start(world: TileWorld, prof: NavProfile, from: Vector2, to: Vector2, tol := Vector2i(1, 1),
-		partial := true, max_expand := 6000) -> NavSearch:
+		partial := true, max_expand := 6000, radius := Vector2i(-1, -1)) -> NavSearch:
 	var s := NavSearch.new()
-	s.setup(world, prof, node_of(prof, from), node_of(prof, to), tol, partial, max_expand)
+	s.setup(world, prof, node_of(prof, from), node_of(prof, to), tol, partial, max_expand, radius)
 	return s
 
 ## The node a body at `pos` (feet) occupies: left column of its box, feet row.
@@ -229,8 +229,6 @@ static func _landing(p: NavProfile, best: Dictionary, cells: Dictionary, xc: flo
 		list = [j]
 	elif ticks < int(list[0]["ticks"]) or (ticks == int(list[0]["ticks"]) and asc.size() + desc.size() < (list[0]["asc"] as PackedInt32Array).size() + (list[0]["desc"] as PackedInt32Array).size()):
 		list[0] = j
-	elif dy < 3:
-		pass              # one way is enough for low landings
 	elif list.size() < 2 and delay > int(list[0]["delay"]):
 		list.append(j)
 	elif list.size() == 2 and delay > int(list[1]["delay"]):

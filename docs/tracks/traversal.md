@@ -111,3 +111,94 @@ reach every client as tile changes.
 Tests: `tests/test_rope.gd` (placement rules, length to a floor and to 30, run and top,
 falling, climbing with the real controller, the host flow with items, two clients over the
 loopback agreeing, a monster path down a rope, save and load).
+
+## 4. A world you can walk without digging
+
+Worldgen stage `passages` (`core/world/worldgen/stage_passages.gd`), inserted after `ruins`
+(the last carving stage) and before `ores`, so it sees every cave, cavern, the deep road, the
+ascent, the portal ramp and the buried ruins, and nothing in it depends on sites, places or
+routes (all later). It only changes newly generated worlds; saved worlds keep their tiles.
+`opts {"passages": false}` generates without it (the before numbers).
+
+1. **Standing spots** for a Medium body (a 2 x 3 box: its left column and feet row), free of
+   solid tiles, on a solid tile, a walkway, stairs or a ladder's top rung.
+2. **Two-way moves** join spots (union-find): walking a column with a step of at most one row
+   (headroom checked as the controller needs it); from the ends of floors, jumps up to 4 rows
+   (rising straight, a row to spare) and across gaps of up to 4 columns (falls back are free);
+   ladders and ropes join every spot along them. Only moves that work both ways count.
+3. **Join**: the component under the first settlement flat (the spawn) is the network. Every
+   other component of at least 4 spots is joined to the nearest network spot (cost |dx| +
+   0.6 |dy|, searched in widening rings 24-400 tiles) with the cheapest believable feature:
+   - steep (|dy| > |dx| + 2): a two-wide shaft with a ladder (surface and the deeps: roots and
+     built ladders) or a hanging rope (caves) in its right-hand column (the column a body
+     standing in it holds), a plank at its top; near the surface, landing planks where a
+     hillside meets its open side, so nobody walks into it;
+   - otherwise a way rising one row per column, then level, five rows clear: rock is cut,
+     open air is bridged by walkway planks (level) or a flight of stairs (rising); in the
+     deeps a rising rock floor gets stair treads (built stairs).
+   Joins never cut bedrock or a paved floor (deep road, ramps; a buried ruin may be broken
+   into), never touch settlement flats or settled caverns, and never cut a floor an earlier
+   join laid. Joined parts become network. A second pass looks at the world as it now is and
+   joins what an earlier join cut apart.
+4. **Caverns**: each unsettled deep cavern gets a staircase from its floor to a walkway a
+   third of the way up, a second staircase rising back across that walkway to a walkway two
+   thirds up, and an old rope hanging from the upper walkway's end: branching ways up and
+   down at two heights.
+
+The spawn director keeps a pack's members by its spot when the spot's neighbour columns
+drop down a shaft or spread into a player's view (`SpawnDirector._place_pack`): the new
+shafts exposed that.
+
+Nav (follower fixes that the new ways needed): a ladder edge steers to the node's middle (not
+the ladder column's middle: a Medium body in a two-wide shaft would hit the rock), climbs to
+the exact height of a step-off, presses down when a drop beside a ladder caught it, and a
+jump waits at most 0.5 s to line up. Low jumps keep a late-steering arc too.
+
+### Numbers
+
+`tools/cave_nav.gd` (mode=pairs: real controller, NavFollow, 24 cave pairs ~40 tiles apart
+per 1024x512 world; mode=sites: a nav-graph flood from the spawn settlement, whose jumps are
+recorded from the real controller, to every site; walk=1 also walks each path with the real
+body).
+
+| | before | after |
+|---|---|---|
+| point-to-point, Medium, 10 seeds (3..31) | 114/240 (48%) | 171/240 (71%) |
+| point-to-point, Large climber, 10 seeds | 103/240 (43%) | 66/240 (28%) |
+| sites on foot from the spawn (graph), dev, 10 seeds | 63/160 (39%), all sites in 0 of 10 | 155/160 (97%), all sites in 7 of 10 |
+| sites on foot (graph), small, 3 seeds | 30/81 (37%), 0 of 3 | 80/81 (99%), 2 of 3 |
+| sites walked by the real body (NavFollow), dev, 3 seeds | - | 13/48 (27%) |
+| generation time, dev (2048x1024) | ~0.79 s | ~2.1 s (+1.2-1.5 s; the stage ~1.2-1.5 s with its second pass) |
+| generation time, small (4096x1536) | ~2.4 s | ~6.5 s |
+
+Misses left (graph): a buried ruin, two portals in the nadir, one surface settlement and two
+lairs over 10 dev seeds. Point-to-point misses are about half planner misses inside its
+64-tile window (the join goes the long way round) and half the follower failing a jump. The
+real-body long walks fail mostly on NavFollow's jump execution over thousands of nodes, not
+on missing ways (the same paths exist in the graph). The Large climber lost ground: two-wide
+shafts and five-high ways fit a Medium body, not a Large one.
+
+Not met: point-to-point above 85% (71%), every site in every seed (97% of trips; 7 of 10
+worlds complete). Feature counts per dev world: about 900 joins (300 ladders, 280 ropes,
+the rest stairs, steps and bridges): dense; see the screenshots.
+
+## 5. Rubble-only digging and supplies
+
+- Tile 13 `rubble` (solid, opaque, hardness 0.5): what digging any terrain gives
+  (`data/items/base.json` `tile_drops`: dirt, grass, stone, slate, cobblestone, wood and
+  rubble give `tile:rubble`); placing it puts a rubble tile.
+- Ore tiles give trade goods `ore:copper`, `ore:iron`, `ore:silver` (kind material, `trade`,
+  a value, not placeable).
+- Built things give themselves (walkways, stairs, ladders, ropes, torches, campfire, bed,
+  shrine): every other breakable tile still gives `tile:<name>`.
+- `tile:wood` and every other block item in old saves stays valid and placeable; nothing
+  produces them any more (loot's `plant` materials give `supplies`).
+- `supplies` (stack 999, value 1) replace wood in `data/items/recipes.json`: torch (1 -> 3),
+  campfire (4), bed (6), ladder (1 -> 3), walkway (1 -> 3), stairs either way (1 -> 3), rope
+  (3 -> 1).
+- Starting kit (`ItemsSystem.give_kit`): hotbar 1 the attack slot (empty, selected), 2
+  torches x10, 3 campfire, 4 two healing potions, 5 bed, 6 two ropes, 7 supplies x12. No
+  blocks.
+- Gear materials and the +3 budget are untouched.
+- The smoke bots dig three tiles and place the rubble they get (`net/bot_client.gd`).
+- Carpenter's Tools Knack deeds also count stair placing (`place:wood` kept for old deeds).

@@ -48,7 +48,8 @@ var _best_h := INF
 var _dig_mask := 0
 var _inv_speed := 1.0
 
-func setup(w: TileWorld, p: NavProfile, s: Vector2i, gl: Vector2i, t: Vector2i, part: bool, cap: int) -> void:
+func setup(w: TileWorld, p: NavProfile, s: Vector2i, gl: Vector2i, t: Vector2i, part: bool, cap: int,
+		radius := Vector2i(-1, -1)) -> void:
 	world = w
 	prof = p
 	start = s
@@ -56,11 +57,11 @@ func setup(w: TileWorld, p: NavProfile, s: Vector2i, gl: Vector2i, t: Vector2i, 
 	tol = t
 	partial = part
 	max_expand = cap
-	var r := MonsterNav.WINDOW
-	x0 = s.x - r
-	y0 = s.y - r
-	W = 2 * r + 1
-	H = 2 * r + 1
+	var r := Vector2i(MonsterNav.WINDOW, MonsterNav.WINDOW) if radius.x < 0 else radius
+	x0 = s.x - r.x
+	y0 = s.y - r.y
+	W = 2 * r.x + 1
+	H = 2 * r.y + 1
 	fx0 = x0 - MARGIN
 	fy0 = y0 - MARGIN
 	FW = W + 2 * MARGIN
@@ -152,6 +153,45 @@ func result() -> NavPath:
 	p.goal = goal
 	p.cost = _g[end]
 	return p
+
+## The path from the start to node n if the search reached it (a flood: search toward an
+## unreachable goal with partial off and a large cap, then ask for any node), else null.
+func path_to(n: Vector2i) -> NavPath:
+	var k := _key(n.x, n.y)
+	if k < 0 or _g[k] == INF:
+		return null
+	var nodes: Array[Vector2i] = []
+	var how := PackedInt32Array()
+	while k >= 0:
+		nodes.append(Vector2i(x0 + k % W, y0 + k / W))
+		how.append(_how[k])
+		k = _came[k]
+	nodes.reverse()
+	how.reverse()
+	var p := NavPath.new()
+	p.prof = prof
+	p.nodes = nodes
+	p.how = how
+	p.reached = true
+	p.goal = n
+	p.cost = _g[_key(n.x, n.y)]
+	return p
+
+## The highest node reached (for tools: where a flood up out of a pit stops).
+func highest() -> Vector2i:
+	var best := Vector2i(0, -(1 << 30))
+	for k in _g.size():
+		if _g[k] != INF and y0 + k / W > best.y:
+			best = Vector2i(x0 + k % W, y0 + k / W)
+	return best
+
+## Nodes reached so far (g known), for floods.
+func reached_count() -> int:
+	var n := 0
+	for g in _g:
+		if g != INF:
+			n += 1
+	return n
 
 func reached() -> bool:
 	return _found >= 0
