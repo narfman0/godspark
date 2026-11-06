@@ -36,7 +36,8 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 - The skin is furniture and props; Synty wall and roof panels are not used. No per-culture
   piece scale (halflings use human pieces).
 - Ladders in buildings until the Traversal `stairs` tile replaces `H`.
-- Ascent and portal route paths are rough (ramp holes) until Traversal's passability pass.
+- Ascent and portal route paths are graded walks since the passability pass (a few rough
+  where grading found no way).
 - Conquest keeps the old style; ruins keep no name for arrival notices.
   ([tracks/places.md](tracks/places.md))
 
@@ -87,13 +88,8 @@ Open from the integration pass
   pacing target (early 3-6 min and the 90s an hour). At 8: levels 2-5 take 4.7-7.5 min but
   level 50 ~8 min, the 90s ~6 min, ~10 h in all. The deep bands need their own XP divisor
   (or fewer, slower deep spawns); the deep kill rates rest on assumed fight lengths.
-- Caves (M4 traversal, partly met): worldgen stage `passages` joins cave regions; Medium
-  walkers reach 69% of cave pairs 40 tiles apart (48% before; target 85%) and 94% of sites
-  from the spawn on the nav graph (every site in 5 of 10 dev worlds; the nadir portal is the
-  usual miss). Left: NavFollow fails jumps and long walks (27% of real-body site walks
-  arrive); the 64-tile search window misses ways that go round; Large climbers lost share
-  (two-wide shafts); a few deep sites; generation is +1.0 s on dev, +3 s on small; joins are
-  dense (hundreds of short ladders and ropes per world). Ladders still stand in for roots.
+- Caves (M4 passability): see "Passability" below (point-to-point and every site met; joins,
+  speed and Large climbers open). Ladders still stand in for roots.
 - Traversal: no rope item in shops or loot yet (crafted from supplies, two in the kit); the
   player picks stairs_r or stairs_l by item (no auto-facing); ore trade goods have no
   buyer until Deals.
@@ -128,19 +124,21 @@ Never played (beyond the first session)
   bot waited in bed for the other"), then passed three times. The bots' bed timing is
   real-time dependent; make the wait check robust or the bots deterministic.
 
-## Passability (the user asked for a world passable without digging; targets not met yet)
-- Point-to-point trips through caves: 69% for a Medium walker (target above 85%); Large
-  climbers fell from 43% to 27%.
-- Every site reachable on foot from the spawn: 94% of sites, all of them in 5 of 10 worlds
-  (target: every site, every seed). Misses: the nadir portal, sometimes a deep settlement.
-- The monster path follower fails jumps on long paths: real-body site walks succeed 27% of
-  the time, and `test_monster_nav`'s bar for following found cave paths was lowered from 80%
-  to 70% (traversal) and to 60% at the Places merge (13 of 19). Fix the follower, then
-  raise the bar back.
-- The planner's 64-tile window misses ways that go the long way round.
-- Places stamps settlements after the passages stage runs: check passages near settlement
-  edges, and re-run the roads stage's deep routes, which were all flagged rough.
-- Worldgen now takes about 1.8 s for a dev world and 5.4 s for a small one.
+## Passability ([tracks/passability.md](tracks/passability.md); met: point-to-point, every site, the follower)
+- Met: Medium point-to-point 94% (target above 85%); every site and route end on foot in 10
+  of 10 dev and 3 of 3 small worlds (nav graph); real-body site walks 94%; the follower
+  takes 96% of planned cave paths without replanning, and `test_monster_nav`'s follow bar is
+  back at 9 in 10 (Medium; Large 3 in 4).
+- Joins are not clearly fewer: rope + ladder 520 -> 441 per dev world, about 750 joins in all;
+  still thin vertical lines on the map. Next: joins that serve several pockets by design (one
+  switchback stair or long rope per pit); slopes in place of shafts cost point-to-point share.
+- Generation is slower, not faster: dev 2.5 s, small 8.6 s (2.1 s and 6.1 s before, same
+  machine; target about 1.3 s and 3.5 s). Two or three whole-world analyses in GDScript loops;
+  needs incremental re-analysis or a native step.
+- Large climbers 33% (target 43%): joins are Medium-sized; no Large-sized joins or size marks.
+- Rough deep routes: 5 of 80 on dev, 1 of 42 on small (grading found no way along the line).
+- A few Passer moves per world still disagree with the nav graph; the guarantee is checked
+  by `tools/passability_sweep.gd`, not inside the stage.
 
 ## Life integration (main is red here on purpose: six `test_life` checks fail)
 - Life was built against the fallback (no places, straight-line routes). Merged with
