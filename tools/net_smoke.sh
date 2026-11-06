@@ -8,7 +8,8 @@
 # with its hit points (a "BOT bot1 vitals ..." line).
 #   tools/net_smoke.sh            prints NET SMOKE PASS or what differed; exit 0 on pass
 #   KEEP=1 tools/net_smoke.sh     keep the logs
-#   WORLD="gen=dev seed=3" tools/net_smoke.sh   on a generated world (default gen=test)
+#   WORLD="gen=dev seed=3" tools/net_smoke.sh   on a generated world (default gen=test);
+#                                 a big one needs HOST_WAIT=70 LIMIT=200 for the generation
 #   SPAWN=goblin-warrior:1 SEE="Goblin Warrior monster 10/10" tools/net_smoke.sh   (defaults)
 #   SPAWNS=1 WORLD="gen=dev seed=3" SEE= tools/net_smoke.sh   the monsters' spawn director on a
 #                                 generated world (bots may fight or fall; the run must finish
@@ -67,7 +68,7 @@ if [ "$DEALS" = 1 ]; then
 	# bot1 talks to a merchant, buys a rope, sells ore, takes work from the keeper (or a guard),
 	# completes it (cheat), turns it in; both sides must agree (DEALSCHECK), and after the
 	# rejoin the bot checks coin, quest log, standing and rumours came back
-	WORLD=${WORLD:-gen=dev seed=3}
+	WORLD=${WORLD:-gen=dev seed=4}
 	SPAWN=${SPAWN:-goblin-warrior:0}
 	SEE=${SEE:-the Merchant}
 	SPAWNS=${SPAWNS:-0}
@@ -77,7 +78,7 @@ if [ "$DEALS" = 1 ]; then
 fi
 LIFE=${LIFE:-0}
 if [ "$LIFE" = 1 ]; then
-	WORLD=${WORLD:-gen=dev seed=3}
+	WORLD=${WORLD:-gen=dev seed=4}     # a town of soft road: bots dig there while the raid is on
 	SPAWN=${SPAWN:-goblin-warrior:0}
 	SEE=${SEE:-none}       # checked below on either bot (people appear within a second of a join)
 	SPAWNS=${SPAWNS:-0}
