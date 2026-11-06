@@ -56,7 +56,7 @@ class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 9   # 9: biome tiles 21-33, 112-115 and walls 10-17 (an older client cannot draw them)
+const VERSION := 9   # 9: biome tiles 21-33, 112-116 and walls 10-17 (an older client cannot draw them)
 ## ENT_ADD rank byte: index into this list.
 const RANKS := ["standard", "minion", "elite", "champion", "boss"]
 const MAX_STR := 64

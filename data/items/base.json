@@ -21,6 +21,7 @@
 		"pass_road": "tile:rubble",
 		"desert_track": "tile:rubble",
 		"causeway": "tile:rubble",
+		"green_lane": "tile:rubble",
 		"stone": "tile:rubble",
 		"wood": "tile:rubble",
 		"cobblestone": "tile:rubble",

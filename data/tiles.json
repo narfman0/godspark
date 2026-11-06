@@ -1,5 +1,5 @@
 {
-	"_comment": "Ids are stable once a world has been saved: append, never renumber. hardness = seconds to dig bare-handed, negative = unbreakable. emit = light given off, 0-15. platform = one-way, solid only from above. ladder = climbable, not solid; its top rung is standable. stairs = one-way like a platform, laid one tile up per tile across: 1 rises to the right (stairs_r), 2 to the left (stairs_l); see core/entity/player_controller.gd. Ids 10-13 are the traversal track's (stairs, rope, rubble). Tiles 21-33 and walls 10-17 are the surface biomes' (data/worldgen/biomes.json). Tiles 96-127 and walls 40-55 are the places track's (buildings, roads, lamps), and the passages stage never cuts them; 112-115 are the biomes' road surfaces.",
+	"_comment": "Ids are stable once a world has been saved: append, never renumber. hardness = seconds to dig bare-handed, negative = unbreakable. emit = light given off, 0-15. platform = one-way, solid only from above. ladder = climbable, not solid; its top rung is standable. stairs = one-way like a platform, laid one tile up per tile across: 1 rises to the right (stairs_r), 2 to the left (stairs_l); see core/entity/player_controller.gd. Ids 10-13 are the traversal track's (stairs, rope, rubble). Tiles 21-33 and walls 10-17 are the surface biomes' (data/worldgen/biomes.json). Tiles 96-127 and walls 40-55 are the places track's (buildings, roads, lamps), and the passages stage never cuts them; 112-116 are the biomes' road surfaces.",
 	"tiles": [
 		{"id": 0, "name": "air", "solid": false, "opaque": false},
 		{"id": 1, "name": "dirt", "solid": true, "opaque": true, "hardness": 0.4, "color": "#7a5a3c"},
@@ -54,7 +54,8 @@
 		{"id": 112, "name": "forest_track", "solid": true, "opaque": true, "hardness": 0.6, "color": "#6e6a42"},
 		{"id": 113, "name": "pass_road", "solid": true, "opaque": true, "hardness": 0.6, "color": "#a3a29a"},
 		{"id": 114, "name": "desert_track", "solid": true, "opaque": true, "hardness": 0.5, "color": "#b99a62"},
-		{"id": 115, "name": "causeway", "solid": true, "opaque": true, "hardness": 0.6, "color": "#7a7050"}
+		{"id": 115, "name": "causeway", "solid": true, "opaque": true, "hardness": 0.6, "color": "#7a7050"},
+		{"id": 116, "name": "green_lane", "solid": true, "opaque": true, "hardness": 0.5, "color": "#8c9c58"}
 	],
 	"walls": [
 		{"id": 0, "name": "none"},

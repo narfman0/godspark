@@ -10,7 +10,7 @@
 		"ramp": {"share": 0.035, "tiles": [20, 150]}
 	},
 	"biomes": [
-		{"name": "meadow", "share": [0.17, 0.27], "top": "grass", "road": "road", "soil": "dirt", "soil_wall": "dirt_wall", "stone": "stone", "stone_wall": "stone_wall", "soil_depth": [6, 14], "map_color": "#8cc152",
+		{"name": "meadow", "share": [0.17, 0.27], "top": "grass", "road": "green_lane", "soil": "dirt", "soil_wall": "dirt_wall", "stone": "stone", "stone_wall": "stone_wall", "soil_depth": [6, 14], "map_color": "#8cc152",
 			"height": {"base": 0.0, "big": 0.45, "mid": 0.7, "fine": 0.8, "ridge": 0.0, "dune": 0.0, "step": 1}},
 		{"name": "forest", "share": [0.17, 0.26], "top": "forest_floor", "road": "forest_track", "soil": "loam", "soil_wall": "loam_wall", "stone": "mossy_stone", "stone_wall": "mossy_wall", "soil_depth": [8, 16], "map_color": "#2f7d3a",
 			"height": {"base": 0.04, "big": 0.55, "mid": 1.3, "fine": 1.0, "ridge": 0.0, "dune": 0.0, "step": 2}},

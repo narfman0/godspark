@@ -197,8 +197,7 @@ func _tables(t: TestLog) -> void:
 			t.check(TileDefs.id(d[k]) > 0, "%s %s is a tile" % [d["name"], k])
 			if k == "road":
 				t.check(TileDefs.id(d[k]) >= 96, "%s is a Places tile, so the passages stage never cuts a road" % d[k])
-			if d[k] != "road":      # the meadow's road is the old road tile, which gives itself
-				t.eq(Items.tile_drop(TileDefs.id(d[k])), "tile:rubble", "digging %s gives rubble" % d[k])
+			t.eq(Items.tile_drop(TileDefs.id(d[k])), "tile:rubble", "digging %s gives rubble" % d[k])
 		for k: String in ["soil_wall", "stone_wall"]:
 			t.check(TileDefs.wall_id(d[k]) > 0, "%s %s is a wall" % [d["name"], k])
 		t.check(String(d["stone"]) in ores["ores"][0]["replace"], "ore can form in %s" % d["stone"])

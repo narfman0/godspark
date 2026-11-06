@@ -65,7 +65,7 @@ WorldSave.load(dir: String) -> TileWorld          # null if missing or unreadabl
 
 ```
 surface: [int] * width        y of the highest solid tile in each column
-biomes:  [{x0, x1, biome}]    surface strip, left to right, covering the whole width
+biomes:  [{x0, x1, biome, temp}]    surface strip, cold to hot, covering the whole width
 bands:   {name: [y0, y1]}     depth bands, e.g. sky, surface, caves, deeps, nadir
 sites:   [{id, kind, x, y, biome, band, size}]
              kind: settlement | lair | ruin | portal
@@ -825,7 +825,7 @@ BiomeIds.generated(family := "") -> PackedStringArray   # the ids worldgen makes
   `biomes`), `c.climate`. Fill ground with `c.col_soil[x]`, never `c.DIRT`, on the surface.
 - `step` 1 is walked without jumping; only the forest has 2. A flat holds its level and the
   slopes around it give way; each flat is within a walk of the one before it.
-- Tiles 21-33, walls 10-17: the biomes' ground. Tiles 112-115: road surfaces, in the Places
+- Tiles 21-33, walls 10-17: the biomes' ground. Tiles 112-116: road surfaces, in the Places
   range because the passages stage never cuts ids 96 and up. Digging gives rubble through
   `tile_drops`: a new terrain tile needs a row there. Ores need a stone in their `replace`.
 
