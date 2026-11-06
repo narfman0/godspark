@@ -12,7 +12,9 @@
 ## with cargo, the players' strength, where a lair's creatures stand); everything that
 ## completes work is play. Then a patron's gift, save, stop, load, rejoin, and everything came
 ## back; the sim's audit is clean and host and clients agree. Each failure this test found was
-## an integration bug (docs/tracks/m4-integration.md).
+## an integration bug (docs/tracks/m4-integration.md, docs/tracks/fix-round.md). The dice are not
+## fixed: each run picks a seed and prints it, and E2E_SEED=n replays that story. A failure that
+## comes and goes is a bug in the game or in this test, not noise.
 extends RefCounted
 
 const Rig := preload("res://tests/net_rig.gd")
@@ -329,6 +331,17 @@ func person_pos(i: int, id: int) -> Vector2:
 	var e := rig.host.entity(id)
 	return e.body.pos if e != null else Vector2.INF
 
+## Walk up to a person, looking again as they go (they may be on their way somewhere).
+func _walk_up(i: int, pid: int, limit: float) -> void:
+	var left := limit
+	while left > 0.0 and person_pos(i, pid) != Vector2.INF:
+		var x: float = person_pos(i, pid).x
+		var me := rig.cw(i).body.pos.x
+		if absf(x - me) <= 3.0:
+			return
+		var took := walk_x(i, x + (1.5 if me > x else -1.5), 2.0)
+		left -= took if took >= 0.0 else 2.0
+
 ## Walk up to a person of a role and open a conversation (through the client). "" or why not.
 func talk_to(i: int, role: String, site := -1) -> String:
 	rig.until(func() -> bool: return person_near(i, role, site) >= 0, 8.0)      # the town appears within a scan or two
@@ -337,8 +350,7 @@ func talk_to(i: int, role: String, site := -1) -> String:
 		return "no %s known" % role
 	_talk_log = []
 	for attempt in 6:
-		var x: float = person_pos(i, pid).x
-		walk_x(i, x + (1.5 if rig.cw(i).body.pos.x > x else -1.5), 40.0)
+		_walk_up(i, pid, 40.0)
 		dc(i).talk(pid)
 		if rig.until(func() -> bool: return dc(i).talking() and int(dc(i).conversation.get("id", -1)) == pid, 1.0) >= 0.0:
 			return ""

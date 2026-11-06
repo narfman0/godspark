@@ -15,8 +15,10 @@ class_name DealsSystem
 extends HostSystem
 
 ## Tiles (body centres) within which a player may start talking, and keep talking.
-const TALK_RANGE := 5.0
-const KEEP_RANGE := 7.0
+## Past the prompt's range (DealsClient.PROMPT_RANGE) by a walking person's way in 0.4 s: the
+## view's delay and a round trip. E only goes out with the prompt showing, so this is no reach.
+const TALK_RANGE := 6.5
+const KEEP_RANGE := 8.5
 ## Ended quests are kept this many game days (so offline party members see the outcome).
 const KEEP_ENDED_DAYS := 30
 const MAX_KNOWN := 120

@@ -196,7 +196,7 @@ func nearest_person() -> int:
 	return best
 
 ## Would the host talk to this person now? The same reach as DealsSystem.can_talk, from a little
-## nearer (PROMPT_RANGE: a person may take a step while the request travels), and its other
+## nearer (PROMPT_RANGE: a person may walk on while the request travels), and its other
 ## refusals as far as a client can tell: a fight, being down, a faction's hostility. A grudge
 ## is known to the host alone: that one is still refused after the prompt.
 func would_talk(id: int) -> bool:

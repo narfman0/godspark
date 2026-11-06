@@ -27,6 +27,7 @@ func run(t_: TestLog) -> void:
 		return
 	_follows(who)
 	_lag(who)
+	_walker(who)
 	_wall(who)
 	_fight(who)
 	_hostile(who)
@@ -107,6 +108,21 @@ func _lag(who: int) -> void:
 		t.eq(word, "", "running up at %.0f ms: the prompt showed (host's copy then %.1f tiles off) and the talk opened" % [lat * 1000.0, host_d])
 	rig.hub.latency = 0.03
 	rig.run(0.5)
+
+## A person walking away (5.85 tiles a second, a civilian's pace), E at the last moment the prompt
+## shows: by the time the host hears they are further off, by the view's delay (0.1 s) and the
+## round trip. The host's range has room for 300 ms of round trip at that pace.
+func _walker(_who: int) -> void:
+	var pace := 5.85
+	var lag := ClientWorld.INTERP_DELAY + 0.3
+	var body := Body.new()
+	body.pos = Vector2(100.5, 100.0)
+	var box := body.rect()
+	box.position.x += DealsClient.PROMPT_RANGE + pace * lag
+	t.eq(DealsTalk.reach(rig.host.world, body, box, DealsSystem.TALK_RANGE, false), "", "a walker the prompt showed a moment ago is still in reach")
+	box.position.x += 1.0
+	t.eq(DealsTalk.reach(rig.host.world, body, box, DealsSystem.TALK_RANGE, false), "far", "and not much further")
+	t.check(DealsSystem.KEEP_RANGE > DealsSystem.TALK_RANGE, "a conversation is not closed the moment it opens")
 
 ## A wall between: near enough, and the host says no_sight, so no prompt.
 func _wall(who: int) -> void:
