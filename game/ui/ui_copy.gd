@@ -158,3 +158,41 @@ static func deed_hint(counter: String) -> String:
 		"downed":
 			return "for getting knocked down"
 	return "for your deeds"
+
+## DealsClient refusal words (docs/tracks/deals.md) as sentences.
+const DEALS_REFUSALS := {
+	"far": "Too far to talk. Walk up to them.",
+	"no_sight": "They can't see you, and you can't see them.",
+	"no_one": "Nobody there.",
+	"no_talk": "They have nothing to say to you.",
+	"fight": "No time for talk in a fight.",
+	"down": "You are in no state to chat.",
+	"hostile": "They will not speak to you.",
+	"not_talking": "You're not talking to anyone.",
+	"no_option": "They don't offer that.",
+	"not_shopping": "The shop is shut.",
+	"no_listing": "That's gone from the shelf.",
+	"none_left": "Sold out.",
+	"coin": "You can't afford it.",
+	"full": "Your pack is full. Something has to go.",
+	"bad_index": "That slot doesn't exist.",
+	"empty": "Nothing there to sell.",
+	"worthless": "They won't pay for that. Nobody would.",
+	"poor": "The town can't pay that much in one go.",
+	"no_service": "They don't offer that here.",
+	"no_rules": "Not here.",
+	"full_hp": "You're already in one piece.",
+	"no_quest": "No such work.",
+	"already": "You've already taken that on.",
+	"not_here": "Hand it in where you were given it.",
+	"gone": "That work is gone.",
+	"missing": "You don't have what they asked for.",
+	"not_ready": "It isn't done yet.",
+	"no_cheats": "Cheats are off.",
+}
+
+static func deals_refusal(word: String) -> String:
+	return DEALS_REFUSALS.get(word, word.capitalize().replace("_", " "))
+
+## Why a conversation ended, in a word or two.
+const TALK_CLOSED := {"far": "Out of earshot", "gone": "They left", "fight": "A fight!", "hostile": "Hostile", "left": "Farewell"}

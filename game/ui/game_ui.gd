@@ -20,8 +20,10 @@ var combat: CombatClient
 var monsters: Object
 var quick := QuickSlots.new()
 var prompts := ContextPrompts.new()
-## STOPGAP (Deals): keyboard talk and trade until the Interface track's screens.
-var deals_ui: DealsStopgap
+## Talk, trade, work and standing (DealsUi: the dialogue panel, toasts); null without Deals.
+var deals_ui: DealsUi
+## Marks, the talk prompt and plates over people (with Life).
+var marks: PeopleMarks
 var root: Control
 var hud: Hud
 ## Screens by name (built on first open): inventory, character, constellation, choices, spells.
@@ -71,6 +73,8 @@ func _fit() -> void:
 	for c in root.get_children():
 		if c is Control and c != catcher:
 			(c as Control).size = root.size
+	if deals_ui != null:
+		deals_ui.layout(root.size)
 
 ## Virtual size the interface lays itself out in.
 func vsize() -> Vector2:
@@ -105,8 +109,13 @@ func attach(client: ClientWorld, pres: Node) -> void:
 	hud.attach()
 	prompts.attach(self)
 	if cw.system(HostSystem.DEALS) != null:
-		deals_ui = DealsStopgap.new()
+		deals_ui = DealsUi.new()
 		deals_ui.attach(self)
+		marks = PeopleMarks.new()
+		marks.gu = self
+		root.add_child(marks)
+		root.move_child(marks, 0)
+		marks.size = root.size
 	for s: Control in screens.values():
 		if s.has_method("attach"):
 			s.call("attach")
@@ -128,6 +137,10 @@ func mouse_over_ui() -> bool:
 
 func text_focus() -> bool:
 	return _text_focus
+
+## Do the number keys belong to the interface now (a conversation's options), not the hotbar?
+func number_keys_taken() -> bool:
+	return deals_ui != null and deals_ui.talking() and deals_ui.dialogue.visible
 
 func quick_spell(i: int) -> Dictionary:
 	return quick.spell_for(i, combat.spells if combat != null else [])
@@ -233,6 +246,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if event.is_action_pressed("ui_cancel") and close_top():
 		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("ui_cancel") and deals_ui != null and deals_ui.talking():
+		deals_ui.dc.leave()
+		get_viewport().set_input_as_handled()
 
 # --- toasts and events ------------------------------------------------------------------------
 
@@ -302,6 +319,8 @@ func _process(_delta: float) -> void:
 		_fit()
 	prompts.tick(_delta)
 	hud.tick(_delta)
+	if marks != null:
+		marks.step()
 	frame_usec.append(Time.get_ticks_usec() - t0)
 	if frame_usec.size() > 4000:
 		frame_usec = frame_usec.slice(2000)

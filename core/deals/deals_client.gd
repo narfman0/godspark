@@ -17,6 +17,8 @@ signal quests_changed(quests: Array)
 signal rumour_heard(rumours: Array)
 signal patron_changed(patrons: Dictionary)
 signal note(op: int, ok: bool, word: String)
+## The atlas changed (sites, routes or seen); `fresh` the sites first stood at just now.
+signal atlas_changed(fresh: Array)
 
 var cw: ClientWorld
 ## {} when closed; else {open, id, name, role, site, faction, line, view, options: [{id, label}],
@@ -35,6 +37,14 @@ var patrons := {}
 var closed := {}
 ## The last answer from the host per request kind.
 var last_note := {}
+## ATLAS (for the map and place banners): site id -> {id, kind, name, culture, tier, pop,
+## faction, state, work, lair, apex, ruin}; routes [{id, a, b, kind, name, path: [Vector2i]}];
+## seen: site id -> true (stood at); sim_t: the sim hour when last heard, at clock_h.
+var sites := {}
+var routes: Array = []
+var seen := {}
+var sim_t := 0
+var clock_h := 0.0
 
 func sys_id() -> int:
 	return HostSystem.DEALS
@@ -94,6 +104,32 @@ func handle(kind: int, data: PackedByteArray) -> void:
 				patrons[f] = {"tier": int(p.get("tier", 0)), "standing": int(p.get("standing", 0)), "given": int(p.get("given", 0)),
 					"suspended": bool(p.get("suspended", false)), "name": String(p.get("name", ""))}
 			patron_changed.emit(patrons)
+		DealsCodec.Msg.ATLAS:
+			sim_t = int(d.get("t", sim_t))
+			clock_h = cw.hours() if cw != null else 0.0
+			if bool(d.get("all", false)):
+				sites = {}
+				seen = {}
+			for sd: Dictionary in d.get("sites", []):
+				var x := sd.duplicate()
+				for k: String in ["id", "pop"]:
+					if x.has(k):
+						x[k] = int(x[k])
+				sites[int(x["id"])] = x
+			if d.has("routes"):
+				routes = []
+				for r: Dictionary in d["routes"]:
+					var pts: Array = []
+					for c: Array in r.get("path", []):
+						pts.append(Vector2i(int(c[0]), int(c[1])))
+					routes.append({"id": int(r["id"]), "a": int(r["a"]), "b": int(r["b"]), "kind": String(r.get("kind", "")),
+						"name": String(r.get("name", "")), "path": pts})
+			var fresh: Array = []
+			for sid: Variant in d.get("seen", []):
+				if not seen.has(int(sid)):
+					seen[int(sid)] = true
+					fresh.append(int(sid))
+			atlas_changed.emit(fresh if not bool(d.get("all", false)) else [])
 		DealsCodec.Msg.NOTE:
 			var op := int(d.get("op", 0))
 			last_note[op] = String(d.get("word", ""))
@@ -125,6 +161,14 @@ func quests_in(state: String) -> Array:
 ## Rumours with a place, for the map: [{site, text, dir, dist}].
 func map_marks() -> Array:
 	return rumours.filter(func(r: Dictionary) -> bool: return int(r["site"]) >= 0)
+
+## The sim's hour now, from the last ATLAS and the clock since (quest `due` is in sim hours).
+func sim_hour() -> float:
+	return sim_t + ((cw.hours() - clock_h) if cw != null else 0.0)
+
+## A site's name ("" when unknown).
+func site_name(sid: int) -> String:
+	return String(sites.get(sid, {}).get("name", ""))
 
 # --- requests (validated on the host) -------------------------------------------------------
 

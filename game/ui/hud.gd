@@ -431,7 +431,7 @@ func _draw_bar(c: Control) -> void:
 	# the hotbar
 	var hb: Array = gu.items.hotbar() if gu.items != null else []
 	var sel := gu.items.selected() if gu.items != null else 0
-	if hint_alpha > 0.0:
+	if hint_alpha > 0.0 and not (gu.deals_ui != null and gu.deals_ui.talking()):
 		var hx := hotbar_rect(0).position.x
 		UiTheme.text(c, Vector2(hx, -14), HINT, UiTheme.SMALL, Color(UiTheme.TEXT_LIGHT, hint_alpha), false,
 			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 4)

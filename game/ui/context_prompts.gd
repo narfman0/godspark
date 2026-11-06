@@ -134,7 +134,7 @@ func tick(dt: float) -> void:
 	elif _revive != 0:
 		rules.revive_stop()
 		_revive = 0
-	# someone to talk to (Deals; the stopgap until the Interface track's dialogue screen)
+	# someone to talk to (Deals): the prompt is drawn over them (PeopleMarks)
 	if gu.deals_ui != null and gu.deals_ui.prompt(e_down):
 		return
 	# stations

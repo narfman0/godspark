@@ -24,6 +24,8 @@
 ##             shot=PATH.png [shot_after=S]: save a screenshot after S seconds and quit,
 ##             ui_tour=DIR: (offline host with cheats, windowed) drive the interface through
 ##             its screens and save a screenshot of each to DIR (game/ui/ui_tour.gd)
+##             world_tour=DIR: the same for the living world (talk, trade, work, map, a
+##             caravan, a raid, a patron; game/ui/world_tour.gd; gen=dev seed=3 suits it)
 ## Headless processes (and bots) use the log presenter; windowed ones the 3D view.
 extends Node
 
@@ -159,6 +161,12 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 			tour.main = self
 			tour.session = session
 			add_child(tour)
+		elif opts.has("world_tour") and not headless:
+			var wt := WorldTour.new()
+			wt.dir = String(opts["world_tour"])
+			wt.main = self
+			wt.session = session
+			add_child(wt)
 
 ## spawn=SLUG[:N]: N monsters a few tiles apart, left of the spawn point. Runs before the
 ## host thread starts (the first _process), so it may touch the host directly.

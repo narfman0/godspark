@@ -83,3 +83,8 @@ func toggle() -> void:
 	if visible_log:
 		for s in _recent:
 			_add(s)
+
+## Hide the log for a while (the interface's dialogue panel sits where it shows).
+func set_quiet(on: bool) -> void:
+	if _box != null:
+		_box.visible = not on

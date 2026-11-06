@@ -11,6 +11,12 @@
 ##   RUMOUR (4):  {rumours: [rumour], all: bool}                newly heard (all: the full list)
 ##   PATRON (5):  {patrons: {faction: {tier, standing, given, suspended, name}}}
 ##   NOTE (6):    {op, ok, word}                                the answer to a request
+##   ATLAS (7):   {t, sites?: [site], routes?: [route], seen?: [site id], all?}   what the map
+##                and place banners show (Interface): on join everything (all: true), then
+##                sites when their names, tiers, states or work change, seen when the player
+##                first stands at a site. site: {id, kind, name, culture?, tier?, pop?,
+##                faction?, state?: [situation], work?: [giver roles], lair?, apex?, ruin?};
+##                route: {id, a, b, kind, name, path: [[x, y]] every 8th feet cell}
 ## Client -> host:
 ##   TALK_TO (64) {e}   CHOOSE (65) {o}   LEAVE (66) {}   BUY (67) {l, n}   SELL (68) {s, n}
 ##   SERVICE (69) {id}  ACCEPT (70) {q}   ABANDON (71) {q}   TURN_IN (72) {q}
@@ -19,7 +25,7 @@
 class_name DealsCodec
 extends RefCounted
 
-enum Msg { TALK = 1, SHOP = 2, QUESTS = 3, RUMOUR = 4, PATRON = 5, NOTE = 6,
+enum Msg { TALK = 1, SHOP = 2, QUESTS = 3, RUMOUR = 4, PATRON = 5, NOTE = 6, ATLAS = 7,
 	TALK_TO = 64, CHOOSE = 65, LEAVE = 66, BUY = 67, SELL = 68, SERVICE = 69, ACCEPT = 70, ABANDON = 71,
 	TURN_IN = 72, CHEAT = 79 }
 
