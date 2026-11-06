@@ -79,8 +79,12 @@ lineage)` (priest-acolyte for priests, the culture's `people` block otherwise; m
 cultures their people block), `look.people` like `human:guard`, `elf:drow:guard`,
 `human:commoner:f`. Names from the culture's syllables, seeded by (world seed, site, slot,
 generation). Meta: `sim {kind: settlement, id, role, slot}`, `faction`, `talk`, `friendly`.
-Posts by `Places.anchors` (role anchors, home doors, the townsfolk square), or, with no
-places, spread over the site keeping 24 tiles around its centre clear. Round: work 6-18, the
+Posts on the real place: each role at its buildings' anchors (smith at the forge, merchants
+at the stalls, keeper, priest; guards at the gate anchors), a second person a step aside,
+anyone beyond twice the anchors spread along the `street`; a spot that would put someone on
+a roof is refused (they stay on the anchor's floor). At night and when frightened people go
+indoors: the middle of a home's ground floor, through its door on the street. Only worlds
+without places use the old spread over the site (keeping 24 tiles around the centre clear). Round: work 6-18, the
 square at dusk 18-21, home door at night; guards at their posts, with meta `torch` and
 `look.light` at night (combat sight counts them as carried light). Civilians run for their
 door from a foe or a nearby fight and calm after 8 s; fighters run to fights. While shown,
@@ -88,13 +92,19 @@ the sim settlement is `watched`; each scan the shown people are reconciled with 
 (soldiers away with a caravan go off duty, growth adds people).
 
 **Parties** (`LifeRoad`): a party whose point (route id + fraction through
-`Places.route_path`, interpolated; a straight line between the sites when no path is
-stored) is within 80 tiles. Members up to 12 (sampled when bigger); the culture's people
+`Places.route_path`, interpolated, on its feet cells; a straight line between the sites
+when no path is stored) is within 80 tiles. On `rough` routes the same cells are used; the
+people walk them with monster nav as far as they can and are put back beside the party when
+40 tiles behind. Between the sim's hourly steps the point moves on at the party's pace
+(display only), so people walk the road. Members up to 12 (sampled when bigger); the culture's people
 block among `people` are civilians (drovers, migrants), the rest fighters by kind (escort,
 raider, guard, soldier, monster); a caravan shows up to 2 draft horses as its wagons (meta
 `look.wagon`; a killed wagon is one fewer `wagons`). **Lockstep**: the sim keeps moving the
-party at its own pace and the actors' posts follow its point, so watching changes nothing;
-only when its people fight a foe is the party `frozen` (no movement, timers or arrival).
+party at its pace and the actors' posts follow its point, so watching changes nothing; only
+when its people fight a foe is the party `frozen` (no movement, timers or arrival). A raid
+(or monster pack) within 48 tiles of the watched town it is going for starts the real-time
+raid at once (it does not wait for the sim's arrival step). Townsfolk who die are not
+replaced until the town has been quiet for 32 s.
 A hold with no blows for `stall_s` (45 s) lets go.
 
 **Write-back**: every death is written at once (`WorldSim.party_member_killed`,
@@ -115,7 +125,39 @@ fractions and its own outcome code:
   (`items.drop`): `trade:<good>` when Items has such rows, else their worth in coin (Items has
   no trade-good rows yet).
 
-## Sim changes (all additive; none touch the sim's generator)
+## Travel pace (orchestrator's decision, after the merge with Places and Traversal)
+
+Parties move at an on-screen pace, watched or not: a wagon (caravans, settlers) 1.5 tiles a
+real second, people on foot (raids, patrols, armies, migrants, expeditions, monster packs)
+2.5; a game hour is K.DAY_SECONDS / 24 = 50 s, so a caravan covers 75 route tiles a game hour
+and a trip between neighbouring towns takes a few real minutes. In the sim:
+`WorldSim.TRAVEL_TPS`, `route_travel_h` (route tiles / pace), `leg_hours(kind, rid)`;
+`PARTY_H` is 1 (was 6). Planning keeps the old strategic distances (`route_hours`: reach,
+wagon costs, risk), so who trades with and raids whom is unchanged. Ambushes are checked
+every hour; patrol clashes and lair hunts every 6 hours as before, lair hunts scaled by the
+trip's exposure (`route_hours / leg hours`) so a trip is as dangerous as it was.
+
+`run_history.gd -- seeds=1..30 years=200 sites=24`, per world (before: docs/tracks/sim.md;
+after: this change):
+
+| | before | after |
+|---|---|---|
+| caravans | 5981 | 5956 |
+| ambushes | 27 | 17 |
+| settlement raids | 127 | 110 |
+| wars | 5.7 | 6.3 |
+| conquests / sacks | 0.9 / 8.1 | 1.4 / 8.9 |
+| foundings / fallen | 6.1 / 5.4 | 5.7 / 4.9 |
+| lairs cleared | 17.3 | 18.6 |
+| mean final/initial pop | 1.98 | 1.89 |
+| food imported / migration after famines | 45% / 75% | 40% / 78% |
+
+Health invariants unchanged (no negative books, 0 collapsed, 0 exploded, 30/30 grew and
+declined, 29/30 trade and raids, 30/30 distinct). Sweep time 199 s -> 214 s; the sim's
+"strategic day under 4 ms" test passes with little margin (hourly party ticks). Not
+destabilising; ambushes fall by a third (caravans spend far less time on the road).
+
+## Sim changes (all additive except the pace; none touch the sim's generator)
 
 - `SimParty.watched`, `SimParty.frozen`, `SimSettlement.watched`: transient (not saved).
 - `SimConflict.tick_parties`: skips frozen parties. `_arrive`: a raid (settlement mode) or a
@@ -208,19 +250,26 @@ caravan's sale.
 
 ## Open issues
 
-- **Pace** (human call): watched caravans crawl at the sim's speed; on screen a caravan is a
-  camp that shifts a tile every half minute. Time compression for parties would make watched
-  and unwatched histories differ.
-- No places or route paths in worlds yet (Places track): people stand on the site spread,
-  parties on straight lines that can run through rock (a party whose point is in rock is not
-  shown; a raid that cannot reach the town stalls and goes back to the sim after 45 s).
-- Raiders that win and go home walk at sim pace too (players can always catch them).
+- Rough routes: people may not keep up with the party's point (nav), and are put back.
+- A raid that cannot reach the town stalls and goes back to the sim after 45 s.
 - Items has no trade-good rows: dropped cargo is coin. Returned cargo is not yet a deed.
 - `friendly` meta is set on town people regardless of standing (a hostile town does not
   block rests). Hostile-by-standing townsfolk only flee.
-- The view does not draw `look.light` torches or the wagon look (draft horses).
+- View: guards' torches are lit by the view presenter at night (a carried light per actor
+  whose look has `light: torch`, from Life's PEOPLE info through `LifeClient.decorate_look`);
+  a wagon is a draft horse with a primitive cart (box, canvas, two wheels) drawn by
+  `WorldView`; no cart model was fetched.
 - `raid` chronicle `killed` counts deaths after arrival only (fights at the gate before the
   sim's arrival tick are in `raid_repelled` or not at all).
 - Net smoke: in a peopled spawn town the bots' place step is flaky (people walk over the
   cells they pick); the `ALL=1` variant runs with `places=0` (other variants still place).
 - Not judged by eye: no screenshot of a town or caravan was taken.
+
+## Screenshots (tools/life_shot.gd through tools/soft_godot.sh)
+
+`/tmp/claude-1000/godspark-life/`: `day.png` (a halfling town by day: people at the market
+stalls, homes and an upper floor), `night.png` and `night_guard.png` (townsfolk indoors,
+guards in the gate tower and at the gate), `caravan.png` (escorts, drovers and the wagon on
+the ramp out of town), `raid.png` (raiders reaching the town; a fight was under way).
+Checked by eye: no one inside walls; a guard on a roof and a crowd of guards on one tower
+cell were fixed (people stay on their anchor's floor; extras go along the street).
