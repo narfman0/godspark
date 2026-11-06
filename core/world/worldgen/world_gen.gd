@@ -7,6 +7,7 @@
 ##   WorldGen.last_timings   # {stage: msec} of the last run
 ##
 ## opts: {"stop_after": "<stage name>"} stops early (debugging); meta is still filled.
+##       {"only_biome": "meadow"} one biome across the whole width (scenario tests).
 class_name WorldGen
 extends RefCounted
 

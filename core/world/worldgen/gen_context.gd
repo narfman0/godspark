@@ -20,8 +20,12 @@ var ground := PackedInt32Array()   ## planned surface height per column (before 
 var surface := PackedInt32Array()  ## highest solid tile per column (survey())
 var bed := PackedInt32Array()      ## rows below this are bedrock, per column
 var col_biome := PackedByteArray() ## index into biome_defs per column
+var col_top := PackedByteArray()   ## top tile per column (layers), with seams and snow
+var col_soil := PackedByteArray()  ## soil tile per column (layers), for patching the ground
 var biome_defs: Array = []
-var biomes: Array = []             ## meta strip [{x0, x1, biome}]
+var biomes: Array = []             ## meta strip [{x0, x1, biome, temp}]
+var climate := {}                  ## meta: {order}
+var seams: Array = []              ## biome borders [{x, a, b}], a and b index biome_defs
 var bands := {}                    ## name -> [y0, y1], inclusive
 var flats: Array = []              ## planned settlement ground [{x0, x1, y}]
 var caverns: Array = []            ## [{x, cy, rx, ry, floor, settled}]
@@ -218,6 +222,7 @@ func to_world() -> TileWorld:
 	world.meta = {
 		"surface": Array(surface),
 		"biomes": biomes.duplicate(true),
+		"climate": climate.duplicate(true),
 		"bands": bands.duplicate(true),
 		"sites": sites.duplicate(true),
 		"routes": routes.duplicate(true),

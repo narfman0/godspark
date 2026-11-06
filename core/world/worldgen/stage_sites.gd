@@ -53,11 +53,14 @@ static func _touches_built(c: GenContext, x0: int, y0: int, x1: int, y1: int) ->
 
 static func finish(c: GenContext, _rng: RandomNumberGenerator) -> void:
 	c.survey()
+	var soil := PackedByteArray()      # any biome's soil gets a skin where it lies bare
+	soil.resize(256)
+	for d: Dictionary in c.biome_defs:
+		soil[TileDefs.id(d["soil"])] = 1
 	for x in c.w:
 		var y := c.surface[x]
-		var d: Dictionary = c.biome_defs[c.col_biome[x]]
-		if c.fg[x + y * c.w] == TileDefs.id(d["soil"]):
-			c.fg[x + y * c.w] = TileDefs.id(d["top"])
+		if soil[c.fg[x + y * c.w]] != 0:
+			c.fg[x + y * c.w] = c.col_top[x]
 
 static func _biome_for(c: GenContext, x: int, band: String) -> String:
 	match band:

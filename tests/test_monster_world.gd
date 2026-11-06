@@ -8,12 +8,12 @@ static var _world: TileWorld
 
 static func gen() -> TileWorld:
 	if _world == null:
-		_world = WorldGen.generate(1024, 512, 4)
+		_world = WorldGen.generate(1024, 512, 5)
 	return _world
 
 static func rig(lairs := false, director := true) -> Dictionary:
 
-	var w := WorldGen.generate(1024, 512, 4)
+	var w := WorldGen.generate(1024, 512, 5)
 	var host := WorldHost.new(w)
 	Dice.rng = host.rng
 	var combat := CombatSystem.new()

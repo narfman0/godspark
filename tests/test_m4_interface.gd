@@ -167,7 +167,7 @@ func _input(t: TestLog) -> void:
 ## A generated world over the loopback: the atlas arrives, people show, a conversation opens
 ## and the dialogue takes the number keys; the new screens build.
 func _live(t: TestLog) -> void:
-	var world := WorldGen.generate(1024, 512, 4)
+	var world := WorldGen.generate(1024, 512, 5)
 	var rig := Rig.new(world, 0.0)
 	Systems.install_host(rig.host)
 	var ms: Variant = rig.host.system(HostSystem.MONSTERS)

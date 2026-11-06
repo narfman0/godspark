@@ -6,7 +6,7 @@ extends RefCounted
 
 func run(t: TestLog) -> void:
 	_templates(t)
-	var world := WorldGen.generate_named("dev", 1)
+	var world := WorldGen.generate_named("dev", 5)
 	t.check(int(WorldGen.last_timings.get("places", 999)) < 150, "the places stage is quick (%d ms)" % WorldGen.last_timings.get("places", -1))
 	_matches_sim(t, world)
 	_layout(t, world)

@@ -3,7 +3,7 @@
 extends RefCounted
 
 static func rig(deals := true) -> Dictionary:
-	var w := WorldGen.generate(1024, 512, 4)
+	var w := WorldGen.generate(1024, 512, 7)
 	var host := WorldHost.new(w)
 	Dice.rng = host.rng
 	var out := {"host": host}

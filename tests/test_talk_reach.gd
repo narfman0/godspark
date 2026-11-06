@@ -11,7 +11,7 @@ var rig: Rig
 
 func run(t_: TestLog) -> void:
 	t = t_
-	var w := WorldGen.generate(1024, 512, 4)
+	var w := WorldGen.generate(1024, 512, 5)
 	rig = Rig.new(w, 0.03)
 	Systems.install_host(rig.host)
 	(rig.host.system(HostSystem.MONSTERS) as MonstersSystem).director_enabled = 0

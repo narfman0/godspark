@@ -152,7 +152,7 @@ static func grade(c: GenContext, a: Vector2i, b: Vector2i, road: int, bridge: in
 					tunnel = true
 			if r - nat <= FILL_MAX and not tunnel:
 				for yy in range(nat + 1, r):
-					c.fg[x + yy * c.w] = c.DIRT
+					c.fg[x + yy * c.w] = c.col_soil[x]
 				c.fg[x + r * c.w] = road
 				c.surface[x] = r
 			elif r != prev0:

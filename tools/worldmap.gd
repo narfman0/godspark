@@ -1,5 +1,6 @@
 ## Writes a PNG of a generated world: tiles by colour, background walls darker, sky above
-## the surface, sites, route paths (rough ones red) and places (street, building outlines) on top. One pixel per tile up to 2048 wide; larger worlds
+## the surface, sites, route paths (rough ones red), places (street, building outlines) and a
+## ribbon of biome colours along the top. One pixel per tile up to 2048 wide; larger worlds
 ## are sampled down. Prints stage timings and a site/route summary.
 ##   godot --headless -s res://tools/worldmap.gd -- seed=1 size=dev out=/tmp/map.png
 ##   (also: w=1024 h=512 instead of size, crop=x0,y0,x1,y1 for a 1:1 detail view)
@@ -20,6 +21,8 @@ const KIND_COLORS := {"home": Color(0.95, 0.85, 0.6), "smithy": Color(1.0, 0.4, 
 const SKY_TOP := Color(0.35, 0.55, 0.85)
 const SKY_LOW := Color(0.7, 0.82, 0.95)
 const VOID := Color(0.06, 0.05, 0.08)
+const RIBBON := 14
+const StageBiomes := preload("res://core/world/worldgen/stage_biomes.gd")
 
 func _initialize() -> void:
 	var args := {}
@@ -97,6 +100,7 @@ static func render(world: TileWorld, crop := "") -> Image:
 	var img := Image.create_from_data(ow, oh, false, Image.FORMAT_RGB8, rgb)
 	var to_px := func(x: float, y: float) -> Vector2i:
 		return Vector2i(int((x - x0) / k), int((y1 - y) / k))
+	_biome_ribbon(img, world, x0, k)
 	var sites := {}
 	for s: Dictionary in world.meta.get("sites", []):
 		sites[int(s["id"])] = s
@@ -135,6 +139,19 @@ static func render(world: TileWorld, crop := "") -> Image:
 		img.fill_rect(Rect2i(p.x - r, p.y - r, 2 * r + 1, 2 * r + 1), col)
 	return img
 
+## A ribbon along the top in each biome's map_color, with dark ticks at the borders.
+static func _biome_ribbon(img: Image, world: TileWorld, x0: int, k: int) -> void:
+	var colors := {}
+	for row: Dictionary in StageBiomes.load_defs():
+		colors[row["name"]] = Color(String(row.get("map_color", "#ffffff")))
+	for seg: Dictionary in world.meta.get("biomes", []):
+		var a := (int(seg["x0"]) - x0) / k
+		var b := (int(seg["x1"]) - x0) / k
+		var r := Rect2i(a, 0, b - a + 1, RIBBON).intersection(Rect2i(0, 0, img.get_width(), RIBBON))
+		img.fill_rect(r, colors.get(seg["biome"], Color.WHITE))
+		if a >= 0 and a < img.get_width():
+			img.fill_rect(Rect2i(a, 0, 2, RIBBON + 6), Color.BLACK)
+
 static func _line(img: Image, a: Vector2i, b: Vector2i, col: Color) -> void:
 	var n := maxi(absi(b.x - a.x), absi(b.y - a.y))
 	for i in n + 1:
@@ -148,7 +165,10 @@ static func _line(img: Image, a: Vector2i, b: Vector2i, col: Color) -> void:
 func _summary(world: TileWorld) -> void:
 	var m := world.meta
 	print("bands: ", m["bands"])
-	print("biomes: ", m["biomes"])
+	print("climate: ", m.get("climate", {}))
+	for seg: Dictionary in m["biomes"]:
+		print("  %-9s x %5d-%5d  %4.1f%% of the width, temp %.2f" % [seg["biome"], seg["x0"], seg["x1"],
+			100.0 * (int(seg["x1"]) - int(seg["x0"]) + 1) / world.width, float(seg.get("temp", 0.0))])
 	for s: Dictionary in m["sites"]:
 		print("  site ", s)
 	for r: Dictionary in m["routes"]:

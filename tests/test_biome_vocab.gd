@@ -31,6 +31,8 @@ func _scan_detects(t: TestLog) -> void:
 func _tables(t: TestLog) -> void:
 	# worldgen's rows
 	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/worldgen/biomes.json"))
+	for o: Dictionary in data["climate"]["orders"]:
+		t.eq(unknown_ids({"biomes": o["biomes"]}), [], "order %s names canonical ids" % o["name"])
 	var rows: Array = []
 	for row: Dictionary in data["biomes"]:
 		rows.append(String(row["name"]))
@@ -132,6 +134,7 @@ func _sites(t: TestLog) -> void:
 	for sd: int in [4, 5, 9]:
 		var w := WorldGen.generate(1024, 512, sd)
 		var sim := WorldSim.from_meta(w.meta, sd)
+		var seen := {}
 		for s: Dictionary in w.meta["sites"]:
 			var want := "caves" if s["band"] == "caves" else "underdark"
 			if s["band"] in ["surface", "sky"]:
@@ -140,3 +143,6 @@ func _sites(t: TestLog) -> void:
 						want = seg["biome"]
 			t.eq(s["biome"], want, "seed %d: site %d has the biome under it" % [sd, s["id"]])
 			t.eq(sim.site_by_id[int(s["id"])].biome, want, "seed %d: the sim's site %d agrees" % [sd, s["id"]])
+			if s["band"] == "surface":
+				seen[s["biome"]] = true
+		t.check(seen.size() >= 2, "seed %d: surface sites stand in different biomes (%s)" % [sd, seen.keys()])

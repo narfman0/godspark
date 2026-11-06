@@ -132,10 +132,10 @@ static func _level(c: GenContext, place: Dictionary, deep: bool) -> void:
 		if x >= x0 and x <= x1:
 			c.fg[x + (y - 1) * c.w] = street
 		elif not c.is_solid(x, y - 1):
-			c.fg[x + (y - 1) * c.w] = c.DIRT
+			c.fg[x + (y - 1) * c.w] = c.DIRT if deep else c.col_soil[x]
 		var yy := y - 2
 		while yy > 1 and yy >= y - FILL_MAX and not c.is_solid(x, yy):
-			c.fg[x + yy * c.w] = c.DIRT
+			c.fg[x + yy * c.w] = c.DIRT if deep else c.col_soil[x]
 			yy -= 1
 		if not deep:
 			c.surface[x] = y - 1
@@ -157,11 +157,10 @@ static func _ramp(c: GenContext, x_start: int, dir: int, level: int) -> void:
 		if absi(nat - prev) <= 1:
 			return
 		var nw := prev + signi(nat - prev)
-		var d: Dictionary = c.biome_defs[c.col_biome[x]]
-		var top := TileDefs.id(d["top"])
+		var top := c.col_top[x]
 		if nw > nat:
 			for yy in range(nat + 1, nw + 1):
-				c.fg[x + yy * c.w] = c.DIRT
+				c.fg[x + yy * c.w] = c.col_soil[x]
 		else:
 			for yy in range(nw + 1, nat + 1):
 				c.fg[x + yy * c.w] = c.AIR

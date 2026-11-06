@@ -1,6 +1,6 @@
 ## M4 end to end: the living world as one thing. Two players over the loopback on a small
-## generated world (1024x512 seed 4: two halfling towns joined by a road, a dwarf hold in the
-## deeps, lairs in the caves) with every system installed. They arrive in a town (arrival
+## generated world (1024x512 seed 27, all meadow: two halfling towns joined by a road, a hold
+## in the deeps, lairs in the caves) with every system installed. They arrive in a town (arrival
 ## notice, people at their posts), talk to a merchant, buy and sell (the town's books move by
 ## exactly what changed hands), hear a rumour whose place is on the mirrored map, then take
 ## each kind of work and complete it by doing it: a message walked along the road and back, a
@@ -46,7 +46,9 @@ func run(t_: TestLog) -> void:
 	var given := OS.get_environment("E2E_SEED")
 	_dice = int(given) if given != "" else randi()
 	print("  dice seed %d" % _dice)
-	var w := WorldGen.generate(1024, 512, 4)
+	# one biome on purpose: this scenario needs two rich towns side by side, and the climate
+	# journey's food caps rarely give it that; the real terrain is walked by LIFE and WORLD_LIFE
+	var w := WorldGen.generate(1024, 512, 27, {"only_biome": "meadow"})
 	rig = Rig.new(w, 0.03)
 	Systems.install_host(rig.host)
 	_quiet_host()
@@ -290,6 +292,13 @@ func walk_x(i: int, x: float, limit := 20.0) -> float:
 	idle()
 	rig.run(0.3)
 	return took
+
+## The road ends at the street's end, and a long street's middle can be out of the town's
+## sight: on down the street to the site, so its people appear.
+func _into_town(sid: int) -> void:
+	var sx: float = rig.host.sim.site_by_id[sid].x
+	for i in NAMES.size():
+		walk_x(i, sx + i * 2.0, 30.0)
 
 ## Path index nearest x.
 func cell_at(x: float) -> int:
@@ -585,6 +594,7 @@ func _message_and_relief() -> void:
 	var took := walk(cells.size() - 1, 240.0)
 	print("    walked %d cells to %s in %.1f s (ann at %s, bob at %s)" % [cells.size(), n.name, took, rig.cw(0).body.pos, rig.cw(1).body.pos])
 	t.check(took >= 0.0, "both walked the road to %s (%.0f s)" % [n.name, took])
+	_into_town(N)
 	rig.run(1.5)
 	t.eq(String(deals().quest(msg).get("state", "")), "ready", "the message is delivered: go back")
 	t.eq(String(mirror(0, msg).get("state", "")), "ready", "ann's log says so")
@@ -605,6 +615,7 @@ func _message_and_relief() -> void:
 	# and back
 	took = walk(0, 240.0)
 	t.check(took >= 0.0, "and walked back to %s (%.0f s)" % [s.name, took])
+	_into_town(T)
 	rig.run(1.0)
 	var c0 := he(0).character.inventory.coin
 	var xp0 := he(0).character.xp
@@ -807,6 +818,7 @@ func _escort() -> void:
 	t.check(took >= 0.0, "the caravan reached %s (%.0f s)" % [n.name, took])
 	t.check(int(st.get("pointer", 0)) >= 20, "the escort's pointer kept up with it (%d updates)" % int(st.get("pointer", 0)))
 	t.check(int(st.get("grounded", 0)) * 100 >= int(st.get("looked", 0)) * 85, "its people and wagons walk on the road (%d of %d looks on a floor)" % [int(st.get("grounded", 0)), int(st.get("looked", 0))])
+	_into_town(N)      # the caravan turns round at the site, which a long street can hide from its end
 	var dest_now := -1
 	for id: int in lc(0).people:
 		var pi: Dictionary = lc(0).people[id]
@@ -942,6 +954,7 @@ func _recover() -> void:
 	# carry them home
 	var back := walk(0, 120.0)
 	t.check(back >= 0.0, "and home along the road (%.0f s; ann %s, bob %s)" % [back, rig.cw(0).body.pos, rig.cw(1).body.pos])
+	_into_town(T)
 	rig.run(1.0)
 	var tools0 := float(s.stock["tools"])
 	var c0 := he(0).character.inventory.coin

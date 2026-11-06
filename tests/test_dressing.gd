@@ -61,7 +61,7 @@ func _worldgen(t: TestLog) -> void:
 				if not Dressing.holds(a, r["id"], r["x"], r["y"]):
 					bad += 1
 	t.check(same, "the same seed places the same dressing")
-	t.check(surf > 100, "the surface is dressed (%d objects)" % surf)
+	t.check(surf > 40, "the surface is dressed (%d objects; only the meadow has a set so far)" % surf)
 	t.check(cave > 10, "caves are dressed (%d objects)" % cave)
 	t.eq(bad, 0, "every object stands on solid ground with a clear footprint")
 	t.check(WorldGen.last_timings.has("dressing"), "the stage is timed (%d ms)" % WorldGen.last_timings.get("dressing", -1))
