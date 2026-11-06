@@ -37,7 +37,8 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 	var blend := 28.0
 	c.flats = []
 	for i in n:
-		var fw := mini(rng.randi_range(48, 80), slot / 2)
+		# wide enough for a town (places); small test worlds keep their narrow flats
+		var fw := mini(rng.randi_range(96, 150) if c.w >= 1024 else rng.randi_range(48, 80), slot / 2)
 		var centre := slot * i + slot / 2 + rng.randi_range(-slot / 5, slot / 5)
 		centre = clampi(centre, fw + 8, c.w - fw - 8)
 		var x0 := centre - fw / 2

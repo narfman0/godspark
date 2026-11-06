@@ -74,6 +74,8 @@ var sim_origin := 0
 var chronicle_sent := 0
 ## Per tick that stepped the sim: microseconds spent (for HOSTSTATS and tests).
 var sim_usec := PackedInt32Array()
+## Builds, grows and ruins places in the tiles as the sim changes (PlaceKeeper).
+var places_keeper := PlaceKeeper.new()
 ## Systems by id, in the order added (HostSystem).
 var systems := {}
 ## World state of systems not added yet, from load_state: id (String) -> Dictionary.
@@ -126,6 +128,7 @@ func tick() -> void:
 	clock.advance(1)
 	if sim != null:
 		_step_sim()
+		places_keeper.update(self)
 	var step_dt := 1.0 / MoveStats.step_hz()
 	var steps := maxi(1, MoveStats.step_hz() / K.TICK_HZ)
 	for e: HostEntity in entities.values():

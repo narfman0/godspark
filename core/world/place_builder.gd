@@ -46,7 +46,6 @@ static func plan(site: Dictionary, culture: String, world_seed: int, lo: int, hi
 	var hi_in := hi - (gw if gates[1] != null else 0)
 	var pending: Array = []     # alternatives not picked, for "other"
 	var side := 1
-	var stopped := [false, false]
 	for entry: Array in pl.get("lots", []):
 		var what := String(entry[0])
 		var tier := String(entry[1])
@@ -70,27 +69,17 @@ static func plan(site: Dictionary, culture: String, world_seed: int, lo: int, hi
 			continue
 		var w := int(PlaceStyles.template(tpl_name)["w"])
 		var g := rng.randi_range(gap_min, maxi(gap_min, PlaceStyles.gap.y))
-		var placed := false
 		for attempt in 2:
 			var s := side if attempt == 0 else -side
-			var si := 0 if s < 0 else 1
-			if stopped[si]:
-				continue
 			if s > 0 and right + g + w - 1 <= hi_in:
 				lots.append(_lot(tpl_name, tier, right + g))
 				right += g + w
-				placed = true
+				break
 			elif s < 0 and left - g - w >= lo_in:
 				lots.append(_lot(tpl_name, tier, left - g - w))
 				left -= g + w
-				placed = true
-			else:
-				stopped[si] = true
-			if placed:
 				break
-		side = -side
-		if stopped[0] and stopped[1]:
-			break
+		side = -side   # a lot that fits on neither side is left out; smaller ones may still fit
 	if gates[0] != null and left - gap_min - int(gate_t["w"]) >= lo:
 		left -= gap_min + int(gate_t["w"])
 		lots.append(_lot("gate", String(gates[0]), left))

@@ -50,7 +50,7 @@
 	"plans": {
 		"town": {
 			"centre": {"hamlet": "square", "town": "market"},
-			"lots": [["home", "hamlet"], ["home", "hamlet"], ["tavern|hall", "village"], ["smithy|store", "village"], ["home", "hamlet"],
+			"lots": [["home", "hamlet"], ["home", "hamlet"], ["home", "hamlet"], ["tavern|hall", "village"], ["smithy|store", "village"],
 				["shrine", "village"], ["home?", "hamlet"], ["home?", "hamlet"], ["other", "town"], ["other", "town"], ["home", "village"],
 				["store", "town"], ["home", "town"], ["home", "town"],
 				["tavern", "city"], ["smithy", "city"], ["store", "city"], ["home", "city"], ["home", "city"], ["shrine", "city"], ["home", "city"]],
@@ -58,7 +58,7 @@
 		},
 		"camp": {
 			"centre": {"hamlet": "square"},
-			"lots": [["home", "hamlet"], ["home", "hamlet"], ["hall", "village"], ["smithy", "village"], ["home", "hamlet"],
+			"lots": [["home", "hamlet"], ["home", "hamlet"], ["home", "hamlet"], ["hall", "village"], ["smithy", "village"],
 				["home?", "hamlet"], ["home?", "hamlet"], ["home", "village"], ["store", "town"], ["home", "town"], ["home", "town"],
 				["home", "city"], ["smithy", "city"], ["home", "city"], ["home", "city"]],
 			"gates": ["hamlet", "hamlet"]

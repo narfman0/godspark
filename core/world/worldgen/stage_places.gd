@@ -13,7 +13,7 @@ extends RefCounted
 
 const GenContext := preload("gen_context.gd")
 
-const MAX_CUT := 8
+const MAX_CUT := 12
 const HALF_MAX := 150
 const RAMP_MAX := 60
 const STREET_CLEAR := 6
@@ -63,13 +63,16 @@ static func limits(c: GenContext, s: Dictionary, deep: bool) -> Vector2i:
 	var lo := maxi(4, sx - HALF_MAX)
 	var hi := mini(c.w - 5, sx + HALF_MAX)
 	for o: Dictionary in c.sites:
-		if int(o["id"]) == int(s["id"]) or absi(int(o["y"]) - y) > 40:
+		var o_deep := not String(o["band"]) in ["surface", "sky"]
+		if int(o["id"]) == int(s["id"]) or o_deep != deep or (deep and absi(int(o["y"]) - y) > 40):
 			continue
+		# half the way to a neighbour, less half the climb between them (room for the road)
 		var ox := int(o["x"])
+		var climb := absi(int(o["y"]) - y) / 2 + 4
 		if ox < sx:
-			lo = maxi(lo, (ox + sx) / 2 + 3)
+			lo = maxi(lo, (ox + sx) / 2 + climb)
 		elif ox > sx:
-			hi = mini(hi, (ox + sx) / 2 - 3)
+			hi = mini(hi, (ox + sx) / 2 - climb)
 	if not deep and not c.ascent.is_empty():
 		var m := int(c.ascent["x1"])
 		if m < sx:
@@ -96,7 +99,7 @@ static func _usable(c: GenContext, x: int, y: int, deep: bool) -> bool:
 	if absi(nat - (y - 1)) > MAX_CUT:
 		return false
 	var low := mini(nat, y - 1)
-	for yy in range(low - 5, low):
+	for yy in range(low - 3, low):
 		if not c.is_solid(x, yy):
 			return false
 	return true
@@ -179,9 +182,9 @@ static func _ramp_deep(c: GenContext, x_start: int, dir: int, y: int) -> void:
 		var fl := c.drop_to_floor(x, prev + 4, 16)
 		if fl > 0 and absi(fl - prev) <= 1:
 			return
-		for yy in range(maxi(1, prev - 12), prev):
+		for yy in range(maxi(1, prev - 12), mini(c.h - 1, prev + 8)):
 			if c.bg[x + yy * c.w] == c.W_COBBLE:
-				return   # a ramp or road tunnel runs below: leave it open
+				return   # a road or ramp runs here: it carries on, leave it open
 		var nw := prev + (signi(fl - prev) if fl > 0 else 0)
 		for yy in range(nw, nw + 4):
 			c.fg[x + yy * c.w] = c.AIR
