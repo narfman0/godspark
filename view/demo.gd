@@ -3,7 +3,9 @@
 ##   T: cycle time of day (noon, dusk, night)    L: drop / pick up the walker's torch
 ## opts (set before adding to the tree, e.g. by tools/shot.gd): x, y, zoom, sun, gen=seed,
 ##   cave (dig a 22-tile tunnel west of the cave pocket, for torch-light checks),
-##   nodress (no dressing objects), noshow (only the walker and the goblin).
+##   nodress (no dressing objects), noshow (only the walker and the goblin),
+##   gw/gh (generated world size), hero=x,y (the walker stands there), lamps (torch lights
+##   around the focus, for cave shots).
 ## Actors go through the looks table (view/actors/looks.gd): Synty / monster-forge models when
 ## fetched, tinted primitives with nameplates otherwise. Dressing is scattered over the surface.
 extends Node3D
@@ -49,6 +51,18 @@ func _ready() -> void:
 	view.add_actor(1, {"player": "fighter", "name": "Ash", "kind": "hero", "color": Color(0.85, 0.3, 0.25)})
 	view.add_actor(2, {"slug": "goblin-warrior", "kind": "goblin", "color": Color(0.35, 0.7, 0.3)})
 	_place_walker()
+	if opts.has("hero"):
+		var hp: PackedStringArray = String(opts["hero"]).split(",")
+		var at := Vector2(float(hp[0]), float(hp[1]))
+		view.move_actor(1, at, 1, "idle")
+		light.move_light(1, at.x + 0.7, at.y + 1.8)
+	if opts.has("lamps"):
+		# torches around the focus, so a cave scene is lit (shots)
+		var k := 100
+		for dx in range(-30, 31, 10):
+			for dy in range(-12, 13, 8):
+				light.add_light(k, focus.x + dx, focus.y + dy, LightEngine.TORCH)
+				k += 1
 	var mid := world.width / 2
 	view.move_actor(2, Vector2(mid - 4.5, _ground_y(mid - 4) if opts.has("gen") else world.height / 2 - 14), 1)
 	if opts.has("cave"):
@@ -98,7 +112,7 @@ func _make_world() -> TileWorld:
 		for c: Dictionary in ProjectSettings.get_global_class_list():
 			if c["class"] == "WorldGen":
 				var gen: Script = load(c["path"])
-				return gen.call("generate", 1024, 512, int(opts["gen"]))
+				return gen.call("generate", int(opts.get("gw", 1024)), int(opts.get("gh", 512)), int(opts["gen"]))
 		push_warning("demo: no WorldGen class, using the test world")
 	return TileWorld.make_test()
 

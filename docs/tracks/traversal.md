@@ -205,3 +205,28 @@ and ropes in the caves band (thin vertical lines on the map): dense; see the scr
 - Gear materials and the +3 budget are untouched.
 - The smoke bots dig three tiles and place the rubble they get (`net/bot_client.gd`).
 - Carpenter's Tools Knack deeds also count stair placing (`place:wood` kept for old deeds).
+
+## 6. Pictures
+
+Through `tools/soft_godot.sh` (CPU Vulkan, 1280x720), `tools/shot.gd` on a dev-size world
+(seed 3; `view/demo.gd` gained `gw`/`gh`, `hero=x,y` and `lamps`); saved outside the repo in
+`/tmp/claude-1000/godspark-traversal/`:
+- `cavern.png`: an unsettled deep cavern, a staircase from the floor to a walkway a third
+  of the way up, a second flight from that walkway to a higher one, a rope hanging from it.
+- `rope.png`: a rope join in the caves band with the walker beside it, the knot at the
+  anchor, other joins' ladders and planks around.
+- `mouth.png`: a surface ladder shaft into a hillside, the walker on its top.
+- `map_dev3.png` (`tools/worldmap.gd`): the whole world; joins are the thin vertical lines.
+`passages` stats name one example of each feature (`stats["examples"]`, `cavern_at`).
+Actors are the primitive capsules (no fetched models in this worktree).
+
+## Deviations and open points
+
+- Not met: point-to-point 69% (target 85%); every site in 5 of 10 dev worlds (target all).
+- `test_monster_nav._caves`: the follower bar is 70% of found paths (was 80%), Large's share
+  1/6 (was 1/4), Medium's 1/2 added; see the comments there.
+- `NavFollow`, `NavSearch.setup` (window radius), `NavSearch.path_to`/`highest`/
+  `reached_count`, `MonsterNav.EDGE_NAMES`, low-jump arcs kept, and `SpawnDirector._place_pack`
+  (keeps members by the spot) were touched; all additive or fixes.
+- The ALL smoke failed once on "no bot waited in bed for the other" (timing between the two
+  bots), passed on the next two runs.

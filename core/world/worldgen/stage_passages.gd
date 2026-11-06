@@ -359,6 +359,11 @@ class Passer extends RefCounted:
 						left.append(r)
 						continue
 					var kind := _join(best[0], best[1])
+					var ex: Dictionary = stats.get("examples", {})
+					var at := [spx[best[0]], spy[best[0]], spx[best[1]], spy[best[1]]]
+					if not ex.has(kind) or (kind == "ladder" and spy[best[1]] > c.ground[spx[best[1]]] - 30):
+						ex[kind] = at          # one of each (a ladder: the one nearest the surface)
+					stats["examples"] = ex
 					if log_joins:
 						join_log.append([Vector2i(spx[best[0]], spy[best[0]]), Vector2i(spx[best[1]], spy[best[1]]), kind])
 					kinds[kind] = int(kinds.get(kind, 0)) + 1
@@ -604,6 +609,8 @@ class Passer extends RefCounted:
 			var a0 := x_top + side
 			var a1 := a0 + side * maxi(12, rx / 2)
 			_walkway(a0, a1, y1)
+			if not stats.has("cavern_at"):
+				stats["cavern_at"] = [cx, fl, y1, y2]
 			# second staircase rises back across the first walkway to walkway 2
 			var bx := a1 - side * 2
 			var x2 := _stair_run(bx, y1 + 1, y2, -side)
