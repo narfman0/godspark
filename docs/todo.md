@@ -73,9 +73,19 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 
 ## Life (M4) ([tracks/life.md](tracks/life.md))
 - Rough routes (most ascents and portal routes): people fall behind and are put back.
-- Items has no trade-good rows (dropped cargo is coin); returning cargo is not a deed yet.
+- Returning cargo is not a deed yet (Items now has trade-good rows: dropped cargo is goods).
 - Wagons are a primitive cart; no cart model fetched.
 - The `ALL=1` smoke runs with `places=0`: bots' placing is flaky in a peopled town.
+
+## Deals (M4) ([tracks/deals.md](tracks/deals.md))
+- The keyboard panel (`game/ui/deals_stopgap.gd`) is a stopgap: the Interface track builds the
+  dialogue, shop, quest log, map marks and patron screens on `DealsClient`.
+- Escort work is rare: it needs a caravan already leaving that day (the sim plans caravans
+  every 5 days). A sim hook to announce departures a day ahead would make it regular.
+- Recover covers raiders still abroad; goods already at the raiders' camp have no quest.
+- Patron work: the hunt is offered and taken in a test; its completion and sieges are not exercised end to end.
+- Quest coin and XP, shop markups, the rumour window: first guesses, unbalanced against loot.
+- Tile items (torches, rope) cannot be sold back; a paid bed is only a respawn point.
 
 ## M2 after the integration pass ([tracks/m2-integration.md](tracks/m2-integration.md))
 
@@ -92,8 +102,8 @@ Open from the integration pass
   (two-wide shafts); a few deep sites; generation is +1.0 s on dev, +3 s on small; joins are
   dense (hundreds of short ladders and ropes per world). Ladders still stand in for roots.
 - Traversal: no rope item in shops or loot yet (crafted from supplies, two in the kit); the
-  player picks stairs_r or stairs_l by item (no auto-facing); ore trade goods have no
-  buyer until Deals.
+  player picks stairs_r or stairs_l by item (no auto-facing). Ore now sells at towns
+  (Deals) and rope is on store shelves.
 - Monsters do not attack downed players (brains skip them); a hit on a downed player comes
   only from areas, falls and other incidental damage, and counts as a failed death save.
 - Steady (cast_move) wins back a casting slowdown that is 1.0 in data/combat.json (none, as

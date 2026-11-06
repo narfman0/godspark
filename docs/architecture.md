@@ -696,6 +696,32 @@ life.actors_at(site_id) -> Array[HostEntity]; life.actors_of(party_id) -> Array[
 Talk, trade, quests and patrons. Reads `host.sim`, `Places` and Life's roles; pays out
 through Items (`give`), Rules (`award_xp`, `add_deed`) and Life (`add_standing`).
 
+As built ([tracks/deals.md](tracks/deals.md)):
+
+```
+DealsSystem (HostSystem.DEALS): talk(e, person_id) -> "" | word; choose(e, option); buy(e, listing, n);
+  sell(e, slot, n); service(e, "bed" | "heal"); accept / abandon / turn_in(e, qid); offers_at(sid);
+  listings(e, sid, "store" | "smith"); sell_prices(e, sid); patron_tier(pid, faction); summary()
+DealsTalk.situation / line / rumours; DealsShop.shelves / rack / piece / buy_mult / sell_mult / sell_each;
+DealsQuests.offers / check; DealsPatron.tier / gift; Deals.where / at_site / day   (pure, hash-seeded)
+DealsClient: conversation, shop, quests, rumours, patrons; talk_changed, shop_changed, quests_changed,
+  rumour_heard, patron_changed, note; talk, choose, leave, buy, sell, service, accept, abandon, turn_in
+SYS (JSON): TALK 1, SHOP 2, QUESTS 3, RUMOUR 4, PATRON 5, NOTE 6; TALK_TO 64 ... TURN_IN 72, CHEAT 79
+data/deals/lines.json, prices.json, quests.json
+# hooks in other tracks
+WorldSim.player_trade(sid, good, n, coin) -> bool   # players' trade, deliveries, rewards in the books
+WorldSim.hold_party(pid, on); SimParty.held (saved; tick_parties skips it)    # an escort holds a caravan
+RulesSystem.set_bed(e, cell, inn := true); Character.bed_inn                   # a paid room respawns you
+items rows trade:food | timber | ore | tools | luxuries; ore rows carry good, units
+```
+
+- Talk needs range 5, sight, no fight, not downed, stance not HOSTILE; it ends past 7 tiles,
+  in a fight, when the person goes or turns hostile. Everything made up (lines, racks, offers,
+  gifts) is hashed from (world seed, ids, day): looking never changes the sim (tested).
+- Shops sell from the settlement's stocks at `SimEconomy.price`; every purchase, sale and
+  reward goes through `player_trade` (the audit stays clean). Offers are fixed per site per
+  day and saved; quests are world state shared by the players who accept them.
+
 ### Traversal (as built: docs/tracks/traversal.md)
 
 - `S` (down) held 0.1 s (`MoveStats.drop_hold`) from a press made standing drops through

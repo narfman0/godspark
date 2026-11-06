@@ -85,7 +85,7 @@ first attack.
 | Attack with your weapon, whatever is selected (hold) | F |
 | Pick a hotbar slot | 1-9, 0; Ctrl + mouse wheel; mouse wheel over the hotbar; click a slot |
 | Zoom | Mouse wheel; = and - |
-| Interact: hold at a campfire to rest, sleep in a bed, kindle at a shrine, hold by a downed friend to haul them up, wake after dying | E |
+| Interact: hold at a campfire to rest, sleep in a bed, kindle at a shrine, hold by a downed friend to haul them up, wake after dying; talk to the person beside you | E |
 | Quick spells: hold to aim (areas show where they land), let go to cast | Q, R, T, G |
 | Dash (with the Dash spark) | Shift, or tap a direction twice |
 | Inventory and paper doll | Tab or I |
@@ -106,6 +106,26 @@ click outside the panel to drop what you hold. Ten ring slots, five under each h
 
 A game day lasts 20 real minutes. You carry a torch (the Lantern spark widens it); caves are
 dark without one.
+
+## Talking and trading (stopgap)
+
+Walk up to a townsperson, keeper, merchant, smith, priest or guard (or a caravan's escort):
+the prompt says "E: talk to <name>, <role>". E opens the conversation; a plain panel at the
+top left (and the log) lists what you can do, by number. This is a **stopgap** until the
+dialogue, shop and quest screens are built.
+
+| In | Keys |
+|---|---|
+| a conversation | 1-9 pick (news, the shop or the smith's rack, work, a bed, healing, your patron, hand in work, farewell); 0 or Esc leave |
+| a shop or the rack | 1-9 buy one; Shift+1-9 sell one of the listed stack; Ctrl+1-9 sell the whole stack; 0 back |
+| the work list | 1-9 take the job; 0 back |
+
+What a town sells, and at what price, comes from its stocks in the world simulation; selling
+ore you dug or trade goods you carried pays the local price, gear about a quarter of its
+value. News is real history with where it happened; work comes from what is going on (a lair
+on the roads, a hungry town, a caravan leaving, raiders on the way); standing with a people
+lowers prices and, from 25, brings a patron and gifts. See
+[docs/tracks/deals.md](docs/tracks/deals.md).
 
 ## Screens
 

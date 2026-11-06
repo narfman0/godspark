@@ -528,6 +528,26 @@ func _patron(t: TestLog) -> void:
 	t.eq(int(deals.gifts[p.id][f]), 3, "tiers 2 and 3: magic items")
 	var magic := p.character.inventory.slots.filter(func(it: Dictionary) -> bool: return it.has("magic") and it.get("base") != "potions-of-healing")
 	t.check(magic.size() >= 2, "two SRD magic items (%s)" % ", ".join(magic.map(func(it: Dictionary) -> String: return String(it["magic"]))))
+	# patron work: an apex lair near the town makes a hunt for patrons only
+	var lid := -1
+	for l: int in WorldSim._sorted_keys(host.sim.lairs):
+		lid = l
+		break
+	if lid >= 0:
+		host.sim.lairs[lid].apex = true
+		deals.offers.clear()
+		var hunt: Array = deals.offers_at(sid).filter(func(q: Dictionary) -> bool: return q["kind"] == "hunt")
+		t.eq(hunt.size(), 1, "an apex lair: a hunt on offer")
+		if hunt.size() == 1:
+			t.check(bool(hunt[0].get("patron", false)) and int(hunt[0]["target"]["n"]) == host.sim.lairs[lid].count(), "for patrons, the whole lair")
+			var giver := person(life, sid, String(hunt[0]["giver"]))
+			if giver != null:
+				beside(host, p, giver)
+				deals.talk(p, giver.id)
+				t.eq(deals.accept(p, String(hunt[0]["id"])), "", "a tier-3 patron takes the hunt")
+				life.add_standing(p.id, f, -60, "test")
+				t.eq(deals.accept(p, String(hunt[0]["id"])), "no_quest", "below the work tier it is not offered")
+				life.add_standing(p.id, f, 60, "test")
 	life.add_standing(p.id, f, -100, "test")
 	t.eq(deals.patron_tier(p.id, f), 0, "falling out of favour suspends it")
 	ticks(host, 31)
