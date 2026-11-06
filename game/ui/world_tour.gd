@@ -37,6 +37,91 @@ func steps() -> void:
 func more() -> void:
 	await trade()
 	await work()
+	await road()
+	await hand_in()
+	await patron()
+
+## The spawn town's site id and faction (from the atlas: the seen settlement nearest us).
+func home_town() -> int:
+	var best := -1
+	var bd := INF
+	for sid: int in dc.seen:
+		var xy := MapLogic.site_xy(cw.world.meta, sid)
+		if String(dc.sites.get(sid, {}).get("kind", "")) == "settlement" and xy.distance_to(cw.body.pos) < bd:
+			bd = xy.distance_to(cw.body.pos)
+			best = sid
+	return best
+
+## A caravan coming up the road (Life's cheat), seen from the road; then raiders at the gate.
+func road() -> void:
+	var town := home_town()
+	var info := {}
+	await host(func(h: WorldHost) -> void:
+		var life := h.system(HostSystem.LIFE) as LifeSystem
+		var me := me_host(h)
+		me.combatant.stats.max_hp = 400
+		me.combatant.stats.current_hp = 400
+		var from := -1
+		for e: Array in h.sim.adj.get(town, []):
+			if h.sim.settlements.has(int(e[0])):
+				from = int(e[0])
+				break
+		var pid := life.cheat_party("caravan", from, town, 0.8, 6) if from >= 0 else -1
+		info["pid"] = pid
+		if pid > 0:
+			var pos := life.road.party_pos(h, h.sim.parties[pid])
+			h.teleport(me, pos + Vector2(-14.0, 2.0))
+			TileCollision.depenetrate(h.world, me.body))
+	print("TOUR caravan party %s" % info.get("pid", -1))
+	await wait(4.0)
+	await shot("13_caravan")
+	await host(func(h: WorldHost) -> void:
+		var life := h.system(HostSystem.LIFE) as LifeSystem
+		life.schedule("raid", 0.2, town)
+		var me := me_host(h)
+		h.teleport(me, MapLogic.site_xy(h.world.meta, town) + Vector2(10, 1))
+		TileCollision.depenetrate(h.world, me.body))
+	await wait(3.0)
+	await shot("14_arrival_banner")
+	await wait(6.0)
+	await shot("15_raid")
+	await wait(8.0)
+	await shot("16_raid_met")
+
+## The work done (cheat) and handed in to the keeper: the celebration.
+func hand_in() -> void:
+	if quest_id == "":
+		return
+	dc.cheat({"op": "complete", "q": quest_id})
+	await wait(1.0)
+	for k in 15:
+		await talk_role("keeper")
+		if dc.talking():
+			break
+		await wait(2.0)
+	await shot("17_hand_in_option")
+	ui.deals_ui.choose("turn_in:" + quest_id)
+	await wait(1.2)
+	await shot("18_handed_in")
+
+## Standing up to the first patron tier (cheat), the gift from the keeper, the standing screen.
+func patron() -> void:
+	var fac := String(dc.sites.get(home_town(), {}).get("faction", ""))
+	dc.leave()
+	await wait(0.3)
+	dc.cheat({"op": "standing", "faction": fac, "n": 30})
+	await wait(1.5)
+	await shot("19_patron_tier")
+	await talk_role("keeper")
+	ui.deals_ui.choose("patron")
+	await wait(1.2)
+	await shot("20_patron_gift")
+	dc.leave()
+	await wait(0.3)
+	ui.open("standing")
+	await wait(0.5)
+	await shot("21_standing")
+	ui.close("standing")
 
 ## Work from the keeper: the offers in the dialogue, accepted; the log; the tracker.
 func work() -> void:

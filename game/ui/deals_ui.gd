@@ -21,6 +21,8 @@ var unmarked := {}
 var fresh_marks := 0
 ## The quest pinned to the HUD tracker ("" none; the first under way is pinned by itself).
 var pinned := ""
+## faction -> [[delta, why]] standing moves heard this session (newest last, at most 6)
+var history := {}
 var _qstate := {}
 var _q_init := false
 var _turning_in := {}
@@ -289,6 +291,10 @@ func _on_patrons(p: Dictionary) -> void:
 func _on_standing(f: String, v: int, why: String) -> void:
 	var old: int = _stand.get(f, 0)
 	_stand[f] = v
+	if v != old:
+		var h: Array = history.get(f, [])
+		h.append([v - old, why if why != "" else "no reason given"])
+		history[f] = h.slice(maxi(0, h.size() - 6))
 	if DealsLogic.standing_toast(old, v):
 		var col := UiTheme.MOSS.darkened(0.4) if v > old else UiTheme.BLOOD_DARK
 		gu.toast("Standing: " + DealsLogic.standing_text(faction_name(f), v - old, why), 3.0, col)

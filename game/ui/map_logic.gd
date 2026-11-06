@@ -12,6 +12,13 @@ static func site_xy(meta: Dictionary, sid: int) -> Vector2:
 			return Vector2(float(s["x"]), float(s["y"]))
 	return Vector2.INF
 
+## Is a world position at a site (within its width from META, plus a margin)?
+static func at_site(meta: Dictionary, sid: int, pos: Vector2, margin := 8.0) -> bool:
+	for s: Dictionary in meta.get("sites", []):
+		if int(s["id"]) == sid:
+			return absf(pos.x - float(s["x"])) <= float(s.get("size", 20)) * 0.5 + margin and absf(pos.y - float(s["y"])) <= 30.0
+	return false
+
 ## Where a quest points: its live `where` (a party, a lair), else its target site, else the
 ## giver's town. Vector2.INF when nothing is known.
 static func quest_target(q: Dictionary, meta: Dictionary) -> Vector2:

@@ -162,6 +162,7 @@ func register_screens() -> void:
 	factories["shop"] = func() -> Control: return ShopScreen.new()
 	factories["quests"] = func() -> Control: return QuestLogScreen.new()
 	factories["map"] = func() -> Control: return WorldMapScreen.new()
+	factories["standing"] = func() -> Control: return StandingScreen.new()
 
 func screen(name: String) -> Control:
 	if screens.has(name):

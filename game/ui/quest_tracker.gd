@@ -59,6 +59,8 @@ func _draw() -> void:
 		UiTheme.text(self, c + Vector2(-20, 6), "?", UiTheme.HEADING, UiTheme.INK_SOFT, true, HORIZONTAL_ALIGNMENT_CENTER, 40)
 		return
 	var b := DealsLogic.bearing(gu.cw.body.center(), tgt)
+	if ready and MapLogic.at_site(gu.cw.world.meta, int(q.get("site", -1)), gu.cw.body.center()):
+		b["text"] = "here"
 	if String(b["text"]) == "here":
 		UiTheme.star(self, c, 12, 5, UiTheme.GOLD, 4, UiTheme.INK)
 		UiTheme.text(self, Vector2(W - 76, 74), "here", UiTheme.TINY, UiTheme.INK, false, HORIZONTAL_ALIGNMENT_CENTER, 72)

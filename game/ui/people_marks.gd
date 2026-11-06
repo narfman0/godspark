@@ -53,10 +53,15 @@ func step() -> void:
 		elif id == hovered:
 			it["plate"] = DealsLogic.person_label(p)
 		if String(p.get("kind", "")) == "party":
+			# one plate per party, under the feet of its middle member (clear of the nameplates
+			# and marks over heads)
 			var pid := int(p.get("of", -1))
-			var cur: Dictionary = parties.get(pid, {})
-			if cur.is_empty() or sp.y < float(cur["y"]) - 0.1 or (absf(sp.y - float(cur["y"])) < 6.0 and String(p.get("role", "")) == "wagon"):
-				parties[pid] = {"y": sp.y, "p": sp, "info": p}
+			var feet := cam.unproject_position(Vector3(r.pos.x * K.TILE_M, r.pos.y * K.TILE_M, 0.0)) / sc
+			var cur: Dictionary = parties.get(pid, {"sum": Vector2.ZERO, "n": 0, "low": -INF, "info": p})
+			cur["sum"] += feet
+			cur["n"] += 1
+			cur["low"] = maxf(float(cur["low"]), feet.y)
+			parties[pid] = cur
 		if it.has("prompt") or it.has("plate") or String(it["mark"]) != "":
 			_items.append(it)
 	for pid: int in parties:
@@ -64,7 +69,8 @@ func step() -> void:
 		var kind := String(info.get("party", ""))
 		var f := dui.faction_name(String(info.get("faction", "")))
 		var text := DealsLogic.party_plate(kind, f, dc.site_name(int(info.get("dest", -1))), dc.site_name(int(info.get("home", -1))))
-		_parties.append({"p": parties[pid]["p"] + Vector2(0, -34), "text": text, "hostile": kind in ["raid", "army", "pack"]})
+		var at: Vector2 = parties[pid]["sum"] / float(parties[pid]["n"])
+		_parties.append({"p": Vector2(at.x, float(parties[pid]["low"]) + 34.0), "text": text, "hostile": kind in ["raid", "army", "pack"]})
 	if not _items.is_empty() or not _parties.is_empty() or _had:
 		queue_redraw()
 	_had = not _items.is_empty() or not _parties.is_empty()
