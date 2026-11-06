@@ -72,12 +72,9 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
   One should become the single source.
 
 ## Life (M4) ([tracks/life.md](tracks/life.md))
-- Watched caravans and raids move at the sim's pace (about 0.04 tiles a second): decide
-  whether parties need time compression on screen (it would make watched history differ).
-- Needs Places data: anchors and route paths; on today's worlds people spread over the site
-  and parties stand on straight lines (in rock on shaft roads).
+- Rough routes (most ascents and portal routes): people fall behind and are put back.
 - Items has no trade-good rows (dropped cargo is coin); returning cargo is not a deed yet.
-- The view ignores `look.light` (guards' torches) and the wagon look.
+- Wagons are a primitive cart; no cart model fetched.
 - The `ALL=1` smoke runs with `places=0`: bots' placing is flaky in a peopled town.
 
 ## M2 after the integration pass ([tracks/m2-integration.md](tracks/m2-integration.md))
@@ -141,12 +138,3 @@ Never played (beyond the first session)
 - Places stamps settlements after the passages stage runs: check passages near settlement
   edges, and re-run the roads stage's deep routes, which were all flagged rough.
 - Worldgen now takes about 1.8 s for a dev world and 5.4 s for a small one.
-
-## Life integration
-- Watched caravans and raids move at the sim's pace, about 0.04 tiles a second: a caravan is
-  nearly a standing camp. Decision: the sim's travel speed becomes an on-screen pace (a
-  wagon about 1.5 tiles a second, people on foot about 2.5), so a trip between neighbouring
-  towns takes minutes and can be escorted; retune the sim's sweep after.
-- The view draws neither wagons nor guards' torches. Dropped cargo is coin only (Items has
-  no trade-good rows beyond ore).
-
