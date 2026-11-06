@@ -54,6 +54,9 @@ var _state_t := 0.0
 var _wander_at := 0.0
 var _wander_to := Vector2.INF
 var _corner_t := 0.0
+## No running away again before this: it runs as fast as its pursuer, so a second flight, and
+## every one after it, would never end.
+var _stand_until := -1.0
 var _lost_t := 0.0
 var _last := PlayerInput.new()
 var _think_at := 0.0
@@ -134,7 +137,7 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 		_was_busy = false
 		_backoff_until = _t + float(arch().get("backoff", 0.4))
 	# flee at low HP
-	if flees and e.combatant != null and state != State.FLEE \
+	if flees and e.combatant != null and state != State.FLEE and _t >= _stand_until \
 			and e.combatant.current_hp <= e.combatant.stats.max_hp * _num("flee_hp", 0.25) and foe != null:
 		_enter(State.FLEE)
 	match state:
@@ -150,6 +153,7 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 				inp = _go(host, e, home, dt, 1.0, Vector2i(2, 2))
 		State.FLEE:
 			if foe == null or _state_t > _num("flee_s", 6.0):
+				_stand_until = _t + _num("flee_again_s", 45.0)
 				_enter(State.RETURN)
 				target_id = 0
 			else:

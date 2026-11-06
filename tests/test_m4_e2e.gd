@@ -34,10 +34,16 @@ var _stuck: Array = [0.0, 0.0]
 var _last_x: Array = [0.0, 0.0]
 var _jump_t: Array = [0.0, 0.0]
 var t0 := 0
+var _dice := 0
+## Why each attempt at a talk failed, as it stood at that moment.
+var _talk_log: Array = []
 
 func run(t_: TestLog) -> void:
 	t = t_
 	t0 = Time.get_ticks_msec()
+	var given := OS.get_environment("E2E_SEED")
+	_dice = int(given) if given != "" else randi()
+	print("  dice seed %d" % _dice)
 	var w := WorldGen.generate(1024, 512, 4)
 	rig = Rig.new(w, 0.03)
 	Systems.install_host(rig.host)
@@ -67,7 +73,7 @@ func _quiet_host() -> void:
 	var ms: MonstersSystem = sys(HostSystem.MONSTERS)
 	ms.director_enabled = 0               # no random packs: the story sets its own fights
 	ms.nav_fixed_slices = 8               # planning independent of machine load
-	rig.host.rng.seed = 41                # the same story every run
+	rig.host.rng.seed = _dice             # printed at the start: E2E_SEED=n replays a story
 	ms.lairs_enabled = true               # the sim's lairs appear when someone is near
 	(sys(HostSystem.RULES) as RulesSystem).cheats = true
 	(sys(HostSystem.DEALS) as DealsSystem).cheats = true
@@ -255,7 +261,8 @@ func walk(goal: int, limit: float, who := [0, 1], also := Callable()) -> float:
 		for i in who:
 			rig.inputs[i] = _steer(i, cells, goal)
 			var c: Vector2i = cells[goal]
-			if absf(c.x + 0.5 - rig.cw(i).body.pos.x) > 1.5:
+			# (past the end of the road counts: a chase can end further into town than it starts)
+			if absf(c.x + 0.5 - rig.cw(i).body.pos.x) > 1.5 and int(_near_k[i]) != goal:
 				done = false
 		if also.is_valid():
 			also.call()
@@ -328,6 +335,7 @@ func talk_to(i: int, role: String, site := -1) -> String:
 	var pid := person_near(i, role, site)
 	if pid < 0:
 		return "no %s known" % role
+	_talk_log = []
 	for attempt in 6:
 		var x: float = person_pos(i, pid).x
 		walk_x(i, x + (1.5 if rig.cw(i).body.pos.x > x else -1.5), 40.0)
@@ -336,10 +344,11 @@ func talk_to(i: int, role: String, site := -1) -> String:
 			return ""
 		if rig.host.entity(pid) == null:
 			return "gone"
+		_talk_log.append("%d: %s; me %s host %s, %s %s host %s" % [attempt, dc(i).last_note, rig.cw(i).body.pos, he(i).body.pos, role, person_pos(i, pid), rig.host.entity(pid).body.pos])
 		if attempt >= 2:                  # a roof or an upper floor: step back onto the street
 			put(i, person_pos(i, pid) + Vector2(1.2, 0.2))
 			rig.run(0.6)
-	return "no answer (%s; at %s host %s, %s at %s host %s in_combat %s/%s)" % [dc(i).last_note, rig.cw(i).body.pos, he(i).body.pos, role, person_pos(i, pid), rig.host.entity(pid).body.pos, (sys(HostSystem.COMBAT) as CombatSystem).in_combat(he(i)), (sys(HostSystem.COMBAT) as CombatSystem).in_combat(rig.host.entity(pid))]
+	return "no answer (%s; in_combat %s/%s)" % [" | ".join(_talk_log), (sys(HostSystem.COMBAT) as CombatSystem).in_combat(he(i)), (sys(HostSystem.COMBAT) as CombatSystem).in_combat(rig.host.entity(pid))]
 
 func choose(i: int, opt: String) -> bool:
 	dc(i).choose(opt)
@@ -898,6 +907,10 @@ func _recover() -> void:
 		return not sim().parties.has(raid.id), 120.0)
 	idle()
 	rig.run(1.0)
+	if took < 0.0:
+		for e: HostEntity in life().road.actors_of(rig.host, raid.id):
+			var br := e.brain as MonsterBrain
+			print("    left: %s %d at %s hp %s floor %s; target %s; post %s; seen %s; ann %s bob %s; raid %s frozen %s plan %s" % [e.name, e.id, e.body.pos, e.vitals(), e.body.on_floor, br.target_id if br != null else -1, (e.brain as LifeBrain).post if e.brain is LifeBrain else "-", rig.cw(0).remotes.has(e.id), he(0).body.pos, he(1).body.pos, raid.state, raid.frozen, raid.plan])
 	t.check(took >= 0.0, "the raiders on the road are dead (%.0f s)" % took)
 	var items: ItemsSystem = sys(HostSystem.ITEMS)
 	var dropped := 0
@@ -926,6 +939,8 @@ func _recover() -> void:
 		choose(0, "turn_in:" + qid)
 		rig.until(func() -> bool: return String(mirror(0, qid).get("state", "")) == "done", 2.0)
 	dc(0).leave()
+	if String(deals().quest(qid).get("state", "")) != "done":
+		print("    hand-in: why %s, option %s, ann %s has %d, bob %s has %d, need %d, options %s, bob at site %s" % [why, has_option(0, "turn_in:" + qid), he(0).body.pos, he(0).character.inventory.count_base("trade:tools"), he(1).body.pos, he(1).character.inventory.count_base("trade:tools"), need, dc(0).conversation.get("options", []), Deals.at_site(rig.host.world, sim(), T, he(1).body.pos, float(Deals.quests()["turn_in_margin"]))])
 	t.eq(String(deals().quest(qid).get("state", "")), "done", "the goods are handed in (%s)" % [dc(0).last_note])
 	t.check(is_equal_approx(float(s.stock["tools"]), tools0 + need), "back in %s's stock (%.0f -> %.0f)" % [s.name, tools0, s.stock["tools"]])
 	t.check(he(0).character.inventory.coin >= c0, "paid")

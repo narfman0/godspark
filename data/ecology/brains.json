@@ -9,6 +9,7 @@
 	"wander_s": [3.0, 8.0],
 	"flee_hp": 0.25,
 	"flee_s": 6.0,
+	"flee_again_s": 45.0,
 	"sense_s": 0.3,
 	"calm_sense_s": 0.5,
 	"far_tiles": 56.0,

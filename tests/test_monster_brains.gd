@@ -183,6 +183,16 @@ func _flee(t: TestLog) -> void:
 	t.eq(g.brain.state, MonsterBrain.State.FLEE, "a goblin flees at low HP")
 	t.check(absf(g.body.pos.x - p.body.pos.x) > gx + 2.0, "and runs away")
 	t.check(s.brain.state != MonsterBrain.State.FLEE, "a skeleton never flees")
+	# once: as fast as the pursuer, a wounded runner that kept running could never be caught
+	var fled := {"left": false, "again": false}
+	for i in 450:
+		ticks(r, 2)
+		if g.brain.state != MonsterBrain.State.FLEE:
+			fled["left"] = true
+		elif fled["left"]:
+			fled["again"] = true
+	t.check(fled["left"], "the flight ends")
+	t.check(not fled["again"], "and it does not run a second time")
 
 func _neutral(t: TestLog) -> void:
 	var r := rig(17)

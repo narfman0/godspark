@@ -500,6 +500,8 @@ func _roads(t: TestLog) -> void:
 	t.check(life.standing(hero.id, f) > st0, "standing with the town rises (%d -> %d)" % [st0, life.standing(hero.id, f)])
 	t.eq(host.sim.audit(), [], "books sound")
 
+	_fought_at_the_gate(t, sid)
+
 	# c) a raid that wins at a watched town takes cargo in the sim
 	var r2 := rig()
 	var h2: WorldHost = r2["host"]
@@ -585,6 +587,41 @@ func _roads(t: TestLog) -> void:
 	t.eq(l3.actors_of(cid).size(), 0, "and no actors left")
 
 # --- 5. per-entity dice ---------------------------------------------------------------------------
+
+## A raid thrown back at a town, with players' blows among the ones that did it: the chronicle
+## says so, so a defend quest knows them wherever the fight took them. Guards alone: not theirs.
+func _fought_at_the_gate(t: TestLog, sid: int) -> void:
+	for by_player: bool in [true, false]:
+		var r := rig()
+		var h: WorldHost = r["host"]
+		var l: LifeSystem = r["life"]
+		var c: CombatSystem = r["combat"]
+		var hero := put(h, "hero", LifeTown.site_pos(h, sid) + Vector2(0, 3))
+		hero.combatant.stats.max_hp = 9999
+		hero.combatant.stats.current_hp = 9999
+		ticks(h, 65)
+		var rid := l.cheat_party("raid", foreign(h, sid), sid, 0.999, 6)
+		advance(h, 6.0)
+		t.check(l.road.active.has(rid) and not (l.road.active[rid]["raid"] as Dictionary).is_empty(), "the raid is at the gate")
+		var line := {}
+		for k in 12:
+			for e: HostEntity in l.actors_of(rid):
+				if e.combatant != null and e.combatant.current_hp > 0:
+					c.damage(hero.id if by_player else 0, e, 9999, "force")
+					break
+			ticks(h, 65)
+			for e: Dictionary in h.sim.chronicle:
+				if e["kind"] == "raid":
+					line = e
+			if not line.is_empty():
+				break
+		t.check(not line.is_empty() and not bool(line.get("won", true)), "thrown back (%s)" % [line])
+		t.eq(String(line.get("by", "")), "adventurers" if by_player else "", "by adventurers: %s" % by_player)
+		var quest := {"kind": "defend", "site": sid, "faction": str(h.sim.settlements[sid].faction), "state": "active", "due": h.sim.t + 48,
+			"target": {"mark": 0, "party": rid}, "progress": {}}
+		var nobody := {"near": func(_p: Vector2, _n: float) -> Array: return [], "at": func(_s: int, _m: float) -> Array: return [],
+			"party_pos": func(_p: SimParty) -> Vector2: return Vector2.ZERO}
+		t.eq(DealsQuests.check(h.sim, quest, nobody), "done" if by_player else "beaten", "players far from the town at the end: their defence all the same, if they fought")
 
 func _dice(t: TestLog) -> void:
 	var ra := rig()

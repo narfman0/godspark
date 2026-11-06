@@ -383,7 +383,13 @@ func _resolve(h: WorldHost) -> void:
 					if party.kind == "pack":
 						SimConflict.pack_outcome(sim, party, s2, won == 1, int(r["killed"]), lost)
 					else:
+						var from := sim.chronicle.size()
 						SimConflict.raid_outcome(sim, party, s2, won == 1, int(r["killed"]), lost)
+						# players who cut raiders down were there, however far the fight ran
+						if not (r["players"] as Dictionary).is_empty():
+							for i in range(from, sim.chronicle.size()):
+								if String(sim.chronicle[i].get("kind", "")) == "raid":
+									sim.chronicle[i]["by"] = "adventurers"
 					if won == 0:
 						for pl: int in r["players"]:
 							life.add_standing(pl, str(s2.faction), int(Life.num("repel_raid", 15)), "drove off a raid on " + s2.name)
