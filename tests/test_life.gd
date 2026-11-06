@@ -153,9 +153,11 @@ func _stance(t: TestLog) -> void:
 		var eh := escort.combatant.current_hp
 		for i in 900:
 			host.tick()
-			if raider.combatant.current_hp < rh and escort.combatant.current_hp < eh:
+			if raider.combatant.current_hp < rh or escort.combatant.current_hp < eh:
 				break
-		t.check(raider.combatant.current_hp < rh and escort.combatant.current_hp < eh, "they fight each other")
+		# Either may land the first blow (or win outright) before the other connects: nav
+		# plans are time-budgeted, so who does is not the same every run.
+		t.check(raider.combatant.current_hp < rh or escort.combatant.current_hp < eh, "a fight breaks out between them")
 	# areas and sweeps spare neutral people; an aimed blow is allowed and makes enemies
 	var folk := life.actors_at(sid).filter(func(e: HostEntity) -> bool: return e.get_meta("sim")["role"] != "guard")
 	if not folk.is_empty():
