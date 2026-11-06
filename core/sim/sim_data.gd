@@ -111,7 +111,7 @@ static func biome(name: String, band: String) -> Dictionary:
 	if biomes.has(name):
 		return biomes[name]
 	var fb: Dictionary = biomes["_band_default"]
-	return biomes[fb.get(band, "plains")]
+	return biomes[fb.get(band, "meadow")]
 
 ## Band family used by lairs and route classes: surface, caves or deeps.
 static func band_family(band: String) -> String:

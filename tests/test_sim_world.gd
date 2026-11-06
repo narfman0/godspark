@@ -3,13 +3,13 @@ extends RefCounted
 
 func _meta() -> Dictionary:
 	var sites := [
-		{"id": 0, "kind": "settlement", "x": 120, "y": 600, "biome": "plains", "band": "surface", "size": 3},
+		{"id": 0, "kind": "settlement", "x": 120, "y": 600, "biome": "meadow", "band": "surface", "size": 3},
 		{"id": 1, "kind": "lair", "x": 380, "y": 640, "biome": "forest", "band": "surface", "size": 2},
 		{"id": 2, "kind": "settlement", "x": 600, "y": 610, "biome": "forest", "band": "surface", "size": 2},
 		{"id": 3, "kind": "settlement", "x": 900, "y": 650, "biome": "hills", "band": "surface", "size": 2},
 		{"id": 4, "kind": "portal", "x": 1100, "y": 700, "biome": "hills", "band": "surface", "size": 1},
-		{"id": 5, "kind": "settlement", "x": 1350, "y": 620, "biome": "plains", "band": "surface", "size": 3},
-		{"id": 6, "kind": "lair", "x": 1600, "y": 660, "biome": "mountains", "band": "surface", "size": 2},
+		{"id": 5, "kind": "settlement", "x": 1350, "y": 620, "biome": "meadow", "band": "surface", "size": 3},
+		{"id": 6, "kind": "lair", "x": 1600, "y": 660, "biome": "mountain", "band": "surface", "size": 2},
 		{"id": 7, "kind": "settlement", "x": 1850, "y": 640, "biome": "desert", "band": "surface", "size": 2},
 		{"id": 8, "kind": "settlement", "x": 700, "y": 200, "biome": "underdark", "band": "deeps", "size": 2},
 		{"id": 9, "kind": "lair", "x": 1000, "y": 240, "biome": "caves", "band": "caves", "size": 1},

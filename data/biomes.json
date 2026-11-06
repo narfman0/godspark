@@ -1,0 +1,20 @@
+{
+	"_doc": "The one list of biome ids. Every other table (data/worldgen/biomes.json, data/sim/biomes.json, data/sim/cultures.json, data/ecology/habitats.json and spawning.json, data/dressing.json, the sites in world meta) may name only these; tests/test_biome_vocab.gd fails otherwise. family: surface or underground. generated: worldgen makes it today (surface ones have a row in data/worldgen/biomes.json); the others keep their sim and habitat data for when it does. Merged away in M5: plains and grassland (meadow), mountains and alpine (mountain), snow and arctic (tundra), cavern (caves).",
+	"biomes": [
+		{"id": "meadow", "family": "surface", "generated": true},
+		{"id": "forest", "family": "surface", "generated": false},
+		{"id": "hills", "family": "surface", "generated": false},
+		{"id": "mountain", "family": "surface", "generated": false},
+		{"id": "coast", "family": "surface", "generated": false},
+		{"id": "desert", "family": "surface", "generated": false},
+		{"id": "swamp", "family": "surface", "generated": false},
+		{"id": "tundra", "family": "surface", "generated": false},
+		{"id": "jungle", "family": "surface", "generated": false},
+		{"id": "caves", "family": "underground", "generated": true},
+		{"id": "underdark", "family": "underground", "generated": true},
+		{"id": "fungal", "family": "underground", "generated": false},
+		{"id": "crystal", "family": "underground", "generated": false},
+		{"id": "deep_lake", "family": "underground", "generated": false},
+		{"id": "magma", "family": "underground", "generated": false}
+	]
+}

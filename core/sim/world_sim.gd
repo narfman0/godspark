@@ -80,6 +80,10 @@ static func from_meta(meta: Dictionary, world_seed: int) -> WorldSim:
 		float(meta.get("surface", []).size()))
 	return sim
 
+## Biomes of the stand-alone layout (canonical ids, data/biomes.json).
+const SYNTH_SURFACE: Array = ["meadow", "forest", "hills", "mountain", "coast", "desert", "swamp", "tundra", "jungle"]
+const SYNTH_DEEP: Array = ["fungal", "caves", "crystal", "deep_lake", "magma"]
+
 ## A made-up strip: settlements, lairs, ruins and portals on the surface, in the caves and
 ## in the deeps, joined by roads, deep roads and links between them.
 static func synthetic(n_sites: int, world_seed: int) -> WorldSim:
@@ -88,9 +92,7 @@ static func synthetic(n_sites: int, world_seed: int) -> WorldSim:
 	var width := 180.0 * n_sites
 	var bands := []
 	var sites_out: Array = []
-	var surface_biomes := ["plains", "forest", "hills", "mountains", "coast", "desert", "swamp", "tundra", "meadow"]
-	var deep_biomes := ["fungal", "cavern", "crystal", "deep_lake", "magma"]
-	var cur_biome: String = surface_biomes[r.randi_range(0, surface_biomes.size() - 1)]
+	var cur_biome: String = SYNTH_SURFACE[r.randi_range(0, SYNTH_SURFACE.size() - 1)]
 	for i in n_sites:
 		var roll := r.randf()
 		var band := "surface" if roll < 0.55 else ("caves" if roll < 0.72 else "deeps")
@@ -100,12 +102,12 @@ static func synthetic(n_sites: int, world_seed: int) -> WorldSim:
 		var biome := ""
 		if band == "surface":
 			if r.randf() < 0.45:
-				cur_biome = surface_biomes[r.randi_range(0, surface_biomes.size() - 1)]
+				cur_biome = SYNTH_SURFACE[r.randi_range(0, SYNTH_SURFACE.size() - 1)]
 			biome = cur_biome
 		elif band == "caves":
-			biome = "cavern" if r.randf() < 0.6 else deep_biomes[r.randi_range(0, deep_biomes.size() - 1)]
+			biome = "caves" if r.randf() < 0.6 else SYNTH_DEEP[r.randi_range(0, SYNTH_DEEP.size() - 1)]
 		else:
-			biome = deep_biomes[r.randi_range(0, deep_biomes.size() - 1)]
+			biome = SYNTH_DEEP[r.randi_range(0, SYNTH_DEEP.size() - 1)]
 		var y := 700.0 if band == "surface" else (420.0 if band == "caves" else 150.0)
 		sites_out.append({"id": i, "kind": kind, "x": x, "y": y + r.randf_range(-30, 30), "biome": biome,
 			"band": band, "size": float(r.randi_range(1, 3))})

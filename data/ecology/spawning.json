@@ -25,8 +25,10 @@
 			"promote": {"_doc": "the nadir has no SRD wild creature at CR 12-14: half its packs are deeps creatures of CR 5-11 as elites (max HP, an affix, xp x2) and champions (double, two affixes, xp x4)", "chance": 0.5, "from_band": "deeps", "cr": [5, 11], "ranks": {"elite": 65, "champion": 35}}}}
 	},
 	"biome_fallback": {
-		"_doc": "Surface biomes worldgen has now, and which ecology biomes they stand in for until worldgen grows more.",
-		"meadow": ["meadow", "forest", "hills"]
+		"_doc": "Which habitats (data/ecology/habitats.json) a biome reads as. A biome with no row reads as itself. Meadow still borrows until the spawning track tunes rosters; the mountain reads as hills and jungle as forest until they earn their own habitat rows.",
+		"meadow": ["meadow", "forest", "hills"],
+		"mountain": ["hills"],
+		"jungle": ["forest"]
 	},
 	"band_biome": {"caves": "caves", "deeps": "underdark", "nadir": "underdark"},
 	"caps": {"per_player": 24, "global": 120},

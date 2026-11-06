@@ -3,7 +3,7 @@
 	"human": {
 		"name": "humans", "adj": "human", "species": "human", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 4,
-		"bands": ["surface"], "biomes": {"plains": 3, "grassland": 3, "meadow": 3, "coast": 3, "forest": 1, "hills": 2, "swamp": 1},
+		"bands": ["surface"], "biomes": {"meadow": 3, "coast": 3, "forest": 1, "hills": 2, "swamp": 1},
 		"mobility": ["road"], "raid_mobility": ["road"],
 		"temperament": {"trader": 3, "expansionist": 3, "raider": 1, "isolationist": 1},
 		"farm": 1.0, "craft": 1.0, "luxury": 0.3, "soldiers": 0.05, "raid": 0.1, "takes_captives": false,
@@ -16,7 +16,7 @@
 	"dwarf": {
 		"name": "dwarves", "adj": "dwarven", "species": "dwarf", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 3,
-		"bands": ["surface", "caves", "deeps"], "biomes": {"hills": 3, "mountains": 4, "alpine": 3, "cavern": 4, "crystal": 3, "magma": 2, "fungal": 1},
+		"bands": ["surface", "caves", "deeps"], "biomes": {"hills": 3, "mountain": 4, "caves": 4, "crystal": 3, "magma": 2, "fungal": 1},
 		"mobility": ["road", "deep", "link"], "raid_mobility": ["road", "deep", "link"],
 		"temperament": {"trader": 3, "isolationist": 2, "expansionist": 1},
 		"farm": 0.8, "craft": 1.6, "luxury": 0.4, "soldiers": 0.07, "raid": 0.05, "takes_captives": false,
@@ -42,7 +42,7 @@
 	"halfling": {
 		"name": "halflings", "adj": "halfling", "species": "halfling", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 2,
-		"bands": ["surface"], "biomes": {"plains": 3, "grassland": 3, "meadow": 4, "hills": 1},
+		"bands": ["surface"], "biomes": {"meadow": 4, "hills": 1},
 		"mobility": ["road"], "raid_mobility": ["road"],
 		"temperament": {"trader": 4, "isolationist": 2},
 		"farm": 1.15, "craft": 0.9, "luxury": 0.3, "soldiers": 0.04, "raid": 0.02, "takes_captives": false,
@@ -55,7 +55,7 @@
 	"gnome": {
 		"name": "gnomes", "adj": "gnomish", "species": "gnome", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 1.5,
-		"bands": ["surface", "caves"], "biomes": {"hills": 3, "forest": 2, "cavern": 2, "crystal": 2},
+		"bands": ["surface", "caves"], "biomes": {"hills": 3, "forest": 2, "caves": 2, "crystal": 2},
 		"mobility": ["road", "deep", "link"], "raid_mobility": ["road", "deep", "link"],
 		"temperament": {"trader": 3, "isolationist": 3},
 		"farm": 0.85, "craft": 1.4, "luxury": 0.9, "soldiers": 0.04, "raid": 0.02, "takes_captives": false,
@@ -68,7 +68,7 @@
 	"orc": {
 		"name": "orcs", "adj": "orcish", "species": "orc", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 2,
-		"bands": ["surface", "caves"], "biomes": {"hills": 3, "mountains": 2, "tundra": 3, "snow": 2, "swamp": 1, "cavern": 1},
+		"bands": ["surface", "caves"], "biomes": {"hills": 3, "mountain": 2, "tundra": 3, "swamp": 1, "caves": 1},
 		"mobility": ["road", "link"], "raid_mobility": ["road", "link", "deep"],
 		"temperament": {"raider": 3, "expansionist": 3, "trader": 1},
 		"farm": 0.85, "craft": 1.0, "luxury": 0.1, "soldiers": 0.1, "raid": 0.35, "takes_captives": false,
@@ -81,7 +81,7 @@
 	"dragonborn": {
 		"name": "dragonborn", "adj": "dragonborn", "species": "dragonborn", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 1.2,
-		"bands": ["surface"], "biomes": {"desert": 4, "hills": 2, "mountains": 1, "coast": 1},
+		"bands": ["surface"], "biomes": {"desert": 4, "hills": 2, "mountain": 1, "coast": 1},
 		"mobility": ["road"], "raid_mobility": ["road"],
 		"temperament": {"expansionist": 3, "trader": 2, "raider": 1},
 		"farm": 0.9, "craft": 1.1, "luxury": 0.5, "soldiers": 0.07, "raid": 0.12, "takes_captives": false,
@@ -94,7 +94,7 @@
 	"goliath": {
 		"name": "goliaths", "adj": "goliath", "species": "goliath", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 1,
-		"bands": ["surface"], "biomes": {"mountains": 4, "alpine": 4, "tundra": 2, "snow": 3},
+		"bands": ["surface"], "biomes": {"mountain": 4, "tundra": 3},
 		"mobility": ["road"], "raid_mobility": ["road"],
 		"temperament": {"isolationist": 3, "raider": 1, "trader": 1},
 		"farm": 0.9, "craft": 1.0, "luxury": 0.2, "soldiers": 0.08, "raid": 0.1, "takes_captives": false,
@@ -107,7 +107,7 @@
 	"tiefling": {
 		"name": "tieflings", "adj": "tiefling", "species": "tiefling", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 1,
-		"bands": ["surface"], "biomes": {"coast": 2, "plains": 1, "desert": 2, "swamp": 2},
+		"bands": ["surface"], "biomes": {"coast": 2, "meadow": 1, "desert": 2, "swamp": 2},
 		"mobility": ["road"], "raid_mobility": ["road"],
 		"temperament": {"trader": 4, "expansionist": 1, "raider": 1},
 		"farm": 0.9, "craft": 1.1, "luxury": 0.8, "soldiers": 0.05, "raid": 0.08, "takes_captives": false,
@@ -120,7 +120,7 @@
 	"drow": {
 		"name": "drow", "adj": "drow", "species": "elf", "lineage": "drow", "monstrous": false,
 		"people": "commoner", "weight": 3,
-		"bands": ["deeps", "caves"], "biomes": {"fungal": 4, "crystal": 2, "cavern": 2, "deep_lake": 2},
+		"bands": ["deeps", "caves"], "biomes": {"fungal": 4, "crystal": 2, "caves": 2, "deep_lake": 2},
 		"mobility": ["deep", "link"], "raid_mobility": ["deep", "link", "road"],
 		"temperament": {"raider": 4, "expansionist": 2, "trader": 1},
 		"farm": 0.75, "craft": 1.2, "luxury": 0.9, "soldiers": 0.11, "raid": 0.4, "takes_captives": true,
@@ -133,7 +133,7 @@
 	"goblinoid": {
 		"name": "goblins", "adj": "goblin", "species": "", "lineage": "", "monstrous": true,
 		"people": "goblin-minion", "weight": 2.5,
-		"bands": ["caves", "surface"], "biomes": {"cavern": 4, "hills": 2, "forest": 2, "mountains": 1, "swamp": 1},
+		"bands": ["caves", "surface"], "biomes": {"caves": 4, "hills": 2, "forest": 2, "mountain": 1, "swamp": 1},
 		"mobility": ["road", "deep", "link"], "raid_mobility": ["road", "deep", "link"],
 		"temperament": {"raider": 4, "expansionist": 2},
 		"farm": 0.6, "craft": 0.6, "luxury": 0.0, "soldiers": 0.14, "raid": 0.5, "takes_captives": true,
@@ -146,7 +146,7 @@
 	"kobold": {
 		"name": "kobolds", "adj": "kobold", "species": "", "lineage": "", "monstrous": true,
 		"people": "kobold-warrior", "weight": 1.5,
-		"bands": ["caves"], "biomes": {"cavern": 4, "crystal": 2, "magma": 2},
+		"bands": ["caves"], "biomes": {"caves": 4, "crystal": 2, "magma": 2},
 		"mobility": ["deep", "link", "road"], "raid_mobility": ["deep", "link", "road"],
 		"temperament": {"raider": 2, "isolationist": 2, "trader": 1},
 		"farm": 0.6, "craft": 0.8, "luxury": 0.0, "soldiers": 0.15, "raid": 0.3, "takes_captives": false,
@@ -159,7 +159,7 @@
 	"gnoll": {
 		"name": "gnolls", "adj": "gnoll", "species": "", "lineage": "", "monstrous": true,
 		"people": "hyena", "weight": 1.2,
-		"bands": ["surface"], "biomes": {"desert": 3, "plains": 2, "grassland": 2, "hills": 1},
+		"bands": ["surface"], "biomes": {"desert": 3, "meadow": 2, "hills": 1},
 		"mobility": ["road"], "raid_mobility": ["road", "link"],
 		"temperament": {"raider": 5, "expansionist": 1},
 		"farm": 0.45, "craft": 0.4, "luxury": 0.0, "soldiers": 0.2, "raid": 0.6, "takes_captives": false,
@@ -172,7 +172,7 @@
 	"bandit": {
 		"name": "bandits", "adj": "outlaw", "species": "human", "lineage": "", "monstrous": true,
 		"people": "commoner", "weight": 1.5,
-		"bands": ["surface"], "biomes": {"forest": 3, "hills": 3, "swamp": 2, "mountains": 1, "plains": 1},
+		"bands": ["surface"], "biomes": {"forest": 3, "hills": 3, "swamp": 2, "mountain": 1, "meadow": 1},
 		"mobility": ["road"], "raid_mobility": ["road", "link"],
 		"temperament": {"raider": 5, "trader": 1},
 		"farm": 0.55, "craft": 0.6, "luxury": 0.0, "soldiers": 0.2, "raid": 0.6, "takes_captives": false,

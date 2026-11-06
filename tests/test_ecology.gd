@@ -2,7 +2,6 @@
 ## from the documented sets, and the notable placements hold.
 extends RefCounted
 
-const BIOMES := ["meadow", "forest", "hills", "swamp", "desert", "arctic", "coast", "caves", "underdark"]
 const BANDS := ["sky", "surface", "caves", "deeps", "nadir"]
 const BRAINS := ["bruiser", "skirmisher", "archer", "caster", "heavy", "swarm", "lurker", "flier", "ambusher"]
 
@@ -27,7 +26,7 @@ func run(t: TestLog) -> void:
 			continue
 		var r: Dictionary = hab[s]
 		for b: String in r["biomes"]:
-			if not b in BIOMES:
+			if not BiomeIds.has(b):
 				bad.append("%s: biome %s" % [s, b])
 		for b: String in r["bands"]:
 			if not b in BANDS:
