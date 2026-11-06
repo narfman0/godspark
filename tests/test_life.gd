@@ -170,6 +170,7 @@ func _stance(t: TestLog) -> void:
 		t.eq(life.stance(p, f), Life.HOSTILE, "attacking one on purpose makes it hostile")
 		t.eq(life.stance(p, guard), Life.HOSTILE, "and its faction's guards")
 		t.check(life.standing(p.id, str(s.faction)) < before, "and costs standing")
+	_stray_blow(t)
 	# wolves ignore a player with a strong enough wolf Bond
 	var rules: FakeRules = r["rules"]
 	var p2 := put(host, "friend-of-wolves", sp + Vector2(-60, 3))
@@ -181,6 +182,52 @@ func _stance(t: TestLog) -> void:
 	var hp2 := p2.combatant.current_hp
 	ticks(host, 300)
 	t.eq(p2.combatant.current_hp, hp2, "the wolf leaves its friend alone")
+
+## A swing that lands as the last foe dies, on the guard beside it: a miss, not an attack on the
+## town (seed 310 of the end-to-end test: the town turned on a player who had just saved it).
+func _stray_blow(t: TestLog) -> void:
+	var r := rig()
+	var host: WorldHost = r["host"]
+	var life: LifeSystem = r["life"]
+	var combat: CombatSystem = r["combat"]
+	var sid := town_of(host)
+	var p := put(host, "ann", LifeTown.site_pos(host, sid) + Vector2(0, 3))
+	ticks(host, 70)
+	var folk: Array = life.actors_at(sid)
+	t.check(not folk.is_empty(), "someone stands by")
+	if folk.is_empty():
+		return
+	var f: HostEntity = folk[0]
+	var raider := life.spawn_person(host, {"culture": "human", "slug": "guard", "role": "raider", "pos": p.body.pos + Vector2(1, 0), "fighter": true,
+		"faction": foreign_faction(host, sid), "sim": {"kind": "party", "id": 99001, "role": "raider", "party": "raid"}})
+	t.eq(life.stance(p, raider), Life.HOSTILE, "a foe")
+	combat._engage(combat.actor(p), combat.actor(raider))
+	combat.damage(p.id, raider, 9999, "force")
+	ticks(host, 3)
+	var aim := f.body.rect().get_center()
+	t.check(not combat._aimed(combat.actor(p), combat.actor(f), aim), "the last foe just fell: a blow landing on a bystander is a miss")
+	ticks(host, roundi(6.0 * K.TICK_HZ))
+	aim = f.body.rect().get_center()
+	t.check(combat._aimed(combat.actor(p), combat.actor(f), aim), "the fight long over, a blow on them is meant")
+	# someone else fells the foe while the blow is on its way
+	var other := life.spawn_person(host, {"culture": "human", "slug": "guard", "role": "raider", "pos": f.body.pos + Vector2(0.5, 0), "fighter": true,
+		"faction": foreign_faction(host, sid), "sim": {"kind": "party", "id": 99001, "role": "raider", "party": "raid"}})
+	p.body.pos = f.body.pos + Vector2(1.5, 0)
+	combat.actor(p).action_ready = 0.0
+	t.check(combat.start_attack(p, -1, other.body.rect().get_center(), false), "a swing at a foe beside them")
+	combat.damage(0, other, 9999, "force")
+	ticks(host, 2)
+	t.check(not combat._aimed(combat.actor(p), combat.actor(f), other.body.rect().get_center()), "its foe falls by another hand: the blow does not land on the bystander")
+	ticks(host, roundi(6.0 * K.TICK_HZ))
+	var runner := life.spawn_person(host, {"culture": "human", "slug": "guard", "role": "raider", "pos": f.body.pos + Vector2(2.5, 0), "fighter": true,
+		"faction": foreign_faction(host, sid), "sim": {"kind": "party", "id": 99001, "role": "raider", "party": "raid"}})
+	t.check(not combat._aimed(combat.actor(p), combat.actor(f), aim), "a foe running past them: it was aimed at the foe, however long ago its last blow")
+	life.unspawn(host, runner.id)
+
+## A sim faction that is not this town's.
+static func foreign_faction(host: WorldHost, sid: int) -> int:
+	var from := foreign(host, sid)
+	return host.sim.settlements[from].faction
 
 # --- 2. standing ---------------------------------------------------------------------------------
 

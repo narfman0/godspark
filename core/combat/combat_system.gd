@@ -37,6 +37,8 @@ class Actor:
 	## Next round boundary (host seconds); -1 until the creature first acts or is acted on.
 	var round_at := -1.0
 	var last_hostile := -1000.0
+	## The last blow traded with a foe, or swung at one.
+	var last_foe := -1000.0
 	var takeoff_y := 0.0
 	var footed := true
 	var dead_at := -1.0
@@ -393,13 +395,17 @@ func _life_sys() -> HostSystem:
 ## With Life: a player's attack aimed right at a creature it is not hostile to (a townsperson,
 ## a neutral beast) is allowed (Life then makes it and its faction hostile), except while the
 ## player is fighting foes (then a bystander under the aim is not hit). Areas and sweeps
-## never hit FRIENDLY or NEUTRAL creatures. Without Life: never (nothing changes).
+## never hit FRIENDLY or NEUTRAL creatures. Without Life: never (nothing changes). A fight lasts
+## as long as in_combat_s after the last blow traded with a foe or swung at one, so a swing still
+## falling when its foe dies, by anyone's hand, does not make enemies of the guard beside it.
 func _aimed(a: Actor, b: Actor, aim: Variant) -> bool:
 	if _life_sys() == null or not a.e.is_player() or b.e.is_player() or not aim is Vector2 or aim == Vector2.INF:
 		return false
 	if not b.e.body.rect().grow(0.5).has_point(aim):
 		return false
 	# in the middle of a fight a blow that lands on a bystander is a miss, not a choice
+	if now - a.last_foe <= CombatTempo.num("in_combat_s", 5.0) and not hostile(a.e, b.e):
+		return false
 	if now - a.last_hostile <= CombatTempo.num("in_combat_s", 5.0) and not hostile(a.e, b.e):
 		var foes := false
 		for o: Actor in actors.values():
@@ -409,10 +415,14 @@ func _aimed(a: Actor, b: Actor, aim: Variant) -> bool:
 		if foes:
 			return false
 	# a foe at the aim point is what it was aimed at, not the bystander beside it
+	return not _foe_at(a, aim)
+
+## A foe at this point, or a few tiles off (a running foe, by the time a blow lands)?
+func _foe_at(a: Actor, aim: Vector2) -> bool:
 	for o: Actor in actors.values():
-		if o != a and o != b and _targetable(o) and o.e.body.rect().grow(0.5).has_point(aim) and hostile(a.e, o.e):
-			return false
-	return true
+		if o != a and _targetable(o) and o.e.body.rect().grow(3.0).has_point(aim) and hostile(a.e, o.e):
+			return true
+	return false
 
 func _targetable(b: Actor) -> bool:
 	return b.e.combatant != null and b.dead_at < 0.0 and b.downed_at < 0.0 and b.e.combatant.current_hp > 0
@@ -573,6 +583,8 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 		"steps": steps, "aim": aim, "sweep": int(tempo.get("sweep", 0))}
 	a.action_ready = now + float(tl["total"])
 	a.last_hostile = now
+	if e.is_player() and _foe_at(a, aim):
+		a.last_foe = now
 	_touched[e.id] = true
 	_start_clock(a)
 	counts["swings"] += 1
@@ -755,6 +767,9 @@ func _sweep(a: Actor, b: Actor, step: Dictionary, from: Vector2) -> void:
 func _engage(a: Actor, b: Actor) -> void:
 	a.last_hostile = now
 	b.last_hostile = now
+	if hostile(a.e, b.e):
+		a.last_foe = now
+		b.last_foe = now
 	_start_clock(a)
 	_start_clock(b)
 	_touched[a.e.id] = true
