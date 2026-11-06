@@ -142,3 +142,16 @@ Never played (beyond the first session)
   edges, and re-run the roads stage's deep routes, which were all flagged rough.
 - Worldgen now takes about 1.8 s for a dev world and 5.4 s for a small one.
 
+## Life integration (main is red here on purpose: six `test_life` checks fail)
+- Life was built against the fallback (no places, straight-line routes). Merged with
+  Places and Traversal: raiders and escorts do not fight, a caravan's arrival no longer
+  matches the abstract books, standing does not rise for a repelled raid, and a wandering
+  player changes the sim after a week. People are off by default (`life=1` turns them on)
+  until this is fixed.
+- Watched caravans and raids move at the sim's pace, about 0.04 tiles a second: a caravan is
+  nearly a standing camp. Decision: the sim's travel speed becomes an on-screen pace (a
+  wagon about 1.5 tiles a second, people on foot about 2.5), so a trip between neighbouring
+  towns takes minutes and can be escorted; retune the sim's sweep after.
+- The view draws neither wagons nor guards' torches. Dropped cargo is coin only (Items has
+  no trade-good rows beyond ore).
+

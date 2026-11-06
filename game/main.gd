@@ -142,7 +142,9 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 		ms.set("director_enabled", 1 if String(opts["spawns"]) != "0" else 0)
 	# life_raid=SECONDS / life_caravan=SECONDS: a raid (caravan) arrives at the spawn town then
 	var life: Variant = session.host.system(HostSystem.LIFE)
-	if life != null and String(opts.get("life", "1")) == "0":
+	# People are off unless asked for (life=1) until Life is integrated with real places and
+	# paths (docs/todo.md): the merge with Places and Traversal left six of its tests failing.
+	if life != null and String(opts.get("life", "0")) == "0":
 		life.set("enabled", false)          # life=0: no people materialize (stance still applies)
 	if life != null:
 		for k: String in ["raid", "caravan"]:
