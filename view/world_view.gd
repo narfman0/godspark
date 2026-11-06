@@ -174,7 +174,11 @@ func _settle_cart(root: ActorBody, pos: Vector2, facing: int) -> void:
 	var cart: Node3D = root.get_meta("cart")
 	if world == null or cart == null:
 		return
-	var tail := pos.x - 2.4 * float(facing if facing != 0 else 1)
+	# the actor's model turns by itself; the cart is a sibling of it, so it swings round here
+	var side := facing if facing != 0 else int(root.get_meta("cart_side", 1))
+	root.set_meta("cart_side", side)
+	cart.scale.x = float(side)
+	var tail := pos.x - 2.4 * float(side)
 	var x := floori(tail)
 	var y := floori(pos.y) + 3
 	var floor_y := INF
@@ -184,7 +188,7 @@ func _settle_cart(root: ActorBody, pos: Vector2, facing: int) -> void:
 			floor_y = float(y - k)
 			break
 	var dy := clampf(floor_y - pos.y, -2.0, 2.0) if floor_y != INF else 0.0
-	var want := -atan2(dy, 2.4)
+	var want := -atan2(dy, 2.4) * float(side)
 	cart.rotation.z = lerp_angle(cart.rotation.z, want, 0.2)
 
 ## facing: +1 right, -1 left (0 keeps the last). state: idle | walk | run | jump | fall |
