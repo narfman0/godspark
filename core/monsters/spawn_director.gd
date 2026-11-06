@@ -419,7 +419,14 @@ func safe_ok(h: WorldHost, p: Vector2) -> bool:
 	var sf: Dictionary = cfg().get("safe", {})
 	var sr := float(sf.get("settlement_tiles", 72))
 	for s: Variant in h.world.meta.get("sites", []):
-		if s is Dictionary and s.get("kind") == "settlement" and Vector2(float(s["x"]), float(s["y"])).distance_to(p) <= sr:
+		if not (s is Dictionary and s.get("kind") == "settlement"):
+			continue
+		var pr: Array = Places.place(h.world, int(s["id"])).get("rect", [])
+		if pr.size() == 4:   # a laid-out place: its rect and a margin (places track)
+			var m := float(sf.get("place_margin_tiles", 24))
+			if Rect2(float(pr[0]) - m, float(pr[1]) - m, float(pr[2]) + 2.0 * m, float(pr[3]) + 2.0 * m).has_point(p):
+				return false
+		elif Vector2(float(s["x"]), float(s["y"])).distance_to(p) <= sr:
 			return false
 	var r := int(maxf(float(sf.get("campfire_tiles", 20)), float(sf.get("bed_tiles", 20))))
 	var fire := TileDefs.id("campfire")

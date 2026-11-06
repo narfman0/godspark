@@ -17,6 +17,10 @@ extends RefCounted
 const VIEW := Vector2i(70, 45)
 
 var applied: Array = []
+## Player entity id -> the site whose place it is in (-1 outside), for arrival notices.
+var where := {}
+## Arrival notices sent: [{id, site, text}] (the last 20).
+var arrivals: Array = []
 var waiting := {}        ## site id -> true while a change waits for players to leave
 var _tick := 0
 
@@ -27,6 +31,7 @@ func update(host: WorldHost) -> void:
 	var all := Places.all(host.world)
 	if all.is_empty():
 		return
+	_arrivals(host)
 	for key: String in all:
 		var place: Dictionary = all[key]
 		var sid := int(key)
@@ -62,6 +67,33 @@ func apply(host: WorldHost, sid: int, tier: String, culture := "") -> int:
 	PlaceBuilder.refresh_buildings(place)
 	applied.append({"site": sid, "tier": tier, "lots": changes.size()})
 	return changes.size()
+
+## A player who walks into a settled place hears its name, people, size and souls (a
+## Rules NOTE, shown as a toast: "Millburrow, a halfling town of 633 souls").
+func _arrivals(host: WorldHost) -> void:
+	for e: HostEntity in host.entities.values():
+		if not e.is_player():
+			continue
+		var sid := Places.place_at(host.world, floori(e.body.pos.x), floori(e.body.pos.y))
+		var was: int = where.get(e.id, -1)
+		where[e.id] = sid
+		if sid < 0 or sid == was:
+			continue
+		var text := arrival_text(host, sid)
+		if text == "":
+			continue
+		host.send_sys(HostSystem.RULES, RulesCodec.K.NOTE, RulesCodec.encode_str(text), e.id)
+		arrivals.append({"id": e.id, "site": sid, "text": text})
+		if arrivals.size() > 20:
+			arrivals.pop_front()
+
+static func arrival_text(host: WorldHost, sid: int) -> String:
+	var s: SimSettlement = host.sim.settlements.get(sid) if host.sim != null else null
+	if s == null:
+		return ""
+	var people := s.culture
+	var article := "an" if people.substr(0, 1) in ["a", "e", "i", "o", "u"] else "a"
+	return "%s, %s %s %s of %d souls" % [s.name, article, people, s.tier, s.pop()]
 
 func _all_empty_or_ruined(place: Dictionary) -> bool:
 	for lot: Dictionary in place["lots"]:

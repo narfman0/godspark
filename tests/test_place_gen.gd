@@ -11,6 +11,7 @@ func run(t: TestLog) -> void:
 	_matches_sim(t, world)
 	_layout(t, world)
 	_walks(t, world)
+	_spawn(t, world)
 	_save(t, world)
 	_old_world(t)
 
@@ -154,6 +155,13 @@ static func walk(world: TileWorld, st: MoveStats, a: Vector2, b: Vector2, ticks_
 		if goal == b:
 			return r
 	return r
+
+## New players start on the square of the first settled surface place.
+func _spawn(t: TestLog, world: TileWorld) -> void:
+	var at: Vector2 = load("res://game/main.gd").spawn_for(world, Vector2.ZERO)
+	var sid := Places.street_at(world, floori(at.x))
+	t.check(sid.x >= 0 and int(at.y) == sid.y and Places.place(world, sid.x)["tier"] != "", "the spawn is on a settled place's street (%s)" % at)
+	t.check(not world.is_solid(floori(at.x), int(at.y)) and world.is_solid(floori(at.x), int(at.y) - 1), "standing on the ground")
 
 func _save(t: TestLog, world: TileWorld) -> void:
 	var dir := "user://test_place_gen"

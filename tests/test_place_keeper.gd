@@ -46,6 +46,23 @@ func run(t: TestLog) -> void:
 	t.check(tiles > 50, "clients hear of it as tile changes (%d, objects %d)" % [tiles, objs])
 	t.check(_built_tiles_ok(world, town), "every built lot's walls stand in the tiles")
 
+	# Arrival: walking into a settled place tells the player where they are.
+	host.drain()
+	var ps: Array = Places.place(world, town)["street"]
+	host.teleport(p, Vector2(int(ps[0]) + 2.5, int(ps[2])))
+	_ticks(host, 1)
+	var notes := 0
+	for e: Dictionary in host.drain():
+		if e["type"] == WorldHost.Ev.SYS and int(e["sys"]) == HostSystem.RULES and int(e["kind"]) == RulesCodec.K.NOTE:
+			notes += 1
+	t.eq(notes, 1, "one NOTE goes to the arriving player")
+	var sname: String = sim.settlements[town].name
+	t.check(host.places_keeper.arrivals.size() > 0 and String(host.places_keeper.arrivals[-1]["text"]).begins_with(sname + ", a"),
+		"arriving players are told the place (%s)" % (host.places_keeper.arrivals[-1]["text"] if host.places_keeper.arrivals.size() else ""))
+	t.check(String(host.places_keeper.arrivals[-1]["text"]).ends_with("souls") if host.places_keeper.arrivals.size() else false, "with its souls")
+	host.teleport(p, Vector2(int(ps[1]) + 300.5, world.height - 2))
+	_ticks(host, 1)
+
 	# Founding on the empty site.
 	var fid: int = sim.factions.keys()[0]
 	sim._new_settlement(empty, "halfling", fid, 60)
@@ -85,6 +102,13 @@ func run(t: TestLog) -> void:
 			if world.is_solid(x, int(rp["street"][2]) + dy):
 				open = false
 	t.check(open, "the street through the ruins stays open (rubble is one tile high)")
+
+	# The spawn director keeps monsters off a place: its rect and a margin.
+	var ms := MonstersSystem.new()
+	host.add_system(ms)
+	var pr: Array = Places.place(world, empty)["rect"]
+	t.check(not ms.director.safe_ok(host, Vector2(int(pr[0]) + int(pr[2]) - 1, int(pr[1]) + 2)), "no monster spawns at a place's far end")
+	t.check(not ms.director.safe_ok(host, Vector2(int(pr[0]) - 20, int(pr[1]) + 2)), "nor just outside it")
 
 	# Persistence.
 	var dir := "user://test_place_keeper"

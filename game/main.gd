@@ -97,6 +97,12 @@ func world_source() -> TileWorld:
 
 ## Players start at the first surface settlement site when the world has one.
 static func spawn_for(world: TileWorld, fallback: Vector2) -> Vector2:
+	# the square (centre lot) of the first settled surface place, on its street
+	for site: Dictionary in world.meta.get("sites", []):
+		var p := Places.place(world, int(site["id"]))
+		if site.get("band") in ["surface", "sky"] and not p.is_empty() and String(p.get("tier", "")) != "":
+			var c: Dictionary = p["lots"][0]
+			return Vector2(int(c["x"]) + int(c["w"]) / 2 + 0.5, float(p["street"][2]))
 	for site: Dictionary in world.meta.get("sites", []):
 		if site.get("kind") == "settlement" and site.get("band") in ["surface", "sky"]:
 			return Vector2(float(site["x"]) + 0.5, float(site["y"]))
