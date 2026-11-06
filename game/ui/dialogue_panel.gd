@@ -25,6 +25,8 @@ var side: ScrollContainer
 var side_box: VBoxContainer
 var side_title: Label
 var _role := ""
+## The option ids the number keys 1-9 pick, in order (farewell is 0).
+var shown_ids: Array = []
 var _faction := ""
 
 func setup(g: GameUi, d: DealsUi) -> void:
@@ -102,14 +104,22 @@ func refresh() -> void:
 		opts.remove_child(ch)
 		ch.queue_free()
 	var i := 1
+	shown_ids = []
+	var open_work := {}
+	for q: Dictionary in dc.quests_in("active"):
+		open_work[String(q["id"])] = true
 	for o: Dictionary in c.get("options", []):
 		var id := String(o["id"])
+		if id.begins_with("turn_in:") and not open_work.has(id.trim_prefix("turn_in:")):
+			continue      # handed in already (the host's list is from before)
 		var b := UiTheme.button("%d  %s" % [i, String(o["label"])] if i <= 9 else String(o["label"]), UiTheme.SMALL + 1)
 		if id == "bye":
 			b.text = "0  %s" % String(o["label"])
+		else:
+			shown_ids.append(id)
+			i += 1
 		b.pressed.connect(func() -> void: dui.choose(id))
 		opts.add_child(b)
-		i += 1
 	_side(c)
 
 func _side(c: Dictionary) -> void:

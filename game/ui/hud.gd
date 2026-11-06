@@ -491,9 +491,9 @@ func _draw_clock(c: Control) -> void:
 			var ft := float(cf["t"])
 			var d := int(cf["d"])
 			var a := clampf((1.6 - ft) / 0.5, 0.0, 1.0)
-			var ty := cy + 26 + ft * 18 + k * 20
 			var s := ("+%d" % d) if d > 0 else str(d)
-			UiTheme.text(c, Vector2(c.size.x - 8 - UiTheme.text_width(s, UiTheme.HEADING), ty), s, UiTheme.HEADING,
+			var ty := cy + 7 - ft * 8 - k * 18
+			UiTheme.text(c, Vector2(x - 26 - UiTheme.text_width(s, UiTheme.HEADING) - ft * 10, ty), s, UiTheme.HEADING,
 				Color(UiTheme.GOLD if d > 0 else UiTheme.VERMILION.lightened(0.2), a), false, HORIZONTAL_ALIGNMENT_LEFT, -1, 4)
 			if ft < 0.3:
 				c.draw_arc(Vector2(x - 12, cy), 8 + ft * 30, 0, TAU, 20, Color(UiTheme.GOLD, 1.0 - ft / 0.3), 2.0, true)

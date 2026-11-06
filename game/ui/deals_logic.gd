@@ -152,7 +152,7 @@ static func standing_toast(old: int, now: int) -> bool:
 ## "Standing with the Tarnby League +10 (a raid wiped out)"
 static func standing_text(faction_name: String, delta: int, why: String) -> String:
 	var w := why.replace("_", " ")
-	return "%s %s%d%s" % [faction_name if faction_name != "" else "A faction", "+" if delta >= 0 else "", delta, "  (%s)" % w if w != "" and w != "cheat" else ""]
+	return "%s %s%d%s" % [cap(faction_name) if faction_name != "" else "A faction", "+" if delta >= 0 else "", delta, "  (%s)" % w if w != "" and w != "cheat" else ""]
 
 # --- prices ---------------------------------------------------------------------------------------
 

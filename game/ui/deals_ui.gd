@@ -24,10 +24,12 @@ var pinned := ""
 ## faction -> [[delta, why]] standing moves heard this session (newest last, at most 6)
 var history := {}
 var _qstate := {}
+## qid -> the reward as last seen while the work was open (ended snapshots carry only `paid`)
+var _qreward := {}
 var _q_init := false
 var _turning_in := {}
 var _ptier := {}
-var _p_init := false
+var _attach_ms := 0
 var _stand := {}
 var _at := -1
 var _at_t := 0.0
@@ -36,6 +38,7 @@ var _bannered := {}
 
 func attach(g: GameUi) -> void:
 	gu = g
+	_attach_ms = Time.get_ticks_msec()
 	dc = gu.cw.system(HostSystem.DEALS) as DealsClient
 	lc = gu.cw.system(HostSystem.LIFE) as LifeClient
 	if dc == null:
@@ -120,9 +123,8 @@ func input(event: InputEvent) -> bool:
 	var i := DealsLogic.option_index(k.keycode)
 	if i < 0:
 		return false
-	var opts: Array = dc.conversation.get("options", [])
-	if i < opts.size():
-		choose(String(opts[i]["id"]))
+	if i < dialogue.shown_ids.size():
+		choose(String(dialogue.shown_ids[i]))
 	return true
 
 func layout(vs: Vector2) -> void:
@@ -309,6 +311,8 @@ func _on_quests(qs: Array) -> void:
 		var st := String(q.get("state", ""))
 		now[id] = st
 		var old := String(_qstate.get(id, ""))
+		if q.has("reward"):
+			_qreward[id] = q["reward"]
 		if not _q_init or old == st:
 			continue
 		if st == "done" and old in ["active", "ready"]:
@@ -329,12 +333,17 @@ func _on_quests(qs: Array) -> void:
 			if String(q.get("state", "")) in ["active", "ready"]:
 				pinned = String(q["id"])
 				break
+	if dialogue != null and dialogue.visible:
+		dialogue.refresh()
 	var log_s: Control = gu.screens.get("quests")
 	if log_s != null and log_s.visible and log_s.has_method("refresh"):
 		log_s.call("refresh")
 
 func _celebrate(q: Dictionary) -> void:
-	var r: Dictionary = q.get("reward", {})
+	var r: Dictionary = q.get("reward", _qreward.get(String(q.get("id", "")), {}))
+	if int(q.get("paid", 0)) > 0:
+		r = r.duplicate()
+		r["coin"] = int(q["paid"])
 	gu.hud.banner("Done!", String(q.get("title", "")))
 	gu.toast("Paid: %s." % DealsLogic.reward_text(r), 4.0, UiTheme.GOLD.darkened(0.45))
 	if bool(r.get("item", false)):
@@ -344,17 +353,17 @@ func _on_patrons(p: Dictionary) -> void:
 	for f: String in p:
 		var t := int(p[f]["tier"])
 		var sus := bool(p[f]["suspended"])
-		var old: int = _ptier.get(f, -1)
+		var old: int = _ptier.get(f, 0)
 		var eff := 0 if sus else t
 		_ptier[f] = eff
-		if not _p_init or old == eff:
+		# the first word after joining only says where things stand
+		if Time.get_ticks_msec() - _attach_ms < 4000 or old == eff:
 			continue
 		var nm := String(p[f].get("name", faction_name(f)))
-		if eff > old and old >= 0:
-			gu.hud.banner("Patron, tier %d" % eff, "%s takes you in. A gift waits with their keeper or priest." % nm)
+		if eff > old:
+			gu.hud.banner("Patron, tier %d" % eff, "%s takes you in. A gift waits with their keeper or priest." % DealsLogic.cap(nm))
 		elif eff < old:
-			gu.hud.banner("Patronage lost", "%s no longer counts you a friend. Gifts given stay given." % nm)
-	_p_init = true
+			gu.hud.banner("Patronage lost", "%s no longer counts you a friend. Gifts given stay given." % DealsLogic.cap(nm))
 
 func _on_standing(f: String, v: int, why: String) -> void:
 	var old: int = _stand.get(f, 0)
