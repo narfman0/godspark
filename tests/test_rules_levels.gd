@@ -24,7 +24,10 @@ func _xp(t: TestLog) -> void:
 	carl.body.pos.x += 60.0
 	t.check(rules.sheet(ann)["level"] == 1 and ann.combatant != null, "a joining player has a sheet")
 	var gob := host.add_srd_monster("goblin-warrior", ann.body.pos + Vector2(3, 0))
+	for e: HostEntity in [ann, bob, carl, gob]:     # a surface kill: no depth divisor (data/rules/xp.json)
+		e.body.pos.y = host.world.height * 0.7
 	var per := host.srd.monster_xp("goblin-warrior")
+	t.eq(rules.band_divisor(gob), 1.0, "the surface has no XP divisor")
 	rules.on_kill(gob, [ann.id])
 	t.eq(ann.character.xp, per, "the killer gets the stat block's XP")
 	t.eq(bob.character.xp, per, "a player nearby gets it in full (no split)")

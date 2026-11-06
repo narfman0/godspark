@@ -300,7 +300,7 @@ static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 						return "failed"
 					# adventurers who cut the raid down outside the walls were there too
 					var theirs := k == "raid_repelled" and String(e.get("by", "")) == "adventurers"
-					return "done" if theirs or not (at.call(sid, 30.0) as Array).is_empty() else "beaten"
+					return "done" if theirs or not (at.call(sid, nt) as Array).is_empty() else "beaten"
 			t["mark"] = sim.chronicle.size()
 			if not sim.parties.has(int(t["party"])):
 				return "lapsed"

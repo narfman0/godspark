@@ -66,6 +66,8 @@ func run(t_: TestLog) -> void:
 func _quiet_host() -> void:
 	var ms: MonstersSystem = sys(HostSystem.MONSTERS)
 	ms.director_enabled = 0               # no random packs: the story sets its own fights
+	ms.nav_fixed_slices = 8               # planning independent of machine load
+	rig.host.rng.seed = 41                # the same story every run
 	ms.lairs_enabled = true               # the sim's lairs appear when someone is near
 	(sys(HostSystem.RULES) as RulesSystem).cheats = true
 	(sys(HostSystem.DEALS) as DealsSystem).cheats = true
@@ -333,7 +335,10 @@ func talk_to(i: int, role: String, site := -1) -> String:
 			return ""
 		if rig.host.entity(pid) == null:
 			return "gone"
-	return "no answer (%s)" % [dc(i).last_note]
+		if attempt >= 2:                  # a roof or an upper floor: step back onto the street
+			put(i, person_pos(i, pid) + Vector2(1.2, 0.2))
+			rig.run(0.6)
+	return "no answer (%s; at %s host %s, %s at %s host %s in_combat %s/%s)" % [dc(i).last_note, rig.cw(i).body.pos, he(i).body.pos, role, person_pos(i, pid), rig.host.entity(pid).body.pos, (sys(HostSystem.COMBAT) as CombatSystem).in_combat(he(i)), (sys(HostSystem.COMBAT) as CombatSystem).in_combat(rig.host.entity(pid))]
 
 func choose(i: int, opt: String) -> bool:
 	dc(i).choose(opt)
@@ -747,7 +752,7 @@ func _escort() -> void:
 			fr = 1.0 - fr
 		if not st["ambushed"] and fr >= 0.35:
 			st["ambushed"] = true
-			st["raid"] = waylay(minf(fr + 0.04, 0.95))
+			st["raid"] = waylay(minf(fr + 0.04, 0.95), 3)
 		var raid: SimParty = st["raid"]
 		var foes := raid != null and sim().parties.has(raid.id) \
 			and life().road.actors_of(rig.host, raid.id).any(func(e: HostEntity) -> bool: return e.body.pos.distance_to(pos) < 30.0)
@@ -770,7 +775,7 @@ func _escort() -> void:
 		cp.size(), int(deals().quest(qid)["target"]["base"]), cp.plan, "gone" if raid == null or not sim().parties.has(raid.id) else "left %d" % raid.size()])
 	t.check(took >= 0.0, "the caravan reached %s (%.0f s)" % [n.name, took])
 	t.check(bool(st["ambushed"]) and float(st["fought"]) > 1.0, "the ambush on the way was fought (%.0f s)" % st["fought"])
-	t.check(raid != null and (not sim().parties.has(raid.id) or raid.size() < 5), "the raiders were beaten off")
+	t.check(raid != null and (not sim().parties.has(raid.id) or raid.size() < 3), "the raiders were beaten off")
 	t.check(cp.size() * 2 >= int(deals().quest(qid)["target"]["base"]), "it arrived with most of its people (%d)" % cp.size())
 	t.check(int(cp.plan.get("brought", 0)) * 2 >= cargo0, "and most of its cargo (%d of %d)" % [int(cp.plan.get("brought", 0)), cargo0])
 	t.check(float(n.stock["food"]) > food_n0, "%s's food stock grew (%.0f -> %.0f)" % [n.name, food_n0, n.stock["food"]])
@@ -887,7 +892,7 @@ func _recover() -> void:
 	t.check(int(held.call()) >= need, "the goods are in the players' packs (%d)" % held.call())
 	# carry them home
 	var back := walk(0, 120.0)
-	t.check(back >= 0.0, "and home along the road (%.0f s)" % back)
+	t.check(back >= 0.0, "and home along the road (%.0f s; ann %s, bob %s)" % [back, rig.cw(0).body.pos, rig.cw(1).body.pos])
 	rig.run(1.0)
 	var tools0 := float(s.stock["tools"])
 	var c0 := he(0).character.inventory.coin
