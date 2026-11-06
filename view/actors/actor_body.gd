@@ -3,6 +3,10 @@
 ## animation driven by a state string. WorldView owns these (add_actor / move_actor).
 ##
 ## Node: position = the Body's feet (tile units * K.TILE_M), z = 0 (the actor plane).
+## Swings, the roll and the flinch are laid over the state (swing, roll, flinch, hold): they run
+## on the view's clock from combat events and never touch the state string. set_rim outlines
+## the actor (the target highlight, a monster's wind-up), flash lights it for a moment.
+##
 ##   ActorBody
 ##     turn          yaws: the body faces +Z inside it; turned toward +-X (a little toward
 ##                   the camera so faces read), or away from the camera on a ladder
@@ -25,6 +29,10 @@ const TURN_TIME := 0.12
 const WALK_MPS := 1.4
 const RUN_MPS := 3.6
 const SPRINT_MPS := 6.0
+const RIM := preload("res://view/actors/rim.gdshader")
+const FLASH := preload("res://view/actors/flash.gdshader")
+static var _rim_mat: ShaderMaterial
+static var _flash_mat: ShaderMaterial
 
 var plan: Dictionary = {}
 var size := Vector2(1.5, 2.5)
@@ -39,6 +47,24 @@ var _yaw := SIDE_YAW
 var _last_pos := Vector2.INF
 var _last_usec := 0
 var _explicit_vel := false
+## Consecutive actions walk along the tempo's moves.
+var _combo := 0
+var _combo_t := -INF
+## Seconds a swing keeps the body turned to `_face` (a swing goes where it is aimed, even
+## behind the way the feet run).
+var _face_s := 0.0
+var _face := 1
+## The primitive's stand-in swing: seconds left of a lean, and its length; a spin for the roll.
+var _lean := 0.0
+var _lean_len := 0.0
+var _spin := 0.0
+var _spin_len := 0.0
+var _rim := Color(0, 0, 0, 0)
+var _flash := Color(0, 0, 0, 0)
+var _flash_s := 0.0
+var _flash_len := 0.0
+var _hold := 0.0
+var _weapon_bar: Node3D
 
 ## Builds the actor for a look. primitive_mat: the placeholder shader material (WorldView's).
 static func build(look: Dictionary, primitive_mat: Material, has_file: Callable = Callable()) -> ActorBody:
@@ -185,7 +211,15 @@ func set_state(s: String) -> void:
 	visual.call("play", clip, speed)
 
 func _process(delta: float) -> void:
-	var want := SIDE_YAW * facing
+	_face_s = maxf(0.0, _face_s - delta)
+	var moving := absf(vel.x) > float(CombatTempo.section("feel").get("moving_speed", 1.5))
+	if _hold > 0.0:
+		_hold -= delta
+	elif kind != "primitive":
+		visual.call("step", delta, moving)
+	_step_primitive(delta)
+	_step_flash(delta)
+	var want := SIDE_YAW * (_face if _face_s > 0.0 else facing)
 	if state == "climb":
 		want = PI
 	var step := (PI / TURN_TIME) * delta
@@ -196,6 +230,154 @@ func _process(delta: float) -> void:
 func _apply_yaw() -> void:
 	if turn != null:
 		turn.rotation.y = _yaw
+
+# --- what is laid over the state --------------------------------------------------------
+
+## A SWING event's fields. dir: toward its aim. A body with nothing to show just turns and leans.
+func swing(ev: Dictionary, dir: Vector2) -> void:
+	var f := CombatTempo.section("feel")
+	var total := float(ev.get("total", 0.0))
+	_face = 1 if dir.x >= 0.0 else -1
+	_face_s = maxf(total, 0.25)
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _combo_t > float(f.get("combo_reset_s", 1.2)):
+		_combo = 0
+	_combo_t = now
+	var done := false
+	var fi := float(f.get("fade_in_s", 0.05))
+	var fo := float(f.get("fade_out_s", 0.12))
+	match kind:
+		"synty":
+			done = (visual as CharacterVisual).swing(SwingPlan.build(ev, _combo), fi, fo, SwingPlan.HEAD_START)
+		"forge":
+			var m := visual as ForgeMonster
+			var ranged := int(ev.get("mode", 0)) in [CombatCodec.Mode.RANGED, CombatCodec.Mode.THROW]
+			var c := "attack_ranged" if ranged and m.has_clip("attack_ranged") else "attack_melee"
+			if int(ev.get("mode", 0)) in [CombatCodec.Mode.AREA, CombatCodec.Mode.CAST, CombatCodec.Mode.SAVE_ACTION]:
+				c = "breath" if m.has_clip("breath") else c
+			done = m.swing(c, float(ev.get("windup", 0.0)), total, fi, fo)
+	if not done and kind == "primitive":
+		_lean_len = maxf(total, 0.25)
+		_lean = _lean_len
+	_combo += maxi(1, int(ev.get("swings", 1)))
+
+func stop_swing() -> void:
+	_face_s = 0.0
+	_lean = 0.0
+	if kind != "primitive":
+		visual.call("stop_swing")
+
+## The dodge roll's look: the clip over dur seconds, or a tucked spin of a body without one.
+func roll(dur: float) -> void:
+	_face_s = 0.0
+	var done := false
+	if kind == "synty":
+		done = (visual as CharacterVisual).swing(SwingPlan.single("roll", dur), 0.03, 0.06)
+	if not done:
+		_spin_len = dur
+		_spin = dur
+
+## A blow landed on this actor.
+func flinch() -> void:
+	var f := CombatTempo.section("feel")
+	var s := float(f.get("flinch_s", 0.35))
+	match kind:
+		"synty":
+			var cv := visual as CharacterVisual
+			if cv.layer != null and not cv.layer.active():
+				cv.swing(SwingPlan.single("flinch", s), 0.02, 0.1)
+		"forge":
+			(visual as ForgeMonster).flash_clip("hit", s, 0.02, 0.1)
+		_:
+			_lean_len = s * 0.6
+			_lean = _lean_len
+
+## The hit-stop: this body's animation stands still for s seconds of view time.
+func hold(s: float) -> void:
+	_hold = maxf(_hold, s)
+
+## The weapon in the hand (an SRD slug, or a shown name; "" for none).
+func set_weapon(what: String) -> void:
+	var slug := what.strip_edges().to_lower().replace(" ", "-")
+	if kind != "primitive":
+		visual.call("set_weapon", slug)
+		_geos_dirty = true
+		return
+	if _weapon_bar != null:
+		_weapon_bar.queue_free()
+		_weapon_bar = null
+	if slug == "":
+		return
+	_weapon_bar = WeaponMesh.build(Looks.weapon(slug) if not Looks.weapon(slug).is_empty() else {}, size.y * K.TILE_M / 1.8)
+	_weapon_bar.position = Vector3(0, size.y * 0.5 * K.TILE_M, size.x * 0.55 * K.TILE_M)
+	_weapon_bar.rotation.x = deg_to_rad(60.0)
+	visual.add_child(_weapon_bar)
+	_geos_dirty = true
+
+var _geos: Array = []
+var _geos_dirty := true
+
+func _surfaces() -> Array:
+	if _geos_dirty:
+		_geos_dirty = false
+		_geos = find_children("*", "GeometryInstance3D", true, false).filter(func(g: Node) -> bool: return not g is Label3D)
+	return _geos
+
+## Outline this actor (alpha 0: none). One colour at a time.
+func set_rim(c: Color) -> void:
+	if c == _rim:
+		return
+	_rim = c
+	if _flash_s <= 0.0:
+		_apply_overlay()
+
+## Light the whole body in `c` for s seconds, fading.
+func flash(c: Color, s: float) -> void:
+	_flash = c
+	_flash_s = s
+	_flash_len = maxf(s, 0.01)
+	_apply_overlay()
+
+func _apply_overlay() -> void:
+	if _rim_mat == null:
+		_rim_mat = ShaderMaterial.new()
+		_rim_mat.shader = RIM
+		_rim_mat.set_shader_parameter("width_m", float(CombatTempo.section("feel").get("rim_m", 0.035)))
+		_flash_mat = ShaderMaterial.new()
+		_flash_mat.shader = FLASH
+	var over: Material = null
+	if _flash_s > 0.0:
+		over = _flash_mat
+	elif _rim.a > 0.0:
+		over = _rim_mat
+	for g: GeometryInstance3D in _surfaces():
+		if is_instance_valid(g):
+			g.material_overlay = over
+			if over == _rim_mat:
+				g.set_instance_shader_parameter("rim", _rim)
+
+func _step_flash(delta: float) -> void:
+	if _flash_s <= 0.0:
+		return
+	_flash_s -= delta
+	var c := _flash
+	c.a *= clampf(_flash_s / _flash_len, 0.0, 1.0) * 0.5 + 0.5
+	if _flash_s <= 0.0:
+		_apply_overlay()
+		return
+	for g: GeometryInstance3D in _surfaces():
+		if is_instance_valid(g):
+			g.set_instance_shader_parameter("flash", c)
+
+func _step_primitive(delta: float) -> void:
+	if kind != "primitive" or state == "death":
+		return
+	if _lean > 0.0:
+		_lean = maxf(0.0, _lean - delta)
+		visual.rotation.x = sin((1.0 - _lean / _lean_len) * PI) * 0.6
+	if _spin > 0.0:
+		_spin = maxf(0.0, _spin - delta)
+		visual.rotation.x = (1.0 - _spin / _spin_len) * TAU
 
 ## Snap the turn (no animation), e.g. right after spawning.
 func snap_facing() -> void:

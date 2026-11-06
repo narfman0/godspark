@@ -28,6 +28,8 @@
 ##             its screens and save a screenshot of each to DIR (game/ui/ui_tour.gd)
 ##             world_tour=DIR: the same for the living world (talk, trade, work, map, a
 ##             caravan, a raid, a patron; game/ui/world_tour.gd; gen=dev seed=3 suits it)
+##             combat_tour=DIR: the same for a fight, swing by swing, slowed down
+##             (host_thread=0, pack=goblin-warrior; game/ui/combat_tour.gd)
 ## Headless processes (and bots) use the log presenter; windowed ones the 3D view.
 extends Node
 
@@ -219,6 +221,12 @@ func _host_world(world: TileWorld, headless: bool, dedicated: bool) -> void:
 			wt.main = self
 			wt.session = session
 			add_child(wt)
+		elif opts.has("combat_tour") and not headless:
+			var ct := CombatTour.new()
+			ct.dir = String(opts["combat_tour"])
+			ct.main = self
+			ct.session = session
+			add_child(ct)
 
 ## spawn=SLUG[:N]: N monsters a few tiles apart, left of the spawn point. Runs before the
 ## host thread starts (the first _process), so it may touch the host directly.

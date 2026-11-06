@@ -1,14 +1,17 @@
 ## In-world feedback (view/fx/), a child of WorldView: floating numbers, nameplates, wind-up
-## telegraphs and the spell aiming preview, drops on the ground, projectiles, hit flashes on
-## actors, and the sigil flash over the own character when a spark fires (a dash, an air
-## jump, a glide). Reads the client world and its systems; owns no game state.
+## telegraphs and the spell aiming preview, drops on the ground, projectiles, swings and their
+## contacts (SwingFx), the target highlight, hit flashes and the hit-stop on actors, and the
+## sigil flash over the own character when a spark fires (a dash, an air jump, a glide). Reads
+## the client world and its systems; owns no game state. Every tunable: data/combat.json "feel".
+##
+## The target highlight: CombatClient.target_at(aim), the host's own choice of what the next
+## blow touches, outlines that creature, shows its plate and draws the arc that must reach it.
 ##
 ## Projectiles: the combat client's PROJECTILE events carry pos, vel and gravity; they are
 ## stepped here until their IMPACT (or a wall, or 4 s).
 class_name FxView
 extends Node3D
 
-const FLASH_S := 0.12
 const PROJ_LIFE := 4.0
 
 var cw: ClientWorld
@@ -18,11 +21,18 @@ var numbers: FloatingNumbers
 var plates: Nameplates
 var telegraphs: Telegraphs
 var drops: DropsView
+var swings: SwingFx
 var srd: SRDContent
+## What the next swing would land on: {id, reach} from CombatClient.target_at.
+var target := {}
+## Where the aim is, when a script holds it (Vector2.INF: the mouse).
+var aim_override := Vector2.INF
+## Monsters winding up: id -> [seconds in, seconds of wind-up].
+var windups := {}
+var _rimmed := {}
+var _crit := {}
 ## pid -> {pos, vel, g, node, t}
 var projectiles := {}
-## actor id -> {until (msec), geos: [[GeometryInstance3D, original tint]]}
-var _flash := {}
 var _sigil: Sprite3D
 var _sigil_t := -1.0
 var _was := {}
@@ -46,6 +56,8 @@ func setup(client: ClientWorld, v: WorldView) -> void:
 	overlay.add_child(numbers)
 	telegraphs = Telegraphs.new()
 	add_child(telegraphs)
+	swings = SwingFx.new()
+	add_child(swings)
 	drops = DropsView.new()
 	add_child(drops)
 	drops.setup(cw.system(HostSystem.ITEMS) as ItemsClient)
@@ -88,7 +100,8 @@ func actor_added(id: int, look: Dictionary) -> void:
 
 func actor_removed(id: int) -> void:
 	plates.forget(id)
-	_flash.erase(id)
+	windups.erase(id)
+	_rimmed.erase(id)
 
 ## Where an entity's feet are and how big it is (tiles).
 func actor_box(id: int) -> Array:
@@ -103,6 +116,42 @@ func _head(id: int) -> Vector2:
 	var b := actor_box(id)
 	return Vector2.INF if b.is_empty() else (b[0] as Vector2) + Vector2(0, (b[1] as Vector2).y)
 
+## The middle of an actor's box, tiles (Vector2.INF: not here).
+func actor_center(id: int) -> Vector2:
+	var b := actor_box(id)
+	return Vector2.INF if b.is_empty() else (b[0] as Vector2) + Vector2(0, (b[1] as Vector2).y * 0.5)
+
+## Where a blow from `src` lands on `dst`: the side of the box that faces it, at chest height.
+func _contact_at(src: int, dst: int) -> Vector2:
+	var c := actor_center(dst)
+	var from := actor_center(src)
+	if c == Vector2.INF or from == Vector2.INF:
+		return c
+	var half := (actor_box(dst)[1] as Vector2) * 0.5
+	return Vector2(clampf(from.x, c.x - half.x, c.x + half.x), c.y)
+
+func _mark(src: int, dst: int, kind: int) -> void:
+	var at := _contact_at(src, dst)
+	if at != Vector2.INF:
+		swings.mark(at, kind)
+
+func _flash_on(id: int, crit: bool) -> void:
+	var a := view.get_actor(id)
+	if a == null:
+		return
+	var f := SwingFx.feel()
+	a.flash(SwingFx.color("crit_flash" if crit else "flash"), float(f.get("crit_flash_s" if crit else "flash_s", 0.12)))
+
+func _hit_stop(kind: int, src: int, dst: int) -> void:
+	var s := HitStop.seconds(kind, src, cw.my_id)
+	if s <= 0.0:
+		return
+	swings.hold(src, s)
+	for id: int in [src, dst]:
+		var a := view.get_actor(id)
+		if a != null:
+			a.hold(s)
+
 func combat_event(ev: Dictionary) -> void:
 	var src := int(ev["src"])
 	var dst := int(ev["dst"])
@@ -113,18 +162,35 @@ func combat_event(ev: Dictionary) -> void:
 		plates.touch(dst)
 	match int(ev["kind"]):
 		CombatCodec.Ev.DAMAGE:
+			var crit := bool(_crit.get(dst, false))
+			_crit.erase(dst)
 			var p := _head(dst)
 			if p != Vector2.INF:
-				numbers.spawn(dst, p, str(int(ev.get("amount", 0))), UiTheme.VERMILION.lightened(0.15) if mine else UiTheme.TEXT_LIGHT, 22)
-			_start_flash(dst)
+				numbers.spawn(dst, p, str(int(ev.get("amount", 0))), SwingFx.color("crit") if crit else (UiTheme.VERMILION.lightened(0.15) if mine else UiTheme.TEXT_LIGHT), 32 if crit else 24)
+			_flash_on(dst, crit)
+		CombatCodec.Ev.HIT:
+			swings.result(src, SwingFx.color("hit"))
+			_mark(src, dst, SwingFx.Mark.HIT)
+			_hit_stop(CombatCodec.Ev.HIT, src, dst)
 		CombatCodec.Ev.CRIT:
+			_crit[dst] = true
+			swings.result(src, SwingFx.color("crit"), 1.0)
+			_mark(src, dst, SwingFx.Mark.CRIT)
+			_hit_stop(CombatCodec.Ev.CRIT, src, dst)
 			var p2 := _head(dst)
 			if p2 != Vector2.INF:
-				numbers.spawn(dst, p2 + Vector2(0, 0.4), "Crit!", UiTheme.GOLD, 26)
+				numbers.spawn(dst, p2 + Vector2(0, 1.4), "Crit!", SwingFx.color("crit"), 30)
 		CombatCodec.Ev.MISS:
+			swings.result(src, SwingFx.color("miss"), 0.25)
+			_mark(src, dst, SwingFx.Mark.MISS)
 			var p3 := _head(dst)
 			if p3 != Vector2.INF:
-				numbers.spawn(dst, p3, "miss", Color(0.8, 0.78, 0.72), 18)
+				numbers.spawn(dst, p3, "miss", SwingFx.color("miss"), 22)
+		CombatCodec.Ev.WHIFF:
+			swings.result(src, SwingFx.color("miss"), 0.2)
+			var p6 := _head(dst) if dst != 0 else Vector2.INF
+			if p6 != Vector2.INF:
+				numbers.spawn(dst, p6, "dodged", SwingFx.color("slash"), 22)
 		CombatCodec.Ev.HEAL:
 			var p4 := _head(dst)
 			if p4 != Vector2.INF and int(ev.get("amount", 0)) > 0:
@@ -137,7 +203,10 @@ func combat_event(ev: Dictionary) -> void:
 		CombatCodec.Ev.SWING:
 			_swing(ev)
 		CombatCodec.Ev.CANCEL, CombatCodec.Ev.DEATH:
-			telegraphs.cancel_from(src if int(ev["kind"]) == CombatCodec.Ev.CANCEL else dst)
+			var who := src if int(ev["kind"]) == CombatCodec.Ev.CANCEL else dst
+			telegraphs.cancel_from(who)
+			swings.cancel(who)
+			windups.erase(who)
 		CombatCodec.Ev.PROJECTILE:
 			_projectile(ev)
 		CombatCodec.Ev.IMPACT:
@@ -148,22 +217,42 @@ func combat_event(ev: Dictionary) -> void:
 
 func _swing(ev: Dictionary) -> void:
 	var src := int(ev["src"])
-	if src == cw.my_id:
-		return
 	var b := actor_box(src)
 	if b.is_empty():
 		return
+	var mine := src == cw.my_id
 	var r: ClientWorld.RemoteEntity = cw.remotes.get(src)
-	var player := r != null and r.kind == HostEntity.Kind.PLAYER
+	var player := mine or (r != null and r.kind == HostEntity.Kind.PLAYER)
 	var mode := int(ev.get("mode", 0))
-	if player and mode != CombatCodec.Mode.AREA:
-		return     # allies' swings are not telegraphed; their areas are
 	var windup := float(ev.get("windup", 0.0))
+	if mode == CombatCodec.Mode.MELEE:
+		_slashes(ev, b[1], player, mine)
+	if not player and windup > 0.0:
+		windups[src] = [SwingPlan.HEAD_START, windup]
+	if player and mode != CombatCodec.Mode.AREA and not (mine and mode == CombatCodec.Mode.MELEE):
+		return     # allies' swings are not telegraphed; their areas are, and the own arc
 	if windup <= 0.0 and mode != CombatCodec.Mode.AREA:
 		return
 	var area := spell_area(String(ev.get("what", ""))) if mode in [CombatCodec.Mode.AREA, CombatCodec.Mode.CAST] else {}
 	var d := Telegraphs.for_swing(ev, b[0], b[1], area)
-	telegraphs.show_shape(d, maxf(windup, 0.35), Telegraphs.ALLY_COLOR if player else Telegraphs.MONSTER_COLOR, src)
+	var col := Telegraphs.SWING_COLOR if mine else (Telegraphs.ALLY_COLOR if player else Telegraphs.MONSTER_COLOR)
+	telegraphs.show_shape(d, maxf(windup - SwingPlan.HEAD_START, 0.35 if windup <= 0.0 else 0.0), col, src, mine and mode == CombatCodec.Mode.MELEE)
+
+## A melee swing's sweeps, one for each contact, each the other way across the arc.
+func _slashes(ev: Dictionary, box: Vector2, player: bool, mine: bool) -> void:
+	var src := int(ev["src"])
+	var f := SwingFx.feel()
+	var c := actor_center(src)
+	var dir := HitShapes.aim_dir(c, ev.get("aim", c), 1)
+	var reach := K.ft(float(ev.get("reach_ft", 5.0)))
+	var tempo := String(ev.get("tempo", "plain"))
+	var width := float(f.get("slash_width", {}).get(tempo, 0.5))
+	var tint := SwingFx.color("slash") if player else SwingFx.color("slash_foe")
+	if player and not mine:
+		tint.a = 0.6
+	for i in maxi(1, int(ev.get("swings", 1))):
+		var at := float(ev.get("windup", 0.0)) + float(ev.get("gap", 0.0)) * i
+		swings.slash(src, maxf(0.0, at - SwingPlan.HEAD_START - float(f.get("slash_lead_s", 0.06))), dir, reach, Telegraphs.arc_half(), box * 0.5, -1.0 if i % 2 == 1 else 1.0, width, tint)
 
 ## A spell's area for telegraphs and aiming: {shape, size_ft, range_ft} ({} if none).
 func spell_area(slug: String) -> Dictionary:
@@ -209,40 +298,6 @@ func _projectile(ev: Dictionary) -> void:
 	projectiles[int(ev.get("pid", 0))] = {"pos": ev.get("pos", Vector2.ZERO), "vel": ev.get("vel", Vector2.ZERO),
 		"g": float(ev.get("gravity", 0.0)), "node": mi, "t": 0.0}
 
-func _start_flash(id: int) -> void:
-	var a := view.get_actor(id)
-	if a == null:
-		return
-	var f: Dictionary = _flash.get(id, {})
-	if f.is_empty():
-		var geos: Array = []
-		for g: GeometryInstance3D in a.find_children("*", "GeometryInstance3D", true, false):
-			if g is Label3D:
-				continue
-			geos.append([g, g.get_instance_shader_parameter("tint")])
-		f = {"geos": geos}
-		for pair: Array in geos:
-			var base: Variant = pair[1]
-			var c: Color = base if base is Color else Color.WHITE
-			(pair[0] as GeometryInstance3D).set_instance_shader_parameter("tint", Color(c.r * 2.2 + 0.4, c.g * 1.6 + 0.3, c.b * 1.5 + 0.3, 1))
-	f["until"] = Time.get_ticks_msec() + int(FLASH_S * 1000)
-	_flash[id] = f
-
-func _end_flashes() -> void:
-	var now := Time.get_ticks_msec()
-	for id: int in _flash.keys():
-		var f: Dictionary = _flash[id]
-		if now < int(f.get("until", 0)):
-			continue
-		for pair: Array in f["geos"]:
-			var g: GeometryInstance3D = pair[0]
-			if is_instance_valid(g):
-				if pair[1] == null:
-					g.set_instance_shader_parameter("tint", Color.WHITE)
-				else:
-					g.set_instance_shader_parameter("tint", pair[1])
-		_flash.erase(id)
-
 ## A spark fired on the own body: dash started, an air jump, a glide.
 func _spark_fired() -> bool:
 	var b := cw.body
@@ -266,9 +321,12 @@ func _process(delta: float) -> void:
 	numbers.step(delta, cam)
 	telegraphs.step(delta)
 	drops.step(delta)
-	plates.step(cam, _hovered())
-	if not _flash.is_empty():
-		_end_flashes()
+	swings.step(delta, self)
+	_highlight(delta)
+	plates.step(cam, _hovered(), int(target.get("id", 0)))
+	var own := actor_center(cw.my_id)
+	if own != Vector2.INF:
+		telegraphs.move_from(cw.my_id, own)
 	for pid: int in projectiles.keys():
 		var p: Dictionary = projectiles[pid]
 		p["t"] = float(p["t"]) + delta
@@ -299,10 +357,69 @@ func _process(delta: float) -> void:
 	if frame_usec.size() > 4000:
 		frame_usec = frame_usec.slice(2000)
 
+## Where the player is aiming, tiles (as LocalInput aims: the middle of the tile under the mouse).
+func aim_point() -> Vector2:
+	if aim_override != Vector2.INF:
+		return aim_override
+	return Vector2(view.tile_at_screen(get_viewport().get_mouse_position())) + Vector2(0.5, 0.5)
+
+## Outlines: a monster's wind-up burns through to its blow; what the next swing would land on is
+## gold in reach, pale under the aim beyond it. And, while a foe is near, the next swing's arc.
+func _highlight(delta: float) -> void:
+	var cc := cw.system(HostSystem.COMBAT) as CombatClient
+	var aim := aim_point()
+	target = cc.target_at(aim) if cc != null else {}
+	var want := {}
+	if not target.is_empty():
+		want[int(target["id"])] = SwingFx.color("target" if bool(target["reach"]) else "near")
+	var from := float(SwingFx.feel().get("windup_rim_from", 0.0))
+	var burn := SwingFx.color("windup")
+	for id: int in windups.keys():
+		var w: Array = windups[id]
+		w[0] = float(w[0]) + delta
+		var k := float(w[0]) / maxf(float(w[1]), 0.01)
+		if k > 1.0:
+			windups.erase(id)
+			continue
+		burn.a = clampf((k - from) / maxf(1.0 - from, 0.01), 0.35, 1.0)
+		want[id] = burn
+	for id: int in _rimmed.keys():
+		if not want.has(id):
+			var a := view.get_actor(id)
+			if a != null:
+				a.set_rim(Color(0, 0, 0, 0))
+			_rimmed.erase(id)
+	for id: int in want:
+		var a := view.get_actor(id)
+		if a != null:
+			a.set_rim(want[id])
+			_rimmed[id] = true
+	_reach_arc(cc, aim)
+
+func _reach_arc(cc: CombatClient, aim: Vector2) -> void:
+	var f := SwingFx.feel()
+	var col := Telegraphs.AIM_COLOR
+	col.a = float(f.get("aim_arc_alpha", 0.3))
+	var near := float(f.get("aim_arc_tiles", 6.0))
+	var show := cc != null and col.a > 0.0 and float(cc.status.get("range_ft", 0)) <= 0.0 and cw.body != null and cw.body.roll_t < 0.0
+	if show:
+		show = false
+		for r: ClientWorld.RemoteEntity in cw.remotes.values():
+			if r.kind != HostEntity.Kind.PLAYER and r.max_hp > 0 and r.hp > 0 and r.pos.distance_to(cw.view_pos()) <= near \
+					and (cc.in_fight(r.id) or int(target.get("id", 0)) == r.id):
+				show = true
+				break
+	if not show:
+		telegraphs.set_reach_arc({}, col)
+		return
+	var box := cw.body.size
+	var c := actor_center(cw.my_id)
+	telegraphs.set_reach_arc(Telegraphs.describe(Telegraphs.Shape.ARC, c, aim - c,
+		box.x * 0.5 + K.ft(float(cc.status.get("reach_ft", 5))), 2.0, Telegraphs.arc_half(), box * 0.5), col)
+
 ## The monster under the mouse (0: none).
 func _hovered() -> int:
-	var t := view.tile_at_screen(get_viewport().get_mouse_position())
-	var p := Vector2(t) + Vector2(0.5, 0.5)
+	var p := aim_point()
 	for r: ClientWorld.RemoteEntity in cw.remotes.values():
 		if Rect2(r.pos - Vector2(r.size.x * 0.5, 0), r.size).grow(0.5).has_point(p):
 			return r.id

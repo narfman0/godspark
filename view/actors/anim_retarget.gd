@@ -105,9 +105,10 @@ static func _load_reference() -> bool:
 
 ## A retargeted Animation for `target` (tracks addressed by skeleton_path from the
 ## AnimationPlayer's root node). model_root owns target's skins. rig_id keys the cache.
+## span (from, to seconds): sample only that stretch of the clip, its times kept.
 static func load_clip(clip_path: String, skeleton_path: String, target: Skeleton3D,
-		rig_id: String, loop := true, model_root: Node = null, strip_root_motion := true) -> Animation:
-	var cache_key := "%s|%s|%s" % [clip_path, skeleton_path, rig_id]
+		rig_id: String, loop := true, model_root: Node = null, strip_root_motion := true, span := Vector2.ZERO) -> Animation:
+	var cache_key := "%s|%s|%s|%s" % [clip_path, skeleton_path, rig_id, span]
 	if _clip_cache.has(cache_key):
 		return _clip_cache[cache_key]
 	if not GltfCache.exists(clip_path) or not _load_reference():
@@ -173,9 +174,11 @@ static func load_clip(clip_path: String, skeleton_path: String, target: Skeleton
 	var dst_scale := dst_space.basis.get_scale().x
 	var src_rot := src_space.basis.orthonormalized()
 	var dst_rot := dst_space.basis.orthonormalized()
-	var n := maxi(1, int(ceil(src.length * SAMPLE_FPS)))
+	var t0 := clampf(span.x, 0.0, src.length)
+	var t1 := src.length if span == Vector2.ZERO else minf(span.y, src.length)
+	var n := maxi(1, int(ceil((t1 - t0) * SAMPLE_FPS)))
 	for f in n + 1:
-		var time := minf(f / SAMPLE_FPS, src.length)
+		var time := minf(t0 + f / SAMPLE_FPS, t1)
 		# Source forward kinematics in scene space (Synty skeletons list parents first)
 		var rs: Array[Basis] = []
 		var ps: Array[Vector3] = []

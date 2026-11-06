@@ -1,7 +1,9 @@
 ## Wind-up telegraphs from SWING events and the quick-spell aiming preview: an SRD shape (arc,
 ## cone, line, circle, square) drawn flat on the front plane, filling up over the wind-up.
-## Monsters' in vermilion, other players' areas in teal, the own aim in pale gold. A pool of
-## quads with the telegraph shader; nothing is allocated per frame.
+## Monsters' in vermilion, other players' areas in teal, the own aim in pale gold. A melee arc
+## is the shape the host tests: the swinger's box grown by the weapon's reach, within
+## data/combat.json melee.arc_half_angle_deg of the aim. A pool of quads with the telegraph
+## shader; nothing is allocated per frame.
 class_name Telegraphs
 extends Node3D
 
@@ -11,6 +13,8 @@ enum Shape { ARC, CONE, LINE, CIRCLE, SQUARE }
 const MONSTER_COLOR := Color(0.85, 0.27, 0.17, 1.0)
 const ALLY_COLOR := Color(0.18, 0.61, 0.58, 0.85)
 const AIM_COLOR := Color(0.96, 0.85, 0.45, 0.9)
+## The own swing: the same gold, lighter (it shows at every swing).
+const SWING_COLOR := Color(0.96, 0.85, 0.45, 0.55)
 ## Melee reach from a monster's edge, tiles (SRD 5 ft).
 const MELEE_REACH := 2.0
 
@@ -18,9 +22,11 @@ var quads: Array[MeshInstance3D] = []
 ## Per quad: {t, dur, src}
 var live: Array = []
 var preview: MeshInstance3D
+## The next swing's arc, while a foe is near (its own quad: it stands through a spell's preview).
+var arc: MeshInstance3D
 
 func _ready() -> void:
-	for i in CAP + 1:
+	for i in CAP + 2:
 		var mi := MeshInstance3D.new()
 		var q := QuadMesh.new()
 		q.size = Vector2.ONE
@@ -33,14 +39,20 @@ func _ready() -> void:
 		add_child(mi)
 		if i == CAP:
 			preview = mi
+		elif i == CAP + 1:
+			arc = mi
 		else:
 			quads.append(mi)
 			live.append({"t": 0.0, "dur": -1.0, "src": 0})
 
-## A shape as data: {shape, origin, dir, size, width, half}. Pure (tests read it).
-static func describe(shape: int, origin: Vector2, dir: Vector2, size: float, width := 2.0, half := 70.0) -> Dictionary:
+## A shape as data: {shape, origin, dir, size, width, half, box}. Pure (tests read it). box: half
+## a swinger's box; an arc's edge runs at (size - box.x) from that box, not from its centre.
+static func describe(shape: int, origin: Vector2, dir: Vector2, size: float, width := 2.0, half := 70.0, box := Vector2.ZERO) -> Dictionary:
 	return {"shape": shape, "origin": origin, "dir": dir.normalized() if dir.length() > 0.001 else Vector2.RIGHT,
-		"size": maxf(0.3, size), "width": width, "half": half}
+		"size": maxf(0.3, size), "width": width, "half": half, "box": box}
+
+static func arc_half() -> float:
+	return float(CombatTempo.section("melee").get("arc_half_angle_deg", 70.0))
 
 ## The shape a SWING event telegraphs, from the swinger's box (pos = feet, size in tiles).
 ## Spells: their SRD area (`area` from the spell: {shape: SRD.AoEShape, size_ft, range_ft}).
@@ -50,7 +62,7 @@ static func for_swing(ev: Dictionary, pos: Vector2, size: Vector2, area := {}) -
 	var dir := aim - c
 	match int(ev.get("mode", 0)):
 		CombatCodec.Mode.MELEE:
-			return describe(Shape.ARC, c, dir, size.x * 0.5 + MELEE_REACH, 2.0, 70.0)
+			return describe(Shape.ARC, c, dir, size.x * 0.5 + K.ft(float(ev.get("reach_ft", 5.0))), 2.0, arc_half(), size * 0.5)
 		CombatCodec.Mode.RANGED, CombatCodec.Mode.THROW:
 			return describe(Shape.LINE, c, dir, minf(dir.length(), 40.0), 0.5)
 		CombatCodec.Mode.SAVE_ACTION:
@@ -77,7 +89,8 @@ static func area_shape(area: Dictionary, caster: Vector2, aim: Vector2) -> Dicti
 			return describe(Shape.SQUARE, origin, dir, size)
 	return describe(Shape.CIRCLE, origin, dir, size)
 
-func show_shape(d: Dictionary, dur: float, color: Color, src := 0) -> void:
+## follow: the shape stays on `src` (the own swing, on a body that keeps running).
+func show_shape(d: Dictionary, dur: float, color: Color, src := 0, follow := false) -> void:
 	var best := 0
 	var bt := -1.0
 	for i in CAP:
@@ -91,7 +104,7 @@ func show_shape(d: Dictionary, dur: float, color: Color, src := 0) -> void:
 		if float(l["t"]) > bt:
 			bt = float(l["t"])
 			best = i
-	live[best] = {"t": 0.0, "dur": maxf(0.25, dur), "src": src}
+	live[best] = {"t": 0.0, "dur": maxf(0.25, dur), "src": src, "follow": follow}
 	_apply(quads[best], d, color, 0.0)
 
 func set_preview(d: Dictionary) -> void:
@@ -114,6 +127,7 @@ func _apply(mi: MeshInstance3D, d: Dictionary, color: Color, progress: float) ->
 	m.set_shader_parameter("dir", d["dir"])
 	m.set_shader_parameter("width", float(d["width"]))
 	m.set_shader_parameter("half_deg", float(d["half"]))
+	m.set_shader_parameter("box", d.get("box", Vector2.ZERO))
 	m.set_shader_parameter("color", color)
 	m.set_shader_parameter("progress", progress)
 	mi.visible = true
@@ -123,6 +137,19 @@ func cancel_from(src: int) -> void:
 		if int(live[i]["src"]) == src:
 			live[i]["dur"] = -1.0
 			quads[i].visible = false
+
+## The swing that follows `src` stands at this centre now (tiles).
+func move_from(src: int, origin: Vector2) -> void:
+	for i in CAP:
+		if int(live[i]["src"]) == src and bool(live[i].get("follow", false)) and float(live[i]["dur"]) >= 0.0:
+			quads[i].position = Vector3(origin.x * K.TILE_M, origin.y * K.TILE_M, quads[i].position.z)
+
+## The faint arc of the next swing, over the aim; {} clears it.
+func set_reach_arc(d: Dictionary, color: Color) -> void:
+	if d.is_empty():
+		arc.visible = false
+		return
+	_apply(arc, d, color, 0.0)
 
 func step(dt: float) -> void:
 	for i in CAP:

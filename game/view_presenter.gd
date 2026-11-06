@@ -32,8 +32,9 @@ var _dress_wait := 0.0
 var _actors := {}
 ## id -> true while its carried torch is lit (look.light "torch": lit when the sun is low)
 var _carried := {}
-## id -> [one-shot state, until msec (-1: held)] from combat events.
+## id -> [held state, until msec (-1: held)]: the death pose, from combat events.
 var _oneshot := {}
+var _rolling := false
 
 func world_ready(world: TileWorld, id: int) -> void:
 	my_id = id
@@ -94,8 +95,15 @@ func actor_added(id: int, look: Dictionary) -> void:
 	if look.get("kind") == "player" and not look.has("slug"):
 		look = look.duplicate()
 		look["slug"] = "player"  # data/looks.json decides the body; a primitive without art
-	view.add_actor(id, look)
+	var body: ActorBody = view.add_actor(id, look)
 	_actors[id] = true
+	if body.kind == "forge":
+		body.set_weapon((body.visual as ForgeMonster).wielded())
+	if id == my_id:
+		_own_weapon()
+		var items := cw.system(HostSystem.ITEMS) as ItemsClient
+		if items != null and not items.equipment_changed.is_connected(_on_equipment):
+			items.equipment_changed.connect(_on_equipment)
 	if fx != null:
 		fx.actor_added(id, look)
 	if id == my_id:
@@ -123,11 +131,15 @@ func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 			light.remove_light(CARRIED_LIGHT + id)
 		_carried[id] = lit
 	if id == my_id:
+		_watch_roll()
 		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
 		var want := torch_strength()
 		if want != _torch:
 			_torch = want
 			light.add_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8, want)
+
+func _on_equipment(_slots: Array) -> void:
+	_own_weapon()
 
 func chunk_arrived(_cx: int, _cy: int) -> void:
 	_dress_dirty = true
@@ -143,6 +155,15 @@ func _dress() -> void:
 			recs.append({"id": Dressing.name_of(int(r["id"])), "x": r["x"], "y": r["y"]})
 	dressing.set_objects(recs)
 
+## The own roll shows from its first step: the body is predicted, the look with it.
+func _watch_roll() -> void:
+	var rolling := cw.body.roll_t >= 0.0
+	if rolling and not _rolling:
+		var a := view.get_actor(my_id)
+		if a != null:
+			a.roll(Dodge.duration())
+	_rolling = rolling
+
 func chronicle_lines(lines: PackedStringArray) -> void:
 	if chronicle != null:
 		chronicle.add_lines(lines)
@@ -155,28 +176,55 @@ func meta_arrived(_meta: Dictionary) -> void:
 	if light != null:
 		light.reset()     # anything lit before the sky line was known
 
-## Combat events drive the actors' existing one-shot clips ("attack", "hit", "death"),
-## held over the movement state for a moment; an actor without art shows nothing new.
+## Combat events drive the actors: swings, rolls and flinches lie over the movement (ActorBody),
+## the death clip holds as a state until the actor is back on its feet.
 func combat_event(ev: Dictionary) -> void:
 	if view == null:
 		return
 	if fx != null:
 		fx.combat_event(ev)
-	var now := Time.get_ticks_msec()
+	var src := view.get_actor(int(ev["src"]))
 	match int(ev.get("kind", 0)):
 		CombatCodec.Ev.SWING:
-			if _actors.has(int(ev["src"])):
-				_oneshot[int(ev["src"])] = ["attack", now + maxi(250, roundi(float(ev.get("total", 0.4)) * 1000.0))]
+			if src != null:
+				var at: Vector2 = fx.actor_center(int(ev["src"])) if fx != null else Vector2.ZERO
+				var aim: Vector2 = ev.get("aim", at + Vector2.RIGHT)
+				if int(ev.get("mode", 0)) in [CombatCodec.Mode.MELEE, CombatCodec.Mode.RANGED, CombatCodec.Mode.THROW] and int(ev["src"]) != my_id:
+					_wield(src, String(ev.get("what", "")))
+				src.swing(ev, aim - at)
+		CombatCodec.Ev.CANCEL:
+			if src != null:
+				src.stop_swing()
+		CombatCodec.Ev.ROLL:
+			if src != null and int(ev["src"]) != my_id:     # the own roll started with the press
+				src.roll(float(ev.get("duration", Dodge.duration())))
 		CombatCodec.Ev.DAMAGE:
-			var d := int(ev["dst"])
-			if _actors.has(d) and String(_oneshot.get(d, [""])[0]) != "death":
-				_oneshot[d] = ["hit", now + 300]
+			var victim := view.get_actor(int(ev["dst"]))
+			if victim != null:
+				victim.flinch()
 		CombatCodec.Ev.DEATH, CombatCodec.Ev.DOWNED:
+			if view.get_actor(int(ev["dst"])) != null:
+				view.get_actor(int(ev["dst"])).stop_swing()
 			if _actors.has(int(ev["dst"])):
 				_oneshot[int(ev["dst"])] = ["death", -1]
 		CombatCodec.Ev.HEAL:
 			if String(_oneshot.get(int(ev["dst"]), [""])[0]) == "death":
 				_oneshot.erase(int(ev["dst"]))
+
+## What a remote creature swings shows in its hand from then on (bodies have no gear on the
+## wire): the first name of the SWING that is a weapon this table knows.
+func _wield(a: ActorBody, what: String) -> void:
+	for w in what.split(", ", false):
+		if not Looks.weapon(w).is_empty():
+			a.set_weapon(w)
+			return
+
+## The own hand: the wielded item's SRD base.
+func _own_weapon() -> void:
+	var a := view.get_actor(my_id) if view != null else null
+	var items := cw.system(HostSystem.ITEMS) as ItemsClient if cw != null else null
+	if a != null and items != null:
+		a.set_weapon(String(items.equipment.wielded().get("base", "")))
 
 ## Back on their feet (revived, stabilised, healed, respawned): let go of the death pose.
 func actor_vitals(id: int, hp: int, max_hp: int) -> void:

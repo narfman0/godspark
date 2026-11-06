@@ -5,6 +5,7 @@
 ##
 ##   var m := ForgeMonster.load_monster("wolf")    # null if not synced (see last_error)
 ##   add_child(m); m.play("walk")
+##   m.swing(windup, total, "attack_melee")      # the clip's blow lands at windup
 ##
 ## Contract (monster-forge): metres, origin at the feet, +Y up, the creature faces -Z. This
 ## node turns the model by PI, so like every actor visual it faces +Z.
@@ -26,6 +27,10 @@ var anim: AnimationPlayer
 var aabb := AABB()          ## LOD0 rest-pose AABB, model space (metres)
 var current_clip := ""
 var _loop_clip := "idle"
+var layer: SwingLayer
+var _weapon_node: Node3D
+## "monster/clip" -> seconds of its blow (the fastest moment of its fastest bone)
+static var _contacts := {}
 
 static func dir_of(monster_id: String) -> String:
 	return "%s/%s" % [ROOT, monster_id]
@@ -86,6 +91,8 @@ func _setup(dir: String) -> bool:
 	lib.add_animation("RESET", _reset_animation())
 	anim.add_animation_library("", lib)
 	anim.animation_finished.connect(_on_finished)
+	anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	layer = SwingLayer.new(skeleton)
 	return true
 
 ## Every bone keyed at rest (runtime GLTFDocument adds no RESET; see godot-dnd docs).
@@ -132,6 +139,114 @@ func _add_clip(lib: AnimationLibrary, dir: String, c: String) -> void:
 		a.loop_mode = Animation.LOOP_LINEAR if c in LOOPING else Animation.LOOP_NONE
 		lib.add_animation(c if names.size() == 1 else "%s:%s" % [c, n], a)
 	sc.free()
+
+## The first SRD weapon the creature wields that this table can show ("" for none): the forge
+## models are bare-handed and carry it on their grip bone.
+func wielded() -> String:
+	for w: Variant in info.get("wields", []):
+		if String(w) != "shield" and not Looks.weapon(String(w)).is_empty():
+			return String(w)
+	return ""
+
+## Seconds into a clip where its blow lands: forward kinematics over the clip, the moment any
+## bone moves fastest. Cached per creature and clip.
+func contact_of(c: String) -> float:
+	var key := "%s/%s" % [id, c]
+	if _contacts.has(key):
+		return _contacts[key]
+	var a := anim.get_animation(c)
+	if a == null:
+		return 0.0
+	var rot := {}
+	var pos := {}
+	for t in a.get_track_count():
+		var bone := skeleton.find_bone(String(a.track_get_path(t).get_concatenated_subnames()))
+		if bone >= 0:
+			match a.track_get_type(t):
+				Animation.TYPE_ROTATION_3D: rot[bone] = t
+				Animation.TYPE_POSITION_3D: pos[bone] = t
+	var last := PackedVector3Array()
+	var best := 0.0
+	var at := a.length * 0.5
+	var step_s := 1.0 / 30.0
+	var t := 0.0
+	while t <= a.length + 1e-6:
+		var g: Array[Transform3D] = []
+		g.resize(skeleton.get_bone_count())
+		var now := PackedVector3Array()
+		now.resize(skeleton.get_bone_count())
+		for b in skeleton.get_bone_count():
+			var rest := skeleton.get_bone_rest(b)
+			var xf := Transform3D(Basis(a.rotation_track_interpolate(rot[b], t)) if rot.has(b) else rest.basis,
+				a.position_track_interpolate(pos[b], t) if pos.has(b) else rest.origin)
+			var p := skeleton.get_bone_parent(b)
+			g[b] = xf if p < 0 else g[p] * xf
+			now[b] = g[b].origin
+			if not last.is_empty():
+				var v := (now[b] - last[b]).length() / step_s
+				if v > best:
+					best = v
+					at = t
+		last = now
+		t += step_s
+	_contacts[key] = at
+	return at
+
+## A swing on this clip: its blow at `windup`, its end at `total` seconds. False without it.
+func swing(c: String, windup: float, total: float, f_in: float, f_out: float) -> bool:
+	if not has_clip(c):
+		return false
+	var a := anim.get_animation(c)
+	var at := contact_of(c)
+	if not layer.has_clip(c):
+		layer.add_clip(c, a)
+	var plan: Array = []
+	if windup > 0.0:
+		plan.append({"clip": c, "from": 0.0, "to": at, "start": 0.0, "dur": windup})
+	plan.append({"clip": c, "from": at, "to": a.length, "start": windup, "dur": maxf(total - windup, SwingPlan.MIN_POST)})
+	layer.start(plan, f_in, f_out, SwingPlan.HEAD_START)
+	return true
+
+func stop_swing() -> void:
+	if layer != null:
+		layer.stop()
+
+## A one-shot laid over the movement (the flinch): the whole clip over `dur`.
+func flash_clip(c: String, dur: float, f_in: float, f_out: float) -> void:
+	if not has_clip(c) or layer.active():
+		return
+	if not layer.has_clip(c):
+		layer.add_clip(c, anim.get_animation(c))
+	layer.start([{"clip": c, "from": 0.0, "to": anim.get_animation(c).length, "start": 0.0, "dur": dur}], f_in, f_out)
+
+## Each frame, from the actor: the movement first, then what lies over it.
+func step(delta: float, moving: bool) -> void:
+	if anim != null:
+		anim.advance(delta)
+		layer.step(delta, moving)
+
+## A weapon on the grip bone: an SRD slug, "" for none.
+func set_weapon(slug: String) -> void:
+	if _weapon_node != null:
+		_weapon_node.get_parent().remove_child(_weapon_node)
+		_weapon_node.queue_free()
+		_weapon_node = null
+	var bone := skeleton.find_bone("grip_r")
+	if slug == "" or bone < 0:
+		return
+	var conf: Dictionary = Looks.table().get("weapons", {}).get("forge_grip", {})
+	var rot: Array = conf.get("rot_deg", [0, 0, 0])
+	var off: Array = conf.get("offset_m", [0, 0, 0])
+	var att := BoneAttachment3D.new()
+	att.bone_name = "grip_r"
+	skeleton.add_child(att)
+	var mesh := WeaponMesh.build(Looks.weapon(slug), maxf(aabb.size.y, 0.3) / 1.8)
+	var at := Node3D.new()
+	at.rotation = Vector3(deg_to_rad(float(rot[0])), deg_to_rad(float(rot[1])), deg_to_rad(float(rot[2])))
+	at.position = Vector3(float(off[0]), float(off[1]), float(off[2]))
+	att.add_child(at)
+	at.add_child(mesh)
+	_weapon_node = att
 
 func clips() -> PackedStringArray:
 	var out := PackedStringArray()

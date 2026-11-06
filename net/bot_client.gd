@@ -41,6 +41,9 @@ var _join_pos := Vector2.INF
 var _kills := 0
 var _clear_t := 0.0
 var _fight_hooked := false
+## Seconds between the rolls of a fighting bot.
+const ROLL_EVERY := 2.5
+var _roll_wait := ROLL_EVERY
 
 var session: NetSession
 var input := PlayerInput.new()
@@ -258,6 +261,11 @@ func _fight_step(delta: float) -> void:
 			if int(ev["kind"]) == CombatCodec.Ev.DEATH:
 				_kills += 1)
 	input = cc.fight_step(input)
+	# rolls now and then, so the smokes cover a roll over real sockets
+	_roll_wait -= delta
+	if _roll_wait <= 0.0:
+		_roll_wait = ROLL_EVERY
+		input.roll = true
 	var lc := cw().system(HostSystem.LIFE)
 	var live := cw().remotes.values().any(func(r: ClientWorld.RemoteEntity) -> bool:
 		return r.kind != HostEntity.Kind.PLAYER and r.max_hp > 0 and r.hp > 0 \

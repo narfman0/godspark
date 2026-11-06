@@ -159,6 +159,10 @@ static func _model_available(def: Dictionary, t: Dictionary, has_file: Callable)
 	var clips: Dictionary = t.get("clips", {})
 	return has_file.call(String(clips.get("ref", ""))) and has_file.call(String(clips.get(rig_set, {}).get("idle", "")))
 
+## The row of an SRD weapon (slug, or a shown name: "War Pick"), {} when it has none.
+static func weapon(what: String) -> Dictionary:
+	return table().get("weapons", {}).get("rows", {}).get(what.strip_edges().to_lower().replace(" ", "-"), {})
+
 static func _color(v: Variant, fallback: Color) -> Color:
 	if v is Color:
 		return v
@@ -179,4 +183,8 @@ static func all_paths() -> PackedStringArray:
 		elif clips[k] is Dictionary:
 			for p in (clips[k] as Dictionary).values():
 				out.append(String(p))
+	for p: Variant in t.get("swings", {}).get("clips", {}).values():
+		out.append(String(p))
+	for r: Dictionary in t.get("weapons", {}).get("rows", {}).values():
+		out.append(String(r.get("path", "")))
 	return out

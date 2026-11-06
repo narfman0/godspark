@@ -1,6 +1,6 @@
 ## Nameplates with a thin hit point bar, drawn over the world: other players always (name and
 ## hit points, "down" when downed), monsters while in a fight (hurt, or seen acting in the last
-## few seconds) or under the cursor. Rank changes the frame (elite: a double blue rule,
+## few seconds), under the cursor, or engaged (what the next swing would land on). Rank changes the frame (elite: a double blue rule,
 ## champion: gold with a star, boss: vermilion with points; minions have a plain thin one);
 ## affix names sit under the name. Rank and affixes come from the monsters client's
 ## monster_info(id, info) signal when that system exists, else from look.rank, else none.
@@ -55,7 +55,7 @@ func forget(id: int) -> void:
 	info.erase(id)
 	active.erase(id)
 
-func step(cam: Camera3D, hovered: int) -> void:
+func step(cam: Camera3D, hovered: int, engaged := 0) -> void:
 	var cw := fx.cw
 	if cam == null or cw == null:
 		return
@@ -70,9 +70,9 @@ func step(cam: Camera3D, hovered: int) -> void:
 				continue
 			var fighting := r.hp < r.max_hp or now - int(active.get(r.id, -100000)) < FIGHT_SECS * 1000.0
 			# Life's calm people get the interface's name plate on hover (GameUi PeopleMarks)
-			if not fighting and (r.id != hovered or (lc != null and lc.is_person(r.id))):
+			if not fighting and r.id != engaged and (r.id != hovered or (lc != null and lc.is_person(r.id))):
 				continue
-		var first := priority(r.id == hovered, player, String(info.get(r.id, {}).get("rank", "")))
+		var first := priority(r.id == hovered or r.id == engaged, player, String(info.get(r.id, {}).get("rank", "")))
 		cand.append([first, r.pos.distance_squared_to(me), r])
 	cand.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
 	var sc := UiTheme.scale_for(get_viewport().get_visible_rect().size)
