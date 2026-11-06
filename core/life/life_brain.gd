@@ -118,3 +118,9 @@ func _expire() -> void:
 ## Life's people are only ever near players: never the far-away slow think.
 func _nearest_player_dist(_host: WorldHost, _e: HostEntity) -> float:
 	return 0.0
+
+## Fighters on watch wander only over their post's span.
+func _num(k: String, d: float) -> float:
+	if k == "wander_tiles":
+		return post_span
+	return super(k, d)

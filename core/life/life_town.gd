@@ -117,7 +117,12 @@ func _spot(h: WorldHost, sid: int, cells: Array, k: int, spread: float, slug: St
 	var c: Vector2i = cells[k % cells.size()]
 	var p := Vector2(c.x + 0.5, c.y)
 	if not _has_places(h, sid) or cells.size() == 1:
-		var off := float((k * 7) % 13 - 6) * spread / 6.0
+		# spread over the site, keeping 24 tiles around its centre clear (the spawn point of a
+		# spawn town, where joining players dig and build)
+		var m := (k * 7) % 13 - 6
+		var off := float(m) * spread / 6.0
+		if absf(off) < 24.0:
+			off += 24.0 * (1.0 if m >= 0 else -1.0)
 		p.x += off
 	var ms := life.monsters(h)
 	if ms != null:
@@ -133,7 +138,7 @@ func _spawn_guard(h: WorldHost, sid: int, s: SimSettlement, slug: String, k: int
 	var given := SimNames.make(r, s.culture if SimData.names.has(s.culture) else "place", {})
 	var e := life.spawn_person(h, {"culture": s.culture, "slug": slug, "role": "guard", "pos": pos, "post": pos,
 		"faction": s.faction, "sim": {"kind": "settlement", "id": sid, "role": "guard"}, "fighter": true,
-		"name": "%s, guard of %s" % [given, s.name], "talk": true, "friendly": true, "span": 10.0})
+		"name": "%s, guard of %s" % [given, s.name], "talk": true, "friendly": true, "span": 3.0})
 	if e != null:
 		active[sid]["guards"][e.id] = slug
 

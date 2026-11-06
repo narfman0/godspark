@@ -55,6 +55,10 @@ func handle(kind: int, data: PackedByteArray) -> void:
 func standing(faction: String) -> int:
 	return int(factions.get(faction, {}).get("standing", 0))
 
+## One of Life's people (not a monster to hunt).
+func is_person(id: int) -> bool:
+	return people.has(id)
+
 func person(id: int) -> Dictionary:
 	return people.get(id, {})
 

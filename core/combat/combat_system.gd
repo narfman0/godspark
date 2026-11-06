@@ -385,12 +385,28 @@ func _life_sys() -> HostSystem:
 	return _life
 
 ## With Life: a player's attack aimed right at a creature it is not hostile to (a townsperson,
-## a neutral beast) is allowed (Life then makes it and its faction hostile). Areas and sweeps
+## a neutral beast) is allowed (Life then makes it and its faction hostile), except while the
+## player is fighting foes (then a bystander under the aim is not hit). Areas and sweeps
 ## never hit FRIENDLY or NEUTRAL creatures. Without Life: never (nothing changes).
 func _aimed(a: Actor, b: Actor, aim: Variant) -> bool:
 	if _life_sys() == null or not a.e.is_player() or b.e.is_player() or not aim is Vector2 or aim == Vector2.INF:
 		return false
-	return b.e.body.rect().grow(0.5).has_point(aim)
+	if not b.e.body.rect().grow(0.5).has_point(aim):
+		return false
+	# in the middle of a fight a blow that lands on a bystander is a miss, not a choice
+	if now - a.last_hostile <= CombatTempo.num("in_combat_s", 5.0) and not hostile(a.e, b.e):
+		var foes := false
+		for o: Actor in actors.values():
+			if o != a and _targetable(o) and hostile(a.e, o.e) and now - o.last_hostile <= CombatTempo.num("in_combat_s", 5.0):
+				foes = true
+				break
+		if foes:
+			return false
+	# a foe at the aim point is what it was aimed at, not the bystander beside it
+	for o: Actor in actors.values():
+		if o != a and o != b and _targetable(o) and o.e.body.rect().grow(0.5).has_point(aim) and hostile(a.e, o.e):
+			return false
+	return true
 
 func _targetable(b: Actor) -> bool:
 	return b.e.combatant != null and b.dead_at < 0.0 and b.downed_at < 0.0 and b.e.combatant.current_hp > 0
@@ -643,7 +659,7 @@ func _melee(a: Actor, s: Dictionary, step: Dictionary) -> void:
 	if touched.is_empty():
 		counts["whiffs"] += 1
 		return
-	touched.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0] - 0.01 or (absf(x[0] - y[0]) <= 0.01 and x[1] < y[1]))
+	touched.sort_custom(func(x: Array, y: Array) -> bool: return (x[3] and not y[3]) or (x[3] == y[3] and (x[0] < y[0] - 0.01 or (absf(x[0] - y[0]) <= 0.01 and x[1] < y[1]))))
 	var primary: Actor = touched[0][2]
 	var opts := {"two_handed": bool(step.get("two", false))}
 	var ev := _weapon_attack(a, primary, opts, center)

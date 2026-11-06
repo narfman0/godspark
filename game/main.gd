@@ -11,6 +11,8 @@
 ##             one N tiles from the spawn point (default -24)
 ##   host modes: pack=SLUG|SLUG:RANK|raiders:CULTURE[,...] ranked packs with brains through the
 ##             spawn director's path (pack_step=N tiles apart); xp=N multiplies kill XP
+##   host modes: life_raid=S / life_caravan=S: a raid (caravan) from the nearest town arrives
+##             at the spawn town S host seconds after start (Life's cheat; tools/net_smoke.sh LIFE=1)
 ##   host modes: spawns=0|1 turns the monsters' spawn director off or on (default: on for
 ##             generated worlds, off for the fixed test world)
 ##   client modes: class=SLUG, the SRD class of a new character (default fighter)
@@ -132,6 +134,14 @@ func _start_host(headless: bool, dedicated: bool) -> void:
 	var ms: Variant = session.host.system(HostSystem.MONSTERS)
 	if ms != null and opts.has("spawns"):
 		ms.set("director_enabled", 1 if String(opts["spawns"]) != "0" else 0)
+	# life_raid=SECONDS / life_caravan=SECONDS: a raid (caravan) arrives at the spawn town then
+	var life: Variant = session.host.system(HostSystem.LIFE)
+	if life != null and String(opts.get("life", "1")) == "0":
+		life.set("enabled", false)          # life=0: no people materialize (stance still applies)
+	if life != null:
+		for k: String in ["raid", "caravan"]:
+			if opts.has("life_" + k):
+				life.call("schedule", k, float(opts["life_" + k]))
 	print("hosting on port %d (%s), %d saved players in %s" % [port, "dedicated" if dedicated else "listen", n, world_dir])
 	# Emitted on the host thread: handle it on the main thread.
 	session.host_ep.player_left.connect(_on_player_left, CONNECT_DEFERRED)
@@ -320,6 +330,9 @@ func _report() -> void:
 		print("HOSTSTATS monsters: director %s, spawned %d, alive %d, packs %d, despawned %d, plans %d, lairs %s" % [
 				ms.call("director_on"), ms.stats["spawned"], ms.call("alive_count"), ms.director.stats["packs"],
 				ms.director.stats["despawned"], ms.stats["plans"], ms.lairs.stats])
+	var life: Variant = h.system(HostSystem.LIFE)
+	if life != null:
+		print("HOSTSTATS life: " + String(life.call("summary")))
 	print("HOSTSTATS traffic by message type:\n" + ep.traffic_report())
 
 ## Debug keys on a host with a local player: F6 one game hour, F7 one game day.

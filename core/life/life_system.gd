@@ -193,6 +193,8 @@ func add_standing(entity_id: int, faction: String, n: int, why: String) -> void:
 	d[faction] = clampi(int(d.get(faction, int(Life.num("start", 0)))) + n, -100, 100)
 	_cache.clear()
 	stats["standing_changes"] += 1
+	if debug:
+		print("LIFE standing %s with %s %+d -> %d: %s" % [e.name, faction, n, int(d[faction]), why])
 	host.send_sys(sys_id(), LifeCodec.Msg.STANDING, LifeCodec.write({"faction": faction, "value": standing(entity_id, faction),
 		"why": why, "n": n}), entity_id)
 
@@ -329,6 +331,7 @@ func tick(h: WorldHost) -> void:
 			town.scan(h, players)
 			road.scan(h, players)
 		_expire_grudges()
+		_run_scheduled(h)
 		for p: HostEntity in players:
 			if int(_factions_sent.get(p.id, -1)) != h.sim.factions.size():
 				_send_factions(h, p)
@@ -531,6 +534,52 @@ func _flush(h: WorldHost) -> void:
 		_out_gone = []
 
 # --- cheats (tests, tools, smokes) ------------------------------------------------------------
+
+var _scheduled: Array = []
+
+## Host cheat: in `after_s` host seconds a raid (or caravan) from the nearest other settlement
+## arrives at `to_site` (default: the settlement nearest the spawn point). Raids arriving at
+## a watched settlement are fought in real time.
+func schedule(kind: String, after_s: float, to_site := -1) -> void:
+	_scheduled.append({"kind": kind, "at": now() + after_s, "to": to_site})
+
+func _run_scheduled(h: WorldHost) -> void:
+	for i in range(_scheduled.size() - 1, -1, -1):
+		var job: Dictionary = _scheduled[i]
+		if now() < float(job["at"]):
+			continue
+		_scheduled.remove_at(i)
+		var to := int(job["to"])
+		var sim := h.sim
+		if to < 0:
+			var bd := INF
+			for sid: int in WorldSim._sorted_keys(sim.settlements):
+				var d := absf(sim.settlements[sid].x - h.spawn.x)
+				if d < bd:
+					bd = d
+					to = sid
+		var from := -1
+		var fd := INF
+		for sid: int in WorldSim._sorted_keys(sim.settlements):
+			if sid == to or sim.path_between(sid, to, WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK).is_empty():
+				continue
+			var d := absf(sim.settlements[sid].x - sim.settlements[to].x)
+			if d < fd:
+				fd = d
+				from = sid
+		var pid := cheat_party(String(job["kind"]), from, to, 1.0)
+		if pid > 0:
+			var p: SimParty = sim.parties[pid]
+			p.leg = p.path.size() - 1
+			p.frac = 0.0
+			SimConflict._arrive(sim, p)
+		print("LIFE cheat: %s %d from %s arrives at %s (%s)" % [job["kind"], pid, sim._site_label(from) if from >= 0 else "-",
+			sim._site_label(to) if to >= 0 else "-", "fought in real time" if pid > 0 and sim.parties.has(pid) and sim.parties[pid].frozen else "resolved"])
+
+func summary() -> String:
+	return "towns %d, parties %d, spawned %d, alive %d, town deaths %d, party deaths %d, raids %d (done %d, stalled %d), ambushes %d, standing changes %d" % [
+		stats["towns"], stats["parties"], stats["spawned"], actors.size(), stats["town_deaths"], stats["party_deaths"], stats["raids"],
+		stats["raids_done"], int(stats.get("raids_stalled", 0)), stats["ambushes_done"], stats["standing_changes"]]
 
 ## Put a raid or a caravan on the road from one settlement to another, `frac` of the way along
 ## its last leg (raids attack the target on arrival). Returns the party id, or -1.
