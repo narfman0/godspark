@@ -270,6 +270,6 @@ work list (599 talks, 918 views, 1198 offers seen) without buying: `sim.rng.stat
 - Torches, ropes and other tile items are worthless to sell back (kind tile).
 - A smith piece taken by a buyer takes 1 ore; the sim's ore use for tools is unchanged, so a
   busy smith drains ore faster than the sim alone would.
-- The escort's "most of its cargo" is checked as "most of its people" (cargo is sold on
-  arrival before Deals looks).
+- Fixed by the integration pass (docs/tracks/m4-integration.md): the escort's cargo check, shared
+  deliveries, defence won outside the walls, torches and rope sell back, a paid room sleeps.
 - Not judged by a human: the lines' tone, the prices' feel, whether the work is worth doing.

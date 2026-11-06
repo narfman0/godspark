@@ -5,17 +5,35 @@ Underdark, biomes with their own ecology, settlements that trade, raid and starv
 long road to godhood. Working title.
 
 - Engine: Godot 4.7.1 (Forward+), GDScript.
-- Status: M2, "Leveling and combat" (integrated, first time in players' hands): on top of
-  M1's generated world, co-op digging and building, day and night and world history, there
-  are now characters that level to 100, real-time d20 combat, monsters spawned around you,
-  loot, gear and sparks. See [docs/m2.md](docs/m2.md), [docs/plan.md](docs/plan.md) and
-  [docs/architecture.md](docs/architecture.md).
+- Status: M4, "The living world on screen" (integrated, about to be played): on top of M2's
+  characters, combat, monsters and loot, the sim's settlements stand as real towns with their
+  people, caravans and raiders walk the roads, and you can talk, trade, take work and earn a
+  faction's patronage. See [docs/m4.md](docs/m4.md), [docs/m2.md](docs/m2.md),
+  [docs/plan.md](docs/plan.md) and [docs/architecture.md](docs/architecture.md).
+
+## What M4 added
+
+- **A world you can walk**: every site reachable on foot. W climbs stairs, ladders and ropes;
+  S held drops through walkways; ropes you buy or make anchor where you click and unroll
+  downward. Digging gives plain rubble you can place again.
+- **Places**: towns built by the sim's tier, with roads between them and deep roads below. They
+  grow, and fall to ruin, when no one is looking.
+- **People**: townsfolk on their daily round, guards from the real garrison, caravans with
+  wagons, raiders and patrols, all from the sim's own numbers. A fight you watch is fought in
+  real time and written back; one you don't is resolved by the sim as before.
+- **Dealings**: talk (E) to anyone who talks; rumours are real events with places on your map.
+  Shops and smiths sell what the town has at its prices. Quests come from what is happening:
+  message, bounty, escort, defend, relief, recover, and for patrons hunts and sieges.
+- **Standing**: each faction remembers. It moves prices, who attacks you and what patrons give.
+  Killing friendly or neutral people costs standing and pays nothing.
+- **Rooms**: a keeper's paid room is your respawn point, and a bed while you stay near it.
 
 ## What M2 added
 
 - **Characters**: fighter, rogue, wizard or cleric (`class=` when you first join); levels 1-100
   where every fifth is an SRD class level and the levels between give spark slots, Vigor and
-  Knacks (picked from what you did: deeds). XP from kills, shared with everyone nearby.
+  Knacks (picked from what you did: deeds). XP from kills you took part in, shared with the
+  players nearby; a guard's kill pays a quarter if you were in the fight, nothing if you watched.
 - **Combat**: real-time; every swing and spell is an SRD roll made on the host once the hit
   physically connects. Monsters wind up visibly before they strike. Downed at 0 HP: death
   saves every 4 s, a friend holds E to get you up (a healing spell or potion does too); dead,
@@ -163,9 +181,11 @@ uses; without them it falls back to the engine font.
   revive hold, inventory dragging and spell aiming want a human's judgement.
 - About two thirds of SRD magic items and spells are text only or refused; no opportunity
   attacks, two-weapon fighting, grapples, Action Surge or monster spellcasting yet.
-- XP pacing: early levels take about 5-8 minutes, but the deep bands level too fast (the
-  whole climb to 100 is about 10 hours, not the 40 planned). See
-  [docs/tracks/m2-integration.md](docs/tracks/m2-integration.md).
+- XP pacing is modelled, not played: about 3 minutes a level early, 20 at level 50, an hour in
+  the 90s, 40 hours to 100, from measured spawn rates and assumed fight lengths
+  ([docs/tracks/m4-integration.md](docs/tracks/m4-integration.md)). Quest coin and XP are first guesses.
+- Escort work needs a caravan already leaving (the sim plans them every 5 days); goods taken
+  home by raiders go into their town's stock, with no quest to win them back there.
 - Caves: worldgen joins every cave region to the rest with steps, bridges, ladders and ropes
   (docs/tracks/traversal.md), but about a quarter of cave spots 40 tiles apart still defeat a
   monster's path follower, and a few deep sites are only reachable the long way round.

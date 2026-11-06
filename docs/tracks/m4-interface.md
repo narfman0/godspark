@@ -118,14 +118,11 @@ player's actions through `DealsClient`.
 - The dialogue's portrait is a role icon on the faction's colour; people's looks are not used.
 - `work` marks come from a preview of the day's offers until someone asks; a town whose state
   changes before the first ask can show a mark for work that is then not offered (or miss one).
-- A party plate's "bound for" is the destination at spawn; a caravan that turns home keeps it.
 - The talk prompt is drawn over the person, not in the HUD's prompt box; off screen, nothing.
 - The map's "known roads" need both ends known; a road you walked to an unheard place is not
   drawn until you reach it. Party markers on the map are the people in view only.
 - Rumour "mark on map" choices live in memory (not saved); all are marked on join.
 - Standing history is this session's (Life does not mirror past reasons).
-- Escort `where` updates only when QUESTS is resent; the tracker's pointer to a moving caravan
-  lags between updates.
 - Not looked at at 1920x1080; the root scales by 1.5 there.
 - What only a human with a mouse can judge: hover and drag on the map, Shift-click and the
   nudge in the shop, whether the marks over heads read at a glance in a crowd, the dialogue's

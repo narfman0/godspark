@@ -74,7 +74,6 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 
 ## Life (M4) ([tracks/life.md](tracks/life.md))
 - Rough routes (most ascents and portal routes): people fall behind and are put back.
-- Returning cargo is not a deed yet (Items now has trade-good rows: dropped cargo is goods).
 - Wagons are a primitive cart; no cart model fetched.
 - The `ALL=1` smoke runs with `places=0`: bots' placing is flaky in a peopled town.
 
@@ -84,26 +83,21 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 - Escort work is rare: it needs a caravan already leaving that day (the sim plans caravans
   every 5 days). A sim hook to announce departures a day ahead would make it regular.
 - Recover covers raiders still abroad; goods already at the raiders' camp have no quest.
-- Patron work: the hunt is offered and taken in a test; its completion and sieges are not exercised end to end.
+- Patron work: the hunt is offered and taken in a test; its completion and sieges are not exercised end to end
+  (the end-to-end test covers message, bounty, escort, defend, relief, recover and a patron's gift).
 - Quest coin and XP, shop markups, the rumour window: first guesses, unbalanced against loot.
-- Tile items (torches, rope) cannot be sold back; a paid bed is only a respawn point.
 
 ## Interface (M4) ([tracks/m4-interface.md](tracks/m4-interface.md))
 - Portraits are role icons on faction colours; people's looks are not used.
 - Work marks preview the day's offers until someone asks (may differ if the town changes first).
-- Party plates keep the destination they spawned with; rumour map marks are not saved; the
+- Rumour map marks are not saved; the
   standing history is per session (Life does not mirror reasons).
-- The escort's pointer follows QUESTS updates, so it lags a moving caravan.
 - Not judged by a human: map hover and drag, shop Shift-click and nudge, marks in a crowd,
   the copy's tone; not looked at at 1920x1080.
 
 ## M2 after the integration pass ([tracks/m2-integration.md](tracks/m2-integration.md))
 
 Open from the integration pass
-- XP curve shape: with the director's measured kill rates no single `XP_SCALE` meets the
-  pacing target (early 3-6 min and the 90s an hour). At 8: levels 2-5 take 4.7-7.5 min but
-  level 50 ~8 min, the 90s ~6 min, ~10 h in all. The deep bands need their own XP divisor
-  (or fewer, slower deep spawns); the deep kill rates rest on assumed fight lengths.
 - Caves (M4 passability): see "Passability" below (point-to-point and every site met; joins,
   speed and Large climbers open). Ladders still stand in for roots.
 - Traversal: no rope item in shops or loot yet (crafted from supplies, two in the kit); the
@@ -113,8 +107,6 @@ Open from the integration pass
   only from areas, falls and other incidental damage, and counts as a failed death save.
 - Steady (cast_move) wins back a casting slowdown that is 1.0 in data/combat.json (none, as
   played); turning a slowdown on is a feel decision. Surefoot shrinks pushes.
-- Scripted melee on uneven ground connects rarely (the ALL smoke bots: a few hits in 20-70
-  swings); check whether players feel the same on slopes (arc vs body height).
 - Temporary hit points are mirrored to the owner only (STATUS), not to other players.
 - The attack slot (hotbar 1) is a convention of Inventory.add; nothing stops a player putting
   blocks there by hand.
@@ -135,10 +127,18 @@ Never played (beyond the first session)
 - Attack feel, telegraph dodging at real latency, hold-to-rest and revive timing, inventory
   drag, spell aiming, HUD at 1080p, whether day packs by the spawn are now too easy.
 
-## Test flakes
-- `ALL=1 tools/net_smoke.sh` failed once in four runs on main after the Places merge ("no
-  bot waited in bed for the other"), then passed three times. The bots' bed timing is
-  real-time dependent; make the wait check robust or the bots deterministic.
+## M4 after the integration pass ([tracks/m4-integration.md](tracks/m4-integration.md))
+- `kill` deeds count twice per typed kill: `add_deed("kill")` and the `kill:<type>` aggregate in
+  `Knacks.add_deed`. Deed thresholds may be tuned to it; left alone.
+- Recover ends at the raiders' town stock: the pointer goes there, but they are usually hostile
+  and no quest asks you to raid it. Goods bought elsewhere still satisfy the quest.
+- Host hitches: a town appearing is about 22 ms in one tick, a monster's plan up to about 45 ms
+  (budget 33 ms). One soak showed a single 57 s tick inside Rules that two more soaks did not
+  repeat; the cause was not found (a stalled machine is the likeliest guess, not established).
+- Slow memory growth in the soak, about 5 MB a game day after warm-up; not traced.
+- Stair treads a little apart from any flight appear in caverns (passages); seen once by eye.
+- A tilted cart on a 45-degree road still looks stiff; no cart model.
+- XP pacing rests on assumed fight lengths; only play can check it.
 
 ## Passability ([tracks/passability.md](tracks/passability.md); met: point-to-point, every site, the follower)
 - Met: Medium point-to-point 94% (target above 85%); every site and route end on foot in 10

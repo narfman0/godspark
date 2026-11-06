@@ -722,6 +722,22 @@ items rows trade:food | timber | ore | tools | luxuries; ore rows carry good, un
   reward goes through `player_trade` (the audit stays clean). Offers are fixed per site per
   day and saved; quests are world state shared by the players who accept them.
 
+### Integration (M4, as built: docs/tracks/m4-integration.md)
+
+```
+RulesSystem.on_kill: XP only for Life.xp_foe(player, victim); a player's blow: full, shared
+  within XP_RANGE; only others' blows: GUARD_SHARE (0.25) to a player who fought within
+  FIGHT_WINDOW_S (10), else none; no blows: as a player's. Divided by band_divisor(victim)
+  (data/rules/xp.json). ItemsSystem.on_kill drops by the same test (_loots).
+LifeSystem.xp_foe(p, x) (standing, not grudges); LifeRoad.settled (an ambush's outcome once);
+  LifeSystem.resend(e) (PEOPLE again when a party's dest changes)
+CombatSystem.fought_within(e, s); melee's way is clear from the chest or the shoulders
+RulesSystem.in_paid_room(e), INN_RANGE; sheet key room; a long rest needs no bed tile there
+DealsShop.camp_row(item), prices.json sell_camp; DealsSystem pools a party's delivered goods
+SimParty.plan.brought (units on arrival, set by caravan_arrive); escort target.cargo
+CombatClient.fight_step(inp, reach, pick := Callable()); WorldHost.profile, sys_usec
+```
+
 ### Interface (M4, as built: docs/tracks/m4-interface.md)
 
 ```

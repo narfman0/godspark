@@ -264,6 +264,8 @@ caravan's sale.
 - Net smoke: in a peopled spawn town the bots' place step is flaky (people walk over the
   cells they pick); the `ALL=1` variant runs with `places=0` (other variants still place).
 - Not judged by eye: no screenshot of a town or caravan was taken.
+- Since the integration pass: an ambush is settled once (`LifeRoad.settled`), `LifeSystem.xp_foe`,
+  `LifeSystem.resend` (docs/tracks/m4-integration.md).
 
 ## Screenshots (tools/life_shot.gd through tools/soft_godot.sh)
 
