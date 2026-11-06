@@ -110,8 +110,7 @@ static func _targets(world: TileWorld) -> Array:
 
 static func _reached(f: NavSearch, prof: NavProfile, p: Vector2) -> bool:
 	var g := MonsterNav.node_of(prof, p)
-	for o: Vector2i in [Vector2i.ZERO, Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(1, 1),
-			Vector2i(0, -1), Vector2i(-2, 0), Vector2i(2, 0)]:
+	for o: Vector2i in SP.NEAR:
 		var k := f._key(g.x + o.x, g.y + o.y)
 		if k >= 0 and f._g[k] != INF:
 			return true

@@ -652,7 +652,7 @@ meta.routes[i].path   roads: street end to street end; deep routes: feet-cell wa
 Places.street_at(world, x) -> Vector2i(site, y) | (-1, -1); place_at(world, x, y) -> site | -1
 WorldHost.places_keeper (PlaceKeeper): applies sim tier changes, foundings and ruins to the
   tiles when no player is within 70x45 tiles; arrival notice = Rules NOTE to the player
-Worldgen stages: ... routes, places, roads, dressing. Tiles 96-111, walls 40-44 (Places).
+Worldgen stages: ... routes, places, roads, passages, dressing. Tiles 96-111, walls 40-44 (Places).
 ```
 
 - The places stage builds `WorldSim.from_meta` on the same sites, routes and seed as the
@@ -709,10 +709,16 @@ through Items (`give`), Rules (`award_xp`, `add_deed`) and Life (`add_standing`)
   anchor under rock or a walkway, or beside rock, or on a wall; unrolls 30 tiles at most;
   dig or re-use reels it in; falls (one item drops) when its hold goes. Only the anchor is
   predicted; the rest arrives as tile changes. No protocol change.
-- Worldgen stage `passages` (after `ruins`, before `ores`) joins every walking component of a
-  Medium body to the spawn settlement's (carved steps, stair flights and plank bridges,
-  shafts with ladders or ropes, cavern stairs and walkways). Measured, not yet guaranteed:
-  94% of site trips on the nav graph (docs/tracks/traversal.md).
+- Worldgen stage `passages` (after `roads`, before `dressing`: the last terrain stage, since
+  the passability pass) joins every walking component of a Medium body to the spawn
+  settlement's (carved steps, stair flights and plank bridges, shafts with ladders or ropes,
+  cavern stairs and walkways) and guarantees every site and both ends of every route
+  reachable on foot from the spawn: checked again and joined until they are (never cutting
+  places, roads, paved floors or the floor under a site). Its moves are a subset of the
+  monsters' nav graph; `tools/passability_sweep.gd` checks the result with the nav graph
+  (docs/tracks/passability.md). Ramps are floored with stair treads where they cross caves;
+  deep routes are walks with 1-tile steps (graded where needed) and `rough` only where
+  grading found no way.
 - Digging terrain gives `tile:rubble` (tile 13); ore tiles `ore:<metal>` trade goods; built
   things themselves. `supplies` make camp gear, walkways, stairs, ladders and rope.
 

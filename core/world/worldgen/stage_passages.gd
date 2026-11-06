@@ -1,25 +1,33 @@
-## Stage "passages": guarantees a world a Medium walker crosses both ways without digging.
-## Runs after "ruins" (the last carving stage) and before "ores", so it sees every cave,
-## cavern, the deep road, the ascent, the portal ramp and the buried ruins, and nothing it
-## does depends on sites, places or routes (those come later).
+## Stage "passages": guarantees a world a Medium walker crosses both ways without digging,
+## and that every site and both ends of every route are reachable on foot from the spawn.
+## Runs last of the terrain stages (after "places" and "roads", before "dressing"), so it
+## sees every cave, cavern, ramp, ruin, settlement and road as they will be.
 ##
+## 0. Ramps (the ascent's, the portal's) are floored with treads where they cross a cave
+##    (outside building lots).
 ## 1. Standing spots: a Medium body is a 2 x 3 box of cells; a spot (x, y) is that box with
 ##    its left column x and feet row y, free of solid tiles, with a solid or one-way tile
 ##    under one of its columns.
 ## 2. Two-way moves join spots (union-find): walking to the next column with a step of at
 ##    most one row (headroom checked); from the ends of floors, jumps up to JUMP_UP rows and
-##    across gaps of up to JUMP_ACROSS columns through open air (falls back down the same way
-##    are free, so each is two-way); a ladder or rope joins every spot along it.
-## 3. The component with the first surface settlement flat (where players spawn) is the
-##    network. Every other component of at least MIN_SPOTS spots (every cave region and
-##    cavern, buried ruins, lairs-to-be) is joined to it with the cheapest believable feature
-##    to the nearest network spot: a carved passage with steps (stairs in the deeps), a
-##    walkway bridge over open air, and for steep joins a shaft with a ladder (surface band:
-##    roots) or a hanging rope (caves) or a ladder beside built stairs (deeps). Joined parts
-##    become network, so later ones may join to them.
+##    across gaps of up to JUMP_ACROSS columns (ACROSS_ROOM rows over the box), landing with
+##    floor on the side the body comes from; a ladder or rope joins every spot whose box has
+##    it in its middle column. These moves are a subset of what the monsters' nav graph
+##    (jumps recorded from the real controller) can do (tools/passability_sweep.gd checks).
+## 3. The spawn's component is the network. Every other component of at least MIN_SPOTS
+##    spots is joined to it with the cheapest believable feature to the nearest network spot:
+##    a carved passage with steps (stairs in the deeps), a walkway bridge over open air, and
+##    for steep joins a shaft with a ladder (surface, deeps) or a hanging rope (caves). Joined
+##    parts become network; so do the pockets a feature runs through, and the feature itself
+##    (a pocket beside a shaft gets a short way into it, not a shaft of its own). A cut
+##    through the floor of another way leaves a plank, so it is not cut in two.
 ## 4. Unsettled deep caverns get crisscrossing walkways and staircases at two heights.
-## Settlement flats and settled caverns are off-limits to carving and building.
-## Deterministic (the stage RNG only picks feature variants).
+## 5. A second look at the world as it now is: every site and route end is checked and
+##    joined if apart (then looked at again, up to REACH_ROUNDS times), and whatever a later
+##    join cut apart is joined again.
+## 6. Deep routes still flagged rough are walked again, or graded (_grade), and lose the flag.
+## Settlement places, roads, settled caverns, paved floors and the floor under every site are
+## never cut. Deterministic (the stage RNG only picks feature variants).
 extends RefCounted
 
 const GenContext := preload("gen_context.gd")
@@ -42,33 +50,79 @@ const TALL := 5
 ## Network spots kept per 16 x 16 block, and component spots sampled, when aiming a join.
 const BUCKET_KEEP := 6
 const SAMPLES := 64
+## Where a site's or route end's standing node is looked for, around the node of its cell.
+const NEAR := [Vector2i(0, 0), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(1, 1),
+	Vector2i(0, -1), Vector2i(-2, 0), Vector2i(2, 0)]
 ## Tile ids from here up are the Places track's (roads, bridges, buildings).
 const PLACE_TILES := 96
 
 static var stats := {}
 
 static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
+	reach_stats = {}
 	if not bool(c.opts.get("passages", true)):
 		stats = {"skipped": true}
 		return            # opts {"passages": false}: the world as it was before this stage (tools)
-	var holes := _ramp_holes(c, c.ascent) + _ramp_holes(c, c.portal)
+	var t0 := Time.get_ticks_usec()
+	# the places stage cleared building lots (the ramps' floors in them too): ramps are
+	# floored outside the lots
+	var lots := _lots(c)
+	var holes := _ramp_holes(c, c.ascent, lots) + _ramp_holes(c, c.portal, lots)
+	var tg := targets(c)
+	var tm := {}
+	var tt := Time.get_ticks_usec()
 	var p := Passer.new(c, rng)
 	p.build_spots()
+	p.protect(tg)
 	p.join_moves()
-	p.connect_all()
+	var spawn := p._spot_near(tg[0][1]) if not tg.is_empty() else -1
+	p.connect_all(spawn)
+	var rounds: Array = [p.connect_targets(tg)] if not tg.is_empty() else []
+	tm["first"] = (Time.get_ticks_usec() - tt) / 1000
+	tt = Time.get_ticks_usec()
 	p.caverns()
 	stats = p.stats
 	stats["ramp_holes"] = holes
 	# A second look at the world as it now is: a later join may have cut into an earlier one,
-	# and the cavern works add ways; whatever is still apart is joined again.
+	# and the cavern works add ways; whatever is still apart is joined again, and every site
+	# and route end is checked (and joined) again, until a look joins nothing for them.
 	var p2 := Passer.new(c, rng)
 	p2.build_spots()
+	p2.protect(tg)
 	p2.join_moves()
-	p2.connect_all()
+	if not tg.is_empty():
+		rounds.append(p2.connect_targets(tg))      # checked on the world as it is, first
+	p2.connect_all(p2._spot_near(tg[0][1]) if not tg.is_empty() else -1)
 	stats["second"] = {"joined": p2.stats["joined"], "left": p2.stats["left"], "features": p2.stats["features"],
 		"ms": int(p2.stats["spots_ms"]) + int(p2.stats["moves_ms"]) + int(p2.stats["join_ms"])}
+	tm["second"] = (Time.get_ticks_usec() - tt) / 1000
+	tt = Time.get_ticks_usec()
+	if not tg.is_empty():
+		while int(rounds[-1]["joined"]) > 0 and rounds.size() < REACH_ROUNDS + 1:
+			var p3 := Passer.new(c, rng)
+			p3.build_spots()
+			p3.protect(tg)
+			p3.join_moves()
+			rounds.append(p3.connect_targets(tg))
+	reach_stats["rounds"] = rounds
+	reach_stats["missing"] = rounds[-1]["missing"] if not rounds.is_empty() else []
+	tm["checks"] = (Time.get_ticks_usec() - tt) / 1000
+	tt = Time.get_ticks_usec()
+	reach_stats["clean"] = _clean_routes(c, lots)
+	tm["routes"] = (Time.get_ticks_usec() - tt) / 1000
+	stats["phases_ms"] = tm
+	c.survey()           # joins near the surface cut into hillsides
 	if p.log_joins:
 		stats["log"] = p.join_log
+	stats["ms"] = (Time.get_ticks_usec() - t0) / 1000
+
+static func _lots(c: GenContext) -> Array:
+	var lots: Array = []
+	for key: String in c.places:
+		var pl: Dictionary = c.places[key]
+		for i in (pl.get("lots", []) as Array).size():
+			lots.append(PlaceBuilder.lot_rect(pl, i))
+	return lots
 
 ## A ramp (the ascent, the portal's) is paved only over rock: where it crosses a cave its
 ## floor is open air. Those cells get a stair tread rising the ramp's way (a landing gets a
@@ -102,44 +156,10 @@ static func _ramp_holes(c: GenContext, ramp: Dictionary, avoid: Array = []) -> i
 		n += 1
 	return n
 
-## Stage "reach" (after every stage that changes terrain: places and roads included): every
-## site and both ends of every route must be reachable on foot by a Medium body from the
-## spawn (the first surface settlement). The same two-way moves as above are flooded; any
-## target apart from the spawn's component is joined to it (the same features, never
-## through a place, a road or a built way), and the result is checked again, up to
-## REACH_ROUNDS times. Then deep routes flagged rough get their path walked again (they are
-## clean once the ramps are floored) and lose the flag. stats["reach"] reports.
+## What every site and route end needs: up to this many looks after joining for them.
 const REACH_ROUNDS := 3
 
 static var reach_stats := {}
-
-static func reach(c: GenContext, rng: RandomNumberGenerator) -> void:
-	reach_stats = {}
-	if not bool(c.opts.get("passages", true)) or c.sites.is_empty():
-		return
-	var t0 := Time.get_ticks_usec()
-	# the places stage cleared building lots, the ramps' floors in them too: floor the ramps
-	# again outside the lots
-	var lots: Array = []
-	for key: String in c.places:
-		var pl: Dictionary = c.places[key]
-		for i in (pl.get("lots", []) as Array).size():
-			lots.append(PlaceBuilder.lot_rect(pl, i))
-	reach_stats["ramp_holes"] = _ramp_holes(c, c.ascent, lots) + _ramp_holes(c, c.portal, lots)
-	var rounds: Array = []
-	for r in REACH_ROUNDS:
-		var p := Passer.new(c, rng)
-		p.final = true
-		p.build_spots()
-		p.join_moves()
-		var res := p.connect_targets(targets(c))
-		rounds.append(res)
-		if int(res["apart"]) == 0 or int(res["joined"]) == 0:
-			break
-	reach_stats["rounds"] = rounds
-	reach_stats["missing"] = rounds[-1]["missing"] if int(rounds[-1]["joined"]) == 0 else -1
-	reach_stats["clean"] = _clean_routes(c, lots)
-	reach_stats["ms"] = (Time.get_ticks_usec() - t0) / 1000
 
 ## What must be reachable: [label, feet cell] for every site and both ends of every route's
 ## path. The first surface settlement (the spawn) comes first.
@@ -247,7 +267,7 @@ static func _corridor(c: GenContext, r: Dictionary, a: Vector2i, b: Vector2i) ->
 		out.append([p.x, p.y])
 	return out
 
-const GRADE_R := 8          # corridor half-width around a route's line
+const GRADE_R := 5          # corridor half-width around a route's line
 const GRADE_CUT := 3        # cost of a rock cell cut for the body
 const GRADE_TREAD := 2      # cost of a tread or plank laid over air
 
@@ -493,13 +513,16 @@ class Passer extends RefCounted:
 	var ruins: Array = []                # Rect2i around each buried ruin room
 	var keep := PackedByteArray()        # floors joins laid or stand on: never cut later
 	var log_joins := false
+	var join_at: Array = []              # Vector2i ends of the joins built so far (connect_all)
+	var touched: Array = []              # Rect2i cells the feature being built touched
+	var aims: Array = []                 # Vector2i places on it later joins may aim at
 	var log_edges := false
 	var edge_log := PackedInt32Array()
 	var join_log: Array = []
 	var jump_up := JUMP_UP
 	var jump_across := JUMP_ACROSS                # Rect2i areas never carved or built in
-	## The final check (stage "reach"): places and roads exist; their tiles are never cut.
-	var final := false
+	## Places and roads exist (the stage runs after them): their tiles are never cut.
+	var final := true
 
 	func _init(ctx: GenContext, r: RandomNumberGenerator) -> void:
 		c = ctx
@@ -659,47 +682,69 @@ class Passer extends RefCounted:
 				continue
 			edges += 1
 			# the end of a floor: jumps up (and so falls back down) and across gaps
-			for dy in range(2, jump_up + 1):
+			# (rows open straight over the box first: a jump higher than that cannot rise)
+			var rise := 0
+			while rise < jump_up + 1 and open(x, y + 3 + rise) and open(x + 1, y + 3 + rise):
+				rise += 1
+			for dy in range(2, mini(jump_up, rise - 1) + 1):
 				for dx in range(-3, 4):
 					t = spot(x + dx, y + dy)
-					if t >= 0 and _footing(t) and _clear_up(x, y, dx, dy):
+					if t >= 0 and (dx == 0 or _footing(t, dx)) and _clear_up(x, y, dx, dy):
 						_link(s, t, 2)
-			for dx in range(2, jump_across + 2):
+			# across: the columns between must be open; a blocked column ends the farther jumps
+			for dir: int in [1, -1]:
 				for dy in range(-1, 2):
-					for dir: int in [1, -1]:
-						t = spot(x + dx * dir, y + dy)
-						if t >= 0 and _footing(t) and _clear_across(x, y, dx * dir, dy):
-							_link(s, t, 3)
-		# ladders and ropes: every spot along a climbable run
+					var yb := maxi(y, y + dy)
+					if not _col_open(x, yb) or not _col_open(x + 1, yb):
+						continue
+					for dx in range(1, jump_across + 2):
+						if not _col_open(x + 1 + dx if dir > 0 else x - dx, yb):
+							break
+						if dx >= 2:
+							t = spot(x + dx * dir, y + dy)
+							if t >= 0 and _footing(t, dx * dir):
+								_link(s, t, 3)
+		# ladders and ropes: every spot along a climbable run (the climbable cells are found
+		# with a native search, not a walk over every cell)
 		var fg := c.fg
-		for x in w:
-			var y := 1
-			while y < top:
-				if climb[fg[x + y * w]] == 0:
-					y += 1
-					continue
-				var y1 := y
-				while y1 < top and climb[fg[x + y1 * w]] != 0:
-					y1 += 1
-				var first := -1
-				for yy in range(y, y1 + 1):
-					for xx: int in [x - 1]:        # the box whose middle column holds the ladder
-						var k := spot(xx, yy)
-						if k >= 0:
-							if first < 0:
-								first = k
-							else:
-								_link(first, k, 4)
-				y = y1
+		var cells := PackedInt32Array()
+		for id in climb.size():
+			if climb[id] == 0:
+				continue
+			var i := fg.find(id)
+			while i >= 0:
+				cells.append(i)
+				i = fg.find(id, i + 1)
+		cells.sort()
+		var done := {}
+		for i0: int in cells:
+			if done.has(i0):
+				continue
+			var x := i0 % w
+			var y := i0 / w
+			if y < 1 or y >= top or climb[fg[x + (y - 1) * w]] != 0:
+				continue                   # not the bottom of a run (its bottom starts it)
+			var y1 := y
+			while y1 < top and climb[fg[x + y1 * w]] != 0:
+				done[x + y1 * w] = true
+				y1 += 1
+			var first := -1
+			for yy in range(y, y1 + 1):
+				var k := spot(x - 1, yy)       # the box whose middle column holds the ladder
+				if k >= 0:
+					if first < 0:
+						first = k
+					else:
+						_link(first, k, 4)
 		stats["floor_ends"] = edges
 		stats["moves_ms"] = (Time.get_ticks_usec() - t0) / 1000
 
-	## A landing a jump makes reliably: floor under both of the box's columns (a body coming
-	## down at a corner with one column over the edge slides off; the monsters' planner asks
-	## for half a tile of the landing box over floor).
-	func _footing(t: int) -> bool:
-		var i := spx[t] + (spy[t] - 1) * w
-		return (c.solid[c.fg[i]] != 0 or oneway[c.fg[i]] != 0) and (c.solid[c.fg[i + 1]] != 0 or oneway[c.fg[i + 1]] != 0)
+	## A landing a jump makes reliably, coming from direction dir: floor under the column on
+	## the side it comes from (a body landing on a corner whose floor is on the far side slides
+	## off it; the monsters' planner asks for half a tile of the landing box over floor).
+	func _footing(t: int, dir: int) -> bool:
+		var i := spx[t] + (spy[t] - 1) * w + (0 if dir > 0 else 1)
+		return c.solid[c.fg[i]] != 0 or oneway[c.fg[i]] != 0
 
 	## Rise straight up from (x, y) by dy, then across by dx at the top, with a row to spare
 	## over the box (the real arc rises past the landing).
@@ -713,6 +758,17 @@ class Passer extends RefCounted:
 			for yy in range(y + dy, y + dy + 4):
 				if not open(xx, yy):
 					return false
+		return true
+
+	## The rows a running jump across sweeps (the box and ACROSS_ROOM over it) open in column xx.
+	func _col_open(xx: int, yb: int) -> bool:
+		if xx < 0 or xx >= w or yb < 0 or yb + 3 + ACROSS_ROOM > h:
+			return false
+		var fg := c.fg
+		var solid := c.solid
+		for yy in range(yb, yb + 3 + ACROSS_ROOM):
+			if solid[fg[xx + yy * w]] != 0:
+				return false
 		return true
 
 	## A running jump across: the box at the higher of the two rows, plus a row of headroom,
@@ -729,7 +785,7 @@ class Passer extends RefCounted:
 
 	# --- 3. join the components ----------------------------------------------------------------
 
-	func connect_all() -> void:
+	func connect_all(spawn := -1) -> void:
 		var t0 := Time.get_ticks_usec()
 		var members := {}
 		for s in spx.size():
@@ -738,9 +794,10 @@ class Passer extends RefCounted:
 				members[r] = []
 			(members[r] as Array).append(s)
 		stats["components"] = members.size()
-		# the network: the component under the first settlement flat (the spawn), else the biggest
-		var root := -1
-		if not c.flats.is_empty():
+		# the network: the spawn's component (given, else the one under the first settlement
+		# flat), else the biggest
+		var root := find(spawn) if spawn >= 0 else -1
+		if root < 0 and not c.flats.is_empty():
 			var f: Dictionary = c.flats[0]
 			var fx := (int(f["x0"]) + int(f["x1"])) / 2
 			for dy in range(-3, 40):
@@ -765,7 +822,11 @@ class Passer extends RefCounted:
 		stats["to_join"] = todo.size()
 		_add_net(members[root])
 		var joined := 0
+		var absorbed := 0
 		var kinds := {}
+		var tried := {}
+		var since := {}
+		join_at.clear()
 		for radius: int in RADII:
 			var progress := true
 			while progress and not todo.is_empty():
@@ -777,11 +838,21 @@ class Passer extends RefCounted:
 					if radius > SMALL_REACH and (members[r] as Array).size() < BIG_SPOTS:
 						left.append(r)     # a small pocket far from everything stays a pocket
 						continue
+					if tried.get(r, -1) == radius and not _joined_near(members[r], since.get(r, 0), radius):
+						left.append(r)     # tried at this reach, and nothing was joined near it since
+						continue
 					var best := _nearest(members[r], radius)
 					if best.is_empty():
+						tried[r] = radius
+						since[r] = join_at.size()
 						left.append(r)
 						continue
 					var kind := _join(best[0], best[1])
+					var sz := (members[r] as Array).size()
+					var hb := "<8" if sz < 8 else ("<16" if sz < 16 else ("<32" if sz < 32 else ("<64" if sz < 64 else "64+")))
+					var hist: Dictionary = stats.get("sizes", {})
+					hist[hb] = int(hist.get(hb, 0)) + 1
+					stats["sizes"] = hist
 					var ex: Dictionary = stats.get("examples", {})
 					var at := [spx[best[0]], spy[best[0]], spx[best[1]], spy[best[1]]]
 					if not ex.has(kind) or (kind == "ladder" and spy[best[1]] > c.ground[spx[best[1]]] - 30):
@@ -791,9 +862,13 @@ class Passer extends RefCounted:
 						join_log.append([Vector2i(spx[best[0]], spy[best[0]]), Vector2i(spx[best[1]], spy[best[1]]), kind])
 					kinds[kind] = int(kinds.get(kind, 0)) + 1
 					joined += 1
+					join_at.append(Vector2i(spx[best[1]], spy[best[1]]))
+					join_at.append(Vector2i(spx[best[0]], spy[best[0]]))
 					_add_net(members[r])
+					absorbed += _absorb(members)
 					progress = true
 				todo = left
+		stats["absorbed"] = absorbed
 		stats["joined"] = joined
 		stats["left"] = todo.size()
 		stats["features"] = kinds
@@ -817,7 +892,7 @@ class Passer extends RefCounted:
 		var root := find(int(tspot[0]))
 		var want := {}
 		for k: int in tspot:
-			if k >= 0 and find(k) != root:
+			if k >= 0 and find(k) != root and net[k] == 0:
 				want[find(k)] = true
 		out["apart"] = want.size()
 		if want.is_empty():
@@ -850,6 +925,7 @@ class Passer extends RefCounted:
 					kinds[kind] = int(kinds.get(kind, 0)) + 1
 					out["joined"] = int(out["joined"]) + 1
 					_add_net(members[r])
+					_absorb(members)
 					progress = true
 				todo = left
 		out["kinds"] = kinds
@@ -860,11 +936,19 @@ class Passer extends RefCounted:
 		out["ms"] = (Time.get_ticks_usec() - t0) / 1000
 		return out
 
-	## The spot a body standing at feet cell q is on (its box's left column is q.x - 1 or
-	## q.x, a row up or down), or -1.
+	## The floor under every site and route end is never cut by a join.
+	func protect(tg: Array) -> void:
+		for t: Array in tg:
+			var q: Vector2i = t[1]
+			for dx in range(-3, 4):
+				var x: int = q.x + dx
+				if x >= 0 and x < w and q.y >= 1 and q.y < h:
+					keep[x + (q.y - 1) * w] = 1
+
+	## The spot of a body standing at feet cell q (a box whose left column is q.x, give or
+	## take: the same nodes the monsters' planner and the tools try), or -1.
 	func _spot_near(q: Vector2i) -> int:
-		for o: Vector2i in [Vector2i(-1, 0), Vector2i(0, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(-1, -1), Vector2i(0, -1),
-				Vector2i(-2, 0), Vector2i(1, 0), Vector2i(-2, 1), Vector2i(1, 1)]:
+		for o: Vector2i in NEAR:
 			var k := spot(q.x + o.x, q.y + o.y)
 			if k >= 0:
 				return k
@@ -886,7 +970,7 @@ class Passer extends RefCounted:
 		var best := []
 		var best_cost := INF
 		var cands: Array = []
-		var stride := maxi(1, m.size() / SAMPLES)
+		var stride := maxi(1, m.size() / (SAMPLES if radius < 200 else 8))     # far searches: fewer samples
 		var rb := (radius >> 4) + 1
 		# the component's own blocks, sampled, then the network's blocks within reach of any
 		var blocks := {}
@@ -899,20 +983,29 @@ class Passer extends RefCounted:
 			var ay := spy[a]
 			var bx := ax >> 4
 			var by := ay >> 4
-			for gy in range(by - rb, by + rb + 1):
-				for gx in range(bx - rb, bx + rb + 1):
-					var key := gx | (gy << 16)
-					if gx < 0 or gy < 0 or not buckets.has(key):
-						continue
-					for b: int in buckets[key]:
-						var dx := absi(spx[b] - ax)
-						var dy := absi(spy[b] - ay)
-						if dx > radius or dy > radius:
+			# rings of blocks outward; a ring d blocks away is at least (d - 1) * 16 tiles away on
+			# one axis, so once the best is cheaper than that nothing farther can beat it
+			for d in rb + 1:
+				if best_cost <= 0.6 * 16.0 * (d - 1):
+					break
+				for gy in range(by - d, by + d + 1):
+					var edge := absi(gy - by) == d
+					var gx := bx - d
+					while gx <= bx + d:
+						var key := gx | (gy << 16)
+						var gx0 := gx
+						gx = gx + 1 if edge else (gx + 2 * d if d > 0 else gx + 1)
+						if gx0 < 0 or gy < 0 or not buckets.has(key):
 							continue
-						var cost := dx + 0.6 * dy
-						if cost < best_cost and not _forbidden(ax, ay, spx[b], spy[b]):
-							best_cost = cost
-							cands.append([cost, a, b])
+						for b: int in buckets[key]:
+							var dx := absi(spx[b] - ax)
+							var dy := absi(spy[b] - ay)
+							if dx > radius or dy > radius:
+								continue
+							var cost := dx + 0.6 * dy
+							if cost < best_cost and not _forbidden(ax, ay, spx[b], spy[b]):
+								best_cost = cost
+								cands.append([cost, a, b])
 		# cheapest first; the first whose cells touch nothing built
 		cands.sort_custom(func(p: Array, q: Array) -> bool: return p[0] < q[0])
 		for k in mini(cands.size(), 12 if radius < 400 else 64):
@@ -961,8 +1054,8 @@ class Passer extends RefCounted:
 			return true
 		var i := x + y * w
 		var id := c.fg[i]
-		if id == c.BEDROCK:
-			return true
+		if id == c.BEDROCK or keep[i] != 0:
+			return true      # bedrock, a floor a join laid, the floor under a site
 		if final and id >= PLACE_TILES:
 			return true      # a road, a bridge, a building: never cut
 		if id != c.COBBLE or c.solid[c.fg[i + w]] != 0:
@@ -973,6 +1066,61 @@ class Passer extends RefCounted:
 		return true
 
 	## Build the feature joining spot a (a stray component) to spot b (the network).
+	## Was anything joined (join_at, from index i) within reach of component m's spots?
+	func _joined_near(m: Array, i: int, radius: int) -> bool:
+		if i >= join_at.size():
+			return false
+		var lo := Vector2i(1 << 30, 1 << 30)
+		var hi := Vector2i(-(1 << 30), -(1 << 30))
+		var stride := maxi(1, m.size() / 16)
+		for k in range(0, m.size(), stride):
+			var q := Vector2i(spx[int(m[k])], spy[int(m[k])])
+			lo = Vector2i(mini(lo.x, q.x), mini(lo.y, q.y))
+			hi = Vector2i(maxi(hi.x, q.x), maxi(hi.y, q.y))
+		var r := Rect2i(lo - Vector2i(radius + 32, radius + 32), hi - lo + Vector2i(2 * radius + 64, 2 * radius + 64))
+		for j in range(i, join_at.size()):
+			if r.has_point(join_at[j]):
+				return true
+		return false
+
+	## Components a feature just built runs through (spots in the cells it touched) are
+	## joined by it as well: marked network. Then the feature's own ways (a shaft, a passage)
+	## become places later joins may aim at, so a pocket beside a shaft gets a short way into
+	## it, not a shaft of its own. Returns the components joined so.
+	func _absorb(members: Dictionary) -> int:
+		var n := 0
+		for rc: Rect2i in touched:
+			for yy in range(maxi(1, rc.position.y), mini(h - 1, rc.end.y)):
+				for xx in range(maxi(0, rc.position.x), mini(w - 1, rc.end.x)):
+					var k := sid[xx + yy * w]
+					if k < 0 or k >= net.size() or net[k] != 0:
+						continue
+					var r := find(k)
+					if members.has(r):
+						_add_net(members[r])
+						n += 1
+		for v: Vector2i in aims:
+			_virtual(v.x, v.y)
+		touched.clear()
+		aims.clear()
+		return n
+
+	## A standing place on a feature just built (a rung of a shaft, a step of a passage): a
+	## network spot for joins to aim at; not a real spot (nothing else sees it).
+	func _virtual(x: int, y: int) -> void:
+		var k := spx.size()
+		spx.append(x)
+		spy.append(y)
+		parent.append(k)
+		net.append(1)
+		var key := (x >> 4) | ((y >> 4) << 16)
+		if not buckets.has(key):
+			buckets[key] = PackedInt32Array()
+		var bk: PackedInt32Array = buckets[key]
+		if bk.size() < BUCKET_KEEP + 2:
+			bk.append(k)
+			buckets[key] = bk
+
 	func _join(a: int, b: int) -> String:
 		var ax := spx[a]
 		var ay := spy[a]
@@ -1013,13 +1161,21 @@ class Passer extends RefCounted:
 	func _cut(x: int, y: int) -> void:
 		if c.solid[c.fg[x + y * w]] == 0 or _built(x, y) or keep[x + y * w] != 0:
 			return
-		c.fg[x + y * w] = c.AIR
+		# the floor of a way the cut runs through (rock with a body's room over it) stays a
+		# floor: a walkway plank, so the way it crosses is not cut in two
+		if y + 3 < h and spot(x, y + 1) >= 0 or spot(x - 1, y + 1) >= 0:
+			c.fg[x + y * w] = platform
+		else:
+			c.fg[x + y * w] = c.AIR
 
 	## One column of a carved way: TALL rows open over a floor at floor_y - 1. Rock is cut;
 	## open air is crossed by a walkway plank (a bridge), or on the rising part by a stair
 	## tread (one-way: it walls nothing off); in the deeps (built) a rising rock floor gets a
 	## stair tread too. True if it bridged air.
 	func _column(x: int, floor_y: int, rising: bool, built: bool, dir: int) -> bool:
+		touched.append(Rect2i(x - 1, floor_y - 1, 3, 4))
+		if x % 4 == 0:
+			aims.append(Vector2i(x, floor_y))
 		for yy in range(floor_y, floor_y + TALL):
 			if yy > 0 and yy < h - 1:
 				_cut(x, yy)
@@ -1052,6 +1208,9 @@ class Passer extends RefCounted:
 	## A shaft two columns wide (xs, xs + 1) from floor row y0 up to floor row y1, with a ladder
 	## or rope in column xs + 1: its top rung is the upper floor; xs gets a plank there.
 	func _shaft(xs: int, y0: int, y1: int, tool: int) -> void:
+		touched.append(Rect2i(xs - 2, y0 - 1, 6, y1 - y0 + 3))
+		for yy in range(y0 + 3, y1, 4):
+			aims.append(Vector2i(xs, yy))
 		for yy in range(y0, y1 + TALL):
 			for xx: int in [xs, xs + 1]:
 				if xx >= 1 and xx < w - 1 and yy > 0 and yy < h - 1:
@@ -1065,6 +1224,10 @@ class Passer extends RefCounted:
 		for yy in range(y0, y1):
 			if lx >= 1 and lx < w - 1 and climb[c.fg[lx + yy * w]] == 0:
 				c.fg[lx + yy * w] = tool
+		# a plank left where the shaft crossed a floor would hold a climber up in its column
+		for yy in range(y1, y1 + TALL):
+			if lx >= 1 and lx < w - 1 and yy < h - 1 and c.fg[lx + yy * w] == platform:
+				c.fg[lx + yy * w] = c.AIR
 		if xs >= 1 and c.fg[xs + (y1 - 1) * w] == c.AIR:
 			c.fg[xs + (y1 - 1) * w] = platform
 		# Where the ground of a hillside meets the shaft's open side (it cut into a slope near

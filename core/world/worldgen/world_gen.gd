@@ -37,14 +37,13 @@ const STAGES := [
 	["ascent", Deeps, "ascent"],
 	["portal", Deeps, "portal"],
 	["ruins", Sites, "ruins"],
-	["passages", Passages, "run"],
 	["ores", Ores, "run"],
 	["finish", Sites, "finish"],
 	["sites", Sites, "sites"],
 	["routes", Sites, "routes"],
 	["places", PlacesStage, "run"],
 	["roads", RoadsStage, "run"],
-	["reach", Passages, "reach"],
+	["passages", Passages, "run"],
 	["dressing", DressingStage, "run"],
 ]
 
@@ -68,7 +67,7 @@ static func generate(width: int, height: int, world_seed: int, opts := {}) -> Ti
 		last_timings[st[0]] = (Time.get_ticks_usec() - t0) / 1000
 		if st[0] == stop:
 			break
-	if stop != "" and not stop in ["routes", "places", "roads", "reach", "dressing"]:
+	if stop != "" and not stop in ["routes", "places", "roads", "passages", "dressing"]:
 		c.survey()
 	var t1 := Time.get_ticks_usec()
 	var world := c.to_world()
