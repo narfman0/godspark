@@ -94,8 +94,8 @@ static func where(sim: WorldSim, from: int, to: int) -> Dictionary:
 	elif tiles > 120:
 		dist = "a short walk"
 	if from == to:
-		dir = "here"
-		dist = "right here"
+		dir = ""
+		dist = "here"
 	return {"site": to, "dir": dir, "dist": dist, "tiles": tiles}
 
 ## A name in the chronicle -> site id: settlements and lairs as they are now, then names Deals

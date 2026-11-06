@@ -25,7 +25,7 @@ static func situation(sim: WorldSim, sid: int) -> Array:
 		return out
 	if s.besieged_by >= 0:
 		out.append("besieged")
-	if sim.t - s.last_raided < RAIDED_DAYS * WorldSim.DAY_H:
+	if sim.t - s.last_raided < RAIDED_DAYS * WorldSim.DAY_H or raided_lately(sim, s):
 		out.append("raided")
 	if foe_of(sim, s.faction) >= 0:
 		out.append("war")
@@ -38,6 +38,17 @@ static func situation(sim: WorldSim, sid: int) -> Array:
 	if out.is_empty():
 		out.append("quiet")
 	return out
+
+## A raid or a monster attack on the town in the chronicle within RAIDED_DAYS (won or not).
+static func raided_lately(sim: WorldSim, s: SimSettlement) -> bool:
+	var since := sim.t - RAIDED_DAYS * WorldSim.DAY_H
+	for i in range(sim.chronicle.size() - 1, -1, -1):
+		var e: Dictionary = sim.chronicle[i]
+		if int(e.get("t", 0)) < since:
+			break
+		if String(e.get("kind", "")) in ["raid", "raid_repelled", "monster_raid", "apex_wrath", "sacked"] and str(e.get("site", "")) == s.name:
+			return true
+	return false
 
 static func hungry(_sim: WorldSim, s: SimSettlement) -> bool:
 	return s.hungry > 0 or SimEconomy.price(s, "food") >= 2.0 * float(SimData.goods["food"]["base"])
