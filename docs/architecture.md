@@ -641,6 +641,24 @@ Places.route_path(world, route_id), route_point(world, route_id, t)
 Tiles stay the truth: a building is a tile stamp (walls, floors, doors, platforms) plus
 dressing records for its skin. The sim's settlement tier decides how many buildings stand.
 
+As built ([tracks/places.md](tracks/places.md)):
+
+```
+meta.places["<site>"] also has: style, street: [x0, x1, y] (the feet row, open 4 rows end to
+  end), lots: [{tpl, kind, x, w, h, tier, state: empty | built | ruin, shown?, by_tier?}];
+  tier "" = laid out, nobody lives there; building: + lot (index), ruin: + was (old kind)
+meta.routes[i].path   roads: street end to street end; deep routes: feet-cell walk;
+                      "rough": true when no walk with 1-tile steps exists (path still given)
+Places.street_at(world, x) -> Vector2i(site, y) | (-1, -1); place_at(world, x, y) -> site | -1
+WorldHost.places_keeper (PlaceKeeper): applies sim tier changes, foundings and ruins to the
+  tiles when no player is within 70x45 tiles; arrival notice = Rules NOTE to the player
+Worldgen stages: ... routes, places, roads, dressing. Tiles 96-111, walls 40-44 (Places).
+```
+
+- The places stage builds `WorldSim.from_meta` on the same sites, routes and seed as the
+  host, so places match the sim's starting cultures and tiers; `core/sim` is unchanged.
+- The street runs through every building's ground floor (4-row doorways at both ends).
+
 ### Life (`core/life/`, system 5)
 
 Turns sim entities into actors while a player is near, and back.

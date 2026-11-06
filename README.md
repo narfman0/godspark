@@ -143,7 +143,9 @@ tools/soft_godot.sh --resolution 1280x720 -- offline cheats class=fighter gen=de
 
 Balance tools (headless): `tools/arena.gd` (a build against a ranked pack), `tools/spawn_sim.gd`
 (what the director spawns, kill rates), `tools/loot_sim.gd`, `tools/xp_pacing.gd`,
-`tools/cave_nav.gd`.
+`tools/cave_nav.gd`. Places: `tools/soft_godot.sh -s res://tools/place_shot.gd -- out=/tmp/town.png
+seed=4 site=0 [sun=0]` (a settlement, or `route=N` for a road bridge); `tools/worldmap.gd` draws
+streets, buildings and route paths.
 
 Rules come from [godot-srd-addon](https://github.com/narfman0/godot-srd-addon), vendored as
 a submodule and symlinked at `addons/srd`.

@@ -31,6 +31,15 @@ Collected from the track reports (`docs/tracks/*.md` have the detail). Roughly b
 - Dressing: trees are sparse on bumpy ground (about one per 80 columns) and kept off
   settlement grounds; ceiling objects are never placed; one biome's set only.
 
+## Places
+- Towns are short of their full building list where the ground is narrow (100-240 columns).
+- The skin is furniture and props; Synty wall and roof panels are not used. No per-culture
+  piece scale (halflings use human pieces).
+- Ladders in buildings until the Traversal `stairs` tile replaces `H`.
+- Ascent and portal route paths are rough (ramp holes) until Traversal's passability pass.
+- Conquest keeps the old style; ruins keep no name for arrival notices.
+  ([tracks/places.md](tracks/places.md))
+
 ## Rendering
 - No textures, parallax, liquids or real lights. Blocks read flat.
 - Sources combine by max; only torch-strength lights match SRD radii exactly.
