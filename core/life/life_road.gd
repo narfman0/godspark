@@ -30,7 +30,10 @@ func route_cells(h: WorldHost, rid: int) -> Array:
 		_paths[rid] = Places.route_path(h.world, rid)
 	return _paths[rid]
 
-## A point t of the way along a route (0 at site a), interpolated along its path.
+## A point t of the way along a route (0 at site a), interpolated along its tile path
+## (Places.route_path: feet cells street end to street end). Rough routes (not cleanly
+## walkable) use the same cells; their people walk them with monster nav as best they can
+## and are put back beside the party when they fall 40 tiles behind.
 func route_pos(h: WorldHost, rid: int, t: float) -> Vector2:
 	var path := route_cells(h, rid)
 	if path.is_empty():
@@ -55,7 +58,8 @@ func ground(h: WorldHost, p: Vector2, slug := "") -> Vector2:
 	var ms := life.monsters(h)
 	if ms == null or p == Vector2.INF:
 		return p
-	var q := ms.director._stand_near(h, p + Vector2(0, 2), slug)
+	# path cells are feet cells: stand there (out of rock upward, else down to a floor)
+	var q := ms.director._stand_near(h, p, slug)
 	return q if q != Vector2.INF else p
 
 # --- scan ----------------------------------------------------------------------------------
@@ -262,6 +266,17 @@ func clash(h: WorldHost, pa: int, pb: int, by_player := 0) -> void:
 	if by_player != 0:
 		clashes[key]["players"][by_player] = true
 
+## A settlement raid or a monster pack within 48 tiles of the watched settlement it is going for.
+func _at_target(h: WorldHost, p: SimParty) -> bool:
+	if not (p.kind == "pack" or (p.kind == "raid" and String(p.plan.get("mode", "")) == "settlement")):
+		return false
+	if String(p.plan.get("leg", "out")) == "home" or p.path.is_empty():
+		return false
+	var sid: int = p.path[p.path.size() - 1]
+	if not life.town.active.has(sid):
+		return false
+	return party_pos(h, p).distance_to(LifeTown.site_pos(h, sid)) <= 48.0
+
 ## A raid or pack the sim handed over on arrival at a watched settlement.
 func _start_raid(h: WorldHost, p: SimParty, rec: Dictionary) -> void:
 	var sid: int = p.path[p.path.size() - 1]
@@ -302,6 +317,10 @@ func _resolve(h: WorldHost) -> void:
 		var p: SimParty = sim.parties.get(pid)
 		if p != null and p.frozen and not bool(rec["hold"]) and not bool(rec["arrival"]):
 			_start_raid(h, p, rec)
+		elif p != null and not bool(rec["arrival"]) and _at_target(h, p):
+			# raiders already at the gates of the watched town they came for: the raid is on
+			_start_raid(h, p, rec)
+			p.frozen = true
 		var r: Dictionary = rec["raid"]
 		if not r.is_empty():
 			var party: SimParty = r["party"]

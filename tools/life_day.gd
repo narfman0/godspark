@@ -29,6 +29,7 @@ func _initialize() -> void:
 	host = WorldHost.new(w)
 	Systems.install_host(host)
 	life = host.system(HostSystem.LIFE)
+	life.debug = o.get("debug", "0") == "1"
 	var ms: MonstersSystem = host.system(HostSystem.MONSTERS)
 	ms.director_enabled = int(o.get("director", "0"))
 	var home := _spawn_town()

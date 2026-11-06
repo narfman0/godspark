@@ -301,6 +301,23 @@ func _town(t: TestLog) -> void:
 	t.check(any.get_meta("talk", false) and any.get_meta("friendly", false) and String(any.get_meta("sim")["kind"]) == "settlement",
 		"people carry sim, faction, talk and friendly meta")
 	t.check(String(any.look.get("people", "")) != "" or bool(SimData.culture(s.culture).monstrous), "and a people look (%s)" % any.look.get("people", ""))
+	# on the real place: at anchors, never inside walls, not in one crowd
+	t.check(not Places.place(host.world, sid).is_empty(), "the town is a real place")
+	var xs := {}
+	var stuck := 0
+	for e: HostEntity in life.actors_at(sid):
+		xs[floori(e.body.pos.x)] = true
+		if host.world.is_solid(floori(e.body.pos.x), floori(e.body.pos.y) + 1):
+			stuck += 1
+	t.eq(stuck, 0, "no one stands inside a wall")
+	t.check(xs.size() * 2 >= life.actors_at(sid).size(), "people spread out (%d columns for %d people)" % [xs.size(), life.actors_at(sid).size()])
+	var smith_cells: Array = life.town._real_cells(host, sid, "smith")
+	for e: HostEntity in life.actors_at(sid):
+		if e.get_meta("sim")["role"] == "smith" and not smith_cells.is_empty() and LifeTown._phase_at(host.clock.hour_of_day()) == "work":
+			var best := INF
+			for c: Vector2i in smith_cells:
+				best = minf(best, absf((e.brain as LifeBrain).post.x - c.x))
+			t.check(best <= 2.5, "the smith works at the forge (%.1f tiles off)" % best)
 	# night: home, guards with torches
 	host.sleep(fposmod(23.0 - host.clock.hour_of_day(), 24.0))
 	ticks(host, 70)

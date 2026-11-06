@@ -465,6 +465,7 @@ func on_combat_damage(e: HostEntity, _dealt: int, src: int) -> void:
 	for inf: Dictionary in [ie, ia]:
 		if String(inf.get("kind", "")) == "settlement":
 			road.raid_blow(int(inf["id"]))
+			town.fight_at(int(inf["id"]))
 		elif String(inf.get("kind", "")) == "party":
 			road.blow(int(inf["id"]))
 	if String(ie.get("kind", "")) == "party" and String(ia.get("kind", "")) == "party" and int(ie["id"]) != int(ia["id"]):
