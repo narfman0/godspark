@@ -106,3 +106,9 @@ Content and rules gaps
 Never played (beyond the first session)
 - Attack feel, telegraph dodging at real latency, hold-to-rest and revive timing, inventory
   drag, spell aiming, HUD at 1080p, whether day packs by the spawn are now too easy.
+
+## Test flakes
+- `ALL=1 tools/net_smoke.sh` failed once in four runs on main after the Places merge ("no
+  bot waited in bed for the other"), then passed three times. The bots' bed timing is
+  real-time dependent; make the wait check robust or the bots deterministic.
+
