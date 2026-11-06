@@ -233,16 +233,7 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) ->
 			if id == 0 or sol[c] != 0:
 				continue
 			var col := colors[id].srgb_to_linear()
-			if TileDefs.platform[id] != 0:
-				# A walkway: a plank slab along the top of the cell.
-				buf.box(Vector3(lx, ly + 0.72, -0.45), Vector3(lx + 1, ly + 1, 0.45), col, id, KIND_BLOCK)
-			elif TileDefs.ladder[id] != 0:
-				# Two rails and two rungs, behind the actors.
-				buf.box(Vector3(lx + 0.12, ly, -0.3), Vector3(lx + 0.24, ly + 1, -0.18), col, id, KIND_BLOCK)
-				buf.box(Vector3(lx + 0.76, ly, -0.3), Vector3(lx + 0.88, ly + 1, -0.18), col, id, KIND_BLOCK)
-				buf.box(Vector3(lx + 0.12, ly + 0.2, -0.28), Vector3(lx + 0.88, ly + 0.3, -0.2), col, id, KIND_BLOCK)
-				buf.box(Vector3(lx + 0.12, ly + 0.7, -0.28), Vector3(lx + 0.88, ly + 0.8, -0.2), col, id, KIND_BLOCK)
-			elif emit[id] > 0:
+			if emit[id] > 0:
 				# A stick with a glowing head.
 				buf.box(Vector3(lx + 0.44, ly, -0.06), Vector3(lx + 0.56, ly + 0.5, 0.06), STICK.srgb_to_linear(), id, KIND_BLOCK)
 				buf.box(Vector3(lx + 0.36, ly + 0.5, -0.12), Vector3(lx + 0.64, ly + 0.82, 0.12), col, id, KIND_EMIT)

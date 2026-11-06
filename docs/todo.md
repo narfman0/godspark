@@ -119,3 +119,17 @@ Never played (beyond the first session)
   bot waited in bed for the other"), then passed three times. The bots' bed timing is
   real-time dependent; make the wait check robust or the bots deterministic.
 
+## Passability (the user asked for a world passable without digging; targets not met yet)
+- Point-to-point trips through caves: 69% for a Medium walker (target above 85%); Large
+  climbers fell from 43% to 27%.
+- Every site reachable on foot from the spawn: 94% of sites, all of them in 5 of 10 worlds
+  (target: every site, every seed). Misses: the nadir portal, sometimes a deep settlement.
+- The monster path follower fails jumps on long paths: real-body site walks succeed 27% of
+  the time, and `test_monster_nav`'s bar for following found cave paths was lowered from 80%
+  to 70% (traversal) and to 60% at the Places merge (13 of 19). Fix the follower, then
+  raise the bar back.
+- The planner's 64-tile window misses ways that go the long way round.
+- Places stamps settlements after the passages stage runs: check passages near settlement
+  edges, and re-run the roads stage's deep routes, which were all flagged rough.
+- Worldgen now takes about 1.8 s for a dev world and 5.4 s for a small one.
+
