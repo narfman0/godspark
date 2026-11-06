@@ -74,6 +74,9 @@ var sim_origin := 0
 var chronicle_sent := 0
 ## Per tick that stepped the sim: microseconds spent (for HOSTSTATS and tests).
 var sim_usec := PackedInt32Array()
+## tools/soak.gd: time each system's last tick (system id -> usec).
+var profile := false
+var sys_usec := {}
 ## Builds, grows and ruins places in the tiles as the sim changes (PlaceKeeper).
 var places_keeper := PlaceKeeper.new()
 ## Systems by id, in the order added (HostSystem).
@@ -145,7 +148,10 @@ func tick() -> void:
 				e.input.jump_pressed = false
 			e.flags = HostEntity.body_flags(e.body, e.digging())
 	for sys: HostSystem in systems.values():
+		var t0 := Time.get_ticks_usec() if profile else 0
 		sys.tick(self)
+		if profile:
+			sys_usec[sys.sys_id()] = Time.get_ticks_usec() - t0
 
 ## Step the sim toward the clock within SIM_BUDGET_US, then queue its new chronicle lines.
 func _step_sim() -> void:
