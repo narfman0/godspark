@@ -10,7 +10,8 @@
 ##   - solid tiles (TileDefs.solid) block from every side; outside the world reads as bedrock
 ##   - one-way tiles block only a body moving down onto their top: TileDefs.platform tiles
 ##     and the top rung of a ladder (a ladder tile with no ladder above it). A body ignores
-##     them while `climbing`, and ignores those whose top is at or above `drop_y`.
+##     them while `climbing` (except a walkway cell in its centre column: where its ladder
+##     ends on a walkway), and ignores those whose top is at or above `drop_y`.
 ##   - ladders are otherwise not solid.
 class_name TileCollision
 extends RefCounted
@@ -338,8 +339,12 @@ static func _floor_blocks(world: TileWorld, body: Body, c: int, row: int) -> boo
 	var id := world.get_fg(c, row)
 	if TileDefs.solid[id] != 0:
 		return true
-	if body == null or body.climbing or row + 1 >= body.drop_y:
+	if body == null or row + 1 >= body.drop_y:
 		return false
+	if body.climbing:
+		# A climber passes one-way tiles, except a walkway its ladder (or rope) ends on: the
+		# one-way cell in the body's centre column holds it up.
+		return TileDefs.platform[id] != 0 and c == floori(body.pos.x)
 	return is_one_way(world, c, row)
 
 static func _touching_floor(world: TileWorld, body: Body, l: float, r: float, b: float) -> bool:

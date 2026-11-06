@@ -48,7 +48,8 @@ var _best_h := INF
 var _dig_mask := 0
 var _inv_speed := 1.0
 
-func setup(w: TileWorld, p: NavProfile, s: Vector2i, gl: Vector2i, t: Vector2i, part: bool, cap: int) -> void:
+func setup(w: TileWorld, p: NavProfile, s: Vector2i, gl: Vector2i, t: Vector2i, part: bool, cap: int,
+		radius := Vector2i(-1, -1)) -> void:
 	world = w
 	prof = p
 	start = s
@@ -56,11 +57,11 @@ func setup(w: TileWorld, p: NavProfile, s: Vector2i, gl: Vector2i, t: Vector2i, 
 	tol = t
 	partial = part
 	max_expand = cap
-	var r := MonsterNav.WINDOW
-	x0 = s.x - r
-	y0 = s.y - r
-	W = 2 * r + 1
-	H = 2 * r + 1
+	var r := Vector2i(MonsterNav.WINDOW, MonsterNav.WINDOW) if radius.x < 0 else radius
+	x0 = s.x - r.x
+	y0 = s.y - r.y
+	W = 2 * r.x + 1
+	H = 2 * r.y + 1
 	fx0 = x0 - MARGIN
 	fy0 = y0 - MARGIN
 	FW = W + 2 * MARGIN
@@ -153,6 +154,45 @@ func result() -> NavPath:
 	p.cost = _g[end]
 	return p
 
+## The path from the start to node n if the search reached it (a flood: search toward an
+## unreachable goal with partial off and a large cap, then ask for any node), else null.
+func path_to(n: Vector2i) -> NavPath:
+	var k := _key(n.x, n.y)
+	if k < 0 or _g[k] == INF:
+		return null
+	var nodes: Array[Vector2i] = []
+	var how := PackedInt32Array()
+	while k >= 0:
+		nodes.append(Vector2i(x0 + k % W, y0 + k / W))
+		how.append(_how[k])
+		k = _came[k]
+	nodes.reverse()
+	how.reverse()
+	var p := NavPath.new()
+	p.prof = prof
+	p.nodes = nodes
+	p.how = how
+	p.reached = true
+	p.goal = n
+	p.cost = _g[_key(n.x, n.y)]
+	return p
+
+## The highest node reached (for tools: where a flood up out of a pit stops).
+func highest() -> Vector2i:
+	var best := Vector2i(0, -(1 << 30))
+	for k in _g.size():
+		if _g[k] != INF and y0 + k / W > best.y:
+			best = Vector2i(x0 + k % W, y0 + k / W)
+	return best
+
+## Nodes reached so far (g known), for floods.
+func reached_count() -> int:
+	var n := 0
+	for g in _g:
+		if g != INF:
+			n += 1
+	return n
+
 func reached() -> bool:
 	return _found >= 0
 
@@ -185,6 +225,7 @@ func _expand(k: int, L: int, y: int) -> void:
 			_ground(k, g0, L, y, dir, st)
 	if st:
 		_platform_drop(k, g0, L, y)
+		_stairs_up(k, g0, L, y)
 		if _jump_worthy(L, y):
 			_jumps(k, g0, L, y)
 	# ladders: in the box's centre column, or the top rung under the feet
@@ -260,9 +301,28 @@ func _platform_drop(k: int, g0: float, L: int, y: int) -> void:
 	for d in range(1, MonsterNav.MAX_FALL + 1):
 		if _clear_at(L, y - d) != 1:
 			return
-		if d >= 2 and _stand_at(L, y - d):
+		if (d >= 2 or _tread_under(L, y - d)) and _stand_at(L, y - d):
 			_relax(k, L, y - d, g0 + 0.15 + sqrt(2.0 * d / maxf(prof.stats.gravity, 1.0)), E.PLATFORM, 0)
 			return
+
+## Up a staircase: a tread at the feet's row in the next node's columns lifts the body one
+## row (PlayerController._stairs), if both columns have the headroom.
+func _stairs_up(k: int, g0: float, L: int, y: int) -> void:
+	for dir: int in [1, -1]:
+		var nl := L + dir
+		var any := false
+		for c in range(nl, nl + prof.cw):
+			if _cf(c, y) & MonsterNav.STAIR:
+				any = true
+				break
+		if any and _clear_at(nl, y + 1) == 1 and _clear_at(L, y + 1) == 1 and _stand_at(nl, y + 1):
+			_relax(k, nl, y + 1, g0 + 1.2 / prof.run, E.STAIRS, 0)
+
+func _tread_under(L: int, y: int) -> bool:
+	for c in range(L, L + prof.cw):
+		if _cf(c, y - 1) & MonsterNav.STAIR:
+			return true
+	return false
 
 ## Jumps are tried where walking does not simply continue (a ledge, a wall, a gap) or where
 ## something to stand on hangs within jumping height.

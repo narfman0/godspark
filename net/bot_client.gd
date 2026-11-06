@@ -69,7 +69,7 @@ var _rules_corr := 0
 var _rules_asked := false
 
 func _ready() -> void:
-	_wood = TileDefs.id("wood")
+	_wood = TileDefs.id("rubble")     # what digging gives (M4)
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=")
 		match kv[0]:

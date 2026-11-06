@@ -11,6 +11,20 @@ func run(t: TestLog) -> void:
 	var deep := ChunkMesher.build(test, 0, 0)
 	t.eq(_verts(deep), 4, "a buried all-stone chunk is one merged front quad")
 
+	# traversal pieces: each draws something of its own (a box is 16 vertices), and a rope's
+	# anchor cell (no rope above) carries a knot
+	var counts := {}
+	for n: String in ["platform", "ladder", "stairs_r", "stairs_l", "rope"]:
+		var wt := TileWorld.new(64, 64)
+		wt.set_fg(5, 5, TileDefs.id(n), true)
+		counts[n] = _verts(ChunkMesher.build(wt, 0, 0))
+	t.check(counts["stairs_r"] == 36 and counts["stairs_l"] == 36 and counts["platform"] == 48 and counts["ladder"] == 64 and counts["rope"] == 32,
+			"walkways, stairs, ladders and ropes have their own shapes (%s)" % counts)
+	var rp := TileWorld.new(64, 64)
+	rp.set_fg(5, 5, TileDefs.id("rope"), true)
+	rp.set_fg(5, 4, TileDefs.id("rope"), true)
+	t.eq(_verts(ChunkMesher.build(rp, 0, 0)), counts["rope"] + 16, "a two-cell rope: one knot, at the anchor")
+
 	var one := TileWorld.new(64, 64)
 	one.set_fg(5, 5, stone, true)
 	t.eq(_verts(ChunkMesher.build(one, 0, 0)), 4 + 4 * 4 + 4 * 4, "a lone block: front, 4 bevels, 4 sides")

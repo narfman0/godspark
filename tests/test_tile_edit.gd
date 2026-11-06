@@ -24,6 +24,15 @@ func run(t: TestLog) -> void:
 	big.pos = Vector2(20.5, 8)
 	t.check(TileEdit.can_dig(world, big, 28, 7), "a bigger body reaches further")
 
+	# a staircase built up into the air holds on diagonally, tread to tread
+	var sw := Col.flat(64)
+	var sr := TileDefs.id("stairs_r")
+	t.check(TileEdit.can_place(sw, body, 22, 8, sr, []), "a first stair tread on the ground")
+	sw.set_fg(22, 8, sr, true)
+	t.check(TileEdit.can_place(sw, body, 23, 9, sr, []), "the next tread up holds on to the one below it diagonally")
+	t.check(not TileEdit.can_place(sw, body, 23, 9, TileDefs.id("platform"), []), "a walkway there does not")
+	t.check(not TileEdit.can_place(sw, body, 24, 10, sr, []), "nor a tread with no tread beside it")
+
 	t.eq(TileEdit.dig_time(stone), 1.0, "stone takes 1 s bare-handed")
 	t.eq(TileEdit.dig_time(stone, 2.0), 0.5, "a power-2 tool halves it")
 	t.eq(TileEdit.dig_time(TileDefs.id("dirt")), 0.4, "dirt is exactly 0.4 s despite float32 hardness")

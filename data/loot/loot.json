@@ -22,7 +22,7 @@
 		"giant": {"coin": 0.5, "gear": 35, "material": 40, "potion": 10, "magic": 15, "materials": ["leather", "bone", "gem"]},
 		"fey": {"coin": 0.3, "gear": 15, "material": 40, "potion": 25, "magic": 20, "materials": ["cloth", "gem"]},
 		"celestial": {"coin": 0.3, "gear": 25, "material": 30, "potion": 25, "magic": 20, "materials": ["gem"]},
-		"plant": {"coin": 0.0, "gear": 0, "material": 90, "potion": 10, "magic": 0, "materials": ["tile:wood"]},
+		"plant": {"coin": 0.0, "gear": 0, "material": 90, "potion": 10, "magic": 0, "materials": ["supplies"]},
 		"ooze": {"coin": 0.15, "gear": 15, "material": 75, "potion": 5, "magic": 5, "materials": ["ichor"]},
 		"default": {"coin": 0.2, "gear": 20, "material": 50, "potion": 15, "magic": 15, "materials": ["bone", "leather"]}
 	},

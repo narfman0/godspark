@@ -30,7 +30,7 @@ func bounds(margin := 2) -> Rect2i:
 	return Rect2i(lo - Vector2i(margin, margin), hi - lo + Vector2i(prof.cw + 2 * margin, prof.ch + 2 * margin))
 
 func describe() -> String:
-	var names := ["walk", "drop", "jump", "platform", "ladder", "cling", "fly", "swim"]
+	var names := MonsterNav.EDGE_NAMES
 	var parts := PackedStringArray()
 	for i in nodes.size():
 		var e := how[i]

@@ -25,12 +25,12 @@ func run(t: TestLog) -> void:
 	t.check(ok >= 0.0, "both clients join and hear from the items system")
 	var ann := rig.cw(0)
 	var he := rig.host_entity(0)
-	t.eq(ai.item(1), {"base": "tile:wood", "count": 30}, "mirror: the kit's wood on hotbar 2")
+	t.eq(String(ai.item(1)["base"]), "tile:torch", "mirror: the kit's torches on hotbar 2")
 	t.eq(String(ai.item(Equipment.index_of("main_hand"))["base"]), "longsword", "mirror: the longsword in hand")
 	t.check(ai.item(0).is_empty() and ai.selected() == Inventory.ATTACK_SLOT, "the empty attack slot is selected at the start")
 	ai.select_hotbar(1)
-	t.eq(ai.selected_tile(), TileDefs.id("wood"), "selecting hotbar 2 places wood")
-	t.eq(ann.place_tile, TileDefs.id("wood"), "and the client places it")
+	t.eq(ai.selected_tile(), TileDefs.id("torch"), "selecting hotbar 2 places torches")
+	t.eq(ann.place_tile, TileDefs.id("torch"), "and the client places them")
 	var a := _props(ann.stats)
 	t.eq(a, _props(MoveStats.player()), "no sparks: the client's move stats are MoveStats.player()")
 
@@ -38,17 +38,17 @@ func run(t: TestLog) -> void:
 	var tx := floori(ann.body.pos.x) + 2
 	rig.inputs[0].dig = true
 	rig.inputs[0].target = Vector2i(tx, ground - 1)
-	t.check(rig.until(func() -> bool: return ai.inventory.count_base("tile:dirt") == 1, 3.0) >= 0.0, "dug grass shows up as dirt in the mirror")
+	t.check(rig.until(func() -> bool: return ai.inventory.count_base("tile:rubble") == 1, 3.0) >= 0.0, "dug grass shows up as rubble in the mirror")
 	rig.inputs[0].dig = false
 	rig.run(0.1)
 	# place: consumed
 	rig.inputs[0].place = true
-	rig.inputs[0].place_tile = 0
+	rig.inputs[0].place_tile = TileDefs.id("rubble")
 	rig.inputs[0].target = Vector2i(tx, ground - 1)
-	t.check(rig.until(func() -> bool: return ai.inventory.count_base("tile:wood") == 29, 2.0) >= 0.0, "placing wood uses one")
+	t.check(rig.until(func() -> bool: return ai.inventory.count_base("tile:rubble") == 0, 2.0) >= 0.0, "placing the rubble uses it")
 	rig.inputs[0].place = false
 	rig.run(0.2)
-	t.eq(rig.cw(1).world.get_fg(tx, ground - 1), TileDefs.id("wood"), "bob sees the wood")
+	t.eq(rig.cw(1).world.get_fg(tx, ground - 1), TileDefs.id("rubble"), "bob sees the rubble")
 	t.check(rig.in_sync(0) and rig.in_sync(1), "worlds in sync")
 	# no item: not predicted, not sent
 	var pred := ann.predicted
@@ -138,7 +138,7 @@ func run(t: TestLog) -> void:
 	t.check(rig.in_sync(0) and rig.in_sync(1), "still in sync")
 	# select a hotbar slot
 	ai.select_hotbar(2)
-	t.eq(ann.place_tile, TileDefs.id("torch"), "selecting hotbar 3 places torches")
+	t.eq(ann.place_tile, TileDefs.id("campfire"), "selecting hotbar 3 places a campfire")
 	rig.run(0.2)
 	t.eq(he.character.inventory.selected, 2, "the host knows the selection")
 	# move and equip through requests

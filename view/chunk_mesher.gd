@@ -12,7 +12,8 @@
 ## rectangles. Where a block borders a non-solid cell it gets a 45 degree bevel and a side
 ## face down to the back plane; bevels meet in mitres at outer corners and get two filler
 ## triangles at inner corners. Open cells with a background wall get a wall plane at WALL_Z.
-## Non-solid tiles (torches) are small posts.
+## Non-solid tiles: torches are posts with a glowing head, walkways planks, stairs treads
+## with risers and a stringer, ladders rails and rungs, ropes a cord with a knot at the anchor.
 ##
 ## Vertex data: COLOR is the tile colour (linear), UV2 = (tile or wall id, kind) with kind
 ## 0 block, 1 emissive, 2 wall, and UV is a world-space tile coordinate on the face's plane:
@@ -245,8 +246,40 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) ->
 				# A stick with a glowing head.
 				buf.box(Vector3(lx + 0.44, ly, -0.06), Vector3(lx + 0.56, ly + 0.5, 0.06), STICK.srgb_to_linear(), id, KIND_BLOCK)
 				buf.box(Vector3(lx + 0.36, ly + 0.5, -0.12), Vector3(lx + 0.64, ly + 0.82, 0.12), col, id, KIND_EMIT)
+			elif TileDefs.stairs[id] != 0:
+				_stair(buf, lx, ly, TileDefs.stairs[id] == 1, col, id)
+			elif TileDefs.platform[id] != 0:
+				# A plank walkway the full depth of the row, on two thin bearers.
+				buf.box(Vector3(lx, ly + 0.78, -0.45), Vector3(lx + 1, ly + 1.0, 0.45), col, id, KIND_BLOCK)
+				var dark := col.darkened(0.35)
+				buf.box(Vector3(lx + 0.05, ly + 0.66, -0.4), Vector3(lx + 0.95, ly + 0.78, -0.3), dark, id, KIND_BLOCK)
+				buf.box(Vector3(lx + 0.05, ly + 0.66, 0.3), Vector3(lx + 0.95, ly + 0.78, 0.4), dark, id, KIND_BLOCK)
+			elif TileDefs.rope[id] != 0:
+				# A hanging cord behind the actors, with a knot where it is anchored.
+				buf.box(Vector3(lx + 0.45, ly, -0.3), Vector3(lx + 0.55, ly + 1.0, -0.2), col, id, KIND_BLOCK)
+				if TileDefs.rope[ids[c + PAD]] == 0:
+					buf.box(Vector3(lx + 0.34, ly + 0.62, -0.36), Vector3(lx + 0.66, ly + 0.96, -0.14), col.darkened(0.2), id, KIND_BLOCK)
+			elif TileDefs.ladder[id] != 0:
+				# Two rails and two rungs, behind the actors.
+				var dark := col.darkened(0.25)
+				buf.box(Vector3(lx + 0.12, ly, -0.34), Vector3(lx + 0.24, ly + 1.0, -0.22), dark, id, KIND_BLOCK)
+				buf.box(Vector3(lx + 0.76, ly, -0.34), Vector3(lx + 0.88, ly + 1.0, -0.22), dark, id, KIND_BLOCK)
+				buf.box(Vector3(lx + 0.24, ly + 0.2, -0.32), Vector3(lx + 0.76, ly + 0.3, -0.24), col, id, KIND_BLOCK)
+				buf.box(Vector3(lx + 0.24, ly + 0.7, -0.32), Vector3(lx + 0.76, ly + 0.8, -0.24), col, id, KIND_BLOCK)
 			else:
 				buf.box(Vector3(lx + 0.4, ly, -0.1), Vector3(lx + 0.6, ly + 0.6, 0.1), col, id, KIND_BLOCK)
+
+## One stair cell: a tread the full depth at the top of the cell, a riser down its low side,
+## and a diagonal stringer at the back from this tread's low corner to the next one's.
+static func _stair(buf: MeshBuf, lx: int, ly: int, rises_right: bool, col: Color, id: int) -> void:
+	var dark := col.darkened(0.3)
+	buf.box(Vector3(lx, ly + 0.8, -0.45), Vector3(lx + 1, ly + 1.0, 0.45), col, id, KIND_BLOCK)
+	var rx: float = lx if rises_right else lx + 0.85
+	buf.box(Vector3(rx, ly + 0.25, -0.42), Vector3(rx + 0.15, ly + 0.8, 0.42), dark, id, KIND_BLOCK)
+	var nz := Vector3(0, 0, 1)
+	var a := Vector3(lx, ly - 0.05 if rises_right else ly + 0.75, -0.44)
+	var b := Vector3(lx + 1, ly + 0.75 if rises_right else ly - 0.05, -0.44)
+	buf.quad(a, b, b + Vector3(0, 0.3, 0), a + Vector3(0, 0.3, 0), nz, dark, id, KIND_BLOCK)
 
 ## Growing vertex arrays. Quads take four corners in order around the face and fix the
 ## winding to match the normal (Godot's front faces are clockwise).

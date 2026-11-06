@@ -10,7 +10,10 @@
 ##   JUMP      an arc recorded by running PlayerController itself on an empty world with
 ##             scripted inputs (hold time, when to steer), for this exact MoveStats; valid
 ##             where every cell its box swept is free and the landing node stands
-##   PLATFORM  down + jump through one-way tiles
+##   PLATFORM  down + jump through one-way tiles (onto stairs: one tile is enough)
+##   STAIRS    up a staircase: to the next column one row up where a tread sits at the
+##             feet's row (the follower holds W, as a player must to take stairs); down a
+##             staircase is a one-row DROP the controller steps
 ##   LADDER    up / down a ladder in the box's centre column (anyone)
 ##   CLING     up / down a wall and over its top (bodies with a climb speed)
 ##   FLY       any of the 8 neighbours through open space (bodies with a fly speed)
@@ -28,7 +31,8 @@
 class_name MonsterNav
 extends RefCounted
 
-enum Edge { WALK, DROP, JUMP, PLATFORM, LADDER, CLING, FLY, SWIM }
+enum Edge { WALK, DROP, JUMP, PLATFORM, LADDER, CLING, FLY, SWIM, STAIRS }
+const EDGE_NAMES := ["walk", "drop", "jump", "platform", "ladder", "cling", "fly", "swim", "stairs"]
 
 const WINDOW := 64
 ## Cell flags.
@@ -38,6 +42,7 @@ const LADDER := 4
 const WET := 8          # liquid at least half full
 const SOFT := 16        # diggable by the Tunnelling affix (hardness <= SOFT_HARDNESS)
 const ROCK := 32        # diggable by a burrower (hardness <= ROCK_HARDNESS)
+const STAIR := 64       # a stair tread (also ONEWAY)
 const KNOWN := 128
 const SOFT_HARDNESS := 0.6
 const ROCK_HARDNESS := 2.0
@@ -82,9 +87,9 @@ static func profile(stats: MoveStats, dig_hardness := 0.0) -> NavProfile:
 ## tiles, x and y) the end node must be to the goal node; partial: settle for the reachable
 ## node nearest the goal when the goal cannot be reached.
 static func start(world: TileWorld, prof: NavProfile, from: Vector2, to: Vector2, tol := Vector2i(1, 1),
-		partial := true, max_expand := 6000) -> NavSearch:
+		partial := true, max_expand := 6000, radius := Vector2i(-1, -1)) -> NavSearch:
 	var s := NavSearch.new()
-	s.setup(world, prof, node_of(prof, from), node_of(prof, to), tol, partial, max_expand)
+	s.setup(world, prof, node_of(prof, from), node_of(prof, to), tol, partial, max_expand, radius)
 	return s
 
 ## The node a body at `pos` (feet) occupies: left column of its box, feet row.
@@ -107,6 +112,8 @@ static func cell_flags(world: TileWorld, x: int, y: int) -> int:
 			f |= ROCK
 	elif TileDefs.platform[id] != 0:
 		f |= ONEWAY
+		if TileDefs.stairs[id] != 0:
+			f |= STAIR
 	elif TileDefs.ladder[id] != 0:
 		f |= LADDER
 		if TileDefs.ladder[world.get_fg(x, y + 1)] == 0:
@@ -222,8 +229,6 @@ static func _landing(p: NavProfile, best: Dictionary, cells: Dictionary, xc: flo
 		list = [j]
 	elif ticks < int(list[0]["ticks"]) or (ticks == int(list[0]["ticks"]) and asc.size() + desc.size() < (list[0]["asc"] as PackedInt32Array).size() + (list[0]["desc"] as PackedInt32Array).size()):
 		list[0] = j
-	elif dy < 3:
-		pass              # one way is enough for low landings
 	elif list.size() < 2 and delay > int(list[0]["delay"]):
 		list.append(j)
 	elif list.size() == 2 and delay > int(list[1]["delay"]):

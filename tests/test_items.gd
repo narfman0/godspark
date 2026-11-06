@@ -31,9 +31,10 @@ func _catalogue(t: TestLog) -> void:
 	for n: String in ["dirt", "stone", "wood", "torch", "platform", "ladder", "copper_ore", "campfire", "bed", "shrine"]:
 		t.eq(Items.tile_of(Items.make("tile:" + n)), TileDefs.id(n), "tile:%s places %s" % [n, n])
 	t.check(not Items.exists("tile:bedrock") and not Items.exists("tile:air"), "no item for air or bedrock")
-	t.eq(Items.tile_drop(TileDefs.id("grass")), "tile:dirt", "grass drops dirt")
-	t.eq(Items.tile_drop(TileDefs.id("iron_ore")), "tile:iron_ore", "ore drops ore")
-	for n: String in ["torch", "platform", "ladder", "campfire", "bed", "shrine", "stone"]:
+	t.eq(Items.tile_drop(TileDefs.id("grass")), "tile:rubble", "grass drops rubble")
+	t.eq(Items.tile_drop(TileDefs.id("stone")), "tile:rubble", "stone drops rubble")
+	t.eq(Items.tile_drop(TileDefs.id("iron_ore")), "ore:iron", "ore drops an ore trade good")
+	for n: String in ["torch", "platform", "ladder", "campfire", "bed", "shrine", "rope", "stairs_l"]:
 		t.eq(Items.tile_drop(TileDefs.id(n)), "tile:" + n, "%s drops itself" % n)
 	t.eq(Items.tile_drop(TileDefs.id("bedrock")), "", "bedrock drops nothing")
 	t.eq(Items.stack_max(Items.make("tile:dirt")), 999, "tiles stack to 999")

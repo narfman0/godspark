@@ -11,6 +11,8 @@ extends RefCounted
 const E := MonsterNav.Edge
 ## Seconds without getting closer to the next node before the follower gives up.
 const STUCK_S := 1.2
+## Seconds a jump waits to line up on its take-off spot before it goes from where it is.
+const ALIGN_S := 0.5
 
 var path: NavPath
 var i := 1
@@ -25,6 +27,7 @@ var _since := 0.0
 var _dig_t := 0.0
 var _dig_at := Vector2i(-99999, -99999)
 var _dropped := false
+var _align := 0.0
 ## Cells dug so far (for tests and the track notes).
 var dug := 0
 
@@ -48,6 +51,7 @@ func _reset_edge() -> void:
 	_since = 0.0
 	_dig_t = 0.0
 	_dropped = false
+	_align = 0.0
 
 func _fail(reason: String) -> PlayerInput:
 	failed = true
@@ -82,7 +86,7 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 	else:
 		_since += dt
 	if _since > STUCK_S and jump_t < 0 and _dig_t <= 0.0:
-		return _fail("stuck going %s to %d,%d" % [["walk", "drop", "jump", "platform", "ladder", "cling", "fly", "swim"][edge], tgt.x, tgt.y])
+		return _fail("stuck going %s to %d,%d" % [MonsterNav.EDGE_NAMES[edge], tgt.x, tgt.y])
 	# diggers clear the next node first
 	if prof.dig > 0.0 and edge in [E.WALK, E.DROP]:
 		var cell := _solid_cell(world, prof, tgt)
@@ -106,12 +110,19 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 		E.WALK:
 			var aim := _carrot(prof, b)
 			inp.move_x = _steer(aim - b.pos.x, 2.5)
-			if b.climbing:                  # stepping off a ladder sideways
+			if b.climbing:                  # stepping off a ladder sideways, at the node's height
 				inp.move_x = signf(tp.x - b.pos.x)
+				inp.up = tp.y > b.pos.y + 0.01
+		E.STAIRS:
+			inp.move_x = _steer(tp.x - b.pos.x, 4.0)
+			inp.up = not b.on_stairs        # W takes a staircase; once on it, it keeps climbing
 		E.DROP:
 			inp.move_x = _steer(tp.x - b.pos.x, 3.0 if b.on_floor else 4.0)
 			if b.clinging:                  # let go of the wall
 				inp.move_x = -float(b.wall_dir)
+			elif b.on_floor and tgt.y < floori(b.pos.y + 0.05) and absf(tp.x - b.pos.x) < 0.6 \
+					and TileCollision.on_platform_only(world, b) and not TileCollision.ladder_at(world, b, true):
+				inp.down = true             # on a walkway over the stairs going on down: S
 		E.PLATFORM:
 			if b.climbing:                  # caught on a ladder dropping past it: climb on down
 				inp.down = true
@@ -122,6 +133,7 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 				_dropped = true
 			else:
 				inp.move_x = _steer(tp.x - b.pos.x, 3.0)
+				inp.down = b.climbing       # caught a ladder dropping down beside it: climb on down
 		E.JUMP:
 			var j: Dictionary = prof.jumps[extra]
 			if jumped and jump_t < 0:
@@ -130,10 +142,14 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 			if jump_t < 0:
 				var from := MonsterNav.node_pos(prof, path.nodes[i - 1])
 				var off := from.x - b.pos.x
-				if b.on_floor and absf(off) <= 0.2 and absf(b.vel.x) <= 2.0:
-					jump_t = 0
+				_align += dt
+				if b.on_floor and not b.climbing and (absf(off) <= 0.2 and absf(b.vel.x) <= 2.0 or _align > ALIGN_S):
+					jump_t = 0          # in place, or as close as a wall lets it get
 				else:
 					inp.move_x = _steer(off, 3.0) if absf(off) > 0.05 else 0.0
+					if b.climbing:              # on a ladder at the take-off: get onto the floor
+						inp.down = from.y < b.pos.y - 0.02
+						inp.up = from.y > b.pos.y + 0.02
 					return inp
 			inp.jump = jump_t < int(j["hold"])
 			inp.jump_pressed = jump_t == 0
@@ -147,11 +163,11 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 				_best = INF
 				inp.move_x = _steer(tp.x - b.pos.x, 3.0)
 		E.LADDER:
-			var cc := floori(tgt.x + prof.cw * 0.5)
-			if not b.climbing:
-				inp.move_x = _steer(cc + 0.5 - b.pos.x, 4.0)
-			inp.up = tgt.y > floori(b.pos.y + 0.05)
-			inp.down = tgt.y < floori(b.pos.y + 0.05) or (not inp.up and tgt.y < b.pos.y - 0.2)
+			# the node's middle has the ladder in its centre column and keeps a wide box clear
+			# of the rock beside a ladder in a narrow shaft
+			inp.move_x = _steer(tp.x - b.pos.x, 4.0 if not b.climbing else 2.0)
+			inp.up = tgt.y > floori(b.pos.y + 0.05) or (b.climbing and tp.y > b.pos.y + 0.01)
+			inp.down = not inp.up and (tgt.y < floori(b.pos.y + 0.05) or tgt.y < b.pos.y - 0.2)
 		E.CLING:
 			var side := b.wall_dir if b.wall_dir != 0 else ((extra & 3) - 1 if extra != 0 else 0)
 			if tgt.x != path.nodes[i - 1].x:          # over the top of the wall
@@ -197,7 +213,7 @@ func _arrived(prof: NavProfile, b: Body, tgt: Vector2i, edge: int) -> bool:
 			return past and dy <= 0.6 and (b.climbing or b.on_floor) and dx <= 0.75
 		E.CLING:
 			return dy <= 0.35 and dx <= 0.6 and (b.clinging or b.on_floor)
-		E.WALK:
+		E.WALK, E.STAIRS:
 			# keep running: arrived once its box is in the node's columns, on the node's row
 			return MonsterNav.node_of(prof, b.pos) == tgt and (b.on_floor or b.climbing or b.swimming) \
 				or (dx <= 0.3 and dy <= 0.3)

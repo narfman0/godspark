@@ -378,6 +378,8 @@
 			"deeds": {
 				"place:wood": 2,
 				"place:platform": 1,
+				"place:stairs_r": 1,
+				"place:stairs_l": 1,
 				"place:ladder": 1
 			}
 		},

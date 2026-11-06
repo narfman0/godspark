@@ -78,9 +78,16 @@ Open from the integration pass
   pacing target (early 3-6 min and the 90s an hour). At 8: levels 2-5 take 4.7-7.5 min but
   level 50 ~8 min, the 90s ~6 min, ~10 h in all. The deep bands need their own XP divisor
   (or fewer, slower deep spawns); the deep kill rates rest on assumed fight lengths.
-- Caves: Medium walkers reach 49% of air-connected cave spots 40 tiles apart (35% before);
-  the rest are sealed pockets and long climbs. Cave hunters could dig (Tunnelling exists);
-  the worldgen ladders stand in for roots or vines that have no tile yet.
+- Caves (M4 traversal, partly met): worldgen stage `passages` joins cave regions; Medium
+  walkers reach 69% of cave pairs 40 tiles apart (48% before; target 85%) and 94% of sites
+  from the spawn on the nav graph (every site in 5 of 10 dev worlds; the nadir portal is the
+  usual miss). Left: NavFollow fails jumps and long walks (27% of real-body site walks
+  arrive); the 64-tile search window misses ways that go round; Large climbers lost share
+  (two-wide shafts); a few deep sites; generation is +1.0 s on dev, +3 s on small; joins are
+  dense (hundreds of short ladders and ropes per world). Ladders still stand in for roots.
+- Traversal: no rope item in shops or loot yet (crafted from supplies, two in the kit); the
+  player picks stairs_r or stairs_l by item (no auto-facing); ore trade goods have no
+  buyer until Deals.
 - Monsters do not attack downed players (brains skip them); a hit on a downed player comes
   only from areas, falls and other incidental damage, and counts as a failed death save.
 - Steady (cast_move) wins back a casting slowdown that is 1.0 in data/combat.json (none, as

@@ -76,6 +76,8 @@ func _director(t: TestLog) -> void:
 					continue
 				if ms.director._in_view(e.body.pos, [p]) and int(b.rec["born"]) == host.tick_count:
 					bad_view += 1
+					if OS.has_environment("NAVDBG"):
+						print("   in view: %s %s at %s, player %s, rec %s" % [b.slug, b.rank, e.body.pos, p.body.pos, b.rec])
 				if not ms.director.safe_ok(host, e.body.pos):
 					bad_safe += 1
 				var cr: float = b.rec["cr"]

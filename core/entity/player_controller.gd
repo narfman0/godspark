@@ -16,8 +16,10 @@
 ##           jump kicks off the wall
 ##   ground  everything else: run with accel/friction, air control, gravity with
 ##           terminal velocity, coyote time, jump buffer, variable height, one-way
-##           platforms (down + jump drops through), step-up and step-down of
-##           stats.step_tiles
+##           platforms (down + jump drops through at once; down alone drops through
+##           once held stats.drop_hold from a press made while standing: see
+##           _track_down), step-up and step-down of stats.step_tiles, and stairs
+##           (see _stairs: W takes a staircase, running on stays on the walkway)
 ## Burrow is a stub: burrowers move as walkers until digging-while-moving lands (see
 ## docs/tracks/movement.md).
 class_name PlayerController
@@ -39,6 +41,7 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 		if body.pos.y > body.drop_y + TileCollision.EPS or (body.on_floor and body.pos.y < body.drop_y - TileCollision.EPS):
 			body.drop_y = Body.NO_DROP
 
+	_track_down(body, input, dt)
 	if stats.dash_speed > 0.0:
 		_dash_input(body, input, stats, dt)
 	if body.on_floor:
@@ -84,6 +87,8 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 		_cling(world, body, input, stats, dt)
 	else:
 		_ground(world, body, input, stats, dt)
+	if body.on_stairs and (not body.on_floor or body.climbing or body.swimming or body.flying):
+		body.on_stairs = false
 
 # --- modes ---------------------------------------------------------------------------
 
@@ -107,6 +112,14 @@ static func _ground(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 		body.on_floor = false
 		body.jump_buffer = 0.0
 		body.coyote = 0.0
+		dropped = true
+	elif input.down and body.down_t >= stats.drop_hold - T_EPS and body.on_floor \
+			and not (body.on_stairs and input.move_x != 0.0) and TileCollision.on_platform_only(world, body):
+		# S-drop: S held on a walkway (or a ladder top) with nothing solid under the feet.
+		body.drop_y = roundi(body.pos.y)
+		body.on_floor = false
+		body.coyote = 0.0
+		body.down_t = -1.0
 		dropped = true
 	elif body.jump_buffer > T_EPS and body.coyote > T_EPS:
 		body.vel.y = stats.jump_velocity
@@ -132,7 +145,7 @@ static func _ground(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 	if stats.glide_fall > 0.0 and input.jump and body.vel.y < -stats.glide_fall:
 		# Featherfall: holding jump brakes a fall to glide_fall.
 		body.vel.y = minf(-stats.glide_fall, body.vel.y + 2.0 * g * dt)
-	_move(world, body, stats, dt, not dropped)
+	_move(world, body, stats, dt, not dropped, input.up)
 
 static func _ladder(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
 	body.jumping = false
@@ -148,6 +161,19 @@ static func _ladder(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 	else:
 		body.vel.y = (int(input.up) - int(input.down)) * stats.ladder_speed
 		body.vel.x = input.move_x * stats.ladder_side_speed
+		var rc := floori(body.pos.x)
+		if input.move_x == 0.0 and (TileDefs.rope[world.get_fg(rc, floori(body.pos.y + 0.5))] != 0
+				or TileDefs.rope[world.get_fg(rc, floori(body.pos.y - 0.5))] != 0):
+			# On a rope (often hung beside a wall) the body swings in under it, clear of the
+			# rock beside it, so a wide body that grabbed it from the ledge is not held up.
+			var hw: float = body.size.x * 0.5
+			var aim: float = rc + 0.5
+			if TileCollision._col_solid(world, rc + 1, body.pos.y - 1.0, body.top()):
+				aim = minf(aim, rc + 1 - hw)
+			if TileCollision._col_solid(world, rc - 1, body.pos.y - 1.0, body.top()):
+				aim = maxf(aim, rc + hw)
+			var off: float = aim - body.pos.x
+			body.vel.x = clampf(off / dt, -stats.ladder_side_speed, stats.ladder_side_speed)
 	TileCollision.move(world, body, dt)
 
 static func _swim(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
@@ -204,6 +230,20 @@ static func _fly(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 
 # --- shared ----------------------------------------------------------------------------
 
+## The S-drop timer. Holding S counts up only while standing (and not on a ladder); S held
+## in the air, on a ladder or in water disarms it (-1) until S is let go. So climbing down a
+## ladder onto a walkway, or landing on one with S held, never drops through: press S again.
+## A brush of S shorter than stats.drop_hold does nothing either.
+static func _track_down(body: Body, input: PlayerInput, dt: float) -> void:
+	if not input.down:
+		body.down_t = 0.0
+	elif body.down_t < 0.0:
+		pass
+	elif body.on_floor and not body.climbing and not body.swimming:
+		body.down_t += dt
+	else:
+		body.down_t = -1.0
+
 ## Dash triggers (only with stats.dash_speed > 0): PlayerInput.dash, or a direction tapped
 ## twice within stats.dash_window. Starts body.dash_left when the cooldown allows.
 static func _dash_input(body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
@@ -240,10 +280,11 @@ static func _approach_x(body: Body, target: float, accel: float, decel: float, t
 
 ## Move with step-up (walking into a ledge up to step_tiles high) and step-down (walking off
 ## a drop of up to step_tiles snaps down instead of falling), both only from the floor.
-static func _move(world: TileWorld, body: Body, stats: MoveStats, dt: float, allow_snap: bool) -> void:
+static func _move(world: TileWorld, body: Body, stats: MoveStats, dt: float, allow_snap: bool, up := false) -> void:
 	var was_floor := body.on_floor
 	var dx: float = body.vel.x * dt
-	if was_floor and dx != 0.0 and stats.step_tiles > 0:
+	var stair := allow_snap and was_floor and dx != 0.0 and _stairs(world, body, dx, up)
+	if not stair and was_floor and dx != 0.0 and stats.step_tiles > 0:
 		_try_step_up(world, body, stats, dx)
 	TileCollision.move(world, body, dt)
 	if allow_snap and was_floor and not body.on_floor and body.vel.y <= 0.0 and body.stepped == 0.0:
@@ -254,6 +295,58 @@ static func _move(world: TileWorld, body: Body, stats: MoveStats, dt: float, all
 			body.vel.y = 0.0
 			body.stepped = -free
 			TileCollision.update_contacts(world, body)
+	if body.on_floor:
+		_track_stairs(world, body, was_floor)
+
+## Stairs: one-way treads laid one tile up per tile across (TileDefs.stairs). Moving on the
+## floor, the column the box's leading edge enters this step is looked at:
+##   - a tread at the feet's row (the next one up) lifts the body onto it, if it holds W
+##     (taking a staircase from its foot or from a walkway it crosses) or is already on a
+##     staircase (body.on_stairs);
+##   - on a staircase, a tread one row below the floor (the next one down) brings it down onto
+##     it at once, even where a walkway continues level there: running down a staircase
+##     stays on it. Off a staircase, running along a walkway stays on the walkway; S drops
+##     onto stairs below (and landing on a tread puts the body on the staircase).
+## Headroom is checked like step-up. True when it stepped (then the solid step-up is skipped).
+static func _stairs(world: TileWorld, body: Body, dx: float, up: bool) -> bool:
+	var b: float = body.pos.y
+	var n := roundi(b)
+	if absf(b - n) > TileCollision.EPS:
+		return false
+	var l := body.left()
+	var r := body.right()
+	var lc := floori(r + dx - TileCollision.EPS) if dx > 0.0 else floori(l + dx + TileCollision.EPS)
+	var x0 := minf(l, l + dx)
+	var x1 := maxf(r, r + dx)
+	if TileDefs.stairs[world.get_fg(lc, n)] != 0 and (up or body.on_stairs):
+		if not TileCollision.overlaps_solid(world, Rect2(x0, n + 1, x1 - x0, body.size.y)):
+			body.pos = Vector2(body.pos.x, n + 1)
+			body.stepped = 1.0
+			body.vel.y = maxf(body.vel.y, 0.0)
+			body.on_stairs = true
+			return true
+	elif body.on_stairs and TileDefs.stairs[world.get_fg(lc, n - 2)] != 0 and not world.is_solid(lc, n - 1):
+		if not TileCollision.overlaps_solid(world, Rect2(x0, n - 1, x1 - x0, body.size.y)):
+			body.pos = Vector2(body.pos.x, n - 1)
+			body.stepped = -1.0
+			return true
+	return false
+
+## After a move on the floor: a body that arrived on a tread by a step or a landing is on the
+## staircase; walking level onto one from a walkway is not; standing on no tread is not.
+static func _track_stairs(world: TileWorld, body: Body, was_floor: bool) -> void:
+	var on_tread := _tread_under(world, body)
+	if not on_tread:
+		body.on_stairs = false
+	elif not was_floor or body.stepped != 0.0:
+		body.on_stairs = true
+
+static func _tread_under(world: TileWorld, body: Body) -> bool:
+	var row := roundi(body.pos.y) - 1
+	for c in range(floori(body.left() + TileCollision.EPS), ceili(body.right() - TileCollision.EPS)):
+		if TileDefs.stairs[world.get_fg(c, row)] != 0:
+			return true
+	return false
 
 static func _try_step_up(world: TileWorld, body: Body, stats: MoveStats, dx: float) -> void:
 	var l := body.left()

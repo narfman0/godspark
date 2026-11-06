@@ -7,6 +7,7 @@ extends RefCounted
 func run(t: TestLog) -> void:
 	_jumps_recorded(t)
 	_stairs(t)
+	_stair_tiles(t)
 	_gap(t)
 	_pit(t)
 	_platforms(t)
@@ -46,6 +47,48 @@ func _jumps_recorded(t: TestLog) -> void:
 	for j: Dictionary in slow.jumps:
 		far2 = maxi(far2, absi(int(j["dl"])))
 	t.check(far2 < far, "a slower walker jumps shorter (%d < %d)" % [far2, far])
+
+## Stair tiles (one-way treads): up and down a staircase to a walkway, and S onto stairs from
+## a walkway boxed in so the drop is the only way down.
+static func _stair_world() -> TileWorld:
+	var w := TileWorld.new(96, 96, 7)
+	var stone := TileDefs.id("stone")
+	for x in 96:
+		for y in 8:
+			w.set_fg(x, y, stone, true)
+	for y in range(8, 60):
+		w.set_fg(0, y, stone, true)
+		w.set_fg(95, y, stone, true)
+	for i in 12:
+		w.set_fg(20 + i, 8 + i, TileDefs.id("stairs_r"), true)
+	for x in range(32, 46):
+		w.set_fg(x, 19, TileDefs.id("platform"), true)
+	return w
+
+func _stair_tiles(t: TestLog) -> void:
+	var med := NavMaps.stats("medium")
+	var w := _stair_world()
+	var up := {"world": w, "start": Vector2(10.5, 8), "goal": Vector2(41.5, 20)}
+	_ok(t, "a medium walker takes a staircase up to a walkway", NavMaps.run(up, med), [MonsterNav.Edge.STAIRS])
+	var down := {"world": w, "start": Vector2(41.5, 20), "goal": Vector2(10.5, 8)}
+	_ok(t, "and comes back down it", NavMaps.run(down, med))
+	var small := NavMaps.stats("small")
+	_ok(t, "a small walker takes it too", NavMaps.run(up, small), [MonsterNav.Edge.STAIRS])
+	# a walkway over the lower stairs, walled in: S (a platform drop) is the only way down
+	var b := TileWorld.new(96, 96, 7)
+	var stone := TileDefs.id("stone")
+	for x in 96:
+		for y in 8:
+			b.set_fg(x, y, stone, true)
+	for i in 6:
+		b.set_fg(20 + i, 8 + i, TileDefs.id("stairs_r"), true)
+	for x in range(22, 28):
+		b.set_fg(x, 14, TileDefs.id("platform"), true)
+	for y in range(14, 40):
+		b.set_fg(21, y, stone, true)
+		b.set_fg(28, y, stone, true)
+	var box := {"world": b, "start": Vector2(25.0, 15), "goal": Vector2(10.5, 8)}
+	_ok(t, "from a boxed-in walkway it drops onto the stairs below and walks down", NavMaps.run(box, med), [MonsterNav.Edge.PLATFORM])
 
 func _stairs(t: TestLog) -> void:
 	var m := NavMaps.build([
@@ -310,7 +353,9 @@ func _caves(t: TestLog, world_seed := 11, pairs := 24) -> Array:
 			n += 1
 			var res := NavMaps.run({"world": world, "start": a, "goal": b}, st, 900)
 			if OS.has_environment("NAVDBG") and not res["planned"]:
-				print("   miss %s -> %s expanded %d" % [a, b, res["expanded"]])
+				print("   %s miss %s -> %s expanded %d" % [spec[0], a, b, res["expanded"]])
+			elif OS.has_environment("NAVDBG") and not res["reached"]:
+				print("   %s stuck %s -> %s at %s: %s" % [spec[0], a, b, res["pos"], res["why"]])
 			usec += int(res["usec"])
 			if res["planned"]:
 				planned += 1
@@ -321,8 +366,16 @@ func _caves(t: TestLog, world_seed := 11, pairs := 24) -> Array:
 		t.check(n >= 20, "enough cave pairs for %s (%d)" % [spec[0], n])
 		# Noise caves are often cramped shafts a 2x3 or 3x4 body cannot climb without digging;
 		# when the search finds a way, the real body must take it.
-		t.check(planned > 0 and ok * 10 >= planned * 8, "%s: the real body follows found cave paths (%d of %d)" % [spec[0], ok, planned])
-		t.check(ok * 4 >= n, "%s reaches at least a quarter of air-connected cave spots 40 tiles away (%d/%d)" % [spec[0], ok, n])
+		# Since the passages stage (docs/tracks/traversal.md) far more cave paths are found,
+		# through ladders, ropes, steps and bridges; the follower takes about three in four.
+		t.check(planned > 0 and ok * 10 >= planned * 7, "%s: the real body follows found cave paths (%d of %d)" % [spec[0], ok, planned])
+		# The passages stage joins cave regions through two-wide shafts and Medium-sized ways,
+		# so many more pairs count as air-connected that a Large body cannot use: its share
+		# fell (docs/tracks/traversal.md); a Medium one rose.
+		var share := 4 if spec[0] == "medium" else 6
+		t.check(ok * share >= n, "%s reaches at least 1/%d of air-connected cave spots 40 tiles away (%d/%d)" % [spec[0], share, ok, n])
+		if spec[0] == "medium":
+			t.check(ok * 2 >= n, "medium reaches at least half of them (%d/%d)" % [ok, n])
 	return out
 
 static func _connected_spots(world: TileWorld, st: MoveStats, a: Vector2) -> Array:

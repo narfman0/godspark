@@ -688,12 +688,23 @@ life.actors_at(site_id) -> Array[HostEntity]; life.actors_of(party_id) -> Array[
 Talk, trade, quests and patrons. Reads `host.sim`, `Places` and Life's roles; pays out
 through Items (`give`), Rules (`award_xp`, `add_deed`) and Life (`add_standing`).
 
-### Traversal
+### Traversal (as built: docs/tracks/traversal.md)
 
-- `S` (down) drops through a one-way walkway when there is open space below; no jump needed.
-- Ropes: an item anchored at a cell; it hangs down through open cells to the floor or its
-  length, and is climbed like a ladder (W up, S down).
-- Worldgen guarantees: every site, cave region and cavern is reachable on foot from the
-  spawn settlement by a Medium walker without digging.
-- Digging yields `rubble`; ore tiles yield an ore trade good. `supplies` make camp gear.
+- `S` (down) held 0.1 s (`MoveStats.drop_hold`) from a press made standing drops through
+  one-way tiles (walkways, stairs, ladder tops) with nothing solid under the feet; down +
+  jump still drops at once. `Body.down_t`. A climber stops on a walkway its ladder ends on.
+- Stairs: tiles 10 `stairs_r`, 11 `stairs_l` (`TileDefs.stairs` 1/2; also `platform`). A tread
+  at the feet's row in the column entered lifts the body if it holds W or is on a staircase
+  (`Body.on_stairs`: arrived on a tread by a step or a landing); on a staircase the next
+  tread down brings it down even where a walkway goes on level. Nav edge `STAIRS`.
+- Ropes: tile 12 `rope` (`ladder` + `rope`), item `tile:rope`; `Rope` (core/world/rope.gd):
+  anchor under rock or a walkway, or beside rock, or on a wall; unrolls 30 tiles at most;
+  dig or re-use reels it in; falls (one item drops) when its hold goes. Only the anchor is
+  predicted; the rest arrives as tile changes. No protocol change.
+- Worldgen stage `passages` (after `ruins`, before `ores`) joins every walking component of a
+  Medium body to the spawn settlement's (carved steps, stair flights and plank bridges,
+  shafts with ladders or ropes, cavern stairs and walkways). Measured, not yet guaranteed:
+  94% of site trips on the nav graph (docs/tracks/traversal.md).
+- Digging terrain gives `tile:rubble` (tile 13); ore tiles `ore:<metal>` trade goods; built
+  things themselves. `supplies` make camp gear, walkways, stairs, ladders and rope.
 
