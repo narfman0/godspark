@@ -23,7 +23,7 @@
 		"time_to_apex": 0.40,
 		"fall_gravity_mult": 1.25,
 		"release_cut": 0.45,
-		"terminal_fall": 40.0,
+		"terminal_fall": 20.0,
 		"coyote": 0.10,
 		"buffer": 0.12
 	},
