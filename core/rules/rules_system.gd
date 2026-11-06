@@ -29,6 +29,7 @@ const XP_RANGE := 24.0
 ## A kill made only by others: the share of its XP for a player in that fight, and how recent
 ## "in that fight" is (seconds since dealing or taking a blow).
 const GUARD_SHARE := 0.25
+static var _xp_cfg := {}
 const FIGHT_WINDOW_S := 10.0
 ## XP multiplier by monster rank (HostEntity meta "rank"); meta "xp_mult" overrides it and
 ## meta "xp" replaces the stat block's XP.
@@ -313,7 +314,7 @@ func on_kill(victim: HostEntity, killers: Array = []) -> void:
 	var xp := int(row.get("data", {}).get("xp", 0))
 	if victim.has_meta("xp"):
 		xp = int(victim.get_meta("xp"))
-	var total := roundi(xp * xp_mult(victim) * xp_rate)
+	var total := roundi(xp * xp_mult(victim) * xp_rate / band_divisor(victim))
 	var ctype := String(row.get("data", {}).get("type", "")) if row.get("data", {}).get("type") != null else ""
 	if ctype == "" and slug.begins_with("swarm-"):
 		ctype = "beast"
@@ -344,6 +345,15 @@ func on_kill(victim: HostEntity, killers: Array = []) -> void:
 			add_deed(e.id, "kill:" + ctype, 1)
 		if beast != "":
 			add_deed(e.id, "beast:" + beast, 1)
+
+## The divisor of data/rules/xp.json for the depth band the victim died in: deep kills come
+## faster than the level track's thresholds grow.
+func band_divisor(victim: HostEntity) -> float:
+	if victim.body == null or host.world == null:
+		return 1.0
+	if _xp_cfg.is_empty():
+		_xp_cfg = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules/xp.json"))
+	return maxf(1.0, float((_xp_cfg["band_divisor"] as Dictionary).get(Loot.depth_band(victim.body.pos.y, host.world.height), 1.0)))
 
 ## A monster's XP multiplier: meta "xp_mult", else RANK_XP[meta "rank"], else 1.
 static func xp_mult(victim: HostEntity) -> float:

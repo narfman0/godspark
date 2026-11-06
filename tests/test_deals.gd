@@ -575,6 +575,15 @@ func _credit(t: TestLog) -> void:
 	var g0 := p.character.xp
 	rules.on_kill(gob, [])
 	t.eq(p.character.xp, g0 + host.srd.monster_xp("goblin-warrior"), "a monster that fell to its death still counts")
+	# 6. deep kills are worth less, by band (data/rules/xp.json)
+	var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules/xp.json"))["band_divisor"]
+	var deep := host.add_srd_monster("goblin-warrior", p.body.pos + Vector2(2, 0))
+	deep.body.pos.y = host.world.height * 0.02
+	var band := Loot.depth_band(deep.body.pos.y, host.world.height)
+	var g1 := p.character.xp
+	rules.on_kill(deep, [p.id])
+	t.eq(p.character.xp, g1 + roundi(host.srd.monster_xp("goblin-warrior") / float(cfg[band])), "a kill in the %s is divided by %s" % [band, cfg[band]])
+	t.check(float(cfg["nadir"]) > 1.0, "the nadir has a divisor")
 
 # --- 4. patrons --------------------------------------------------------------------------------
 

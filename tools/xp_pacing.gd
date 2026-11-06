@@ -4,6 +4,9 @@
 ##
 ##   godot --headless -s res://tools/xp_pacing.gd                 # at the current XP_SCALE
 ##   godot --headless -s res://tools/xp_pacing.gd -- scale=14     # what if
+##   godot --headless -s res://tools/xp_pacing.gd -- measured     # the measured table, with
+##       data/rules/xp.json's band divisors and quest XP; `flat` ignores the divisors, `fit`
+##       searches for the divisors nearest the targets
 ##
 ## ASSUMPTIONS (nothing here is measured; replace with play data once the spawn director and
 ## combat exist): the band a player of a given level mostly fights in, kills per minute
@@ -38,11 +41,14 @@ const BANDS := [
 ## The hunter's 2.5 s per kill is brisk for deep creatures: deeper anchors are scaled by
 ## min(1, measured kills/min / (60 / fight_s)) with fight_s an ASSUMED fight length (caves 5 s,
 ## deeps 10 s, nadir 20 s); the result is the third column.
-const MEASURED := [[1, 80.0, "surface day, near the spawn settlement (4.7 kills/min)"],
-	[10, 222.1, "surface night (9.2 kills/min)"],
-	[25, 2666.5 * 12.0 / 15.0, "caves (15.0 kills/min measured, 12 at 5 s a fight)"],
-	[45, 7948.3 * 6.0 / 15.83, "deeps (15.8 kills/min measured, 6 at 10 s a fight)"],
-	[75, 56766.7 * 3.0 / 12.67, "nadir (12.7 kills/min measured, 3 at 20 s a fight)"]]
+const MEASURED := [[1, 166.0, "surface", "surface day, near the spawn settlement (8.5 kills/min)"],
+	[10, 299.6, "surface", "surface night (12.0 kills/min)"],
+	[25, 4309.4 * 12.0 / 12.83, "caves", "caves (12.8 kills/min measured, 12 at 5 s a fight)"],
+	[45, 9616.9 * 6.0 / 14.17, "deeps", "deeps (14.2 kills/min measured, 6 at 10 s a fight)"],
+	[75, 54475.0 * 3.0 / 13.67, "nadir", "nadir (13.7 kills/min measured, 3 at 20 s a fight)"]]
+## Quests in the model: two jobs an hour at about 100 XP each (data/deals/quests.json pays 40-150
+## flat, undivided), so XP per minute at every level gets this much on top of the kills.
+const QUEST_XP_PER_MIN := 3.3
 ## Targets: minutes for levels 2..5, level 50 and the 90s, and total hours.
 const TARGET := {"early": 4.5, "l50": 20.0, "l90s": 60.0, "hours": 40.0}
 
@@ -57,16 +63,19 @@ func _initialize() -> void:
 	var anchors := []
 	if opts.has("measured"):
 		print("XP pacing (MEASURED XP/min from spawn_sim kill=hunt; LevelTrack.XP_SCALE = %s)" % LevelTrack.XP_SCALE)
-		for m: Array in MEASURED:
-			anchors.append([int(m[0]), float(m[1])])
-			print("  from level %2d: %8.1f XP/min  %s" % [m[0], m[1], m[2]])
+		var div: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules/xp.json"))["band_divisor"]
+		if opts.has("flat"):
+			div = {}
 		var sc := float(opts.get("scale", LevelTrack.XP_SCALE))
+		if opts.has("fit"):
+			div = _fit(sc)
+			print("best divisors: %s" % div)
+		for m: Array in MEASURED:
+			var d := float(div.get(m[2], 1.0))
+			anchors.append([int(m[0]), float(m[1]) / d + QUEST_XP_PER_MIN])
+			print("  from level %2d: %8.1f XP/min / %.1f + quests %.1f  %s" % [m[0], m[1], d, QUEST_XP_PER_MIN, m[3]])
 		print("")
 		_report(anchors, sc, true)
-		var bst := _best(anchors)
-		print("")
-		print("Best single scale against the targets (log error): %.1f" % bst)
-		_report(anchors, bst, true)
 		quit()
 		return
 	print("XP pacing (ASSUMED kill rates and monster mix; LevelTrack.XP_SCALE = %s)" % LevelTrack.XP_SCALE)
@@ -91,6 +100,23 @@ func _initialize() -> void:
 	print("Best single scale against the targets (log error): %.1f" % best)
 	_report(anchors, best, false)
 	quit()
+
+## Divisors for caves, deeps and nadir nearest the targets at a scale (log error).
+static func _fit(sc: float) -> Dictionary:
+	var best := {}
+	var be := INF
+	for c in range(10, 120, 5):
+		for d in range(10, 150, 5):
+			for n in range(10, 400, 5):
+				var div := {"caves": c / 10.0, "deeps": d / 10.0, "nadir": n / 10.0}
+				var anchors := []
+				for m: Array in MEASURED:
+					anchors.append([int(m[0]), float(m[1]) / float(div.get(m[2], 1.0)) + QUEST_XP_PER_MIN])
+				var e := _score(anchors, sc)
+				if e < be:
+					be = e
+					best = div
+	return best
 
 ## XP per minute at a level (linear between band anchors, flat past the last).
 static func rate_at(anchors: Array, level: int) -> float:

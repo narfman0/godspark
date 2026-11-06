@@ -1,0 +1,4 @@
+{
+	"_doc": "XP pacing by depth (tools/xp_pacing.gd, docs/tracks/m4-integration.md). band_divisor: a kill's XP is divided by this for the depth band where it died, because the spawn director's XP supply grows with depth faster than the level track's thresholds. Fitted against kill rates measured with tools/spawn_sim.gd to the pacing targets (early levels 3-6 min, level 50 ~20 min, the 90s ~60 min, ~40 h to level 100). Quests pay their flat XP undivided.",
+	"band_divisor": {"sky": 1.0, "surface": 1.0, "caves": 3.0, "deeps": 2.5, "nadir": 9.0}
+}
