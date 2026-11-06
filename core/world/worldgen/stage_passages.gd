@@ -52,6 +52,10 @@ const BUCKET_KEEP := 6
 ## Pairs a must-reach join looks through when the cheap ones all run into something built.
 const MUST_TRIES := 400
 const SAMPLES := 64
+## A component waiting for a join near it: the blocks its box is filed under (1 << WAIT_SHIFT
+## tiles), and how much past the search radius a join still wakes it.
+const WAIT_SHIFT := 7
+const WAIT_MARGIN := 32
 ## Where a site's or route end's standing node is looked for, around the node of its cell.
 const NEAR := [Vector2i(0, 0), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(1, 1),
 	Vector2i(0, -1), Vector2i(-2, 0), Vector2i(2, 0)]
@@ -515,7 +519,8 @@ class Passer extends RefCounted:
 	var ruins: Array = []                # Rect2i around each buried ruin room
 	var keep := PackedByteArray()        # floors joins laid or stand on: never cut later
 	var log_joins := false
-	var join_at: Array = []              # Vector2i ends of the joins built so far (connect_all)
+	var waiting := {}                    # WAIT_CELL block key -> PackedInt32Array of pending components
+	var wait_box := {}                   # pending component -> PackedInt32Array [lo x, lo y, hi x, hi y]
 	var touched: Array = []              # Rect2i cells the feature being built touched
 	var aims: Array = []                 # Vector2i places on it later joins may aim at
 	var log_edges := false
@@ -826,9 +831,11 @@ class Passer extends RefCounted:
 		var joined := 0
 		var absorbed := 0
 		var kinds := {}
+		var prof := {}
 		var tried := {}
-		var since := {}
-		join_at.clear()
+		var woken := {}
+		waiting.clear()
+		wait_box.clear()
 		for radius: int in RADII:
 			var progress := true
 			while progress and not todo.is_empty():
@@ -840,16 +847,25 @@ class Passer extends RefCounted:
 					if radius > SMALL_REACH and (members[r] as Array).size() < BIG_SPOTS:
 						left.append(r)     # a small pocket far from everything stays a pocket
 						continue
-					if tried.get(r, -1) == radius and not _joined_near(members[r], since.get(r, 0), radius):
+					var tp := Time.get_ticks_usec()
+					var skip: bool = tried.get(r, -1) == radius and not woken.has(r)
+					prof["near_scan"] = int(prof.get("near_scan", 0)) + Time.get_ticks_usec() - tp
+					if skip:
 						left.append(r)     # tried at this reach, and nothing was joined near it since
 						continue
+					tp = Time.get_ticks_usec()
 					var best := _nearest(members[r], radius)
+					prof["nearest"] = int(prof.get("nearest", 0)) + Time.get_ticks_usec() - tp
+					prof["nearest_n"] = int(prof.get("nearest_n", 0)) + 1
 					if best.is_empty():
 						tried[r] = radius
-						since[r] = join_at.size()
+						woken.erase(r)
+						_wait(r, members[r])
 						left.append(r)
 						continue
+					tp = Time.get_ticks_usec()
 					var kind := _join(best[0], best[1])
+					prof["join"] = int(prof.get("join", 0)) + Time.get_ticks_usec() - tp
 					var sz := (members[r] as Array).size()
 					var hb := "<8" if sz < 8 else ("<16" if sz < 16 else ("<32" if sz < 32 else ("<64" if sz < 64 else "64+")))
 					var hist: Dictionary = stats.get("sizes", {})
@@ -864,12 +880,16 @@ class Passer extends RefCounted:
 						join_log.append([Vector2i(spx[best[0]], spy[best[0]]), Vector2i(spx[best[1]], spy[best[1]]), kind])
 					kinds[kind] = int(kinds.get(kind, 0)) + 1
 					joined += 1
-					join_at.append(Vector2i(spx[best[1]], spy[best[1]]))
-					join_at.append(Vector2i(spx[best[0]], spy[best[0]]))
+					_wake(Vector2i(spx[best[1]], spy[best[1]]), radius, tried, woken)
+					_wake(Vector2i(spx[best[0]], spy[best[0]]), radius, tried, woken)
+					tp = Time.get_ticks_usec()
 					_add_net(members[r])
 					absorbed += _absorb(members)
+					prof["absorb"] = int(prof.get("absorb", 0)) + Time.get_ticks_usec() - tp
 					progress = true
 				todo = left
+				prof["passes"] = int(prof.get("passes", 0)) + 1
+		stats["prof_us"] = prof
 		stats["absorbed"] = absorbed
 		stats["joined"] = joined
 		stats["left"] = todo.size()
@@ -1087,23 +1107,52 @@ class Passer extends RefCounted:
 				return false     # a buried ruin's walls and floor may be broken into
 		return true
 
-	## Build the feature joining spot a (a stray component) to spot b (the network).
-	## Was anything joined (join_at, from index i) within reach of component m's spots?
-	func _joined_near(m: Array, i: int, radius: int) -> bool:
-		if i >= join_at.size():
-			return false
-		var lo := Vector2i(1 << 30, 1 << 30)
-		var hi := Vector2i(-(1 << 30), -(1 << 30))
+	## A component that found nothing at this reach waits for something to be joined near it.
+	## Its box (a sample of its spots) is filed under every WAIT_CELL block the box covers, so a
+	## join looks only at the components around it. Rescanning every join for every waiting
+	## component took 54 of 56 s on a medium world (tracks/barriers.md).
+	func _wait(r: int, m: Array) -> void:
+		if wait_box.has(r):
+			return
+		var lx := 1 << 30
+		var ly := 1 << 30
+		var hx := -(1 << 30)
+		var hy := -(1 << 30)
 		var stride := maxi(1, m.size() / 16)
 		for k in range(0, m.size(), stride):
-			var q := Vector2i(spx[int(m[k])], spy[int(m[k])])
-			lo = Vector2i(mini(lo.x, q.x), mini(lo.y, q.y))
-			hi = Vector2i(maxi(hi.x, q.x), maxi(hi.y, q.y))
-		var r := Rect2i(lo - Vector2i(radius + 32, radius + 32), hi - lo + Vector2i(2 * radius + 64, 2 * radius + 64))
-		for j in range(i, join_at.size()):
-			if r.has_point(join_at[j]):
-				return true
-		return false
+			var s := int(m[k])
+			lx = mini(lx, spx[s])
+			ly = mini(ly, spy[s])
+			hx = maxi(hx, spx[s])
+			hy = maxi(hy, spy[s])
+		wait_box[r] = PackedInt32Array([lx, ly, hx, hy])
+		for by in range(ly >> WAIT_SHIFT, (hy >> WAIT_SHIFT) + 1):
+			for bx in range(lx >> WAIT_SHIFT, (hx >> WAIT_SHIFT) + 1):
+				var key := bx | (by << 16)
+				if not waiting.has(key):
+					waiting[key] = PackedInt32Array()
+				var cell: PackedInt32Array = waiting[key]
+				cell.append(r)
+				waiting[key] = cell
+
+	## Something was joined at q: every component waiting at this radius within reach of it
+	## (its box grown by radius + WAIT_MARGIN) tries again.
+	func _wake(q: Vector2i, radius: int, tried: Dictionary, woken: Dictionary) -> void:
+		var reach := radius + WAIT_MARGIN
+		for by in range((q.y - reach) >> WAIT_SHIFT, ((q.y + reach) >> WAIT_SHIFT) + 1):
+			if by < 0:
+				continue
+			for bx in range((q.x - reach) >> WAIT_SHIFT, ((q.x + reach) >> WAIT_SHIFT) + 1):
+				var key := bx | (by << 16)
+				if bx < 0 or not waiting.has(key):
+					continue
+				var cell: PackedInt32Array = waiting[key]
+				for r: int in cell:
+					if tried.get(r, -1) != radius or woken.has(r):
+						continue
+					var b: PackedInt32Array = wait_box[r]
+					if q.x >= b[0] - reach and q.x < b[2] + reach and q.y >= b[1] - reach and q.y < b[3] + reach:
+						woken[r] = true
 
 	## Components a feature just built runs through (spots in the cells it touched) are
 	## joined by it as well: marked network. Then the feature's own ways (a shaft, a passage)
@@ -1143,6 +1192,7 @@ class Passer extends RefCounted:
 			bk.append(k)
 			buckets[key] = bk
 
+	## Build the feature joining spot a (a stray component) to spot b (the network).
 	func _join(a: int, b: int) -> String:
 		var ax := spx[a]
 		var ay := spy[a]

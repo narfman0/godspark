@@ -49,6 +49,8 @@ func _initialize() -> void:
 			routes += 1
 			if r.get("rough", false):
 				rough += 1
+		print("  hash ", world.content_hash(), " stages ms: ", tm)
+		print("  phases ms: ", st.get("phases_ms", {}), " first ", st.get("prof_us", {}), " spots ", st.get("spots_ms"), " moves ", st.get("moves_ms"), " join ", st.get("join_ms"), " comps ", st.get("components"), " to_join ", st.get("to_join"), " joined ", st.get("joined"), " left ", st.get("left"), " second ", st.get("second", {}).get("ms"))
 		var line := "seed %s %s: gen %d ms (passages %d, reach %d); joins %s; reach %s" % [s, size, tm["total"],
 			tm.get("passages", 0), tm.get("reach", 0), kinds, _brief(rs)]
 		if not flood:
