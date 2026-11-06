@@ -53,6 +53,12 @@ var air_jumps_left := 0
 var dash_left := 0.0
 var dash_dir := 0
 var dash_cd := 0.0
+## The dodge roll (core/combat/dodge.gd): seconds into it (-1: not rolling), its direction and
+## speed, and cooldown left.
+var roll_t := -1.0
+var roll_dir := 0
+var roll_speed := 0.0
+var roll_cd := 0.0
 ## Double-tap detection: last tapped direction, seconds it stays open, last move_x.
 var tap_dir := 0
 var tap_t := 0.0
@@ -107,6 +113,10 @@ func duplicate_body() -> Body:
 	b.dash_left = dash_left
 	b.dash_dir = dash_dir
 	b.dash_cd = dash_cd
+	b.roll_t = roll_t
+	b.roll_dir = roll_dir
+	b.roll_speed = roll_speed
+	b.roll_cd = roll_cd
 	b.tap_dir = tap_dir
 	b.tap_t = tap_t
 	b.last_move_x = last_move_x

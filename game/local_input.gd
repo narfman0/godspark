@@ -1,7 +1,7 @@
 ## Fills a PlayerInput from the keyboard and mouse each frame (input actions in
 ## project.godot; the whole scheme is in README "Controls"):
-##   move A/D (arrows), climb W/S, jump Space, dash Shift (with the Dash spark; a double tap
-##   works too), dig: RIGHT mouse (held), primary: LEFT mouse uses the selected hotbar item
+##   move A/D (arrows), climb W/S, jump Space, dodge roll V, dash Shift (with the Dash spark; a
+##   double tap works too), dig: RIGHT mouse (held), primary: LEFT mouse uses the selected hotbar item
 ##   toward the cursor (a weapon or empty slot attacks and keeps attacking while held, a
 ##   placeable places, a potion is drunk), F attacks with the wielded weapon whatever is
 ##   selected, 1-0 pick a hotbar slot, Q R T G: hold to aim a quick spell, release to cast.
@@ -64,6 +64,7 @@ func read() -> PlayerInput:
 	input.up = keys_ok and Input.is_action_pressed("move_up")
 	input.down = keys_ok and Input.is_action_pressed("move_down")
 	input.dash = keys_ok and Input.is_action_just_pressed("dash") and (ui == null or not bool(ui.call("screen_open")))
+	input.roll = keys_ok and Input.is_action_just_pressed("dodge") and (ui == null or not bool(ui.call("screen_open")))
 	input.dig = _rmb
 	input.place = false
 	var cw := presenter.cw if presenter != null else null

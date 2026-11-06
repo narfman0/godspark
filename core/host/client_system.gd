@@ -37,3 +37,7 @@ func allow_edit() -> bool:
 
 func placed(_req: int, _tile_id: int) -> void:
 	pass
+
+## The own player's body started a dodge roll this step (predicted: the combat client tells the host).
+func rolled() -> void:
+	pass

@@ -6,19 +6,23 @@
 ##   ATTACK  f32 aim.x, f32 aim.y, f32 clock, u8 flags (bit0 throw)                    13 B
 ##   CAST    str slug, u8 slot level, f32 aim.x, f32 aim.y, f32 clock                   14 + slug
 ##   CANCEL  (empty)
+##   ROLL    f32 clock                                       4     (the own body started a roll)
 ##   (`clock` is the client's estimate of host time, ClientWorld.clock, or -1: the host
 ##   reads the round trip from it and leads the attacker's body by its velocity times the
 ##   one-way delay, so a running player swings from where it is, not where it was)
 ## Host -> client
 ##   EVENTS  u32 tick, u8 n, n x event                    (send_sys_near, one per chunk per tick)
 ##     event: u8 kind, u32 src, u32 dst, then by kind:
-##       SWING      u8 mode, u8 swings, u16 windup ms, u16 total ms, f32 aim.x, f32 aim.y, str what
+##       SWING      u8 mode, u8 swings, u16 windup ms, u16 total ms, u16 gap ms (between combo
+##                  contacts), u8 tempo (index in TEMPOS), u8 reach ft, f32 aim.x, f32 aim.y, str what
 ##       HIT, CRIT, MISS   u8 d20, s16 total, u8 ac
 ##       SAVE       u8 dc, u8 saved, str what
 ##       DAMAGE     u16 amount, u8 dtype (SRD.DamageType), u16 hp after
 ##       HEAL       u16 amount, u16 hp after
 ##       CONDITION  u8 condition (SRD.Condition), u8 on
-##       DOWNED, DEATH, CANCEL   (nothing)
+##       DOWNED, DEATH, CANCEL, WHIFF   (nothing; WHIFF: a blow that touched nobody, dst the
+##                  creature that rolled under it, or 0)
+##       ROLL       u16 duration ms   (src started a dodge roll)
 ##       XP         u32 amount        (reserved for the rules track)
 ##       EFFECT     u8 on, str what   (an ActiveEffects id: "bless-bonus_die", "mastery-sap")
 ##       PROJECTILE u32 pid, u8 pkind, f32 x, f32 y, f32 vx, f32 vy, f32 gravity
@@ -26,20 +30,24 @@
 ##       PUSH       f32 dx, f32 dy    (the owner of dst sweeps its own body by this much)
 ##   STATUS  u16 action ms, u16 bonus ms, u16 reaction ms, u8 move mult (/255), u8 flags
 ##           (bit0 no jump, bit1 no actions, bit2 downed, bit3 concentrating), u32 fear src,
-##           9 x (u8 slots left, u8 slots max), str concentration slug           (to the owner)
+##           9 x (u8 slots left, u8 slots max), str concentration slug, u16 temp hp,
+##           u8 melee reach ft, u16 shot range ft (0: melee)                      (to the owner)
 ##   SPELLS  u8 n, n x (str slug, str name, u8 level, u8 flags)                    (to the owner)
 ##           flags: bit0 attack or save (damage), bit1 bonus action, bit2 reaction,
 ##           bit3 concentration, bit4 healing, bit5 area, bit6 supported
 class_name CombatCodec
 extends RefCounted
 
-enum Msg { ATTACK = 1, CAST = 2, CANCEL = 3, EVENTS = 16, STATUS = 17, SPELLS = 18, REFUSED = 19 }
+enum Msg { ATTACK = 1, CAST = 2, CANCEL = 3, ROLL = 4, EVENTS = 16, STATUS = 17, SPELLS = 18, REFUSED = 19 }
 enum Ev { SWING = 1, HIT, MISS, CRIT, SAVE, DAMAGE, HEAL, CONDITION, DOWNED, DEATH, XP, EFFECT,
-		PROJECTILE, IMPACT, PUSH, CANCEL }
+		PROJECTILE, IMPACT, PUSH, CANCEL, ROLL, WHIFF }
 ## SWING modes.
 enum Mode { MELEE, RANGED, THROW, CAST, AREA, SAVE_ACTION }
 ## Projectile kinds (PROJECTILE pkind).
 const PKINDS: PackedStringArray = ["arrow", "bolt", "thrown", "spell", "dart"]
+## SWING tempo: which kind of swing it is (data/combat.json weapon_tempo keys, then the casts).
+const TEMPOS: PackedStringArray = ["plain", "light", "versatile_two", "heavy", "thrown", "bow", "heavy_bow",
+	"loading", "unarmed", "monster", "cast"]
 
 const SPELL_DAMAGE := 1
 const SPELL_BONUS := 2
@@ -151,6 +159,14 @@ static func read_cast(data: PackedByteArray) -> Dictionary:
 	var out := {"slug": r.text(), "level": r.u8(), "aim": Vector2(r.f32(), r.f32()), "clock": r.f32()}
 	return out if r.done() and _finite(out["aim"]) and is_finite(out["clock"]) else {}
 
+static func roll(clock: float) -> PackedByteArray:
+	return W.new().f32(clock).b
+
+static func read_roll(data: PackedByteArray) -> Dictionary:
+	var r := R.new(data)
+	var out := {"clock": r.f32()}
+	return out if r.done() and is_finite(out["clock"]) else {}
+
 static func _finite(v: Vector2) -> bool:
 	return is_finite(v.x) and is_finite(v.y)
 
@@ -172,7 +188,9 @@ static func _event(w: W, ev: Dictionary) -> void:
 		Ev.SWING:
 			var aim: Vector2 = ev.get("aim", Vector2.ZERO)
 			w.u8(int(ev.get("mode", 0))).u8(int(ev.get("swings", 1))).u16(roundi(float(ev.get("windup", 0.0)) * 1000.0)) \
-				.u16(roundi(float(ev.get("total", 0.0)) * 1000.0)).f32(aim.x).f32(aim.y).text(String(ev.get("what", "")))
+				.u16(roundi(float(ev.get("total", 0.0)) * 1000.0)).u16(roundi(float(ev.get("gap", 0.0)) * 1000.0)) \
+				.u8(maxi(0, TEMPOS.find(String(ev.get("tempo", "plain"))))).u8(roundi(float(ev.get("reach_ft", 5.0)))) \
+				.f32(aim.x).f32(aim.y).text(String(ev.get("what", "")))
 		Ev.HIT, Ev.MISS, Ev.CRIT:
 			w.u8(int(ev.get("d20", 0))).s16(int(ev.get("total_roll", 0))).u8(int(ev.get("ac", 0)))
 		Ev.SAVE:
@@ -198,6 +216,8 @@ static func _event(w: W, ev: Dictionary) -> void:
 		Ev.PUSH:
 			var d: Vector2 = ev.get("push", Vector2.ZERO)
 			w.f32(d.x).f32(d.y)
+		Ev.ROLL:
+			w.u16(roundi(float(ev.get("duration", 0.0)) * 1000.0))
 
 ## {tick, events: [Dictionary]} or {} when malformed.
 static func read_events(data: PackedByteArray) -> Dictionary:
@@ -213,6 +233,10 @@ static func read_events(data: PackedByteArray) -> Dictionary:
 				ev["swings"] = r.u8()
 				ev["windup"] = r.u16() / 1000.0
 				ev["total"] = r.u16() / 1000.0
+				ev["gap"] = r.u16() / 1000.0
+				var tempo := r.u8()
+				ev["tempo"] = TEMPOS[tempo] if tempo < TEMPOS.size() else "plain"
+				ev["reach_ft"] = float(r.u8())
 				ev["aim"] = Vector2(r.f32(), r.f32())
 				ev["what"] = r.text()
 			Ev.HIT, Ev.MISS, Ev.CRIT:
@@ -249,7 +273,9 @@ static func read_events(data: PackedByteArray) -> Dictionary:
 				ev["pos"] = Vector2(r.f32(), r.f32())
 			Ev.PUSH:
 				ev["push"] = Vector2(r.f32(), r.f32())
-			Ev.DOWNED, Ev.DEATH, Ev.CANCEL:
+			Ev.ROLL:
+				ev["duration"] = r.u16() / 1000.0
+			Ev.DOWNED, Ev.DEATH, Ev.CANCEL, Ev.WHIFF:
 				pass
 			_:
 				return {}
@@ -269,7 +295,8 @@ static func status(st: Dictionary) -> PackedByteArray:
 	for i in 9:
 		var s: Array = slots[i] if i < slots.size() else [0, 0]
 		w.u8(int(s[0])).u8(int(s[1]))
-	return w.text(String(st.get("concentration", ""))).u16(clampi(int(st.get("temp_hp", 0)), 0, 0xffff)).b
+	return w.text(String(st.get("concentration", ""))).u16(clampi(int(st.get("temp_hp", 0)), 0, 0xffff)) \
+		.u8(int(st.get("reach_ft", 5))).u16(clampi(int(st.get("range_ft", 0)), 0, 0xffff)).b
 
 static func read_status(data: PackedByteArray) -> Dictionary:
 	var r := R.new(data)
@@ -281,6 +308,8 @@ static func read_status(data: PackedByteArray) -> Dictionary:
 	st["slots"] = slots
 	st["concentration"] = r.text()
 	st["temp_hp"] = r.u16()
+	st["reach_ft"] = r.u8()
+	st["range_ft"] = r.u16()
 	return st if r.done() else {}
 
 ## REFUSED (host -> owner): u8 intent (Msg.ATTACK or Msg.CAST), str reason.

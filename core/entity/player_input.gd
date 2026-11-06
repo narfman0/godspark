@@ -7,6 +7,7 @@
 ##   s8 move_x  * 127
 ##   if dig, place or use:  s16 target.x, s16 target.y
 ##   if place:              u16 place_tile
+##   if roll:               u8 1 (trailing, so a plain step stays 2 bytes)
 ## So 2 bytes when only moving, 6 or 8 with a tile intent.
 class_name PlayerInput
 extends RefCounted
@@ -25,6 +26,8 @@ var place := false
 var use := false
 ## Dash pressed this step (only does something with a Dash spark: MoveStats.dash_speed).
 var dash := false
+## Roll pressed this step (core/combat/dodge.gd).
+var roll := false
 ## Tile the dig/place/use intents aim at (tile coordinates, s16 range).
 var target := Vector2i.ZERO:
 	set(v):
@@ -41,7 +44,8 @@ func to_bytes() -> PackedByteArray:
 	var flags := (int(jump) | int(jump_pressed) << 1 | int(up) << 2 | int(down) << 3
 			| int(dig) << 4 | int(place) << 5 | int(use) << 6 | int(dash) << 7)
 	var b := PackedByteArray()
-	b.resize(2 + (4 if has_target() else 0) + (2 if place else 0))
+	var n := 2 + (4 if has_target() else 0) + (2 if place else 0)
+	b.resize(n + (1 if roll else 0))
 	b[0] = flags
 	b.encode_s8(1, int(roundf(move_x * QUANT)))
 	if has_target():
@@ -49,6 +53,8 @@ func to_bytes() -> PackedByteArray:
 		b.encode_s16(4, target.y)
 	if place:
 		b.encode_u16(6, place_tile)
+	if roll:
+		b[n] = 1
 	return b
 
 ## Null if the bytes are malformed (too short for their flags).
@@ -74,9 +80,11 @@ static func from_bytes(b: PackedByteArray) -> PlayerInput:
 		if b.size() < 8:
 			return null
 		p.place_tile = b.decode_u16(6)
+	var n := 2 + (4 if p.has_target() else 0) + (2 if p.place else 0)
+	p.roll = b.size() > n and b[n] & 1 != 0
 	return p
 
 func equals(o: PlayerInput) -> bool:
 	return (o != null and move_x == o.move_x and jump == o.jump and jump_pressed == o.jump_pressed
-			and up == o.up and down == o.down and dig == o.dig and place == o.place and use == o.use and dash == o.dash
+			and up == o.up and down == o.down and dig == o.dig and place == o.place and use == o.use and dash == o.dash and roll == o.roll
 			and (not has_target() or target == o.target) and (not place or place_tile == o.place_tile))

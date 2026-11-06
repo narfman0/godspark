@@ -15,6 +15,8 @@
 ##   combat.busy(e) -> bool;  combat.nearest_foe(e, max_tiles) -> HostEntity
 ##   combat.filter_input(e, inp) -> PlayerInput     # conditions (speed 0, prone, fear...)
 ##   combat.actions_of(e) -> Array                  # MonsterMoves actions
+## Players:
+##   combat.start_roll(e) -> String ("" = ok); combat.hurt_box(e) -> Rect2   the box blows must touch
 ## For other systems:
 ##   combat.damage(src_id, dst, amount, dtype, opts := {}) -> int
 ##   combat.in_combat(e) -> bool;  combat.cast(e, slug, level, aim) -> String ("" = ok)
@@ -61,6 +63,10 @@ class Actor:
 	var spells_sent := false
 	## Action pace multiplier (Monsters' Frenzied affix): >1 shortens what follows the wind-up.
 	var pace := 1.0
+	## The dodge roll: host seconds it started at (from the intent's clock) and when the next
+	## may start. Never set for creatures that do not roll.
+	var roll_t0 := -1000.0
+	var roll_ready := 0.0
 
 ## The host, held weakly (the host holds its systems: a strong reference both ways would
 ## never be freed).
@@ -135,6 +141,14 @@ func handle(_h: WorldHost, e: HostEntity, kind: int, data: PackedByteArray) -> v
 				host.send_sys(sys_id(), CombatCodec.Msg.REFUSED, CombatCodec.refused(kind, a.last_refusal), e.id)
 		CombatCodec.Msg.CANCEL:
 			cancel(e)
+		CombatCodec.Msg.ROLL:
+			var d := CombatCodec.read_roll(data)
+			if d.is_empty():
+				return
+			_set_lead(a, d["clock"])
+			a.last_refusal = start_roll(e)
+			if a.last_refusal != "":
+				host.send_sys(sys_id(), CombatCodec.Msg.REFUSED, CombatCodec.refused(kind, a.last_refusal), e.id)
 
 ## Why an attack intent was refused, in a few words for the HUD.
 func _attack_refusal(a: Actor) -> String:
@@ -145,6 +159,8 @@ func _attack_refusal(a: Actor) -> String:
 		return "you cannot act"
 	if not a.seq.is_empty() or now < a.action_ready - 1e-6:
 		return "busy"
+	if _rolling(a):
+		return "rolling"
 	return "not now"
 
 func _set_lead(a: Actor, clock: float) -> void:
@@ -521,7 +537,7 @@ func _pick_action(a: Actor, action: int) -> Dictionary:
 ## creature cannot act, is mid-sequence or on cooldown, or the action is not ready.
 func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := false) -> bool:
 	var a := actor(e)
-	if a == null or not can_act(e) or not a.seq.is_empty() or now < a.action_ready - 1e-6:
+	if a == null or not can_act(e) or not a.seq.is_empty() or now < a.action_ready - 1e-6 or _rolling(a):
 		return false
 	var c := e.combatant
 	if aim == Vector2.INF or not (is_finite(aim.x) and is_finite(aim.y)):
@@ -530,6 +546,8 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 	var tempo := {}
 	var mode: int = Mode.MELEE
 	var what := ""
+	var tempo_name := "monster"
+	var reach_ft := 5.0
 	if a.moves.is_empty():
 		var w := c.weapon
 		var props := CombatTempo.weapon_props(host.srd, w)
@@ -547,6 +565,8 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 		tempo["recovery"] = float(tempo.get("recovery", 0.4)) * (1.0 - quick)
 		mode = Mode.THROW if do_throw else (Mode.RANGED if ranged else Mode.MELEE)
 		what = w.weapon_name if w != null else "Unarmed Strike"
+		tempo_name = cls
+		reach_ft = CombatTempo.reach_ft(host.srd, w)
 	else:
 		var acts: Array = a.moves.get("actions", [])
 		var idxs: Array = []
@@ -573,6 +593,7 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 				tempo["windup"] = float(CombatTempo.section("cast").get("breath_windup", 0.8))
 			else:
 				steps.append({"type": act["kind"], "act": act, "weapon": act["weapon"], "cls": "monster"})
+				reach_ft = maxf(reach_ft, float(act.get("reach_ft", 5.0)))
 				if act["kind"] == "ranged":
 					mode = Mode.RANGED
 		what = ", ".join(names)
@@ -588,7 +609,9 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 	_touched[e.id] = true
 	_start_clock(a)
 	counts["swings"] += 1
+	var cs: Array = tl["contacts"]
 	_emit(Ev.SWING, e.id, 0, {"mode": mode, "swings": steps.size(), "windup": tl["windup"], "total": tl["total"],
+		"gap": float(cs[1]) - float(cs[0]) if cs.size() > 1 else 0.0, "tempo": tempo_name, "reach_ft": reach_ft,
 		"aim": aim, "what": what})
 	return true
 
@@ -619,6 +642,40 @@ func cancel(e: HostEntity) -> void:
 		a.bonus_ready = now
 	a.action_ready = now
 	_end_seq(a, true)
+
+## A player's body started a dodge roll: its client predicted it and says so. The host keeps
+## the roll's clock from the moment the client pressed (now less the one-way delay), so the
+## tuck falls where the player saw it. A wind-up is cancelled (nothing rolled, the action is
+## not spent); once a contact has begun the swing is committed and the roll is refused. "" = ok.
+func start_roll(e: HostEntity) -> String:
+	var a := actor(e)
+	if a == null or not e.is_player():
+		return "no body"
+	if not can_act(e):
+		return "you cannot act"
+	if a.move_mult < 1.0:
+		return "you cannot roll"
+	if not a.seq.is_empty() and int(a.seq["idx"]) > 0:
+		return "swing committed"
+	if now < a.roll_ready - float(Dodge.conf().get("host_slack_s", 0.12)):
+		return "dodge not ready"
+	if not a.seq.is_empty():
+		cancel(e)
+	a.roll_t0 = now - a.lead
+	a.roll_ready = a.roll_t0 + Dodge.cooldown()
+	_emit(Ev.ROLL, e.id, 0, {"duration": Dodge.duration()})
+	return ""
+
+## Still rolling, past the slack a packet's jitter needs?
+func _rolling(a: Actor) -> bool:
+	return now < a.roll_t0 + Dodge.duration() - float(Dodge.conf().get("host_slack_s", 0.12))
+
+## The box a blow must touch: the body's, or its tuck in the middle of a roll.
+func hurt_box(e: HostEntity) -> Rect2:
+	var a := actor(e)
+	if a == null or a.roll_t0 < -1.0:
+		return e.body.rect()
+	return Dodge.hurt_rect(e.body.rect(), now - a.roll_t0)
 
 ## Damage from anything (traps, falls, effects): through the addon's take_damage, so
 ## resistances, immunities, temporary hit points and Concentration apply. dtype: an
@@ -674,19 +731,24 @@ func _melee(a: Actor, s: Dictionary, step: Dictionary) -> void:
 	var reach := K.ft(float(step["act"]["reach_ft"])) if step.has("act") else K.ft(CombatTempo.reach_ft(host.srd, c.weapon))
 	var half := float(CombatTempo.section("melee").get("arc_half_angle_deg", 70.0))
 	var touched: Array = []
+	var under := 0
 	for b: Actor in actors.values():
 		if b == a or not _targetable(b):
 			continue
 		var foe := hostile(a.e, b.e)
 		if not foe and not _aimed(a, b, s["aim"]):
 			continue
-		var r := b.e.body.rect()
+		var r := hurt_box(b.e)
 		if HitShapes.in_arc(rect, dir, reach, half, r) and _melee_line(center, rect, r):
+			if r != b.e.body.rect() and Dodge.under_blow(r, rect, Vector2(s["aim"]).y):
+				under = b.e.id
+				continue
 			touched.append([HitShapes.gap(rect, r), r.get_center().distance_to(s["aim"]), b, foe])
 	if touched.is_empty():
 		counts["whiffs"] += 1
+		_emit(Ev.WHIFF, a.e.id, under, {})
 		return
-	touched.sort_custom(func(x: Array, y: Array) -> bool: return (x[3] and not y[3]) or (x[3] == y[3] and (x[0] < y[0] - 0.01 or (absf(x[0] - y[0]) <= 0.01 and x[1] < y[1]))))
+	touched.sort_custom(func(x: Array, y: Array) -> bool: return HitShapes.nearer_touch(x[3], x[0], x[1], y[3], y[0], y[1]))
 	var primary: Actor = touched[0][2]
 	var opts := {"two_handed": bool(step.get("two", false))}
 	var ev := _weapon_attack(a, primary, opts, _melee_from(center, rect, primary.e.body.rect()))
@@ -934,7 +996,7 @@ func _step_projectiles() -> void:
 			for b: Actor in actors.values():
 				if b == owner or not _targetable(b):
 					continue
-				var bt := HitShapes.segment_box(a0, a1, b.e.body.rect())
+				var bt := HitShapes.segment_box(a0, a1, hurt_box(b.e))
 				if bt >= 0.0 and bt < best_t and (hostile(owner.e, b.e) or _aimed(owner, b, p["aim"])):
 					best_t = bt
 					best = b
@@ -1082,10 +1144,10 @@ func cast(e: HostEntity, slug: String, level: int, aim: Vector2) -> String:
 			return "reaction not ready"
 		a.reaction_ready = now + float(CombatTempo.section("timers").get("reaction_s", K.ROUND_SECONDS))
 		_start_clock(a)
-		_emit(Ev.SWING, e.id, 0, {"mode": Mode.CAST, "swings": 1, "windup": 0.0, "total": 0.0, "aim": aim, "what": slug})
+		_emit(Ev.SWING, e.id, 0, {"mode": Mode.CAST, "swings": 1, "windup": 0.0, "total": 0.0, "tempo": "cast", "aim": aim, "what": slug})
 		_cast_now(a, ab, lvl, aim)
 		return ""
-	if not a.seq.is_empty() or now < a.action_ready - 1e-6:
+	if not a.seq.is_empty() or now < a.action_ready - 1e-6 or _rolling(a):
 		return "busy"
 	if ct == "bonus_action":
 		if now < a.bonus_ready - 1e-6:
@@ -1100,7 +1162,7 @@ func cast(e: HostEntity, slug: String, level: int, aim: Vector2) -> String:
 	_touched[e.id] = true
 	_start_clock(a)
 	counts["swings"] += 1
-	_emit(Ev.SWING, e.id, 0, {"mode": Mode.AREA if ab.area_size > 0 else Mode.CAST, "swings": 1, "windup": tl["windup"],
+	_emit(Ev.SWING, e.id, 0, {"mode": Mode.AREA if ab.area_size > 0 else Mode.CAST, "swings": 1, "tempo": "cast", "windup": tl["windup"],
 		"total": tl["total"], "aim": aim, "what": slug})
 	return ""
 
@@ -1141,7 +1203,9 @@ func _cast_now(a: Actor, ab: AbilityData, level: int, aim: Vector2) -> void:
 			for b: Actor in actors.values():
 				if b == a or not _targetable(b) or not (hostile(a.e, b.e) or _aimed(a, b, aim)):
 					continue
-				var r := b.e.body.rect()
+				var r := hurt_box(b.e)
+				if r != b.e.body.rect() and Dodge.under_blow(r, rect, aim.y):
+					continue
 				if HitShapes.in_arc(rect, dir, K.ft(5), half, r) and _melee_line(center, rect, r) and HitShapes.gap(rect, r) < bg:
 					bg = HitShapes.gap(rect, r)
 					best = b
@@ -1214,7 +1278,7 @@ func _area(a: Actor, ab: AbilityData, aim: Vector2, from_self: bool) -> Dictiona
 			continue
 		if spare and not hostile(a.e, b.e) and not _aimed(a, b, aim):
 			continue
-		var r := b.e.body.rect()
+		var r := hurt_box(b.e)
 		if HitShapes.in_area(ab.area_shape, origin, dir, size, 0.0, r) and HitShapes.line_to(host.world, origin, r):
 			out["targets"].append(b)
 			out["cover"][b.e.combatant.name] = HitShapes.cover(host.world, origin, r)
@@ -1437,7 +1501,8 @@ func status_of(a: Actor) -> Dictionary:
 	return {"action": maxf(0.0, a.action_ready - now), "bonus": maxf(0.0, a.bonus_ready - now),
 		"reaction": maxf(0.0, a.reaction_ready - now), "move_mult": a.move_mult, "flags": flags, "fear_src": a.fear_src,
 		"slots": slots, "concentration": a.conc.active_ability.spell_id if a.conc.is_concentrating else "",
-		"temp_hp": c.stats.temp_hp}
+		"temp_hp": c.stats.temp_hp, "reach_ft": CombatTempo.reach_ft(host.srd, c.weapon),
+		"range_ft": CombatTempo.range_ft(host.srd, c.weapon).y if c.weapon != null and c.weapon.is_ranged() else 0}
 
 func _send_status() -> void:
 	for a: Actor in actors.values():
@@ -1450,8 +1515,8 @@ func _send_status() -> void:
 				a.spells_sent = true
 				host.send_sys(sys_id(), CombatCodec.Msg.SPELLS, CombatCodec.spells(list), a.e.id)
 		var st := status_of(a)
-		var sig := "%.3f|%.3f|%.3f|%s|%d|%d|%s|%s|%d" % [a.action_ready, a.bonus_ready, a.reaction_ready, a.move_mult, st["flags"],
-			a.fear_src, st["slots"], st["concentration"], st["temp_hp"]]
+		var sig := "%.3f|%.3f|%.3f|%s|%d|%d|%s|%s|%d|%d|%d" % [a.action_ready, a.bonus_ready, a.reaction_ready, a.move_mult, st["flags"],
+			a.fear_src, st["slots"], st["concentration"], st["temp_hp"], st["reach_ft"], st["range_ft"]]
 		if sig != a.status_sig:
 			a.status_sig = sig
 			host.send_sys(sys_id(), CombatCodec.Msg.STATUS, CombatCodec.status(st), a.e.id)

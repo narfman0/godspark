@@ -30,6 +30,7 @@
 	"tempo_move": {"_comment": "movement speed multiplier while a swing or a cast runs (1.0: no slowdown, as played in M2); cast_move tags (Steady) win back a share of the cast slowdown", "swing": 1.0, "cast": 1.0},
 	"tags": {"_comment": "caps on gear and spark tags combat reads", "swing_recovery_max": 0.5},
 	"melee": {"arc_half_angle_deg": 70.0, "within_5ft_tiles": 2.0},
+	"dodge": {"_comment": "The dodge roll (core/combat/dodge.gd). distance_tiles over duration_s from a standstill; keep_run_speed: from a run it keeps the run's speed. cooldown_s counts from the start of a roll. For hurt_from_s..hurt_to_s the hurt box is the tuck: hurt_width_mult and hurt_height_mult of the body's box, at its feet. A melee blow passes over a tuck whose top is blow_clearance_tiles under the height it was aimed at, unless the attacker is too_big_tiles tall or more. host_slack_s: how early the host lets the next roll or a swing after a roll arrive (packets bunch up).", "distance_tiles": 2.0, "duration_s": 0.4, "cooldown_s": 1.0, "keep_run_speed": true, "hurt_from_s": 0.08, "hurt_to_s": 0.32, "hurt_width_mult": 0.6, "hurt_height_mult": 0.32, "blow_clearance_tiles": 0.3, "too_big_tiles": 5.0, "host_slack_s": 0.12},
 	"sweep": {"damage_fraction": 0.5},
 	"projectiles": {
 		"arrow":  {"speed": 45.0, "gravity": 22.0},

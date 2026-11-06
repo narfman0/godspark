@@ -21,7 +21,7 @@ func _codec(t: TestLog) -> void:
 	var nan := CombatCodec.attack(Vector2(NAN, 0), 0.0)
 	t.eq(CombatCodec.read_attack(nan), {}, "a NaN aim is refused")
 	var evs := [
-		{"kind": Ev.SWING, "src": 5, "dst": 0, "mode": CombatCodec.Mode.MELEE, "swings": 2, "windup": 0.15, "total": 0.5, "aim": Vector2(3.5, 21.25), "what": "Longsword"},
+		{"kind": Ev.SWING, "src": 5, "dst": 0, "mode": CombatCodec.Mode.MELEE, "swings": 2, "windup": 0.15, "total": 0.5, "gap": 0.2, "tempo": "versatile_two", "reach_ft": 10.0, "aim": Vector2(3.5, 21.25), "what": "Longsword"},
 		{"kind": Ev.HIT, "src": 5, "dst": 9, "d20": 14, "total_roll": 19, "ac": 15},
 		{"kind": Ev.MISS, "src": 5, "dst": 9, "d20": 1, "total_roll": 6, "ac": 15},
 		{"kind": Ev.CRIT, "src": 5, "dst": 9, "d20": 20, "total_roll": 25, "ac": 15},
@@ -37,6 +37,8 @@ func _codec(t: TestLog) -> void:
 		{"kind": Ev.IMPACT, "src": 5, "dst": 9, "pid": 77, "pos": Vector2(20.25, 21.5)},
 		{"kind": Ev.PUSH, "src": 0, "dst": 9, "push": Vector2(4, 0)},
 		{"kind": Ev.CANCEL, "src": 5, "dst": 0},
+		{"kind": Ev.ROLL, "src": 5, "dst": 0, "duration": 0.4},
+		{"kind": Ev.WHIFF, "src": 9, "dst": 5},
 	]
 	var m := CombatCodec.read_events(CombatCodec.events(1234, evs))
 	t.eq(m.get("tick"), 1234, "EVENTS tick")

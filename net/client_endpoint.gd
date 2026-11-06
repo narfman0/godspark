@@ -31,6 +31,8 @@ var _acc := 0.0
 var _started := false
 var _last_check_line := ""
 var _unknown_sys := {}
+## A roll press on a frame too short to take a step waits for the next step.
+var _roll_waits := false
 
 func _init(t: NetTransport, name_: String) -> void:
 	transport = t
@@ -54,9 +56,12 @@ func frame(dt: float, input: PlayerInput) -> int:
 	_acc = minf(_acc + dt, step_dt * 8)   # a long hitch does not turn into a burst
 	var steps := 0
 	var pressed := input.jump_pressed
+	# a frame shorter than a step takes none: the press waits for the next step
+	var roll := input.roll or _roll_waits
 	while _acc >= step_dt - 1e-9:
 		_acc -= step_dt
 		input.jump_pressed = pressed and steps == 0
+		input.roll = roll and steps == 0
 		for r in cw.step(input):
 			_send(Protocol.edit(r["req"], r["op"], r["x"], r["y"], r["tile"]))
 		if cw.seq % state_every == 0:
@@ -64,6 +69,8 @@ func frame(dt: float, input: PlayerInput) -> int:
 			_send(Protocol.state(s["epoch"], s["seq"], s["pos"], s["vel"], s["flags"]))
 		steps += 1
 	input.jump_pressed = pressed
+	input.roll = false
+	_roll_waits = roll and steps == 0
 	_send_sys()
 	if area_at < 0.0 and cw.area_ready():
 		area_at = time

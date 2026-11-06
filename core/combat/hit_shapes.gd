@@ -57,6 +57,16 @@ static func in_arc(att: Rect2, dir: Vector2, reach: float, half_angle_deg: float
 			return true
 	return false
 
+## Which of two creatures a blow lands on first: foes before bystanders, then the nearer box,
+## then the nearer to the aim (touches within 0.01 tiles are level). The host orders a blow's
+## touches by this and the client's target highlight names the same creature.
+static func nearer_touch(foe_a: bool, gap_a: float, aim_a: float, foe_b: bool, gap_b: float, aim_b: float) -> bool:
+	if foe_a != foe_b:
+		return foe_a
+	if absf(gap_a - gap_b) > 0.01:
+		return gap_a < gap_b
+	return aim_a < aim_b
+
 ## Can a straight line from `from` reach any sample point of `r` without a solid tile?
 static func line_to(world: TileWorld, from: Vector2, r: Rect2) -> bool:
 	for p in samples(r):

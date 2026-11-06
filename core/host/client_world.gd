@@ -264,7 +264,11 @@ func step(input: PlayerInput) -> Array[Dictionary]:
 	_place_prev = input.place
 	frozen = not _body_area_loaded()
 	if not frozen:
+		var rolling := body.roll_t >= 0.0
 		PlayerController.step(world, body, input, stats, 1.0 / MoveStats.step_hz())
+		if body.roll_t >= 0.0 and not rolling:
+			for sys: ClientSystem in systems.values():
+				sys.rolled()
 	return reqs
 
 ## Every client system agrees to a place (ClientSystem.allow_place; items checks the tile is held).

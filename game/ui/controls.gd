@@ -11,6 +11,7 @@ const GROUPS := [
 		["Space", "jump (hold for higher)"],
 		["W / S", "climb ladders and ropes; W takes a staircase from its foot"],
 		["S (hold)", "drop through a walkway, stairs or a ladder top"],
+		["V", "dodge roll"],
 		["Shift", "dash (with the Dash spark)"],
 	]],
 	["Fighting and working", [

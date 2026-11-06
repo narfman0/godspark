@@ -14,6 +14,8 @@
 ##           swims up, a jump press strokes up, or leaps if the head is out
 ##   cling   stats.climb_speed > 0 and pushing into a wall: walk up walls (spiders);
 ##           jump kicks off the wall
+##   roll    a dodge roll under way, on the ground (core/combat/dodge.gd): a fixed speed in
+##           its direction, gravity as usual; a ladder, water or flight ends it
 ##   ground  everything else: run with accel/friction, air control, gravity with
 ##           terminal velocity, coyote time, jump buffer, variable height, one-way
 ##           platforms (down + jump drops through at once; down alone drops through
@@ -44,6 +46,8 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 	_track_down(body, input, dt)
 	if stats.dash_speed > 0.0:
 		_dash_input(body, input, stats, dt)
+	if input.roll or body.roll_t >= 0.0 or body.roll_cd > 0.0:
+		Dodge.tick(body, input, dt)
 	if body.on_floor:
 		body.coyote = stats.coyote_time
 		body.air_jumps_left = stats.air_jumps
@@ -75,6 +79,8 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 
 	if body.dash_left > 0.0 and (body.flying or body.climbing or body.swimming or body.clinging):
 		body.dash_left = 0.0
+	if body.roll_t >= 0.0 and (body.flying or body.climbing or body.swimming or body.clinging):
+		body.roll_t = -1.0
 	if body.climbing or body.swimming or body.clinging:
 		body.air_jumps_left = stats.air_jumps
 	if body.flying:
@@ -93,6 +99,9 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 # --- modes ---------------------------------------------------------------------------
 
 static func _ground(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
+	if body.roll_t >= 0.0:
+		_roll(world, body, stats, dt)
+		return
 	if body.dash_left > T_EPS:
 		# Dash: a flat burst; gravity waits until it ends.
 		body.dash_left = maxf(0.0, body.dash_left - dt)
@@ -146,6 +155,14 @@ static func _ground(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 		# Featherfall: holding jump brakes a fall to glide_fall.
 		body.vel.y = minf(-stats.glide_fall, body.vel.y + 2.0 * g * dt)
 	_move(world, body, stats, dt, not dropped, input.up)
+
+static func _roll(world: TileWorld, body: Body, stats: MoveStats, dt: float) -> void:
+	body.dash_left = 0.0
+	body.facing = body.roll_dir
+	body.vel.x = body.roll_dir * body.roll_speed
+	var g := stats.gravity * (stats.fall_gravity_mult if body.vel.y < 0.0 else 1.0)
+	body.vel.y = maxf(body.vel.y - g * dt, -stats.terminal_fall)
+	_move(world, body, stats, dt, true)
 
 static func _ladder(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
 	body.jumping = false

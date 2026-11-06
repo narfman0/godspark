@@ -102,6 +102,7 @@ first attack.
 | Use the selected hotbar item toward the mouse: a weapon (or an empty slot) attacks and keeps attacking while held, a block places, a potion is drunk | Left mouse button |
 | Dig the tile under the mouse (hold) | **Right mouse button** |
 | Attack with your weapon, whatever is selected (hold) | F |
+| Dodge roll: about two tiles the way you face, under blows, a cooldown of a second; it cancels a wind-up, but not a swing that has landed | V |
 | Pick a hotbar slot | 1-9, 0; Ctrl + mouse wheel; mouse wheel over the hotbar; click a slot |
 | Zoom | Mouse wheel; = and - |
 | Interact: talk to the person beside you (the prompt over their head says who); hold at a campfire to rest, sleep in a bed, kindle at a shrine, hold by a downed friend to haul them up, wake after dying | E |
