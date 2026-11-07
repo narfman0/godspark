@@ -904,3 +904,55 @@ Protocol 9 (the new tiles).
 - `ledger_on` turns on `ledger` and `flows`, not saved. `SimHealth.observe(sim, years)` runs any
   sim and adds `biomes` and `routes`; `SimHealth.route_shares(sim)` splits roads into pass, river and
   flat.
+### The look (`data/backdrops.json`, `view/backdrops.gd`, `view/chunk_mesher.gd` soft mode, exists)
+
+As built: [tracks/look.md](tracks/look.md). None of this reaches core: collision, light and tiles
+are as they were.
+
+- **Soft terrain.** `ChunkMesher.snapshot(world, cx, cy, soft := false)`; `WorldView` passes `true`.
+  An open corner of a natural tile (`ChunkMesher.NATURAL`, roofs too) is cut 0.5 tiles along each side
+  and an air cell in an inner corner gets the matching fillet, so a stair of single steps draws as
+  one slope through the middle of each tread. Kinds in `UV2.y`: 3 soft face, 4 natural wall, 5
+  water. Other tiles keep kinds 0-2 and their corners; `SMOOTH` tiles (plaster, timber, paving)
+  take kind 3 but keep their corners.
+- **Material map.** `ChunkMesher.material_bytes(snap)`: RGBA8, one texel per tile, alpha 255 on
+  natural and smooth tiles, 0 elsewhere. `WorldView` writes each built chunk into a wrapping 512 x 256
+  image, global `gs_mat`, sampled through a noise warp in `terrain.gdshader`. `gs_noise` is the
+  shared noise, `Backdrops.noise_texture()`.
+- **Backdrops.** Real geometry at real depth, so the perspective camera makes the parallax:
+  sky (rides with the camera), `layers` (ranges, far, mid: ribbons over the world's width), `near` (a
+  ribbon and streamed MultiMesh silhouettes). A layer's height is `gs_anchor * (1 - k) + ground(x) * k +
+  shape(x)`; `gs_anchor` is the smoothed ground under the camera. Colours and shapes blend across
+  seams, `blend_tiles` each way. `gs_haze` is the fade colour, `gs_sky_tint` carries the biome's light.
+- **Foreground.** Streamed props at z 7 to 13 tiles in front of the plane. `WorldView.keep_clear(slot,
+  pos, radius := -1)` (0 the player, 1 the target; radius 0 lets go) thins them in a dither within
+  `keep_tiles`; `gs_keep_a`, `gs_keep_b`. They go when the camera is underground, and stay off towns.
+- `WorldView.meta_changed()` rebuilds what reads meta; a client's arrives after its world.
+- `backdrop.gdshader` is now only the dark rock behind caves, with alpha: the sky is `sky.gdshader`.
+
+### Dressing by biome (`data/dressing.json`, `stage_dressing.gd`, exists)
+
+- `density`: chance per column, by biome. `density.under`: the second pass, for objects with
+  `where.pass: "under"`, on footprints of their own. `gap`: columns to the next object, past the
+  footprint, so a tree can stand on one column of a slope. `where.wet`: may stand in water.
+- `ponds`: pools of tile 117 on level ground that is no road and no place. A road is the surface
+  on most of a settled world, so there are few (see the track report).
+- Objects' `where.on` name the biome's top tile and its road, for the same reason.
+- `Dressing.table(key)` reads the file's other top-level tables.
+
+### Names and the map (`data/setting/names.json`, `core/world/region_names.gd`, exists)
+
+- Stage `names`, last, RNG key `names`: `meta.biomes[i].name`, `meta.barriers.ranges[i].name`,
+  `meta.barriers.rivers[i].name`.
+- `Protocol.META_KEYS` gains `barriers`, so clients have them. Additive; no version change.
+- `MapLogic.land_labels(meta)`, `MapLogic.crossings(meta)`. The map draws them for everyone: the
+  land is common knowledge, the places on it are not.
+
+### Hunting by biome (`data/ecology`, exists)
+
+- A biome with no `biome_fallback` row reads as itself alone; only jungle borrows. Mountain has
+  rows of its own in `habitats.json`.
+- `spawning.json` `lair_kin`: by biome, what a lair's creature comes out as if it does not live
+  there (`LairLink.body_of`). The sim keeps its own slug in its ledger: it picks lairs by depth.
+- `spawn_for`: a surface town on a settled place, a meadow one when any stands, nearest the
+  world's middle.
