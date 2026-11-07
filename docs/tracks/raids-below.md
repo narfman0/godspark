@@ -318,8 +318,14 @@ Whole worlds, against track 2's own sweep ("after") on the same cached worlds:
 
 ## Measured otherwise
 
-- **Suite** ALL PASS before every commit: 9737 checks (item 1), 9748 (2), 9811 (3), 9832 (4), and see
-  below for the rebased head.
+- **Suite** ALL PASS: 9737 checks (item 1), 9748 (2), 9811 (3), 9832 (4); item 5 changed no core
+  path a test takes but SimHealth's new `below` (read-only), and was checked by the suite on the
+  rebased head: **9832 checks, ALL PASS**, rebased on main dc631d5 (the deep track had not landed).
+- **Smokes on the rebased head, one at a time, each NET SMOKE PASS:** plain 14 s, `LIFE` 20 s,
+  `WORLD_LIFE` 51 s (audit clean), `ALL` 63 s (audit clean, host tick avg 2.9 ms, p99 7.3, max 28).
+- **`test_m4_e2e`, `test_m5_e2e` once, unseeded** (dice 1575322071 and 550092597): 210 checks, ALL PASS.
+- **The addon's GUT suite:** 629 tests, all pass.
+- No existing test was changed or removed, and no test seed moved.
 
 ## Open and unverified
 
