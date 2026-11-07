@@ -13,7 +13,7 @@
 ## the map with the deep settlements' names.
 ## tour=below (gen=dev seed=4: its drow city has a way up): a raid from below climbing its cave
 ## mouth, the ambush on a surface road (a pass road where the raiders can reach one), the watch the
-## town posts at the mouth, a roper in the dark, an aboleth in a lake dug for it (no generated world
+## town posts at the mouth, a roper in the dark and by a torch (unseen until it springs), an aboleth in a lake dug for it (no generated world
 ## has a deep lake until the deep biomes land), a purple worm's tunnel (docs/tracks/raids-below.md).
 class_name WorldTour
 extends UiTour
@@ -327,12 +327,20 @@ func below() -> void:
 		pres.rig.zoom = 1.0
 		await _come_to(Vector2(info["dark"]) + Vector2(-12.0, 1.0), 6.0)
 		await shot("45_roper_in_the_dark")
+		# by a torch: the rules' field is still DARK where it waits, so it stays hidden, and the view
+		# draws nothing where the torch lights the cave
+		items.select_hotbar(1)
+		await wait(1.5)
+		await shot("45b_roper_unseen_by_torch")
+		var ro := pres.view.get_actor(int(info["roper"]))
+		print("TOUR below: by the torch the roper's body is %s" % ["gone" if ro != null and not ro.visible else "drawn"])
 		await host(func(h: WorldHost) -> void:
 			var me := me_host(h)
 			h.teleport(me, Vector2(info["dark"]) + Vector2(-4.0, 1.0))
 			TileCollision.depenetrate(h.world, me.body))
 		await wait(2.5)
 		await shot("46_roper_springs")
+		items.select_hotbar(0)
 	# the aboleth: a lake dug in the deeps, a lair site beside it made its sea
 	await host(func(h: WorldHost) -> void:
 		var sim := h.sim
