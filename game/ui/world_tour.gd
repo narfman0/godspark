@@ -7,6 +7,10 @@
 ##
 ##   tools/soft_godot.sh --resolution 1280x720 -- offline cheats class=fighter gen=dev seed=3 \
 ##       world=/tmp/x world_tour=/tmp/claude-1000/godspark-m4ui timeout=400 [tour=journey]
+## tour=deep (gen=dev seed=4 suits it: a drow city and a duergar hold): the toll at a drow city's
+## gate, its street by lamplight, the duergar hold, a deep gnome warren (the hold refounded by a
+## cheat: no generated world has deep gnomes until the crystal caverns are made), any warren, and
+## the map with the deep settlements' names.
 class_name WorldTour
 extends UiTour
 
@@ -21,6 +25,9 @@ func steps() -> void:
 	items = cw.system(HostSystem.ITEMS) as ItemsClient
 	if "tour=map" in OS.get_cmdline_user_args():
 		await map_only()
+		return
+	if "tour=deep" in OS.get_cmdline_user_args():
+		await deep()
 		return
 	pres.rig.zoom = 1.6
 	await host(func(h: WorldHost) -> void:
@@ -43,6 +50,143 @@ func steps() -> void:
 	await wait(0.8)
 	await shot("04_rumours")
 	await more()
+
+## `tour=deep`: the peoples below (docs/tracks/peoples-below.md).
+func deep() -> void:
+	var info := {}
+	await host(func(h: WorldHost) -> void:
+		for sid: int in WorldSim._sorted_keys(h.sim.settlements):
+			var s: SimSettlement = h.sim.settlements[sid]
+			if s.band == "surface" or Places.place(h.world, sid).is_empty():
+				continue
+			if not info.has(s.culture):
+				info[s.culture] = sid
+		var me := me_host(h)
+		me.combatant.stats.max_hp = 900
+		me.combatant.stats.current_hp = 900
+		me.character.inventory.coin = 400
+		me.character.inventory.changed[-1] = true)
+	print("TOUR deep settlements by people: %s" % [info])
+	pres.rig.zoom = 1.1
+	if info.has("drow"):
+		var city := int(info["drow"])
+		# at the gate: the guard wants the toll
+		await host(func(h: WorldHost) -> void:
+			var life := h.system(HostSystem.LIFE) as LifeSystem
+			var span := life.town_span(city)
+			var st: Array = Places.place(h.world, city)["street"]
+			info["gate"] = Vector2(span.x + 3.5, float(st[2]))
+			info["mid"] = Vector2((span.x + span.y) / 2.0 + 0.5, float(st[2]))
+			var me := me_host(h)
+			h.teleport(me, info["mid"])
+			TileCollision.depenetrate(h.world, me.body))
+		await wait(3.0)
+		await host(func(h: WorldHost) -> void:
+			var life := h.system(HostSystem.LIFE) as LifeSystem
+			var me := me_host(h)
+			h.teleport(me, info["gate"])
+			TileCollision.depenetrate(h.world, me.body)
+			for e: HostEntity in life.actors_at(city):     # a guard comes to the gate
+				if String(e.get_meta("sim")["role"]) == "guard":
+					h.teleport(e, info["gate"] + Vector2(3.0, 0.0))
+					TileCollision.depenetrate(h.world, e.body)
+					info["guard"] = e.id
+					break)
+		await wait(1.5)
+		await shot("30_drow_gate")
+		if info.has("guard"):
+			await talk_role("guard")
+			await wait(0.6)
+			await shot("31_toll_asked")
+			ui.deals_ui.choose("toll")
+			await wait(0.8)
+			await shot("32_toll_paid")
+			dc.leave()
+			await wait(0.4)
+		# the street by lamplight
+		await host(func(h: WorldHost) -> void:
+			var me := me_host(h)
+			h.teleport(me, info["mid"])
+			TileCollision.depenetrate(h.world, me.body))
+		await wait(3.0)
+		await shot("33_drow_street")
+		pres.rig.zoom = 1.6
+		await wait(1.0)
+		await shot("34_drow_street_wide")
+		pres.rig.zoom = 1.1
+	for c: String in ["duergar", "kobold", "goblinoid"]:
+		if not info.has(c):
+			continue
+		var sid := int(info[c])
+		# come in from nearby, as a walker would: a long jump straight in leaves the view's light
+		# behind for a while (seen on the CPU renderer)
+		await host(func(h: WorldHost) -> void:
+			var me := me_host(h)
+			h.teleport(me, MapLogic.site_xy(h.world.meta, sid) + Vector2(300.0, 0.0))
+			TileCollision.depenetrate(h.world, me.body))
+		await wait(3.0)
+		await host(func(h: WorldHost) -> void:
+			var me := me_host(h)
+			var span := (h.system(HostSystem.LIFE) as LifeSystem).town_span(sid)
+			var st: Array = Places.place(h.world, sid)["street"]
+			h.teleport(me, Vector2((span.x + span.y) / 2.0 + 0.5, float(st[2])))
+			TileCollision.depenetrate(h.world, me.body))
+		await wait(8.0)          # a long way from the last: the chunks and their light come in
+		await shot("35_%s" % c)
+	# a deep gnome warren: the hold refounded by deep gnomes (a cheat)
+	var hold := int(info.get("duergar", info.get("kobold", info.get("goblinoid", -1))))
+	if hold >= 0:
+		await host(func(h: WorldHost) -> void:
+			var me := me_host(h)
+			h.teleport(me, MapLogic.site_xy(h.world.meta, hold) + Vector2(400.0, 0.0))
+			TileCollision.depenetrate(h.world, me.body))
+		await wait(2.0)
+		await host(func(h: WorldHost) -> void:
+			refound(h, hold, "deep_gnome")
+			var me := me_host(h)
+			var span := (h.system(HostSystem.LIFE) as LifeSystem).town_span(hold)
+			var st: Array = Places.place(h.world, hold)["street"]
+			h.teleport(me, Vector2((span.x + span.y) / 2.0 + 0.5, float(st[2])))
+			TileCollision.depenetrate(h.world, me.body))
+		await wait(4.0)
+		await shot("36_deep_gnome_warren")
+	# the map: the deep settlements, seen, with their names
+	ui.open("map")
+	await wait(0.8)
+	var m := ui.screen("map") as WorldMapScreen
+	m.zoom = m._fit * 1.8
+	var focus := cw.body.center()
+	var deep_xy: Array = []
+	for c: String in info:
+		if c in ["drow", "duergar", "kobold", "goblinoid", "deep_gnome"]:
+			deep_xy.append(MapLogic.site_xy(cw.world.meta, int(info[c])))
+	if not deep_xy.is_empty():
+		focus = Vector2.ZERO
+		for v: Vector2 in deep_xy:
+			focus += v / deep_xy.size()
+	m.origin = MapLogic.origin_for(focus, m.world_size(), m.zoom, WorldMapScreen.MAP_RECT.size)
+	m._clamp()
+	m.canvas.queue_redraw()
+	await wait(0.5)
+	await shot("37_map_deep")
+	ui.close("map")
+
+## A cheat for pictures: a deep settlement taken over by another people, its town rebuilt in their
+## style and shown again.
+static func refound(h: WorldHost, sid: int, culture: String) -> void:
+	var s: SimSettlement = h.sim.settlements[sid]
+	var f := h.sim._new_faction(culture)
+	f.capital = sid
+	s.culture = culture
+	s.faction = f.id
+	h.sim._derive_settlement(s)
+	var life := h.system(HostSystem.LIFE) as LifeSystem
+	life.town.fold(h, sid)
+	var place := Places.place(h.world, sid)
+	for lot: Dictionary in place["lots"]:
+		if String(lot["state"]) == "built":
+			lot["state"] = "empty"
+	h.places_keeper.apply(h, sid, s.tier, culture)
 
 ## `tour=map`: the land on the map, the whole world, then the middle of it close to.
 func map_only() -> void:
