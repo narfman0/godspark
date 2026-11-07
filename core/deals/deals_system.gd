@@ -298,6 +298,12 @@ func options(e: HostEntity, t: Dictionary) -> Array:
 		out.append({"id": "bye", "label": L["bye"]})
 		return out
 	var s: SimSettlement = host.sim.settlements[sid]
+	var l := life()
+	if role == "guard" and l != null and l.toll_due(e, sid) > 0:
+		out.append({"id": "toll", "label": Deals.fill(L["toll"], {"price": l.toll_due(e, sid)})})
+		var favour := _toll_favour(sid)
+		if favour > 0 and l.standing(e.id, str(s.faction)) >= favour:
+			out.append({"id": "toll_favour", "label": Deals.fill(L["toll_favour"], {"standing": favour})})
 	if role == "merchant" and DealsShop.has_store(host.world, sid):
 		out.append({"id": "shop", "label": L["shop"]})
 	if role == "smith" and DealsShop.has_smithy(host.world, sid):
@@ -326,6 +332,11 @@ func _send_talk(e: HostEntity, extra := {}) -> void:
 		return
 	var x := host.entity(int(t["person"]))
 	var line := String(extra.get("line", ""))
+	var l := life()
+	if line == "" and l != null and String(t["role"]) == "guard" and String(t["view"]) == "main" and l.toll_due(e, int(t["site"])) > 0:
+		var st: SimSettlement = host.sim.settlements[int(t["site"])]
+		line = Deals.fill(String(Deals.pick(Deals.lines()["toll_ask"], [_seed(), e.name, int(t["site"]), Deals.day(host.sim)])),
+			{"price": l.toll_due(e, int(t["site"])), "town": SimNames.title(st.culture, st.name, st.band)})
 	if line == "" and host.sim != null:
 		line = DealsTalk.line(host.sim, _seed(), _person(e, t), int(t["site"]), host.clock.hour_of_day())
 	var d := {"open": true, "id": int(t["person"]), "name": x.name if x != null else "", "role": t["role"], "site": int(t["site"]),
@@ -377,6 +388,8 @@ func choose(e: HostEntity, o: String) -> String:
 			_send_talk(e, {"line": _line_for(e, t), "offers": _offers_by(sid, String(t["role"]), e)})
 		"bed", "heal":
 			return service(e, o)
+		"toll", "toll_favour":
+			return pay_toll(e, o == "toll_favour")
 		"patron":
 			t["view"] = "patron"
 			var why := claim_gift(e, sid)
@@ -530,6 +543,8 @@ func buy(e: HostEntity, lid: String, n: int) -> String:
 	stats["bought"] += n
 	stats["coin_in"] += cost
 	_deed(e, "trade", 1)
+	if life() != null:
+		life().trade_standing(e.id, str(host.sim.settlements[sid].faction), float(cost))
 	if debug:
 		print("DEALS %s bought %d %s for %d at %s" % [e.name, n, ItemGen.name(item), cost, host.sim.settlements[sid].name])
 	send_shop(e)
@@ -569,6 +584,8 @@ func sell(e: HostEntity, slot: int, n: int) -> String:
 	stats["sold"] += n
 	stats["coin_out"] += pay
 	_deed(e, "trade", 1)
+	if life() != null:
+		life().trade_standing(e.id, str(s.faction), float(pay))
 	if debug:
 		print("DEALS %s sold %d %s for %d at %s" % [e.name, n, ItemGen.name(it), pay, s.name])
 	send_shop(e)
@@ -640,6 +657,50 @@ func service(e: HostEntity, id: String) -> String:
 		_:
 			return "no_service"
 	stats["coin_in"] += 0
+	return ""
+
+## The standing a favour at a people's gate costs (cultures.json stance.toll.standing; 0: none).
+func _toll_favour(sid: int) -> int:
+	var s: SimSettlement = host.sim.settlements.get(sid)
+	var l := life()
+	if s == null or l == null:
+		return 0
+	return int(l.culture_stance(str(s.faction)).get("toll", {}).get("standing", 0))
+
+## Pay the toll at the gate guard's town, in coin (taken into the town's treasury) or, with a
+## favour, in standing. "" or: not_talking, no_toll, coin, standing.
+func pay_toll(e: HostEntity, favour := false) -> String:
+	var t: Dictionary = talks.get(e.id, {})
+	if t.is_empty():
+		return "not_talking"
+	var sid := int(t["site"])
+	var l := life()
+	if l == null or String(t["role"]) != "guard" or host.sim == null or not host.sim.settlements.has(sid):
+		return "no_toll"
+	var due := l.toll_due(e, sid)
+	if due <= 0:
+		return "no_toll"
+	var s: SimSettlement = host.sim.settlements[sid]
+	var L: Dictionary = Deals.lines()
+	if favour:
+		var cost := _toll_favour(sid)
+		if cost <= 0 or l.standing(e.id, str(s.faction)) < cost:
+			return "standing"
+		l.add_standing(e.id, str(s.faction), -cost, "a favour at the gate of " + s.name)
+	else:
+		var inv := e.character.inventory if e.character != null else null
+		if inv == null:
+			return "no_body"
+		if inv.coin < due:
+			return "coin"
+		if not host.sim.player_trade(sid, "", 0.0, -float(due)):
+			return "no_toll"
+		inv.coin -= due
+		inv.changed[-1] = true
+		stats["coin_in"] += due
+	l.pay_toll(e.id, sid)
+	stats["tolls"] = int(stats.get("tolls", 0)) + 1
+	_send_talk(e, {"line": String(Deals.pick(L["toll_paid"], [_seed(), e.name, sid, Deals.day(host.sim)]))})
 	return ""
 
 ## The feet cell of the tavern's keeper anchor (else the player's own feet).

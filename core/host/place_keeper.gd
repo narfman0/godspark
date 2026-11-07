@@ -85,6 +85,12 @@ func _arrivals(host: WorldHost) -> void:
 			continue
 		host.send_sys(HostSystem.RULES, RulesCodec.K.NOTE, RulesCodec.encode_str(text), e.id)
 		arrivals.append({"id": e.id, "site": sid, "text": text})
+		# a people that wants a toll says so at the gate (its own note: the banner takes the first)
+		var life := host.system(HostSystem.LIFE)
+		if life != null and life.has_method("toll_due") and int(life.call("toll_due", e, sid)) > 0:
+			var toll := "The gate guards want a toll of %d coin to go further" % int(life.call("toll_due", e, sid))
+			host.send_sys(HostSystem.RULES, RulesCodec.K.NOTE, RulesCodec.encode_str(toll), e.id)
+			arrivals.append({"id": e.id, "site": sid, "text": toll})
 		if arrivals.size() > 20:
 			arrivals.pop_front()
 
@@ -92,7 +98,7 @@ static func arrival_text(host: WorldHost, sid: int) -> String:
 	var s: SimSettlement = host.sim.settlements.get(sid) if host.sim != null else null
 	if s == null:
 		return ""
-	var people := s.culture
+	var people := s.culture.replace("_", " ")
 	var article := "an" if people.substr(0, 1) in ["a", "e", "i", "o", "u"] else "a"
 	return "%s, %s %s %s of %d souls" % [s.name, article, people, s.tier, s.pop()]
 

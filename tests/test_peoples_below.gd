@@ -8,7 +8,7 @@ const ROLES := ["townsfolk", "guard", "merchant", "smith", "priest", "mage", "ra
 const TEMPERS := ["trader", "expansionist", "raider", "isolationist"]
 
 func run(t: TestLog) -> void:
-	for f: String in ["_cultures", "_homes", "_roles", "_names", "_economy", "_kits", "_town", "_deep_trade", "_ways"]:
+	for f: String in ["_cultures", "_homes", "_roles", "_names", "_economy", "_kits", "_town", "_deep_trade", "_ways", "_stance"]:
 		if not has_method(f):
 			continue
 		var t0 := Time.get_ticks_msec()
@@ -548,3 +548,207 @@ func _ways(t: TestLog) -> void:
 	t.check(kept, "a save keeps it")
 	var none := WorldSim.from_meta({"sites": sites, "routes": routes, "surface": surface}, 3)
 	t.eq(none.routes.size(), sim.routes.size() - 1, "without ways the world is as before")
+
+# --- 4. hostility and toll ----------------------------------------------------------------------
+
+static func full_rig(seed: int) -> Dictionary:
+	var w := WorldGen.generate_named("dev", seed)
+	var host := WorldHost.new(w)
+	Dice.rng = host.rng
+	var out := {"host": host}
+	out["rules"] = RulesSystem.new()
+	host.add_system(out["rules"])
+	(out["rules"] as RulesSystem).cheats = true
+	out["combat"] = CombatSystem.new()
+	host.add_system(out["combat"])
+	out["items"] = ItemsSystem.new()
+	host.add_system(out["items"])
+	var ms := MonstersSystem.new()
+	ms.director_enabled = 0
+	ms.lairs_enabled = false
+	ms.nav_fixed_slices = 8
+	host.add_system(ms)
+	out["ms"] = ms
+	out["life"] = LifeSystem.new()
+	host.add_system(out["life"])
+	out["deals"] = DealsSystem.new()
+	host.add_system(out["deals"])
+	return out
+
+static func player(host: WorldHost, name: String, pos: Vector2) -> HostEntity:
+	var e := host.add_player(name, host.entities.size() + 2, {"class": "fighter"})
+	e.body.pos = pos
+	TileCollision.depenetrate(host.world, e.body)
+	e.combatant.stats.max_hp = 9999
+	e.combatant.stats.current_hp = 9999
+	return e
+
+static func first_of(host: WorldHost, culture: String) -> int:
+	for sid: int in WorldSim._sorted_keys(host.sim.settlements):
+		var s: SimSettlement = host.sim.settlements[sid]
+		if s.culture == culture and s.band != "surface" and not Places.place(host.world, sid).is_empty():
+			return sid
+	return -1
+
+func _stance(t: TestLog) -> void:
+	var r := full_rig(4)
+	var host: WorldHost = r["host"]
+	var life: LifeSystem = r["life"]
+	var deals: DealsSystem = r["deals"]
+	var city := first_of(host, "drow")
+	var hold := first_of(host, "duergar")
+	t.check(city >= 0 and hold >= 0, "dev 4 has a drow city and a duergar hold with places")
+	if city < 0 or hold < 0:
+		return
+	var cs: SimSettlement = host.sim.settlements[city]
+	var f := str(cs.faction)
+	var place := Places.place(host.world, city)
+	var street: Array = place["street"]
+	var mid := Vector2((float(street[0]) + float(street[1])) / 2.0 + 0.5, float(street[2]))
+	var span := life.town_span(city)
+	var gate := Vector2(span.x + 2.5, float(street[2]))
+	var p := player(host, "stranger", gate)
+	for i in 70:
+		host.tick()
+	var people := life.actors_at(city)
+	t.check(people.size() > 0, "the drow city is shown")
+	var guard: HostEntity = null
+	for e: HostEntity in people:
+		if String(e.get_meta("sim")["role"]) == "guard" and guard == null:
+			guard = e
+	t.check(guard != null, "with guards")
+	if guard == null:
+		return
+	var due := life.toll_due(p, city)
+	t.eq(due, int(SimData.culture("drow").stance.toll.coin[cs.tier]), "a stranger owes the %s's toll (%d coin)" % [cs.tier, due])
+	t.eq(life.stance(p, guard), Life.NEUTRAL, "at the gate the drow are neutral")
+	t.eq(life.toll_due(p, hold), 0, "the duergar ask no toll")
+	# past the gate unpaid: a grace to find a guard, then they turn
+	p.body.pos = mid
+	TileCollision.depenetrate(host.world, p.body)
+	for i in K.TICK_HZ * 2:
+		host.tick()
+	t.check(life.inside_gate(city, p.body.pos), "the stranger is past the gate")
+	t.eq(life.stance(p, guard), Life.NEUTRAL, "for a while they let it pass")
+	for i in K.TICK_HZ * 21:
+		host.tick()
+	t.eq(life.stance(p, guard), Life.HOSTILE, "unpaid past the grace, the city turns on the stranger")
+	p.body.pos = gate
+	TileCollision.depenetrate(host.world, p.body)
+	for i in K.TICK_HZ * 2:
+		host.tick()
+	t.eq(life.stance(p, guard), Life.NEUTRAL, "back at the gate, neutral again")
+	for i in K.TICK_HZ * 15:          # the fight cools
+		host.tick()
+	# pay at the gate: talk to a guard there
+	guard.body.pos = gate + Vector2(2.0, 0.0)
+	TileCollision.depenetrate(host.world, guard.body)
+	p.character.inventory.coin = 500
+	var wealth0 := cs.wealth
+	t.eq(deals.talk(p, guard.id), "", "the stranger talks to the guard")
+	var ids: Array = deals.options(p, deals.talks[p.id]).map(func(o: Dictionary) -> String: return String(o["id"]))
+	t.check("toll" in ids, "the guard asks the toll (%s)" % [ids])
+	t.check(not "toll_favour" in ids, "no favour to call in at standing 0")
+	t.eq(deals.choose(p, "toll"), "", "pays it")
+	t.eq(p.character.inventory.coin, 500 - due, "the coin left the purse")
+	t.check(absf(cs.wealth - (wealth0 + due)) < 0.01, "and went to the city (%.1f -> %.1f)" % [wealth0, cs.wealth])
+	t.eq(life.toll_due(p, city), 0, "paid for the day")
+	p.body.pos = mid
+	TileCollision.depenetrate(host.world, p.body)
+	for i in K.TICK_HZ * 25:
+		host.tick()
+	t.eq(life.stance(p, guard), Life.NEUTRAL, "paid, the stranger walks the city in peace")
+	# trading in the city earns standing with it
+	var seller: HostEntity = null
+	var shop := "shop" if DealsShop.has_store(host.world, city) else "smith"
+	for e: HostEntity in life.actors_at(city):
+		var role := String(e.get_meta("sim")["role"])
+		if (shop == "shop" and role == "merchant") or (shop == "smith" and role == "smith"):
+			seller = e
+	t.check(seller != null, "the city has someone to trade with (%s)" % shop)
+	if seller != null:
+		seller.body.pos = p.body.pos + Vector2(2.0, 0.0)
+		TileCollision.depenetrate(host.world, seller.body)
+		p.character.inventory.coin = 5000
+		var st_before := life.standing(p.id, f)
+		t.eq(deals.talk(p, seller.id), "", "the stranger talks to the %s" % seller.get_meta("sim")["role"])
+		t.eq(deals.choose(p, shop), "", "and opens the %s" % shop)
+		var spent := 0
+		for l: Dictionary in deals.listings(p, city, "store" if shop == "shop" else "smith"):
+			if int(l["n"]) > 0 and spent < 120 and int(l["price"]) <= 5000 - spent:
+				if deals.buy(p, String(l["id"]), 1) == "":
+					spent += int(l["price"])
+		print("  bought %d coin in %s" % [spent, cs.name])
+		t.eq(life.standing(p.id, f) - st_before, floori(spent * Life.num("trade_per_coin", 0.02)), "trade earns standing with the drow (%d coin)" % spent)
+		deals.choose(p, "bye")
+	var saved := life.save_player(p)
+	host.sim.t += 2 * WorldSim.DAY_H
+	t.check(life.toll_due(p, city) > 0, "two days on the toll is due again")
+	host.sim.t -= 2 * WorldSim.DAY_H
+	var p3 := player(host, "returning", gate)
+	life.load_player(p3, saved)
+	t.eq(life.toll_due(p3, city), 0, "a paid toll survives a save")
+	# a favour instead of coin
+	var p2 := player(host, "known", gate)
+	life.add_standing(p2.id, f, 12, "test")
+	guard.body.pos = p2.body.pos + Vector2(2.0, 0.0)
+	TileCollision.depenetrate(host.world, guard.body)
+	t.eq(deals.talk(p2, guard.id), "", "a known face talks to the guard")
+	ids = deals.options(p2, deals.talks[p2.id]).map(func(o: Dictionary) -> String: return String(o["id"]))
+	t.check("toll_favour" in ids, "and may call in a favour (%s)" % [ids])
+	t.eq(deals.choose(p2, "toll_favour"), "", "does")
+	t.eq(life.standing(p2.id, f), 12 - int(SimData.culture("drow").stance.toll.standing), "the favour costs standing")
+	t.eq(life.toll_due(p2, city), 0, "and pays the toll")
+	life.add_standing(p2.id, f, 30, "test")
+	t.eq(life.toll_due(p2, city), 0, "a friend of the city pays none")
+	# abroad: a drow on the surface falls on strangers until they have earned better
+	var surf := -1
+	for sid: int in WorldSim._sorted_keys(host.sim.settlements):
+		if host.sim.settlements[sid].band == "surface":
+			surf = sid
+			break
+	var spot := LifeTown.site_pos(host, surf) + Vector2(0, 2)
+	var drow := life.spawn_person(host, {"culture": "drow", "slug": "warrior-infantry", "role": "escort", "pos": spot, "post": spot,
+		"faction": cs.faction, "sim": {"kind": "party", "id": -1, "role": "escort", "party": "caravan"}, "fighter": true})
+	var walker := player(host, "walker", spot + Vector2(4, 0))
+	t.eq(SimData.band_family(life.band_at(drow.body.pos.y)), "surface", "a drow escort on the surface")
+	t.eq(life.stance(walker, drow), Life.HOSTILE, "attacks a stranger on sight")
+	t.eq(life.stance(p2, drow), Life.FRIENDLY, "but not a friend of its city")
+	life.trade_standing(walker.id, f, 400.0)
+	t.eq(life.standing(walker.id, f), 8, "trade earns standing (400 coin: 8)")
+	t.eq(life.stance(walker, drow), Life.HOSTILE, "not yet enough")
+	life.trade_standing(walker.id, f, 100.0)
+	host.tick()
+	t.eq(life.stance(walker, drow), Life.NEUTRAL, "standing 10 from trade: the surface drow let the trader be")
+	life.trade_standing(walker.id, f, 100000.0)
+	t.eq(life.standing(walker.id, f), int(Life.num("trade_cap", 20)), "trade alone earns at most trade_cap")
+	var at_home: HostEntity = guard
+	var fresh := player(host, "fresh", gate)
+	t.eq(life.stance(fresh, at_home), Life.NEUTRAL, "a drow at home is neutral to a fresh stranger")
+	# fighting back abroad costs nothing; killing one at home does
+	var combat: CombatSystem = r["combat"]
+	var st0 := life.standing(fresh.id, f)
+	fresh.body.pos = spot + Vector2(2, 0)
+	combat.damage(fresh.id, drow, 9999, "force")
+	for i in 3:
+		host.tick()
+	t.eq(life.standing(fresh.id, f), st0, "killing a drow who fell on you abroad costs no standing")
+	# the wary deep peoples
+	var hs: SimSettlement = host.sim.settlements[hold]
+	var hf := str(hs.faction)
+	var hp := player(host, "visitor", LifeTown.site_pos(host, hold) + Vector2(0, 2))
+	for i in 70:
+		host.tick()
+	var dwarf: HostEntity = null
+	for e: HostEntity in life.actors_at(hold):
+		dwarf = e
+	t.check(dwarf != null, "the duergar hold is shown")
+	if dwarf != null:
+		t.eq(life.stance(hp, dwarf), Life.NEUTRAL, "duergar are wary, not hostile")
+		life.add_standing(hp.id, hf, 40, "test")
+		t.eq(life.stance(hp, dwarf), Life.NEUTRAL, "at 40 still only neutral (a human town would be friendly at 30)")
+		life.add_standing(hp.id, hf, 10, "test")
+		t.eq(life.stance(hp, dwarf), Life.FRIENDLY, "at 50 friendly")
+	t.check(life.culture_stance(str(hs.faction)).get("abroad", "") == "", "duergar don't attack on sight abroad")
+	for c: String in ["kobold", "goblinoid", "human", "dwarf"]:
+		t.check(not SimData.culture(c).has("stance"), "%s meet players as they always have" % c)

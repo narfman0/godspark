@@ -1,5 +1,5 @@
 {
-	"_doc": "What people say (core/deals/deals_talk.gd). A line is picked by a hash of (world seed, person, game day, hour band), never by the sim's generator. Placeholders: {town} the settlement, {name} the speaker's given name, {faction}, {foe} a faction at war with this one, {dest} where a due caravan comes from. greet: by role. time: morning 5-11, day 11-17, evening 17-21, night 21-5. situation: from the sim (hungry, prosperous, war, raided, besieged, caravan_due, quiet); the first that applies is used, in this order. culture: an extra word now and then (one in three). knows: chronicle event kinds a role passes on as rumours ('*' = all). rumour_none: when nothing is known. offers: the labels of the options.",
+	"_doc": "What people say (core/deals/deals_talk.gd). A line is picked by a hash of (world seed, person, game day, hour band), never by the sim's generator. Placeholders: {town} the settlement, {name} the speaker's given name, {faction}, {foe} a faction at war with this one, {dest} where a due caravan comes from. greet: by role. time: morning 5-11, day 11-17, evening 17-21, night 21-5. situation: from the sim (hungry, prosperous, war, raided, besieged, caravan_due, quiet); the first that applies is used, in this order. culture: an extra word now and then (one in three). knows: chronicle event kinds a role passes on as rumours ('*' = all). rumour_none: when nothing is known. offers: the labels of the options. toll_ask: a gate guard's greeting when a toll is due ({price}, {town}); toll_paid: when it is paid.",
 	"greet": {
 		"keeper": ["Mind the step. Everyone trips on it once.", "You look like someone with questions.", "Sit if you like. The stool wobbles; that's its job.", "Ah. A face I don't owe money to."],
 		"merchant": ["Looking costs nothing. Touching costs a little.", "Everything here is honest. The prices less so.", "Buying or selling? Both is also allowed.", "Fresh stock. Some of it."],
@@ -78,8 +78,10 @@
 		"heal": "Tend my wounds ({price} coin).",
 		"patron": "About my standing with {faction}.",
 		"turn_in": "About the work: {title}.",
-		"bye": "Farewell."
+		"toll": "Pay the toll ({price} coin).", "toll_favour": "Call in a favour ({standing} standing).", "bye": "Farewell."
 	},
+	"toll_ask": ["Toll first, surfacer. {price} coin, or turn back to the dark.", "Nobody walks {town} unpaid. {price} coin.", "{price} coin at the gate, or you go no further."],
+	"toll_paid": ["Go on, then. Keep your hands where we can see them.", "Paid. Mind you stay paid.", "The city remembers who pays."],
 	"closing": {
 		"far": "You walked off mid-sentence.",
 		"gone": "They are no longer here.",

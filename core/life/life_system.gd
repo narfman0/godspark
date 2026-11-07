@@ -9,6 +9,8 @@
 ##   life.standing(entity_id, faction) -> int      -100..100 (a Bond sets a floor)
 ##   life.add_standing(entity_id, faction, n, why)
 ##   life.actors_at(site_id), life.actors_of(party_id) -> Array[HostEntity]
+##   life.toll_due(player, site_id) -> int; life.pay_toll(player_id, site_id)    a people's toll
+##   life.trade_standing(player_id, faction, coin)    standing earned by trading with a people
 ##   life.cheat_party(kind, from_site, to_site, frac := 0.9) -> int   (tests, smokes: party id)
 ## Entity meta on what it spawns: sim {kind: settlement | party, id, role, ...}, faction,
 ## talk, friendly, torch (guards at night). Docs: docs/tracks/life.md.
@@ -29,6 +31,12 @@ var debug := false
 var actors := {}
 ## player entity id -> {faction: int}
 var _standing := {}
+## player entity id -> {site id: sim hour the toll paid there runs out}
+var _tolls := {}
+## player entity id -> {faction: coin traded with it} (trade_standing)
+var _traded := {}
+## player entity id -> {site id: host seconds when it went past that town's gate unpaid}
+var _inside := {}
 ## faction -> {entity id: until (host seconds)}: attacked that faction's people
 var _grudge := {}
 ## counters per key (people generations), saved with the world
@@ -154,9 +162,145 @@ func _vs_player(p: HostEntity, x: HostEntity, fx: String) -> int:
 		return Life.NEUTRAL if s >= int(Life.num("raiders_spare_at", 60)) else Life.HOSTILE
 	if s <= int(Life.num("hostile_at", -40)):
 		return Life.HOSTILE
-	if s >= int(Life.num("friendly_at", 30)):
+	# a people's own way with strangers (cultures.json stance): the drow fall on anyone they meet
+	# away from home until they have earned better, and want their toll at the gate
+	var cs := culture_stance(fx)
+	if not cs.is_empty():
+		if String(cs.get("abroad", "")) == "hostile" and s < int(cs.get("spare_at", 0)) and abroad(x, cs):
+			return Life.HOSTILE
+		if cs.has("toll") and trespassing(p, x):
+			return Life.HOSTILE
+	if s >= int(cs.get("friendly_at", Life.num("friendly_at", 30))):
 		return Life.FRIENDLY
 	return Life.NEUTRAL
+
+# --- a people's own stance (cultures.json "stance") ------------------------------------------
+
+## The stance table of a faction's people ({} for most).
+func culture_stance(faction: String) -> Dictionary:
+	var sim := host.sim if host != null else null
+	if sim == null or not faction.is_valid_int() or not sim.factions.has(int(faction)):
+		return {}
+	var c: Dictionary = SimData.cultures.get((sim.factions[int(faction)] as SimFaction).culture, {})
+	return c.get("stance", {})
+
+## Is x away from home: not one of a settlement's people, and in a band its people count as
+## abroad (stance abroad_on, default the surface)?
+func abroad(x: HostEntity, cs: Dictionary) -> bool:
+	var info: Variant = x.get_meta("sim", {})
+	if info is Dictionary and String((info as Dictionary).get("kind", "")) == "settlement":
+		return false
+	return SimData.band_family(band_at(x.body.pos.y)) in (cs.get("abroad_on", ["surface"]) as Array)
+
+## The band name at a row (world meta.bands), "surface" when unknown.
+func band_at(y: float) -> String:
+	var bands: Variant = host.world.meta.get("bands", {})
+	if bands is Dictionary:
+		for k: String in bands:
+			var r: Array = bands[k]
+			if y >= float(r[0]) and y <= float(r[1]) + 1.0:
+				return k
+	return "surface"
+
+## The toll a player owes at a settlement's gate now: 0 when its people ask none, the player
+## has paid within toll.days, or stands at toll.free_at or better with them.
+func toll_due(e: HostEntity, sid: int) -> int:
+	var sim := host.sim
+	if e == null or sim == null or not sim.settlements.has(sid):
+		return 0
+	var st: SimSettlement = sim.settlements[sid]
+	var toll: Dictionary = culture_stance(str(st.faction)).get("toll", {})
+	if toll.is_empty():
+		return 0
+	if standing(e.id, str(st.faction)) >= int(toll.get("free_at", 30)):
+		return 0
+	if float((_tolls.get(e.id, {}) as Dictionary).get(sid, -1.0)) > float(sim.t):
+		return 0
+	return int((toll.get("coin", {}) as Dictionary).get(st.tier, 10))
+
+## Mark a settlement's toll paid by a player (Deals takes the coin or the favour).
+func pay_toll(entity_id: int, sid: int) -> void:
+	var sim := host.sim
+	if sim == null or not sim.settlements.has(sid):
+		return
+	var st: SimSettlement = sim.settlements[sid]
+	var toll: Dictionary = culture_stance(str(st.faction)).get("toll", {})
+	if not _tolls.has(entity_id):
+		_tolls[entity_id] = {}
+	_tolls[entity_id][sid] = float(sim.t) + float(toll.get("days", 1)) * WorldSim.DAY_H
+	_cache.clear()
+
+## Is player p past the gate of x's town without its toll, for longer than toll.grace_s (time to
+## find a guard and pay)? Only that town's own people care.
+func trespassing(p: HostEntity, x: HostEntity) -> bool:
+	var info: Variant = x.get_meta("sim", {})
+	if not info is Dictionary or String((info as Dictionary).get("kind", "")) != "settlement":
+		return false
+	var sid := int((info as Dictionary).get("id", -1))
+	var since := float((_inside.get(p.id, {}) as Dictionary).get(sid, -1.0))
+	if since < 0.0 or not inside_gate(sid, p.body.pos) or toll_due(p, sid) <= 0:
+		return false
+	var st: SimSettlement = host.sim.settlements.get(sid)
+	var grace := float(culture_stance(str(st.faction)).get("toll", {}).get("grace_s", 20.0)) if st != null else 20.0
+	return now() - since >= grace
+
+## Once a second: when each player went past the gate of a shown town that wants a toll.
+func _watch_gates(players: Array) -> void:
+	for p: HostEntity in players:
+		var rec: Dictionary = _inside.get(p.id, {})
+		for sid: int in town.active:
+			if inside_gate(sid, p.body.pos) and toll_due(p, sid) > 0:
+				if not rec.has(sid):
+					rec[sid] = now()
+			elif rec.has(sid):
+				rec.erase(sid)
+				_cache.clear()
+		_inside[p.id] = rec
+
+## Within a town, past its gate: its buildings as they stand, short of the outermost by
+## toll.margin tiles each end (the gate itself, or the first house of a town with none), or, with
+## no place, within 20 tiles of the site.
+func inside_gate(sid: int, pos: Vector2) -> bool:
+	var sim := host.sim
+	var st: SimSettlement = sim.settlements.get(sid) if sim != null else null
+	if st == null:
+		return false
+	var margin := float(culture_stance(str(st.faction)).get("toll", {}).get("margin", 10))
+	var span := town_span(sid)
+	if span.x > span.y:
+		return LifeTown.site_pos(host, sid).distance_to(pos) <= 20.0
+	var place := Places.place(host.world, sid)
+	var street: Array = place["street"]
+	var r: Array = place["rect"]
+	return pos.x >= span.x + margin and pos.x <= span.y + 1.0 - margin \
+		and pos.y >= float(street[2]) - 3.0 and pos.y <= float(street[2]) + float(r[3]) + 2.0
+
+## The columns a town's standing buildings cover, first to last (x > y when it has none).
+func town_span(sid: int) -> Vector2:
+	var lo := INF
+	var hi := -INF
+	for b: Dictionary in Places.buildings(host.world, sid):
+		if String(b.get("kind", "")) == "ruin":
+			continue
+		var rc: Array = b["rect"]
+		lo = minf(lo, float(rc[0]))
+		hi = maxf(hi, float(rc[0]) + float(rc[2]) - 1.0)
+	return Vector2(lo, hi)
+
+## Standing earned by trading with a people: standing.json trade_per_coin a coin, at most
+## trade_cap from trade alone.
+func trade_standing(entity_id: int, faction: String, coin: float) -> void:
+	if coin <= 0.0 or not Life.is_sim_faction(faction):
+		return
+	if not _traded.has(entity_id):
+		_traded[entity_id] = {}
+	var per := Life.num("trade_per_coin", 0.02)
+	var cap := int(Life.num("trade_cap", 20))
+	var before := mini(floori(float(_traded[entity_id].get(faction, 0.0)) * per), cap)
+	_traded[entity_id][faction] = float(_traded[entity_id].get(faction, 0.0)) + coin
+	var after := mini(floori(float(_traded[entity_id][faction]) * per), cap)
+	if after > before:
+		add_standing(entity_id, faction, after - before, "trade")
 
 func _factions(a: HostEntity, b: HostEntity, fa: int, fb: int) -> int:
 	var sim := host.sim
@@ -208,7 +352,11 @@ func add_standing(entity_id: int, faction: String, n: int, why: String) -> void:
 		"why": why, "n": n}), entity_id)
 
 func save_player(e: HostEntity) -> Dictionary:
-	return {"standing": (_standing.get(e.id, {}) as Dictionary).duplicate()}
+	var tolls := {}
+	for sid: int in _tolls.get(e.id, {}):
+		tolls[str(sid)] = float(_tolls[e.id][sid])
+	return {"standing": (_standing.get(e.id, {}) as Dictionary).duplicate(), "tolls": tolls,
+		"traded": (_traded.get(e.id, {}) as Dictionary).duplicate()}
 
 func load_player(e: HostEntity, d: Dictionary) -> void:
 	var s := {}
@@ -217,6 +365,18 @@ func load_player(e: HostEntity, d: Dictionary) -> void:
 		for k: String in src:
 			s[k] = int(src[k])
 	_standing[e.id] = s
+	var tolls := {}
+	var ts: Variant = d.get("tolls", {})
+	if ts is Dictionary:
+		for k: String in ts:
+			tolls[int(k)] = float(ts[k])
+	_tolls[e.id] = tolls
+	var traded := {}
+	var tr: Variant = d.get("traded", {})
+	if tr is Dictionary:
+		for k: String in tr:
+			traded[k] = float(tr[k])
+	_traded[e.id] = traded
 
 func save_world() -> Dictionary:
 	return {"gen": _gen.duplicate(), "credited": WorldSim._sorted_keys(_credited)}
@@ -353,6 +513,7 @@ func tick(h: WorldHost) -> void:
 		if enabled and monsters(h) != null:
 			town.scan(h, players)
 			road.scan(h, players)
+		_watch_gates(players)
 		_expire_grudges()
 		_run_scheduled(h)
 		for p: HostEntity in players:
@@ -410,7 +571,10 @@ func _died(h: WorldHost, e: HostEntity, b: MonsterBrain) -> void:
 	for pl: int in players:
 		if Life.is_sim_faction(fe):
 			var guard := String(info.get("role", "")) in ["guard", "escort", "soldier"]
-			if not _raider(e):
+			# a people that falls on strangers abroad holds no grudge for those who fought back there
+			var cs := culture_stance(fe)
+			var on_sight := String(cs.get("abroad", "")) == "hostile" and abroad(e, cs) and standing(pl, fe) < int(cs.get("spare_at", 0))
+			if not _raider(e) and not on_sight:
 				add_standing(pl, fe, int(Life.num("kill_guard" if guard else "kill_member", -20)), "killed one of their people")
 			if String(info.get("kind", "")) == "settlement" and h.sim.settlements.has(int(info["id"])):
 				h.sim.log_event("slain_by_players", {"by": h.entity(pl).name, "who": "a " + String(info.get("role", "person")),
