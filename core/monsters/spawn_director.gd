@@ -78,7 +78,13 @@ func band_at(h: WorldHost, y: float) -> String:
 				return k
 	return "surface"
 
-func biome_at(h: WorldHost, x: float, band: String) -> String:
+## The biome that hunts at a place: on the surface the strip's, below it the underground region
+## under (x, y) where the world has regions (M6), else the band's (spawning.json band_biome).
+func biome_at(h: WorldHost, x: float, band: String, y := NAN) -> String:
+	if not is_nan(y) and band in ["deeps", "nadir"]:
+		var r := BiomeIds.region_at(h.world.meta, x, y)
+		if not r.is_empty():
+			return String(r["biome"])
 	var bb: Dictionary = cfg().get("band_biome", {})
 	if bb.has(band):
 		return String(bb[band])
@@ -200,7 +206,8 @@ func _fill(h: WorldHost, g: Array) -> void:
 		var room := minf(left, float(sdef.get("pack_cr", 4.0)))
 		if _raiders(h, g, spot, sband, room):
 			return
-		var pack := build_pack(h, sband, biome_at(h, spot.x, sband), sdef, room)
+		# a spot in deep water (the deep lake) takes a water pack, what lives in it
+		var pack := build_pack(h, sband, biome_at(h, spot.x, sband, spot.y), sdef, room, in_water(h.world, spot))
 		if pack.is_empty():
 			continue
 		_place_pack(h, pack, spot, g[0].id, sband)
@@ -209,9 +216,9 @@ func _fill(h: WorldHost, g: Array) -> void:
 
 ## A pack for a place: [{slug, rank, leader}], within `room` CR (rank-weighted). Empty if
 ## nothing fits.
-func build_pack(h: WorldHost, band: String, biome: String, bd: Dictionary, room: float) -> Array:
+func build_pack(h: WorldHost, band: String, biome: String, bd: Dictionary, room: float, water := false) -> Array:
 	var cr: Array = bd.get("cr", [0, 1])
-	var cands := Ecology.roster(h.srd, band, biome, is_night(h), float(cr[0]), minf(float(cr[1]), room))
+	var cands := Ecology.roster(h.srd, band, biome, is_night(h), float(cr[0]), minf(float(cr[1]), room), water)
 	# promote (the nadir): sometimes a pack of a shallower band's creatures, all elites and
 	# champions, which fills the band's missing CRs with what the SRD has
 	var promo: Dictionary = bd.get("promote", {})
@@ -219,7 +226,11 @@ func build_pack(h: WorldHost, band: String, biome: String, bd: Dictionary, room:
 	if not promo.is_empty() and rng.randf() < float(promo.get("chance", 0.0)):
 		var pcr: Array = promo.get("cr", [0, 1])
 		var pb := String(promo.get("from_band", band))
-		var pc := Ecology.roster(h.srd, pb, String(cfg().get("band_biome", {}).get(pb, biome)), is_night(h), float(pcr[0]), float(pcr[1]))
+		# a region's own creatures of the shallower band where it has some (the magma's fire
+		# creatures), else that band's
+		var pc := Ecology.roster(h.srd, pb, biome, is_night(h), float(pcr[0]), float(pcr[1]), water)
+		if pc.is_empty() or BiomeIds.has(biome) and not biome in Array(BiomeIds.generated("underground")):
+			pc = Ecology.roster(h.srd, pb, String(cfg().get("band_biome", {}).get(pb, biome)), is_night(h), float(pcr[0]), float(pcr[1]))
 		if not pc.is_empty():
 			cands = pc
 			ranks_w = promo.get("ranks", {})
@@ -466,9 +477,24 @@ func _stand_near(h: WorldHost, c: Vector2, slug: String) -> Vector2:
 		if y <= 1:
 			return Vector2.INF
 		if _blocked(w, x, y - 1, cw, 1) or _floor(w, x, y - 1, cw):
+			if _burns(w, x, y, cw, ch):
+				return Vector2.INF       # never in lava
 			return Vector2(x + cw * 0.5, y)
 		y -= 1
 	return Vector2.INF
+
+static func _burns(w: TileWorld, x: int, y: int, cw: int, ch: int) -> bool:
+	for r in range(y - 1, y + ch):
+		for c in range(x, x + cw):
+			if TileDefs.burn[w.get_fg(c, r)] != 0:
+				return true
+	return false
+
+## Is a spot (feet) under deep water: liquid at least half full over two rows?
+static func in_water(w: TileWorld, p: Vector2) -> bool:
+	var x := floori(p.x)
+	var y := floori(p.y)
+	return (w.get_liquid(x, y) & 15) >= 8 and (w.get_liquid(x, y + 1) & 15) >= 8
 
 static func _blocked(w: TileWorld, x: int, y: int, cw: int, ch: int) -> bool:
 	for r in range(y, y + ch):

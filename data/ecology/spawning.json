@@ -28,6 +28,8 @@
 		"_doc": "Which habitats (data/ecology/habitats.json) a biome reads as. A biome with no row reads as itself, its own rows only: that is what makes a desert hunt unlike a swamp. Jungle borrows the forest's until it is generated and has rows of its own.",
 		"jungle": ["forest"]
 	},
+	"portal_wild": ["magma", "crystal"],
+	"_portal_wild": "Biomes where the planes run thin: a portal creature (habitats.json spawn portal) whose row names the biome hunts there as a wild one: the magma's fire creatures, the crystal's creatures of earth (M6).",
 	"lair_kin": {
 		"_doc": "The sim picks a lair's creatures by depth alone. When a lair stands in a biome where one of them does not live, it comes out as its kin here, by biome: the sim keeps its own ledger of the creature it asked for, and only the body in the world changes.",
 		"desert": {"wolf": "hyena", "dire-wolf": "giant-hyena", "ogre": "gnoll-warrior", "owlbear": "giant-scorpion", "troll": "lamia", "hill-giant": "lamia", "manticore": "giant-scorpion", "wyvern": "lamia"},

@@ -77,7 +77,12 @@ static func roster(srd: SRDContent, band: String, biome: String, night: bool, lo
 		if slug.begins_with("_"):
 			continue
 		var r: Dictionary = habitats()[slug]
-		if r.get("spawn", "wild") != "wild" or float(r.get("w", 1.0)) <= 0.0:
+		var how := String(r.get("spawn", "wild"))
+		if float(r.get("w", 1.0)) <= 0.0:
+			continue
+		# a portal creature hunts wild where spawning.json portal_wild says the planes run thin
+		# (the magma) and its own row names that biome
+		if how != "wild" and not (how == "portal" and biome in (spawning().get("portal_wild", []) as Array) and biome in (r.get("biomes", []) as Array)):
 			continue
 		if not band in r.get("bands", []):
 			continue

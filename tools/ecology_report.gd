@@ -3,7 +3,8 @@
 ##   godot --headless -s res://tools/ecology_report.gd -- biomes=1 [seed=3]
 ## biomes=1: what actually hunts in each surface biome by day and by night, far from towns and
 ## near them: 600 packs of the director's own build_pack per case, their shares, and how much of
-## one biome's hunting is the same as another's.
+## one biome's hunting is the same as another's; then each underground region biome (fungal,
+## crystal, the deep lake on land and in its water, magma) against its band's underdark.
 extends SceneTree
 
 const BUCKETS := [[0.0, 0.25], [0.5, 1.0], [2.0, 3.0], [4.0, 5.0], [6.0, 8.0], [9.0, 11.0], [12.0, 14.0], [15.0, 17.0], [18.0, 30.0]]
@@ -82,6 +83,38 @@ func _biomes(srd: SRDContent, sd: int) -> void:
 			for s: String in got:
 				sh[s] = float(got[s]) / maxf(n, 1.0)
 			shares[biome + ":" + tm] = sh
+	# the underground (M6): each region biome in its band, on land and (the lake) in the water,
+	# against the plain underdark of the same band
+	print("\nunderground, 600 packs each:")
+	var under := [["deeps", "underdark", false], ["deeps", "fungal", false], ["deeps", "crystal", false], ["deeps", "deep_lake", false],
+		["deeps", "deep_lake", true], ["nadir", "underdark", false], ["nadir", "magma", false]]
+	var ushares := {}
+	for u: Array in under:
+		var band: String = u[0]
+		var table: Dictionary = Ecology.spawning()["bands"][band]["any"]
+		var got := {}
+		var n := 0
+		for i in 600:
+			for m: Dictionary in dir.build_pack(host, band, u[1], table, float(table["pack_cr"]), u[2]):
+				got[m["slug"]] = int(got.get(m["slug"], 0)) + 1
+				n += 1
+		var rows: Array = got.keys()
+		rows.sort_custom(func(a: String, b: String) -> bool: return got[a] > got[b])
+		var line := PackedStringArray()
+		for k: String in rows.slice(0, 12):
+			line.append("%s %d%%" % [k, roundi(100.0 * got[k] / maxf(n, 1.0))])
+		var tag := "%s %s%s" % [band, u[1], " (water)" if u[2] else ""]
+		print("%-26s %2d kinds, %s" % [tag, rows.size(), ", ".join(line)])
+		var sh := {}
+		for k: String in got:
+			sh[k] = float(got[k]) / maxf(n, 1.0)
+		ushares[tag] = sh
+	for tag: String in ushares:
+		var base: Dictionary = ushares["deeps underdark" if tag.begins_with("deeps") else "nadir underdark"]
+		var same := 0.0
+		for k: String in ushares[tag]:
+			same += minf(float(ushares[tag][k]), float(base.get(k, 0.0)))
+		print("  %-26s hunts %3d%% like its band's underdark" % [tag, roundi(same * 100.0)])
 	print("\nshared hunting (sum of the smaller share of each creature, night):")
 	var ids := BiomeIds.generated("surface")
 	for a: String in ids:
