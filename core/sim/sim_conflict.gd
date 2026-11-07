@@ -987,6 +987,7 @@ static func _assault(sim: WorldSim, p: SimParty, d: SimSettlement) -> void:
 			_shrink_party(p, stay)
 			d.morale = 0.3
 			sim.log_event("conquered", {"army": f.name, "site": d.name, "old": old_faction, "killed": killed, "lost": lost})
+			SimHealth.tally_fall(sim, "conquest", d, p)
 			check_faction_alive(sim, enemy)
 		"sack":
 			sim.stats_add("sacks", 1)
@@ -1008,6 +1009,7 @@ static func _assault(sim: WorldSim, p: SimParty, d: SimSettlement) -> void:
 			d.last_raided = sim.t
 			sim.log_event("sacked", {"army": f.name, "site": d.name, "killed": killed + dead, "coin": coin,
 				"captives": captives})
+			SimHealth.tally_fall(sim, "sack", d, p)
 			if d.pop() < SimEconomy.ABANDON_POP:
 				SimEconomy.abandon_settlement(sim, d, "sacked")
 		_:
@@ -1103,6 +1105,7 @@ static func tick_factions(sim: WorldSim) -> void:
 			g.wars[fid] = {"since": sim.t, "weariness": 0.0, "losses": 0}
 			sim.stats_add("wars", 1)
 			sim.log_event("war", {"a": f.name, "b": g.name, "rel": int(f.rel(gid))})
+			SimHealth.tally_war(sim, f, g)
 		if not f.wars.is_empty():
 			_maybe_army(sim, f)
 

@@ -36,9 +36,12 @@ static func observe(sim: WorldSim, years: int) -> Dictionary:
 	var biomes := {}
 	var deep0 := {}
 	var deep_min := 1 << 30
+	var drow0 := {}                # drow cities at the start -> the last year they stood, drow or held
 	for sid in sim.settlements:
 		if sim.settlements[sid].band != "surface":
 			deep0[sid] = true
+			if sim.settlements[sid].culture == "drow":
+				drow0[sid] = 0
 	for sid in sim.settlements:
 		first[sid] = sim.settlements[sid].pop()
 		peak[sid] = first[sid]
@@ -56,6 +59,9 @@ static func observe(sim: WorldSim, years: int) -> Dictionary:
 		pop_max = maxi(pop_max, p)
 		bad += sim.audit().size()
 		deep_min = mini(deep_min, deep_count(sim))
+		for sid: int in drow0:
+			if sim.settlements.has(sid) and sim.settlements[sid].culture == "drow":
+				drow0[sid] = y + 1
 		for sid in sim.settlements:
 			var sp: int = sim.settlements[sid].pop()
 			if not first.has(sid):
@@ -112,6 +118,22 @@ static func observe(sim: WorldSim, years: int) -> Dictionary:
 	h["deep"] = {"start": deep0.size(), "end": deep_count(sim), "survived": survived,
 		"min": deep_min if deep_min < (1 << 30) else deep0.size(), "cultures": deep_cult}
 	h["below"] = below(sim)
+	var lived := 0
+	var whole := 0
+	for sid: int in drow0:
+		lived += int(drow0[sid])
+		whole += 1 if int(drow0[sid]) >= years else 0
+	var drow_home := 0
+	for sid in sim.settlements:
+		var s: SimSettlement = sim.settlements[sid]
+		if s.band != "surface" and s.culture == "drow" and sim.factions.has(s.faction) and sim.factions[s.faction].culture == "drow":
+			drow_home += 1
+	h["drow"] = {"cities": drow0.size(), "years": lived, "whole": whole, "own_rule": drow_home}
+	var tallies := {}
+	for k: String in sim.stats:
+		if k.begins_with("war_") or k.begins_with("conquest_") or k.begins_with("sack_") or k.begins_with("fall_"):
+			tallies[k] = sim.stats[k]
+	h["sides"] = tallies
 	var kinds: PackedStringArray = []
 	for e in sim.chronicle:
 		if SimChronicle.WEIGHT.get(e.kind, 0) >= 5:
@@ -191,6 +213,32 @@ static func below(sim: WorldSim) -> Dictionary:
 		if sim.site_by_id.has(int(e.get("vhome", -1))) and SimData.band_family(sim.site_by_id[int(e.get("vhome", -1))].band) == "surface":
 			out.bounties += 1
 	return out
+
+## Which sides wars and falls are between, in sim.stats (read-only as far as the sim goes): keys
+## war_<a>_<b>, conquest_<a>_<b>, sack_<a>_<b>, a and b "surface" or "deep" (attacker first for a
+## fall, sorted for a war), and fall_<culture>_<by band> for each settlement below the surface.
+static func tally_war(sim: WorldSim, f: SimFaction, g: SimFaction) -> void:
+	var a := _side(sim, f)
+	var b := _side(sim, g)
+	if a > b:
+		var t := a
+		a = b
+		b = t
+	sim.stats_add("war_%s_%s" % [a, b], 1)
+
+static func tally_fall(sim: WorldSim, how: String, d: SimSettlement, army: SimParty) -> void:
+	var by := "surface"
+	if sim.settlements.has(army.home):
+		by = "surface" if sim.settlements[army.home].band == "surface" else "deep"
+	var at := "surface" if d.band == "surface" else "deep"
+	sim.stats_add("%s_%s_%s" % [how, by, at], 1)
+	if at == "deep":
+		sim.stats_add("fall_%s_%s" % [d.culture, by], 1)
+
+static func _side(sim: WorldSim, f: SimFaction) -> String:
+	if sim.settlements.has(f.capital):
+		return "surface" if sim.settlements[f.capital].band == "surface" else "deep"
+	return "deep" if SimData.is_deep(f.culture) else "surface"
 
 ## Settlements below the surface.
 static func deep_count(sim: WorldSim) -> int:

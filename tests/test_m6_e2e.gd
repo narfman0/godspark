@@ -103,9 +103,14 @@ func _the_ambush() -> void:
 	cargo = cv.cargo.duplicate()
 	victim_town = cv.home
 	stock0 = s_.settlements[city].stock.duplicate()
-	var at := l.road.party_pos(rig.host, ra)
-	put(0, at + Vector2(-20.0, 6.0))
-	put(1, at + Vector2(22.0, 6.0))
+	# they watch from up the road, past the raiders and away from the caravan: near enough to see it,
+	# far enough that the raiders (who fall on strangers abroad) have the caravan to go for
+	var far := 0.5 + 46.0 / float(cells.size())
+	if int(rr.a) != cv.path[cv.leg]:
+		far = 1.0 - far
+	var by := l.road.route_pos(rig.host, road, far)
+	put(0, by + Vector2(0.0, 2.0))
+	put(1, by + Vector2(3.0, 2.0))
 	rig.run(3.0)
 	var raiders := l.actors_of(raid_id)
 	t.check(raiders.size() >= 6, "the raid is on screen (%d)" % raiders.size())

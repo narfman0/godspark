@@ -61,12 +61,15 @@ const STONE_LOW := 0.25
 ## (cultures.json wants).
 static func target(s: SimSettlement, g: String) -> float:
 	var d: Dictionary = SimData.goods[g]
-	return s.pop() * float(d.need) * float(d.target_years) * SimData.want_f(s.culture, g)
+	return (s.workers + s.dependants + s.soldiers) * float(d.need) * float(d.target_years) * SimData.want_f(s.culture, g)
 
 ## A good's price: its base, moved by what the land here gives and by the stock against target.
 static func price(s: SimSettlement, g: String) -> float:
+	return price_at(s, g, target(s, g))
+
+## price() for a target already worked out (the hot loops ask for both).
+static func price_at(s: SimSettlement, g: String, tg: float) -> float:
 	var d: Dictionary = SimData.goods[g]
-	var tg := target(s, g)
 	if tg <= 0.0:
 		return float(d.base)
 	var st: float = s.stock.get(g, 0.0)
@@ -144,15 +147,17 @@ static func _tick_settlement(sim: WorldSim, s: SimSettlement, days: int) -> void
 	for g in SimData.raw_goods:
 		raw_cap += float(s.cap.get(g, 0.0)) + 0.01
 	var raw_day := {}
+	var craft: float = float(c.craft)
 	for g in SimData.raw_goods:
-		var cg: float = float(s.cap.get(g, 0.0)) + 0.01
+		var cap_g: float = float(s.cap.get(g, 0.0))
+		var cg: float = cap_g + 0.01
 		var l := raw_l * cg / raw_cap
 		# Full woodpiles and ore heaps send hands back to the fields.
 		var want := clampf(2.0 - s.stock[g] / maxf(stock_cap(s, g), 1.0), 0.0, 1.0)
 		farm_l += l * (1.0 - want)
 		var d: Dictionary = SimData.goods[g]
-		var skill: float = float(c.craft) if d.get("craft", false) else 1.0
-		raw_day[g] = float(s.cap.get(g, 0.0)) * (1.0 - exp(-l * want * float(d.labour) * skill * toolf / cg))
+		var skill: float = craft if d.get("craft", false) else 1.0
+		raw_day[g] = cap_g * (1.0 - exp(-l * want * float(d.labour) * skill * toolf / cg))
 	# Wells give what they give, up to twice what a town keeps.
 	s.stock.water = minf(s.stock.water + s.cap.water * days, maxf(s.stock.water, stock_cap(s, "water") * 2.0))
 	var water_ok := clampf(s.stock.water / maxf(target(s, "water") * 0.5, 1.0), 0.0, 1.0)
@@ -401,9 +406,10 @@ static func build_market(sim: WorldSim) -> void:
 		row.resize(n * 3)
 		for i in n:
 			var g: String = SimData.good_names[i]
-			row[i] = price(s, g)
+			var tg := target(s, g)
+			row[i] = price_at(s, g, tg)
 			row[n + i] = s.stock[g]
-			row[2 * n + i] = target(s, g)
+			row[2 * n + i] = tg
 		m[sid] = row
 	sim.market = m
 
@@ -414,10 +420,11 @@ static func _plan_caravan(sim: WorldSim, s: SimSettlement) -> void:
 	var goods: Array = []
 	for i in n:
 		var g: String = SimData.good_names[i]
-		var surplus: float = s.stock[g] - target(s, g) * (1.1 if g == "food" else 0.8)
+		var tg := target(s, g)
+		var surplus: float = s.stock[g] - tg * (1.1 if g == "food" else 0.8)
 		var carry: float = SimData.goods[g].carry
 		if surplus >= carry * 0.5:
-			goods.append([i, g, surplus, carry, price(s, g)])
+			goods.append([i, g, surplus, carry, price_at(s, g, tg)])
 	if goods.is_empty():
 		return
 	var mask := sim.mask_for(c.mobility)

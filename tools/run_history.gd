@@ -208,6 +208,8 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 	var routes := {"pass": {}, "river": {}, "flat": {}, "deep": {}, "link": {}}
 	var deep := {"start": 0, "end": 0, "survived": 0, "min": 0, "worlds": 0, "cultures": {}}
 	var below := {}
+	var drow := {}
+	var sides := {}
 	var below_lines: PackedStringArray = []
 	var lines: PackedStringArray = []
 	var n := 0
@@ -233,6 +235,11 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 			deep[k] += int(hd.get(k, 0))
 		for c in hd.get("cultures", {}):
 			deep.cultures[c] = int(deep.cultures.get(c, 0)) + int(hd.cultures[c])
+		var hd2: Dictionary = h.get("drow", {})
+		for k in ["cities", "years", "whole", "own_rule"]:
+			drow[k] = int(drow.get(k, 0)) + int(hd2.get(k, 0))
+		for k: String in h.get("sides", {}):
+			sides[k] = int(sides.get(k, 0)) + int(h.sides[k])
 		var hb: Dictionary = h.get("below", {})
 		for k in hb:
 			if k == "by":
@@ -283,6 +290,11 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 	print("  deep settlements: %d worlds with any; a world %.1f at the start, %.1f at the end, the fewest %.1f; %d of %d of the first still stand; at the end: %s" % [
 		deep.worlds, deep.start / float(n), deep.end / float(n), deep.min / float(n), deep.survived, deep.start,
 		", ".join(dc.map(func(c): return "%s %d" % [c, deep.cultures[c]]))])
+	print("  drow cities at the start: %d; %d stood the whole run, %.1f years on average; under drow rule at the end: %d" % [
+		drow.get("cities", 0), drow.get("whole", 0), float(drow.get("years", 0)) / maxf(float(drow.get("cities", 0)), 1.0), drow.get("own_rule", 0)])
+	var side_keys: Array = sides.keys()
+	side_keys.sort()
+	print("  who fights whom (war_a_b; conquest and sack by_at; fall_culture_by): " + ", ".join(side_keys.map(func(k: String) -> String: return "%s %d" % [k, sides[k]])))
 	print("\n== Raids from below (deep raiders up a way to a surface road), per seed")
 	for l in below_lines:
 		print("  " + l)

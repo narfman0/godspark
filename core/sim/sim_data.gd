@@ -136,7 +136,9 @@ static func make_f(culture_id: String, good: String) -> float:
 
 ## How much more of a good a people keeps in store (cultures.json wants).
 static func want_f(culture_id: String, good: String) -> float:
-	return float((wants.get(culture_id, {}) as Dictionary).get(good, 1.0))
+	if not wants.has(culture_id):      # most peoples name nothing, and the economy asks constantly
+		return 1.0
+	return float((wants[culture_id] as Dictionary).get(good, 1.0))
 
 ## A people of the Underdark (tag "deep").
 static func is_deep(culture_id: String) -> bool:
