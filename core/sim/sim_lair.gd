@@ -15,6 +15,7 @@ var max_n := 1
 var hunger_rate := 1.0
 var out := 0              # hunting packs away
 var x := 0.0              # derived from the site
+var biome := ""           # derived from the site
 
 func count() -> int:
 	return SimData.count(monsters)

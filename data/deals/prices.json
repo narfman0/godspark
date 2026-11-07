@@ -1,5 +1,5 @@
 {
-	"_doc": "Trade and patronage numbers (core/deals/deals_shop.gd, deals_patron.gd). Prices are in coin. A shelf row sells an item drawn from a sim good: `units` of the good per item (taken out of the settlement's stock when bought); its price is the item's list value scaled by the good's local price over its base price (trade goods: the local price itself), times buy_markup. keep: the share of a stock a store will never sell (the town eats too). max: most of one row on the shelf. Selling: trade goods and ore (rows with `good`) at the local price times sell_trade (the price already falls where a good is plentiful); gear at sell_gear of its value, other things at sell_other; camp gear on the shelves (rope, torches, campfires) at sell_camp of its list value; worthless rows are refused; a town never pays more than wealth_cap of its wealth in one sale. Modifiers multiply the buy price (sell price by the inverse, capped): standing per point, a Bond with the people, the Silver Tongue spark (tag price_mult), each patron tier; buy_floor and sell_ceiling clamp the total.",
+	"_doc": "Trade and patronage numbers (core/deals/deals_shop.gd, deals_patron.gd). Prices are in coin. A shelf row sells an item drawn from a sim good: `units` of the good per item (taken out of the settlement's stock when bought); its price is the item's list value scaled by the good's local price over its base price (trade goods: the local price itself), times buy_markup. keep: the share of a stock a store will never sell (the town eats too). max: most of one row on the shelf. Selling: trade goods and ore (rows with `good`) at the local price times sell_trade (the price already falls where a good is plentiful); gear at sell_gear of its value, other things at sell_other; camp gear on the shelves (rope, torches, campfires) at sell_camp of its list value; worthless rows are refused; a town never pays more than wealth_cap of its wealth in one sale. Modifiers multiply the buy price (sell price by the inverse, capped): standing per point, a Bond with the people, the Silver Tongue spark (tag price_mult), each patron tier; buy_floor and sell_ceiling clamp the total, and a trade good never sells for more than back_margin of what the town would then ask for it.",
 	"buy_markup": 1.25,
 	"sell_trade": 0.85,
 	"sell_gear": 0.25,
@@ -12,6 +12,7 @@
 	"patron_tier": 0.05,
 	"buy_floor": 0.6,
 	"sell_ceiling": 1.3,
+	"back_margin": 0.9,
 	"shelves": [
 		{"base": "supplies", "good": "timber", "units": 0.5, "max": 60, "tiers": ["hamlet", "village", "town", "city"]},
 		{"base": "tile:torch", "good": "timber", "units": 0.1, "max": 40, "value": 1, "tiers": ["hamlet", "village", "town", "city"]},

@@ -439,10 +439,12 @@ static func _patrol_clash(sim: WorldSim, pa: SimParty, ra: SimParty, rid: int) -
 static func _lair_name(l: SimLair) -> String:
 	return l.name
 
+## What a lair is called: by what comes out of it where it stands (the row's `in`, the names of
+## spawning.json's lair_kin), so a chronicle says hyenas in the desert, where the bodies are hyenas.
 static func _lair_what(l: SimLair) -> String:
 	for e in SimData.lairs.get(l.family, []):
 		if e.id == l.kind:
-			return str(e.name)
+			return str((e.get("in", {}) as Dictionary).get(l.biome, e.name))
 	return "monsters"
 
 ## Returns true if the lair attacked.

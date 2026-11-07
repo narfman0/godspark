@@ -380,7 +380,7 @@ func _snapshot(p: PeerState) -> void:
 			if d > radius:
 				continue
 			p.visible[e.id] = true
-			_send(p.id, Protocol.ent_add(e.id, e.kind, e.body.size, e.body.pos, e.flags, e.name, maxi(0, hv.x), maxi(0, hv.y), e.look))
+			_send(p.id, Protocol.ent_add(e.id, e.kind, e.body.size, e.body.pos, e.flags, e.name, maxi(0, hv.x), maxi(0, hv.y), _look_of(e)))
 			p.vitals[e.id] = hv
 		elif d > radius + 1:
 			p.visible.erase(e.id)
@@ -452,3 +452,12 @@ class PeerState extends RefCounted:
 	var snapshot_bytes := 0
 	var chunks_sent := 0
 	var malformed := 0
+
+## The entity's look as it goes out: what it holds comes from combat, which knows what it swings.
+func _look_of(e: HostEntity) -> Dictionary:
+	var cs: HostSystem = host.system(HostSystem.COMBAT)
+	if cs == null:
+		return e.look
+	var look := e.look.duplicate()
+	look["wield"] = cs.call("shown_wield", e)
+	return look

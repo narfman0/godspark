@@ -30,6 +30,15 @@ static func land_labels(meta: Dictionary) -> Array:
 				"x0": int(r["x0"]), "x1": int(r["x1"])})
 	return out
 
+## How far (px, down) a label's box must move from where it wants to be to touch none of `taken`:
+## the first of `steps` that clears them all, NAN when none does and it should not be drawn.
+static func free_row(box: Rect2, taken: Array, steps: Array) -> float:
+	for s: float in steps:
+		var b := Rect2(box.position + Vector2(0.0, s), box.size)
+		if not taken.any(func(r: Rect2) -> bool: return r.intersects(b)):
+			return s
+	return NAN
+
 ## The ways across, from META: [{kind: pass | gallery | bridge | ford | under, x, y, name}].
 static func crossings(meta: Dictionary) -> Array:
 	var out: Array = []

@@ -535,6 +535,24 @@ func _pick_action(a: Actor, action: int) -> Dictionary:
 ## Start an Attack action: Extra Attack (players) or Multiattack (monsters, action -1) are
 ## combo swings inside it. aim: a point in tile units (INF: straight ahead). False when the
 ## creature cannot act, is mid-sequence or on cooldown, or the action is not ready.
+## What e holds as others should see it, in SWING's `what` form: its weapon, or the names of the
+## actions it would swing first. Goes out with ENT_ADD, so a body has its weapon before it swings.
+func shown_wield(e: HostEntity) -> String:
+	var a := actor(e)
+	if a == null or e.combatant == null:
+		return ""
+	if a.moves.is_empty():
+		var w := e.combatant.weapon
+		return w.weapon_name if w != null else ""
+	var acts: Array = a.moves.get("actions", [])
+	var idxs: Array = a.moves.get("multi", [])
+	if idxs.is_empty() and int(a.moves.get("default", -1)) >= 0:
+		idxs = [int(a.moves["default"])]
+	var names := PackedStringArray()
+	for i: int in idxs:
+		names.append(String(acts[i]["name"]))
+	return ", ".join(names)
+
 func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := false) -> bool:
 	var a := actor(e)
 	if a == null or not can_act(e) or not a.seq.is_empty() or now < a.action_ready - 1e-6 or _rolling(a):

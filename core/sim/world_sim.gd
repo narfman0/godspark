@@ -488,9 +488,10 @@ func _spawn_lair(site_id: int, fam: String, log_it: bool) -> SimLair:
 	l.name = SimNames.make(rng, "place", taken_names) + " " + str(words[rng.randi_range(0, words.size() - 1)])
 	l.hunger = rng.randf_range(0.1, 0.5)
 	l.x = site_by_id[site_id].x
+	l.biome = str(site_by_id[site_id].get("biome", ""))
 	lairs[site_id] = l
 	if log_it:
-		log_event("lair_new", {"lair": l.name, "what": def.name, "site": where, "n": l.count()})
+		log_event("lair_new", {"lair": l.name, "what": SimConflict._lair_what(l), "site": where, "n": l.count()})
 	return l
 
 # ── Stepping ─────────────────────────────────────────────────────────────────
@@ -1013,6 +1014,7 @@ static func from_dict(d: Dictionary) -> WorldSim:
 	for ld in d.lairs:
 		var l := SimLair.from_dict(ld)
 		l.x = sim.site_by_id[l.id].x
+		l.biome = str(sim.site_by_id[l.id].get("biome", ""))
 		sim.lairs[l.id] = l
 	for fd in d.factions:
 		var f := SimFaction.from_dict(fd)

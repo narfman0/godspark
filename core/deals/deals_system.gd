@@ -463,12 +463,12 @@ func sell_prices(e: HostEntity, sid: int) -> Dictionary:
 	var out := {}
 	if s == null or e.character == null:
 		return out
-	var m := DealsShop.sell_mult(mods(e, str(s.faction)))
+	var m := mods(e, str(s.faction))
 	for i in Inventory.SIZE:
 		var it := e.character.inventory.at(i)
 		if it.is_empty():
 			continue
-		var each := DealsShop.sell_each(host.sim, sid, it) * m
+		var each := DealsShop.sell_for(host.sim, sid, it, m)
 		if each >= 0.5:
 			out[str(i)] = maxi(1, floori(each))
 	return out
@@ -551,7 +551,7 @@ func sell(e: HostEntity, slot: int, n: int) -> String:
 	n = clampi(n, 1, Items.count(it))
 	var sid := int(t["site"])
 	var s: SimSettlement = host.sim.settlements[sid]
-	var each := DealsShop.sell_each(host.sim, sid, it) * DealsShop.sell_mult(mods(e, str(s.faction)))
+	var each := DealsShop.sell_for(host.sim, sid, it, mods(e, str(s.faction)))
 	if each < 0.5:
 		return "worthless"
 	var pay := maxi(1, floori(each)) * n

@@ -56,7 +56,7 @@ class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 11  # 9: biome tiles 21-33, 112-116 and walls 10-17; 10: river tiles 117-119; 11: the dodge roll and richer SWING and STATUS (an older peer cannot read them)
+const VERSION := 12  # 9: biome tiles 21-33, 112-116 and walls 10-17; 10: river tiles 117-119; 11: the dodge roll and richer SWING and STATUS (an older peer cannot read them); 12: ENT_ADD says what a body holds
 ## ENT_ADD rank byte: index into this list.
 const RANKS := ["standard", "minion", "elite", "champion", "boss"]
 const MAX_STR := 64
@@ -204,7 +204,7 @@ static func tiles(deltas: PackedInt32Array) -> PackedByteArray:
 	return b
 
 ## hp, max_hp: max_hp 0 for an entity without hit points.
-## look: the entity's look; only slug, people, rank and scale travel (compact_look).
+## look: the entity's look; only slug, people, rank, scale and wield travel (compact_look).
 static func ent_add(id: int, kind: int, size: Vector2, pos: Vector2, flags: int, name: String,
 		hp := 0, max_hp := 0, look := {}) -> PackedByteArray:
 	var w := Writer.new(T.ENT_ADD)
@@ -220,9 +220,10 @@ static func ent_add(id: int, kind: int, size: Vector2, pos: Vector2, flags: int,
 	w.str8(String(look.get("people", "")))
 	w.u8(maxi(0, RANKS.find(String(look.get("rank", "standard")))))
 	w.u8(clampi(roundi(float(look.get("scale", 0.0)) * 20.0), 0, 255))
+	w.str8(String(look.get("wield", "")))
 	return w.b
 
-## What of a look ENT_ADD carries, as decode gives it back: {slug?, people?, rank?, scale?}
+## What of a look ENT_ADD carries, as decode gives it back: {slug?, people?, rank?, scale?, wield?}
 ## (keys only when set; rank only when not standard).
 static func compact_look(look: Dictionary) -> Dictionary:
 	var out := {}
@@ -236,6 +237,8 @@ static func compact_look(look: Dictionary) -> Dictionary:
 	var sc := clampi(roundi(float(look.get("scale", 0.0)) * 20.0), 0, 255)
 	if sc > 0:
 		out["scale"] = sc / 20.0
+	if String(look.get("wield", "")) != "":
+		out["wield"] = String(look["wield"]).left(MAX_STR)
 	return out
 
 static func ent_remove(id: int) -> PackedByteArray:
@@ -448,6 +451,7 @@ static func decode(b: PackedByteArray) -> Dictionary:
 			var people := r.str8()
 			var rank := r.u8()
 			var scale := r.u8()
+			var wield := r.str8()
 			if slug != "":
 				look["slug"] = slug
 			if people != "":
@@ -456,6 +460,8 @@ static func decode(b: PackedByteArray) -> Dictionary:
 				look["rank"] = RANKS[rank]
 			if scale > 0:
 				look["scale"] = scale / 20.0
+			if wield != "":
+				look["wield"] = wield
 			m["look"] = look
 		T.ENT_REMOVE:
 			m["id"] = r.u32()

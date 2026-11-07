@@ -99,6 +99,8 @@ func actor_added(id: int, look: Dictionary) -> void:
 	_actors[id] = true
 	if body.kind == "forge":
 		body.set_weapon((body.visual as ForgeMonster).wielded())
+	elif id != my_id:
+		_wield(body, String(look.get("wield", "")))
 	if id == my_id:
 		_own_weapon()
 		var items := cw.system(HostSystem.ITEMS) as ItemsClient
@@ -213,8 +215,8 @@ func combat_event(ev: Dictionary) -> void:
 			if String(_oneshot.get(int(ev["dst"]), [""])[0]) == "death":
 				_oneshot.erase(int(ev["dst"]))
 
-## What a remote creature swings shows in its hand from then on (bodies have no gear on the
-## wire): the first name of the SWING that is a weapon this table knows.
+## What a remote creature holds, from ENT_ADD's wield or a SWING: the first name that is a weapon
+## this table knows. A change of weapon shows at its next swing: ENT_ADD goes out once.
 func _wield(a: ActorBody, what: String) -> void:
 	for w in what.split(", ", false):
 		if not Looks.weapon(w).is_empty():

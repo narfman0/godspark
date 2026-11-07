@@ -20,6 +20,8 @@ const ROUTE_STYLE := {"road": [Color("8a5a2b"), 3.0], "deep_road": [Color("6a4a8
 const BIOME_TINT := {"meadow": Color("8cc152"), "forest": Color("2f7d3a"), "mountain": Color("9a9aa2"), "desert": Color("e5c77f"),
 	"swamp": Color("5a6b3a")}
 const RIVER := Color("3f7fb0")
+## Where a land label may go, px down from its place, when something is in the way.
+const LABEL_STEPS := {"region": [0.0, -16.0, -32.0], "range": [0.0, -16.0, -32.0], "river": [0.0, 16.0, 32.0, -36.0]}
 
 var dc: DealsClient
 var lc: LifeClient
@@ -176,8 +178,8 @@ func _draw_map() -> void:
 		poly.append(_p(Vector2(0, 0)))
 		c.draw_colored_polygon(poly, Color(UiTheme.PARCH_DEEP, 0.28))
 		c.draw_polyline(line, UiTheme.INK_SOFT, 1.6, true)
-	_draw_land(c, meta)
 	var kn := known()
+	_draw_land(c, meta, _place_boxes(meta, kn))
 	# roads between known places
 	if dc != null:
 		for r: Dictionary in MapLogic.known_routes(dc.routes, kn):
@@ -207,8 +209,8 @@ func _draw_map() -> void:
 			Emblems.portal(c, p, faint)
 		else:
 			Emblems.ruin(c, p, faint)
-		var nm := String(a.get("name", ""))
-		if nm != "" and (zoom >= _fit * 1.6 or sid == hover or not faint and kind == "settlement"):
+		var nm := _place_name(s, a, faint)
+		if nm != "":
 			var w := UiTheme.text_width(nm, UiTheme.TINY)
 			UiTheme.text(c, p + Vector2(-w * 0.5, 14), nm, UiTheme.TINY, Color(UiTheme.INK, 0.55 if faint else 1.0), false,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 0)
@@ -267,9 +269,32 @@ func _draw_map() -> void:
 	# legend
 	UiTheme.text(c, Vector2(c.size.x - 290, c.size.y - 8), "faint: heard of     X: pinned work     pin: a rumour", UiTheme.TINY, UiTheme.INK_SOFT)
 
+## The name a known place shows at this zoom, "" for none.
+func _place_name(s: Dictionary, a: Dictionary, faint: bool) -> String:
+	if zoom >= _fit * 1.6 or int(s["id"]) == hover or not faint and String(s["kind"]) == "settlement":
+		return String(a.get("name", ""))
+	return ""
+
+## The screen boxes of the known places' emblems and names: drawn over the land, so the land's
+## own names keep off them.
+func _place_boxes(meta: Dictionary, kn: Dictionary) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for s: Dictionary in meta.get("sites", []):
+		var sid := int(s["id"])
+		if not kn.has(sid):
+			continue
+		var p := _p(Vector2(float(s["x"]), float(s["y"])))
+		out.append(Rect2(p - Vector2(11, 18), Vector2(22, 22)))
+		var a: Dictionary = dc.sites.get(sid, {}) if dc != null else {}
+		var nm := _place_name(s, a, String(kn[sid]) == "heard")
+		if nm != "":
+			var w := UiTheme.text_width(nm, UiTheme.TINY)
+			out.append(Rect2(p + Vector2(-w * 0.5, 2), Vector2(w, 14)))
+	return out
+
 ## The land's own marks: a band of each biome's colour under the ground line, rivers, crossings,
-## and the names, which take the size of what they name.
-func _draw_land(c: Control, meta: Dictionary) -> void:
+## and the names, which take the size of what they name. taken: the boxes they keep off.
+func _draw_land(c: Control, meta: Dictionary, taken: Array[Rect2]) -> void:
 	var surf: Array = meta.get("surface", [])
 	var labels := MapLogic.land_labels(meta)
 	for l: Dictionary in labels:
@@ -301,7 +326,7 @@ func _draw_land(c: Control, meta: Dictionary) -> void:
 		if zoom >= _fit * 1.6 and String(x["kind"]) in ["pass", "bridge", "ford"]:
 			var p := _p(Vector2(float(x["x"]), float(x["y"])))
 			_label(c, String(x["kind"]).capitalize(), p + Vector2(0, -8), UiTheme.TINY, UiTheme.INK_SOFT)
-	var shown: Array[Rect2] = []
+	var shown: Array = taken.duplicate()
 	for kind: String in ["region", "range", "river"]:
 		for l: Dictionary in labels:
 			if l["kind"] != kind:
@@ -313,10 +338,11 @@ func _draw_land(c: Control, meta: Dictionary) -> void:
 			var y := at.y - (34.0 if kind == "region" else (12.0 if kind == "range" else -18.0))
 			var w := UiTheme.text_width(name_, size)
 			var box := Rect2(at.x - w * 0.5, y - 14.0, w, 16.0)
-			if shown.any(func(r: Rect2) -> bool: return r.intersects(box)):
+			var dy := MapLogic.free_row(box, shown, LABEL_STEPS[kind])
+			if is_nan(dy):
 				continue
-			shown.append(box)
-			_label(c, name_, Vector2(at.x, y), size, col)
+			shown.append(Rect2(box.position + Vector2(0.0, dy), box.size))
+			_label(c, name_, Vector2(at.x, y + dy), size, col)
 
 ## Text centred on at, kept inside the map.
 func _label(c: Control, s: String, at: Vector2, size: int, col: Color) -> void:

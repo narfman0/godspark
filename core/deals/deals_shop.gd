@@ -167,6 +167,16 @@ static func sell_mult(mods: Dictionary) -> float:
 static func price(each: int, mult: float) -> int:
 	return maxi(1, roundi(each * mult))
 
+## What the town pays this player for one. Trade goods never fetch what the same town would sell
+## them back for, whatever the player's standing: a shop is not a coin press.
+static func sell_for(sim: WorldSim, sid: int, item: Dictionary, mods: Dictionary) -> float:
+	var each := sell_each(sim, sid, item) * sell_mult(mods)
+	var g := good_of(item)
+	if String(g[0]) != "":
+		var back := SimEconomy.price(sim.settlements[sid], String(g[0])) * float(g[1]) * float(_p()["buy_markup"]) * buy_mult(mods)
+		each = minf(each, back * float(_p()["back_margin"]))
+	return each
+
 ## The sim good an item is (trade goods and ore), and how many units of it one item is.
 static func good_of(item: Dictionary) -> Array:
 	var row := Items.row(String(item.get("base", "")))

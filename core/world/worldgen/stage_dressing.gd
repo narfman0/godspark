@@ -41,6 +41,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 			surface.append(i)
 	var settled := _settled(c)
 	_ponds(c, rng, settled)
+	_wades(c, rng, settled)
 	var density: Dictionary = Dressing.table("density")
 	_surface(c, rng, surface, taken, settled, density)
 	_surface(c, rng, under, {}, settled, density.get("under", {}))
@@ -92,6 +93,49 @@ static func _ponds(c: GenContext, rng: RandomNumberGenerator, settled: Array) ->
 				for k in rows:
 					c.fg[cx + (top - k) * c.w] = water
 				c.surface[cx] = top - rows
+
+## On a settled world the road is the surface nearly everywhere, so most of a swamp's open water
+## lies across it: a level stretch of road goes under a row of water, its bed a row lower, and the
+## road's path goes with it. A body wades it, as it does a ford.
+static func _wades(c: GenContext, rng: RandomNumberGenerator, settled: Array) -> void:
+	var p: Dictionary = Dressing.table("ponds")
+	var d: Dictionary = p.get("road", {})
+	if d.is_empty():
+		return
+	var on := TileDefs.id(String(d["on"]))
+	var water := TileDefs.id("water")
+	var wr: Array = d["width"]
+	var biomes: Array = p.get("biomes", [])
+	var lowered := {}
+	var x := 8
+	while x < c.w - 40:
+		if not StageBiomes.biome_name(c, x) in biomes or _in(settled, x) or c.fg[x + c.surface[x] * c.w] != on:
+			x += 1
+			continue
+		var run := 1
+		while x + run < c.w - 2 and c.surface[x + run] == c.surface[x] and c.fg[x + run + c.surface[x] * c.w] == on and not _in(settled, x + run):
+			run += 1
+		if run >= int(wr[0]) + 2 and StageBiomes.biome_name(c, x + run - 1) in biomes:
+			var w := mini(rng.randi_range(int(wr[0]), int(wr[1])), run - 2)
+			var at := x + 1 + rng.randi_range(0, run - 2 - w)
+			if _pool_fits(c, at - 1, w + 2, 1, on):
+				for cx in range(at, at + w):
+					var top := c.surface[cx]
+					c.fg[cx + top * c.w] = water
+					c.surface[cx] = top - 1
+					lowered[cx] = top + 1
+		x += run + int(d["gap"])
+	if lowered.is_empty():
+		return
+	for r: Dictionary in c.routes:
+		var path: Array = r.get("path", [])
+		for i in path.size():
+			var q: Array = path[i]
+			if int(lowered.get(int(q[0]), -1)) == int(q[1]):
+				path[i] = [q[0], int(q[1]) - 1]
+	for i in range(0, c.objects.size(), 4):        # the road's milestones and signs stand in it
+		if int(lowered.get(c.objects[i + 1], -1)) == c.objects[i + 2]:
+			c.objects[i + 2] -= 1
 
 ## Every column of the run stands level on the pool's tile, with open air over it, and three
 ## rows of solid under the deepest water, so no pool opens onto a cave.

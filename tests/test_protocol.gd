@@ -103,11 +103,11 @@ func run(t: TestLog) -> void:
 	var h5 := Protocol.hello("ann")
 	t.eq(Protocol.decode(h5.slice(0, h5.size() - 1)).get("class"), "", "a hello without the class field decodes (old clients reach the version check)")
 	var ea := Protocol.ent_add(7, HostEntity.Kind.MONSTER, Vector2(1, 1), Vector2(2, 3), 1, "Goblin Warrior", 4, 10)
-	t.eq(ea.size(), 32 + "Goblin Warrior".length(), "entity add: 32 + name without a look")
+	t.eq(ea.size(), 33 + "Goblin Warrior".length(), "entity add: 33 + name without a look")
 	# protocol 7: the compact look
-	var look := {"slug": "goblin-warrior", "people": "human:raider", "rank": "champion", "scale": 1.3, "color": Color.RED, "name": "x"}
+	var look := {"slug": "goblin-warrior", "people": "human:raider", "rank": "champion", "scale": 1.3, "wield": "Scimitar, Dagger", "color": Color.RED, "name": "x"}
 	var el := Protocol.decode(Protocol.ent_add(7, HostEntity.Kind.MONSTER, Vector2(1, 1), Vector2(2, 3), 1, "Gob", 4, 10, look))
-	t.eq(el.get("look"), {"slug": "goblin-warrior", "people": "human:raider", "rank": "champion", "scale": 1.3}, "entity add carries the compact look")
+	t.eq(el.get("look"), {"slug": "goblin-warrior", "people": "human:raider", "rank": "champion", "scale": 1.3, "wield": "Scimitar, Dagger"}, "entity add carries the compact look")
 	t.eq(el.get("look"), Protocol.compact_look(look), "compact_look is what decodes")
 	t.eq(Protocol.decode(Protocol.ent_add(7, 0, Vector2.ONE, Vector2.ZERO, 0, "x")).get("look"), {}, "no look: empty")
 	t.eq(Protocol.decode(Protocol.ent_add(7, 1, Vector2.ONE, Vector2.ZERO, 0, "x", 0, 0, {"slug": "player:wizard"})).get("look"),
