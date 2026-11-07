@@ -71,12 +71,12 @@ must not touch `data/dressing.json`, `view/actors/dressing_view.gd`, the view's 
 
 ## How to verify anything
 
-- `tools/gate.sh` (about 12 minutes; `E2E=test_m4_e2e,test_m5_e2e,test_m6_e2e tools/gate.sh`
+- `tools/gate.sh` (about 8 minutes; `E2E=test_m4_e2e,test_m5_e2e,test_m6_e2e tools/gate.sh`
   once the M6 test exists). Logs in `/tmp/godspark-gate`.
 - Targeted: `godot --headless -s res://tools/run_tests.gd -- only=test_life,test_raids_below`.
 - Pictures: `tools/soft_godot.sh -s res://tools/look_shot.gd -- gen=medium seed=1 ...`,
   `tools/corner_shot.gd`, and the world tour (`game/main.gd` host option `world_tour=DIR tour=deep` or `tour=below`, see `game/ui/world_tour.gd`). Look at them.
-- Machine rules in `AGENTS.md`: one Godot per agent, 2.5 GB free before each, everything
+- Machine rules in `AGENTS.md`: parallel Godot allowed (`tools/test.sh` at `JOBS=8`), 2.5 GB free before each, everything
   under `timeout`, never start ComfyUI, never commit art, named `git add`.
 
 ## Known flakes and rough edges
@@ -96,7 +96,3 @@ must not touch `data/dressing.json`, `view/actors/dressing_view.gd`, the view's 
 - Open M6 questions in `docs/m6.md`: drow hostile until standing is earned (default), duergar
   and deep gnomes included (default), how deep the first pass goes in levels (default class
   level 10).
-- Memory settings: AGENTS.md's one-Godot-at-a-time and 2.5 GB rule was for the 32 GB machine
-  with ComfyUI running; with the new RAM the suite could be split by file (`tools/test.sh`
-  takes `JOBS`; 10-12 processes took it from 150 s to about 30 s when tried) if the user says
-  so.

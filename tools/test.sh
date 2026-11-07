@@ -5,11 +5,10 @@
 #   tools/test.sh                 every test file
 #   tools/test.sh life deals      only files whose name contains one of these
 #   JOBS=1 LIMIT=300 tools/test.sh    processes at once; seconds allowed per file
-# JOBS stays 1 unless the user has said otherwise: AGENTS.md allows one Godot process at a time
-# on this machine, because monster-forge batches share the memory. Each process waits until
-# MemAvailable is at least 2.5 GB.
+# JOBS defaults to 8 (AGENTS.md: parallel Godot is allowed since 2026-11-07). Each process
+# waits until MemAvailable is at least 2.5 GB.
 cd "$(dirname "$0")/.." || exit 1
-export JOBS="${JOBS:-1}" LIMIT="${LIMIT:-300}" GODOT="${GODOT:-godot}"
+export JOBS="${JOBS:-8}" LIMIT="${LIMIT:-300}" GODOT="${GODOT:-godot}"
 export LOGS="$(mktemp -d "${TMPDIR:-/tmp}/gs_test.XXXXXX")"
 one() {
 	while [ "$(awk '/MemAvailable/ {print $2}' /proc/meminfo)" -lt 2500000 ]; do sleep 5; done

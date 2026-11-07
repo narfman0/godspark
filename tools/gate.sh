@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # The gate a commit on main must pass: import, the whole suite, every net smoke, and the
-# unseeded end-to-end tests three times. One Godot at a time, each run waiting for 2.5 GB
-# of free memory and held under a timeout. Logs go to $GATE_LOGS (default /tmp/godspark-gate).
-#   tools/gate.sh            about 12 minutes
+# unseeded end-to-end tests three times. The suite runs in parallel through tools/test.sh
+# (JOBS files at once); the smokes and end-to-end runs go one at a time, each waiting for
+# 2.5 GB of free memory and held under a timeout. Logs go to $GATE_LOGS (default
+# /tmp/godspark-gate).
+#   tools/gate.sh            about 8 minutes with JOBS=8
 #   E2E=test_m4_e2e,test_m5_e2e,test_m6_e2e tools/gate.sh    which end-to-end tests to repeat
 cd "$(dirname "$0")/.." || exit 2
 turn() {
@@ -18,10 +20,10 @@ turn
 timeout 120 godot --headless --import > /dev/null 2>&1; echo "import exit $?"
 turn
 s=$(date +%s)
-timeout 500 godot --headless -s res://tools/run_tests.gd > "$L/suite.log" 2>&1
+timeout 900 tools/test.sh > "$L/suite.log" 2>&1
 echo "suite exit $?, $(($(date +%s) - s))s"
 grep -aE "FAIL|BROKEN|SCRIPT ERROR" "$L/suite.log" | head -20
-grep -aE '^[0-9]+ checks, ' "$L/suite.log"
+grep -aE 'checks, |ALL PASS' "$L/suite.log" | tail -3
 n=0
 for v in "" "FIGHT=1 SPAWN=goblin-warrior:2" "RULES=1" "SPAWNS=1 SEE= WORLD='gen=dev seed=3'" "ALL=1" "LIFE=1" "DEALS=1" "WORLD_LIFE=1"; do
 	turn

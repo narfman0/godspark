@@ -21,9 +21,11 @@ Read `docs/plan.md` (what and why) and `docs/architecture.md` (the contract) fir
 
 ## This machine
 
-- A monster-forge batch is often running and RAM is tight. Run one Godot process at a
-  time, check `grep MemAvailable /proc/meminfo` first (wait if under 2.5 GB), and never
-  start ComfyUI.
+- Godot processes may run in parallel (the user relaxed the one-at-a-time rule on
+  2026-11-07 with the RAM upgrade): `tools/test.sh` runs the suite with `JOBS` files at
+  once (default 8), and agents may each run their own. Keep the memory gate: check
+  `grep MemAvailable /proc/meminfo` before a run and wait if under 2.5 GB. Never start
+  ComfyUI.
 - Screenshots go through `tools/soft_godot.sh` (CPU Vulkan, no GPU), at 1280x720 or less.
   Look at the picture you made.
 
