@@ -276,8 +276,9 @@ No existing test changed. No test seed moved.
 
 ## Measured otherwise
 
-- **Suite:** 9657 checks, ALL PASS after each item from 2f7e182 on (9330 after item 1, 9567 after
-  item 2), about 5 min 45 s.
+- **Suite:** ALL PASS after every item (9330 checks after item 1, 9567 after item 2, 9657 after
+  items 3, 4 and 5), about 5 min 50 s. On the report's commit 2c97c36: 9660 checks, ALL PASS, with
+  the foreign light changes below in the tree (three of the checks are theirs).
 - **Smokes, one at a time, each NET SMOKE PASS:** plain 14 s, `LIFE` 17 s, `DEALS` 19 s,
   `WORLD_LIFE` 51 s (bot1 traded, walked a message out and back; the raid on bot2's town was drow,
   "Thyssvyn, raider"; audit clean; host tick avg 1.9 ms, p99 6.2, max 47), `ALL` 63 s (audit clean,
