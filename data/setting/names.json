@@ -20,7 +20,7 @@
  "river": {"stem": ["Ald", "Bren", "Cald", "Dor", "Elm", "Fenn", "Harr", "Lor", "Marl", "Nar", "Oss", "Ren", "Sel", "Tam", "Ulm", "Wend", "Yar", "Thorn"], "end": ["ow", "ey", "wyn", "ash", "ind", "ure", "esk", "ath", "en", "brook", "water"]},
  "deep": {
   "drow": {"kind": "city", "forms": ["the city of {n}", "{n} of the Webs", "the spired city of {n}", "{n}, city of lamps"]},
-  "duergar": {"kind": "hold", "forms": ["the hold of {n}", "{n} Deephold", "the forge-hold of {n}"]},
+  "deep_dwarf": {"kind": "hold", "forms": ["the hold of {n}", "{n} Deephold", "the forge-hold of {n}"]},
   "deep_gnome": {"kind": "warren", "forms": ["the warren of {n}", "{n} Delve", "the hidden delve of {n}"]},
   "kobold": {"kind": "warren", "forms": ["the warren of {n}", "{n} Diggings", "the tunnels of {n}"]},
   "goblinoid": {"kind": "warren", "forms": ["the warren of {n}", "{n} Hole", "the war-warren of {n}"]},

@@ -777,7 +777,7 @@ func _run_scheduled(h: WorldHost) -> void:
 					to = sid
 		# The nearest surface neighbour of another faction by road, then by any way, then the
 		# peoples below, then anyone: a town's own faction's raiders meet no guard and fall on
-		# the players alone, and the drow city or duergar hold straight below is nearest by x
+		# the players alone, and the drow city or deep dwarf hold straight below is nearest by x
 		# but its veterans are no party for level-1 players standing in the square (raids from
 		# below have their own cheat, cheat_below).
 		var from := -1

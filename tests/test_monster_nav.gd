@@ -18,6 +18,7 @@ func run(t: TestLog) -> void:
 	_climber(t)
 	_flier(t)
 	_swimmer(t)
+	_swimmer_bank(t)
 	_digger(t)
 	_drop(t)
 	_window_and_partial(t)
@@ -301,6 +302,15 @@ func _swimmer(t: TestLog) -> void:
 		"######################"])
 	var shark := NavMaps.stats("medium", {"walk": 5, "swim": 40})
 	_ok(t, "a swimmer dives to the bottom of a pool", NavMaps.run(m, shark))
+
+## A swimmer leaves the water onto a bank one row over it, and two rows over it.
+func _swimmer_bank(t: TestLog) -> void:
+	for rows: int in [1, 2]:
+		var art: Array = ["...............G....", "...............#####"]
+		if rows == 2:
+			art.append("...............#####")
+		art.append_array(["~~~~~~~~~~~~~~~#####", "~~S~~~~~~~~~~~~#####", "####################"])
+		_ok(t, "a swimmer onto a bank %d over the water" % rows, NavMaps.run(NavMaps.build(art), NavMaps.stats("medium", {"walk": 5, "swim": 40})))
 
 func _digger(t: TestLog) -> void:
 	var m := NavMaps.build([

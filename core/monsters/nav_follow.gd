@@ -250,6 +250,7 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 			inp.down = dy < -0.2
 			if edge == E.SWIM and inp.up:
 				inp.jump = true
+				inp.jump_pressed = b.swimming and b.in_liquid < prof.stats.leap_below     # the leap out at the surface
 	return inp
 
 ## The steering for this tick of a jump: of a few choices (the recorded one first), the one

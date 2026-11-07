@@ -1,5 +1,5 @@
 {
-	"_comment": "The skin of each style: a building piece role (data/places/buildings.json 'pieces', and the place-wide roles below) -> a dressing id in data/dressing.json. _base: a kit to fall back to for roles this one lacks. Place-wide roles: ruin_wall and ruin_rubble (on ruined lots), signpost and milestone (roads), camp (raider lots, beside each tent). Roles a kit cannot fill are skipped: the tiles alone still read as the building. The deep peoples' kits (duergar, deep_gnome, goblin, kobold; and drow) use the Synty dungeon and cave pieces; their light is the style's emissive lamp tile, never a model.",
+	"_comment": "The skin of each style: a building piece role (data/places/buildings.json 'pieces', and the place-wide roles below) -> a dressing id in data/dressing.json. _base: a kit to fall back to for roles this one lacks. Place-wide roles: ruin_wall and ruin_rubble (on ruined lots), signpost and milestone (roads), camp (raider lots, beside each tent). Roles a kit cannot fill are skipped: the tiles alone still read as the building. The deep peoples' kits (deep dwarf, deep_gnome, goblin, kobold; and drow) use the Synty dungeon and cave pieces; their light is the style's emissive lamp tile, never a model.",
 	"kits": {
 		"human": {"bed": "bed", "table": "table", "chair": "chair", "shelf": "shelf", "anvil": "anvil", "forge": "forge",
 			"counter": "counter", "bar": "counter", "barrel": "barrel", "crate": "crate", "throne": "throne", "candles": "candles",
@@ -9,7 +9,7 @@
 		"dwarf": {"_base": "human", "bed": "dwarf_bed", "chair": "barrel"},
 		"elf": {"_base": "human", "well": "elf_well"},
 		"drow": {"_base": "human", "bed": "dwarf_bed", "well": "elf_well", "statue": "giant_mushroom", "post_shrine": "candle_stand", "throne": "stone_throne"},
-		"duergar": {"_base": "dwarf", "throne": "stone_throne", "well": "stone_lantern", "statue": "stone_lantern", "post_shrine": "dungeon_brazier",
+		"deep_dwarf": {"_base": "dwarf", "throne": "stone_throne", "well": "stone_lantern", "statue": "stone_lantern", "post_shrine": "dungeon_brazier",
 			"candles": "candle_stand", "crate": "chest", "bed": "dungeon_bed"},
 		"deep_gnome": {"_base": "dwarf", "well": "gem_large", "statue": "gem_large", "post_shrine": "stone_lantern", "candles": "gem_spike",
 			"crate": "chest", "throne": "gem_large"},

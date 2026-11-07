@@ -11,6 +11,8 @@ func run(t: TestLog) -> void:
 	_swim_the_lake(t)
 	_nav_water(t)
 	_nav_lava(t)
+	_chase_at_lava(t)
+	_sunlight(t)
 	_burn(t)
 
 ## The real controller from the west beach into the water, across it holding right and jump
@@ -85,6 +87,72 @@ func _nav_water(t: TestLog) -> void:
 		"####~~~~~~~~~~~~####",
 		"####################"])
 	t.check(NavMaps.run(puddle, NavMaps.stats("medium"), 900)["reached"], "a walker wades water a row deep")
+
+## A monster close and level with its prey does not walk straight into the lava between them
+## (MonsterBrain's direct chase): the line over a pool is clear, the walk is not.
+func _chase_at_lava(t: TestLog) -> void:
+	var m := NavMaps.build([
+		"..........................",
+		"..........................",
+		"..S.........G.............",
+		"#####LLLLLLL##############",
+		"##########################"])
+	var world: TileWorld = m["world"]
+	var host := WorldHost.new(world)
+	var combat := CombatSystem.new()
+	host.add_system(combat)
+	var ms := MonstersSystem.new()
+	ms.director_enabled = 0
+	ms.lairs_enabled = false
+	ms.nav_fixed_slices = 8
+	host.add_system(ms)
+	var p := host.add_player("prey", 2)
+	host.teleport(p, Vector2(m["goal"]))
+	var e := ms.spawn("goblin-warrior", Vector2(m["start"]))
+	t.check(e != null, "a goblin to chase with")
+	if e == null:
+		return
+	var burnt := false
+	for k in 300:
+		p.body.pos = Vector2(m["goal"])
+		host.tick()
+		burnt = burnt or CombatSystem.touches_lava(world, e.body)
+	t.check(not burnt, "it never steps into the lava (ended at %s)" % e.body.pos)
+
+## Sunlight Sensitivity is read off the stat block, and takes Disadvantage in sunlight: a kobold
+## warrior by day on open ground, not at night, not underground. No drow lineage has it in 5.2.1.
+func _sunlight(t: TestLog) -> void:
+	var world := TileWorld.new(128, 128)
+	for x in 128:
+		for y in 40:
+			world.set_fg(x, y, TileDefs.id("stone"), true)
+	var host := WorldHost.new(world)
+	var combat := CombatSystem.new()
+	host.add_system(combat)
+	var ms := MonstersSystem.new()
+	ms.director_enabled = 0
+	ms.lairs_enabled = false
+	host.add_system(ms)
+	var kobold := ms.spawn("kobold-warrior", Vector2(30.5, 40.0))
+	var orc := ms.spawn("goblin-warrior", Vector2(34.5, 40.0))
+	t.check(combat.sight.sun_shy(kobold), "a kobold warrior has Sunlight Sensitivity")
+	t.check(not combat.sight.sun_shy(orc), "a goblin warrior does not")
+	for slug: String in ["drider", "specter", "wight", "wraith"]:
+		var row: Dictionary = host.srd.pack.get_row("monster", slug)
+		t.check(str(row).contains("Sunlight Sensitivity"), "%s's block has it" % slug)
+	host.clock.ticks = 12 * WorldClock.TICKS_PER_HOUR
+	var noon := combat.sight.in_sunlight(Vector2(30.5, 41.0))
+	t.check(noon, "open ground at noon is sunlight")
+	t.check(not combat.sight.in_sunlight(Vector2(30.5, 20.0)), "solid rock is not")
+	host.clock.ticks = 0
+	t.check(not combat.sight.in_sunlight(Vector2(30.5, 41.0)), "nor midnight")
+	host.clock.ticks = 12 * WorldClock.TICKS_PER_HOUR
+	var opts := {}
+	combat._sight_opts(combat.actors[kobold.id], combat.actors[orc.id], opts)
+	t.check(bool(opts.get("disadvantage", false)), "a kobold warrior swinging at noon has Disadvantage")
+	opts = {}
+	combat._sight_opts(combat.actors[orc.id], combat.actors[kobold.id], opts)
+	t.check(not bool(opts.get("disadvantage", false)), "a goblin warrior beside it does not")
 
 func _nav_lava(t: TestLog) -> void:
 	var f := MonsterNav.cell_flags(NavMaps.build(["L"])["world"], NavMaps.OX, NavMaps.OY)

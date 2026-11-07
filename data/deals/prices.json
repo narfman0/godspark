@@ -56,7 +56,7 @@
 		"kinds": {
 			"dwarf": {"warhammer": 4, "battleaxe": 4, "war-pick": 3, "greataxe": 2, "handaxe": 2, "light-crossbow": 1, "chain-mail": 3, "splint-armor": 2, "plate-armor": 1, "shield": 3, "half-plate-armor": 1},
 			"elf": {"longbow": 4, "shortbow": 3, "scimitar": 3, "rapier": 3, "shortsword": 3, "dagger": 2, "leather-armor": 3, "studded-leather-armor": 3, "chain-shirt": 2},
-			"duergar": {"war-pick": 4, "warhammer": 4, "battleaxe": 3, "light-crossbow": 2, "maul": 1, "chain-mail": 3, "splint-armor": 2, "shield": 3, "half-plate-armor": 1}, "deep_gnome": {"light-crossbow": 3, "dagger": 3, "light-hammer": 3, "war-pick": 2, "sling": 2, "studded-leather-armor": 2, "chain-shirt": 2}, "drow": {"hand-crossbow": 4, "rapier": 3, "shortsword": 3, "dagger": 3, "scimitar": 2, "studded-leather-armor": 3, "chain-shirt": 3},
+			"deep_dwarf": {"war-pick": 4, "warhammer": 4, "battleaxe": 3, "light-crossbow": 2, "maul": 1, "chain-mail": 3, "splint-armor": 2, "shield": 3, "half-plate-armor": 1}, "deep_gnome": {"light-crossbow": 3, "dagger": 3, "light-hammer": 3, "war-pick": 2, "sling": 2, "studded-leather-armor": 2, "chain-shirt": 2}, "drow": {"hand-crossbow": 4, "rapier": 3, "shortsword": 3, "dagger": 3, "scimitar": 2, "studded-leather-armor": 3, "chain-shirt": 3},
 			"halfling": {"sling": 4, "dagger": 3, "shortsword": 3, "light-hammer": 2, "hand-crossbow": 1, "padded-armor": 2, "leather-armor": 3, "studded-leather-armor": 1},
 			"gnome": {"light-crossbow": 3, "dagger": 3, "light-hammer": 3, "sling": 2, "shortsword": 2, "leather-armor": 3, "chain-shirt": 1},
 			"human": {"longsword": 4, "spear": 3, "mace": 3, "shortbow": 2, "light-crossbow": 2, "halberd": 1, "greatsword": 1, "leather-armor": 2, "chain-shirt": 2, "chain-mail": 2, "scale-mail": 1, "shield": 3},

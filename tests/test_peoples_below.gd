@@ -1,9 +1,9 @@
-## Peoples below (M6 track 2): the drow, duergar, deep gnomes, kobolds and goblins as cultures with
+## Peoples below (M6 track 2): the drow, deep dwarf, deep gnomes, kobolds and goblins as cultures with
 ## homes in the Underdark, their people built from SRD NPC stat blocks with make_npc, their towns,
 ## deep roads as trade, and how they meet players. docs/tracks/peoples-below.md.
 extends RefCounted
 
-const DEEP := ["drow", "duergar", "deep_gnome", "kobold", "goblinoid"]
+const DEEP := ["drow", "deep_dwarf", "deep_gnome", "kobold", "goblinoid"]
 const ROLES := ["townsfolk", "guard", "merchant", "smith", "priest", "mage", "raider", "scout"]
 const TEMPERS := ["trader", "expansionist", "raider", "isolationist"]
 
@@ -45,9 +45,9 @@ func _cultures(t: TestLog) -> void:
 			t.eq(BiomeIds._rows[b]["family"], "underground", "%s's best land is underground (%s)" % [cid, b])
 		t.check(SimData.is_deep(cid) or cid == "goblinoid", "%s is a people of the deep" % cid)
 	t.eq(_top("drow", 2), ["underdark", "fungal"], "drow: the underdark and the fungal forests")
-	var duergar := _top("duergar", 2)
-	duergar.sort()
-	t.eq(duergar, ["crystal", "magma"], "duergar: crystal caverns and magma")
+	var deep_dwarf := _top("deep_dwarf", 2)
+	deep_dwarf.sort()
+	t.eq(deep_dwarf, ["crystal", "magma"], "deep dwarf: crystal caverns and magma")
 	var gnome := _top("deep_gnome", 2)
 	gnome.sort()
 	t.eq(gnome, ["caves", "crystal"], "deep gnomes: crystal caverns and caves")
@@ -57,17 +57,17 @@ func _cultures(t: TestLog) -> void:
 	t.eq(_top("goblinoid", 1), ["caves"], "goblins: the caves")
 	# what they make: the brief's goods, all real goods
 	t.check(SimData.make_f("drow", "reagents") > 1.0 and SimData.make_f("drow", "crystal") > 1.0, "drow make reagents and crystal")
-	t.check(SimData.make_f("duergar", "ore") > 1.0 and SimData.make_f("duergar", "stone") > 1.0, "duergar make ore and stone")
+	t.check(SimData.make_f("deep_dwarf", "ore") > 1.0 and SimData.make_f("deep_dwarf", "stone") > 1.0, "deep dwarf make ore and stone")
 	t.check(SimData.make_f("deep_gnome", "crystal") > 1.0, "deep gnomes make crystal")
 	t.check(SimData.make_f("kobold", "ore") > 1.0, "kobolds make ore")
 	t.check(SimData.want_f("drow", "food") > 1.0 and SimData.want_f("drow", "timber") > 1.0, "drow want grain and timber")
 	t.eq(SimData.make_f("human", "ore"), 1.0, "a people that names nothing makes as its land gives")
 	t.check(SimData.goods.has("crystal") and SimData.raw_goods.has("crystal"), "crystal is a raw good")
-	# duergar and deep gnomes are dwarves and gnomes: SRD 5.2.1 has no lineage for them
-	t.eq(SimData.culture("duergar").species, "dwarf", "duergar are dwarves")
+	# deep dwarf and deep gnomes are dwarves and gnomes: SRD 5.2.1 has no lineage for them
+	t.eq(SimData.culture("deep_dwarf").species, "dwarf", "deep dwarf are dwarves")
 	t.eq(SimData.culture("deep_gnome").species, "gnome", "deep gnomes are gnomes")
-	t.check(not SimData.monsters.has("duergar") and not SimData.monsters.has("deep-gnome"), "SRD 5.2.1 has no duergar or deep gnome stat block")
-	t.eq(Life.people_key("duergar", "guard", "warrior-infantry"), "dwarf:deep:guard", "a duergar guard is drawn as a dwarf of the deep")
+	t.check(not SimData.monsters.has("deep_dwarf") and not SimData.monsters.has("deep-gnome"), "SRD 5.2.1 has no deep dwarf or deep gnome stat block")
+	t.eq(Life.people_key("deep_dwarf", "guard", "warrior-infantry"), "dwarf:deep:guard", "a deep dwarf guard is drawn as a dwarf of the deep")
 	t.eq(Life.people_key("drow", "guard", "warrior-infantry"), "elf:drow:guard", "a drow guard keeps the lineage key")
 	t.eq(Life.people_key("dwarf", "guard", "guard"), "dwarf:guard", "a dwarf of the surface is unchanged")
 	t.eq(Looks.resolve({"people": "dwarf:deep:guard"})["key"], "people:dwarf:deep:guard", "and has a look row")
@@ -95,11 +95,11 @@ func _homes(t: TestLog) -> void:
 		return best
 	t.eq(most.call("underdark"), "drow", "the drow hold the underdark")
 	t.eq(most.call("fungal"), "drow", "and the fungal forests")
-	t.eq(most.call("magma"), "duergar", "duergar hold the magma")
-	t.check(most.call("crystal") in ["duergar", "deep_gnome"], "duergar and deep gnomes the crystal caverns (%s)" % most.call("crystal"))
+	t.eq(most.call("magma"), "deep_dwarf", "deep dwarf hold the magma")
+	t.check(most.call("crystal") in ["deep_dwarf", "deep_gnome"], "deep dwarf and deep gnomes the crystal caverns (%s)" % most.call("crystal"))
 	t.check(int(picks.crystal.get("deep_gnome", 0)) > int(picks.crystal.get("drow", 0)), "deep gnomes before drow in the crystal")
 	t.check(int(picks.magma.get("kobold", 0)) > int(picks.underdark.get("kobold", 0)), "kobolds to the magma")
-	t.eq(int(picks.underdark.get("dwarf", 0)), 0, "dwarves of the surface leave the deeps to the duergar")
+	t.eq(int(picks.underdark.get("dwarf", 0)), 0, "dwarves of the surface leave the deeps to the deep dwarf")
 	# a real world: every deep settlement is a deep people, on the biome its site has
 	var w := WorldGen.generate(1024, 512, 5)
 	var host := WorldSim.from_meta(w.meta, 5)
@@ -132,9 +132,9 @@ func _roles(t: TestLog) -> void:
 				"drow":
 					t.eq(dv, 120, "drow %s: Darkvision 120 ft (Drow lineage)" % role)
 					t.check(npc.name.begins_with("Drow "), "named as a drow (%s)" % npc.name)
-				"duergar":
-					t.eq(dv, 120, "duergar %s: a dwarf's Darkvision 120 ft" % role)
-					t.check(npc.stats.has_resistance(SRD.DamageType.POISON), "duergar %s: Dwarven Resilience" % role)
+				"deep_dwarf":
+					t.eq(dv, 120, "deep dwarf %s: a dwarf's Darkvision 120 ft" % role)
+					t.check(npc.stats.has_resistance(SRD.DamageType.POISON), "deep dwarf %s: Dwarven Resilience" % role)
 				"deep_gnome":
 					t.eq(dv, 60, "deep gnome %s: a gnome's Darkvision 60 ft" % role)
 					t.eq(npc.size, "small", "deep gnome %s is Small" % role)
@@ -161,7 +161,7 @@ func _roles(t: TestLog) -> void:
 # --- names --------------------------------------------------------------------------------------
 
 func _names(t: TestLog) -> void:
-	for cid: String in ["duergar", "deep_gnome"]:
+	for cid: String in ["deep_dwarf", "deep_gnome"]:
 		t.check(SimData.names.has(cid), "%s has a name syllable set" % cid)
 		var r := RandomNumberGenerator.new()
 		r.seed = 7
@@ -176,7 +176,7 @@ func _names(t: TestLog) -> void:
 		t.eq(SimNames.title(cid, "Zaerrith"), title, "the same name gets the same title")
 	t.eq(SimNames.title("drow", "Zaerrith", "surface"), "Zaerrith", "a surface settlement is just its name")
 	t.eq(SimNames.kind_word("drow"), "city", "drow live in cities")
-	t.eq(SimNames.kind_word("duergar"), "hold", "duergar in holds")
+	t.eq(SimNames.kind_word("deep_dwarf"), "hold", "deep dwarf in holds")
 	t.eq(SimNames.kind_word("deep_gnome"), "warren", "deep gnomes in warrens")
 
 # --- goods: what they make and want -------------------------------------------------------------
@@ -191,13 +191,13 @@ func _economy(t: TestLog) -> void:
 	sim.settlements.clear()
 	sim.factions.clear()
 	var fa := sim._new_faction("drow")
-	var fb := sim._new_faction("duergar")
+	var fb := sim._new_faction("deep_dwarf")
 	var drow := sim._new_settlement(0, "drow", fa.id, 400)
-	var dg := sim._new_settlement(1, "duergar", fb.id, 400)
+	var dg := sim._new_settlement(1, "deep_dwarf", fb.id, 400)
 	t.check(float(drow.land.reagents) > float(SimData.biomes.underdark.reagents), "the drow's land gives them more reagents")
 	t.eq(float(SimData.biomes.underdark.reagents), 0.7, "and the biome's own row is untouched")
-	t.check(drow.cap.reagents > dg.cap.reagents, "a drow town yields more reagents than a duergar one on the same rock")
-	t.check(dg.cap.ore > drow.cap.ore, "and the duergar more ore")
+	t.check(drow.cap.reagents > dg.cap.reagents, "a drow town yields more reagents than a deep dwarf one on the same rock")
+	t.check(dg.cap.ore > drow.cap.ore, "and the deep dwarf more ore")
 	t.check(SimEconomy.target(drow, "timber") > SimEconomy.target(dg, "timber") * 1.2, "the drow keep more timber in store")
 	drow.stock.reagents = SimEconomy.target(drow, "reagents")
 	dg.stock.reagents = SimEconomy.target(dg, "reagents")
@@ -220,8 +220,8 @@ func _economy(t: TestLog) -> void:
 	var worn := pop0 * float(SimData.goods.crystal.use) * WorldSim.ECON_DAYS / WorldSim.YEAR_DAYS
 	t.check(spared > 0.05, "and the ore it would have taken stays in the heap (%.3f)" % spared)
 	t.check(absf((50.0 - drow.stock.crystal) - (spared + worn)) < 0.001, "crystal cut for it, ore for ore, besides what lamps wear (%.3f = %.3f + %.3f)" % [50.0 - drow.stock.crystal, spared, worn])
-	# relations: the drow are estranged from everyone, as before; duergar and deep gnomes are not
-	t.eq(sim._base_relation(fa, fb) - (-10.0 if fa.temperament == "raider" or fb.temperament == "raider" else 0.0), -20.0, "drow and duergar start estranged")
+	# relations: the drow are estranged from everyone, as before; deep dwarf and deep gnomes are not
+	t.eq(sim._base_relation(fa, fb) - (-10.0 if fa.temperament == "raider" or fb.temperament == "raider" else 0.0), -20.0, "drow and deep dwarf start estranged")
 	var fg := sim._new_faction("deep_gnome")
 	var fh := sim._new_faction("human")
 	t.eq(sim._base_relation(fg, fh), -10.0 if "raider" in [fg.temperament, fh.temperament] else 0.0, "deep gnomes and humans start even")
@@ -307,7 +307,7 @@ func _kits(t: TestLog) -> void:
 	t.check(styles.size() == DEEP.size(), "every deep people builds in its own style (%s)" % [styles.keys()])
 	t.eq(PlaceStyles.style_for("goblinoid", "surface"), "raider", "goblins on the surface still camp in tents")
 
-## A generated world's drow city and duergar hold: people at their posts on the real place, lit,
+## A generated world's drow city and deep dwarf hold: people at their posts on the real place, lit,
 ## a shop with the people's goods, a smith, work, and lines of their own.
 ## The sim worldgen builds places for is the sim the host runs, ways and all: a link in one and not
 ## the other moves its generator, and towns come out built for the wrong people.
@@ -408,11 +408,11 @@ func _town(t: TestLog) -> void:
 		host.remove_entity(p.id)
 		for i in 5:
 			host.tick()
-	t.check(seen.has("drow") and seen.has("duergar"), "dev 27 holds a drow and a duergar town (%s)" % [seen.keys()])
+	t.check(seen.has("drow") and seen.has("deep_dwarf"), "dev 27 holds a drow and a deep dwarf town (%s)" % [seen.keys()])
 
 # --- 3. deep roads as trade ---------------------------------------------------------------------
 
-## A drow city and a duergar hold on one deep road, the drow linked up to a human town: who sends
+## A drow city and a deep dwarf hold on one deep road, the drow linked up to a human town: who sends
 ## what where, and the books of one caravan.
 static func deep_world(seed: int) -> Dictionary:
 	var sites := [
@@ -427,19 +427,45 @@ static func deep_world(seed: int) -> Dictionary:
 	sim.factions.clear()
 	var fh := sim._new_faction("human")
 	var fd := sim._new_faction("drow")
-	var fg := sim._new_faction("duergar")
+	var fg := sim._new_faction("deep_dwarf")
 	fh.temperament = "trader"
 	fd.temperament = "trader"
 	fg.temperament = "trader"
 	var town := sim._new_settlement(0, "human", fh.id, 900)
 	var city := sim._new_settlement(1, "drow", fd.id, 900)
-	var hold := sim._new_settlement(2, "duergar", fg.id, 900)
+	var hold := sim._new_settlement(2, "deep_dwarf", fg.id, 900)
 	for f: SimFaction in [fh, fd, fg]:
 		f.capital = {fh: 0, fd: 1, fg: 2}[f]
 		for g: SimFaction in [fh, fd, fg]:
 			if f != g:
 				f.relations[g.id] = sim._base_relation(f, g)
 	return {"sim": sim, "town": town, "city": city, "hold": hold}
+
+## A human caravan goes down the way at its own town to a deep town that will have it, carries goods
+## there and comes home by the way up (cultures.json goes_down), books whole.
+func _surface_goes_down(t: TestLog) -> void:
+	var d := deep_world(11)
+	var sim: WorldSim = d["sim"]
+	var town: SimSettlement = d["town"]
+	var city: SimSettlement = d["city"]
+	t.check(bool(SimData.culture("human").get("goes_down", false)), "humans go down")
+	t.check(not bool(SimData.culture("elf").get("goes_down", false)), "elves do not")
+	sim.factions[town.faction].relations[city.faction] = 40.0
+	sim.factions[city.faction].relations[town.faction] = 40.0
+	town.wealth = 50000.0
+	city.wealth = 50000.0
+	for g: String in SimData.good_names:
+		town.stock[g] = maxf(float(town.stock[g]), SimEconomy.target(town, g) * 4.0)
+	var down := 0
+	for h in 3 * WorldSim.YEAR_DAYS:
+		sim.step(WorldSim.DAY_H)
+		for pid: int in sim.parties:
+			var p: SimParty = sim.parties[pid]
+			if p.kind == "caravan" and p.home == town.id and p.route == 1:
+				down += 1
+	print("  human caravans on the way down, party-days: %d" % down)
+	t.check(down > 0, "a human caravan goes down the way (%d party-days on it)" % down)
+	t.eq(sim.audit(), [] as Array[String], "and the books balance")
 
 func _deep_trade(t: TestLog) -> void:
 	var d := deep_world(11)
@@ -448,7 +474,7 @@ func _deep_trade(t: TestLog) -> void:
 	var hold: SimSettlement = d["hold"]
 	t.eq(int(sim.route_by_id[0].cls), WorldSim.DEEP, "the road between the deep towns is a deep road")
 	t.eq(int(sim.route_by_id[1].cls), WorldSim.LINK, "the way up is a link")
-	t.check(sim.factions[city.faction].rel(hold.faction) < -15.0, "drow and duergar have no love for each other (%.0f)" % sim.factions[city.faction].rel(hold.faction))
+	t.check(sim.factions[city.faction].rel(hold.faction) < -15.0, "drow and deep dwarf have no love for each other (%.0f)" % sim.factions[city.faction].rel(hold.faction))
 	# one caravan, every unit and coin accounted for (once the city has something to spare)
 	sim.step(WorldSim.YEAR_H)
 	var p: SimParty = null
@@ -614,8 +640,8 @@ func _stance(t: TestLog) -> void:
 	var life: LifeSystem = r["life"]
 	var deals: DealsSystem = r["deals"]
 	var city := first_of(host, "drow")
-	var hold := first_of(host, "duergar")
-	t.check(city >= 0 and hold >= 0, "dev 27 has a drow city and a duergar hold with places")
+	var hold := first_of(host, "deep_dwarf")
+	t.check(city >= 0 and hold >= 0, "dev 27 has a drow city and a deep dwarf hold with places")
 	if city < 0 or hold < 0:
 		return
 	var cs: SimSettlement = host.sim.settlements[city]
@@ -640,7 +666,7 @@ func _stance(t: TestLog) -> void:
 	var due := life.toll_due(p, city)
 	t.eq(due, int(SimData.culture("drow").stance.toll.coin[cs.tier]), "a stranger owes the %s's toll (%d coin)" % [cs.tier, due])
 	t.eq(life.stance(p, guard), Life.NEUTRAL, "at the gate the drow are neutral")
-	t.eq(life.toll_due(p, hold), 0, "the duergar ask no toll")
+	t.eq(life.toll_due(p, hold), 0, "the deep dwarf ask no toll")
 	# past the gate unpaid: a grace to find a guard, then they turn
 	p.body.pos = mid
 	TileCollision.depenetrate(host.world, p.body)
@@ -760,13 +786,13 @@ func _stance(t: TestLog) -> void:
 	var dwarf: HostEntity = null
 	for e: HostEntity in life.actors_at(hold):
 		dwarf = e
-	t.check(dwarf != null, "the duergar hold is shown")
+	t.check(dwarf != null, "the deep dwarf hold is shown")
 	if dwarf != null:
-		t.eq(life.stance(hp, dwarf), Life.NEUTRAL, "duergar are wary, not hostile")
+		t.eq(life.stance(hp, dwarf), Life.NEUTRAL, "deep dwarf are wary, not hostile")
 		life.add_standing(hp.id, hf, 40, "test")
 		t.eq(life.stance(hp, dwarf), Life.NEUTRAL, "at 40 still only neutral (a human town would be friendly at 30)")
 		life.add_standing(hp.id, hf, 10, "test")
 		t.eq(life.stance(hp, dwarf), Life.FRIENDLY, "at 50 friendly")
-	t.check(life.culture_stance(str(hs.faction)).get("abroad", "") == "", "duergar don't attack on sight abroad")
+	t.check(life.culture_stance(str(hs.faction)).get("abroad", "") == "", "deep dwarf don't attack on sight abroad")
 	for c: String in ["kobold", "goblinoid", "human", "dwarf"]:
 		t.check(not SimData.culture(c).has("stance"), "%s meet players as they always have" % c)

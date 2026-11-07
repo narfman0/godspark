@@ -11,6 +11,9 @@
 class_name CombatSight
 extends RefCounted
 
+## Sky level (by the hour) that counts as sunlight: past the torches' Bright, under a cloudless noon.
+const SUNLIT := 60.0
+var _sun_shy := {}
 var host: WorldHost:
 	get:
 		return _host.get_ref()
@@ -99,6 +102,30 @@ func senses_tiles(e: HostEntity) -> Dictionary:
 			for k: String in out:
 				out[k] = K.ft(float(senses.get(k, 0)))
 	return out
+
+## Does the stat block have Sunlight Sensitivity (SRD 5.2.1: drider, kobold warrior, specter, wight,
+## wraith; not the drow lineage)? Read off the block, once per slug.
+func sun_shy(e: HostEntity) -> bool:
+	var slug := String(e.look.get("slug", ""))
+	if slug == "" or e.is_player():
+		return false
+	if not _sun_shy.has(slug):
+		var traits: Variant = host.srd.pack.get_row("monster", slug).get("data", {}).get("traits", [])
+		var has := false
+		if traits is Array:
+			for tr: Variant in traits:
+				has = has or (tr is Dictionary and String((tr as Dictionary).get("name", "")) == "Sunlight Sensitivity")
+		_sun_shy[slug] = has
+	return bool(_sun_shy[slug])
+
+## Is this point in sunlight (the sky field, by the hour; a shaft of daylight in a cave counts)?
+func in_sunlight(p: Vector2) -> bool:
+	var x := floori(p.x)
+	var y := floori(p.y)
+	if not host.world.in_bounds(x, y):
+		return false
+	field_category(p)                # (makes the light field and sets its sun)
+	return light.sky_at(x, y) * light.sun >= SUNLIT
 
 ## Eye point of a body (upper middle of its box).
 static func eye(e: HostEntity) -> Vector2:

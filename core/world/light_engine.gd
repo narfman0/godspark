@@ -262,32 +262,88 @@ func is_computed(cx: int, cy: int) -> bool:
 func backlog() -> int:
 	return _queue.size()
 
-## Deferred mode: apply queued chunk changes, then compute cold chunks of `want` nearest its
-## centre first, until `budget_us` is spent (at least one unit of work is done). A unit is
-## one chunk computed from cold or one queued chunk change. True when nothing is left.
+## Deferred mode: light what is on screen first. Queued chunk changes that reach `want` (nearest
+## its centre first), then cold chunks of `want`, nearest first, then the changes left, which reach
+## nothing on screen and are only forgotten (their chunks go cold for whenever someone looks), until
+## `budget_us` is spent. A unit of work is one chunk computed or one change applied; at least one
+## is done. True when nothing is left. So a long teleport, whose queue is everything left behind and
+## everything arriving, lights the town in front of the player first (docs/tracks/m6-integration.md).
 func process(budget_us: int, want := Rect2i()) -> bool:
 	var t0 := Time.get_ticks_usec()
 	var first := true
 	while first or Time.get_ticks_usec() - t0 < budget_us:
-		first = false
-		if not _queue.is_empty():
-			var c: Vector2i = _queue[0]
+		var i := _next_queued(want)
+		if i >= 0:
+			var c: Vector2i = _queue[i]
 			var need := Rect2i(c * K.CHUNK, Vector2i(K.CHUNK, K.CHUNK)).grow(_reach + 1)
-			var cold := _cold_in(need, need.get_center()) if _any_computed(need) else Vector2i(-1, -1)
+			if not _any_computed(need):
+				_drop_queued(i)                  # nothing lit near it: no work, and no frame spent
+				_chunk_changed_now(c.x, c.y)
+				continue
+			first = false
+			var cold := _cold_in(need, need.get_center())
 			if cold.x >= 0:
 				_ensure_batch(Rect2i(cold, Vector2i.ONE))
 				continue
-			_queue.pop_front()
-			_queued.erase(c)
+			_drop_queued(i)
 			_chunk_changed_now(c.x, c.y)
 			continue
 		if want.has_area():
 			var cold := _cold_in(want, want.get_center())
 			if cold.x >= 0:
+				first = false
 				_ensure_batch(Rect2i(cold, Vector2i.ONE))
 				continue
-		return true
+		if _queue.is_empty():
+			return true
+		var c: Vector2i = _queue[0]
+		_drop_queued(0)
+		_forget_chunk(c.x, c.y)              # no lighting: it does not spend the frame
 	return _queue.is_empty() and (not want.has_area() or _cold_in(want, want.get_center()).x < 0)
+
+## The queued change that reaches `want` nearest its centre: its index, or -1. With no `want`, the
+## oldest change (every change is applied in full then).
+func _next_queued(want: Rect2i) -> int:
+	if _queue.is_empty():
+		return -1
+	if not want.has_area():
+		return 0
+	var at := want.get_center()
+	var best := -1
+	var best_d := 1 << 40
+	for i in _queue.size():
+		var c: Vector2i = _queue[i]
+		var r := Rect2i(c * K.CHUNK, Vector2i(K.CHUNK, K.CHUNK))
+		if not r.grow(_reach + 1).intersects(want):
+			continue
+		var d := (r.get_center() - at).length_squared()
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+func _drop_queued(i: int) -> void:
+	_queued.erase(_queue[i])
+	_queue.remove_at(i)
+
+## A whole chunk changed where nobody is looking: whatever its light reached goes cold, to be
+## worked out from the tiles of the day if anyone comes to look. Sky tops stay true.
+func _forget_chunk(cx: int, cy: int) -> void:
+	var r := Rect2i(cx * K.CHUNK, cy * K.CHUNK, K.CHUNK, K.CHUNK)
+	var lo := r.position.y
+	for x in range(r.position.x, r.end.x):
+		var old := _top[x]
+		if old < 0:
+			continue
+		_top[x] = _scan_top(x, _h - 1)
+		if _top[x] != old:
+			lo = mini(lo, mini(old, _top[x]))
+	var box := Rect2i(r.position.x, lo, K.CHUNK, r.end.y - lo).grow(_reach).intersection(Rect2i(0, 0, _w, _h))
+	for qy in range(box.position.y >> 5, ((box.end.y - 1) >> 5) + 1):
+		for qx in range(box.position.x >> 5, ((box.end.x - 1) >> 5) + 1):
+			_done[qx + qy * _cxn] = 0
+	if world.sparse and not world.has_chunk(cx, cy):
+		_trim_around(cx, cy)
 
 ## The not-yet-computed chunk of rect nearest to `at` (tiles), or (-1, -1).
 func _cold_in(rect: Rect2i, at: Vector2i) -> Vector2i:

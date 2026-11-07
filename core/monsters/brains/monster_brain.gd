@@ -67,6 +67,7 @@ var _think_at := 0.0
 var _calm_next := 0.0
 var _line_at := -1.0
 var _line_goal := Vector2.INF
+var _line_hot := false
 var _line_ok := false
 var _reveal_at := -1.0
 var _dark := -1
@@ -206,6 +207,8 @@ func _fight(host: WorldHost, combat: CombatSystem, e: HostEntity, foe: HostEntit
 	if _t < _backoff_until:
 		if archetype in ["skirmisher", "flier", "archer", "caster"] or float(arch().get("backoff", 0.0)) > 0.0:
 			inp.move_x = -signf(dx) * (1.0 if archetype == "skirmisher" else 0.6)
+			if _lava_beside(host.world, e.body, signf(inp.move_x)):
+				inp.move_x = 0.0
 			if archetype == "flier":
 				inp.up = true
 			return inp
@@ -301,7 +304,8 @@ func _go(host: WorldHost, e: HostEntity, goal: Vector2, dt: float, speed: float,
 			_line_at = _t + 0.2
 			_line_goal = goal
 			_line_ok = not TileCollision.raycast(host.world, b.pos + Vector2(0, 1.2), goal + Vector2(0, 1.2))["hit"]
-		direct = _line_ok
+			_line_hot = _lava_between(host.world, b, goal)
+		direct = _line_ok and not _line_hot       # over lava the planner finds the way, or there is none
 	if direct and not b.swimming:
 		follow.path = null
 		var inp := PlayerInput.new()
@@ -330,7 +334,7 @@ func _go(host: WorldHost, e: HostEntity, goal: Vector2, dt: float, speed: float,
 			return inp
 	# no path (yet): straight at it, jumping at walls
 	var inp2 := PlayerInput.new()
-	if follow.path == null or follow.failed:
+	if (follow.path == null or follow.failed) and not _line_hot:
 		inp2.move_x = clampf(d.x, -1.0, 1.0) * speed if absf(d.x) > 0.5 else 0.0
 		if e.stats.fly_speed > 0.0:
 			inp2.up = d.y > 0.5
@@ -339,6 +343,20 @@ func _go(host: WorldHost, e: HostEntity, goal: Vector2, dt: float, speed: float,
 			inp2.jump = true
 			inp2.jump_pressed = true
 	return inp2
+
+## Lava on the ground between a body and a goal on its level (the feet's rows and the few under
+## them, where a step off an edge would land): the line over it is clear, the walk is not.
+static func _lava_between(world: TileWorld, b: Body, goal: Vector2) -> bool:
+	var y := floori(b.pos.y + 0.05)
+	for x in range(floori(minf(b.pos.x, goal.x)), floori(maxf(b.pos.x, goal.x)) + 1):
+		for r in range(y - 3, y + 2):
+			if MonsterNav.cell_flags(world, x, r) & MonsterNav.HAZARD:
+				return true
+	return false
+
+## Lava within a stride of the body on that side.
+static func _lava_beside(world: TileWorld, b: Body, dir: float) -> bool:
+	return _lava_between(world, b, b.pos + Vector2(dir * (b.size.x * 0.5 + 1.5), 0.0))
 
 ## The planner answered (path may be null: unreachable).
 func on_plan(path: NavPath) -> void:
@@ -377,6 +395,8 @@ func _wander(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 			return PlayerInput.new()
 		var inp := PlayerInput.new()
 		inp.move_x = signf(_wander_to.x - e.body.pos.x) * 0.4
+		if _lava_beside(host.world, e.body, signf(inp.move_x)):
+			inp.move_x = 0.0
 		var ahead := Vector2(e.body.pos.x + signf(inp.move_x) * (e.body.size.x * 0.5 + 0.6), e.body.pos.y)
 		# do not wander off ledges or into walls
 		if e.stats.fly_speed <= 0.0 and (not host.world.is_solid(floori(ahead.x), floori(ahead.y) - 1) \

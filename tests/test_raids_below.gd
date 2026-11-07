@@ -20,7 +20,7 @@ func run(t: TestLog) -> void:
 	_two_players(t)
 
 ## Three surface towns on a road with a pass between the second and third, a drow city below
-## with a way up to the middle town, and a duergar hold beside it.
+## with a way up to the middle town, and a deep dwarf hold beside it.
 static func world(seed: int) -> Dictionary:
 	var sites := [
 		{"id": 0, "kind": "settlement", "x": 300, "y": 700, "biome": "meadow", "band": "surface", "size": 3},
@@ -41,14 +41,14 @@ static func world(seed: int) -> Dictionary:
 	var fb := sim._new_faction("human")
 	var fc := sim._new_faction("dragonborn")
 	var fd := sim._new_faction("drow")
-	var fg := sim._new_faction("duergar")
+	var fg := sim._new_faction("deep_dwarf")
 	for f: SimFaction in [fa, fb, fc, fg]:
 		f.temperament = "trader"
 	fd.temperament = "raider"
 	var towns: Array = [sim._new_settlement(0, "human", fa.id, 900), sim._new_settlement(1, "human", fb.id, 900),
 		sim._new_settlement(2, "dragonborn", fc.id, 900)]
 	var city := sim._new_settlement(3, "drow", fd.id, 1200)
-	var hold := sim._new_settlement(4, "duergar", fg.id, 800)
+	var hold := sim._new_settlement(4, "deep_dwarf", fg.id, 800)
 	var all: Array = [fa, fb, fc, fd, fg]
 	for i in all.size():
 		(all[i] as SimFaction).capital = [0, 1, 2, 3, 4][i]
@@ -139,8 +139,8 @@ func _no_way(t: TestLog) -> void:
 		t.check(not any_road, "without a way up the deeps raid no surface road")
 	else:
 		t.check(true, "no deep settlement in the way-less world")
-	t.check(SimBelow.pull("drow") > 1.0 and SimBelow.pull("goblinoid") > 1.0 and SimBelow.pull("duergar") == 1.0,
-		"drow and goblinoids are pulled up to raid; duergar are not")
+	t.check(SimBelow.pull("drow") > 1.0 and SimBelow.pull("goblinoid") > 1.0 and SimBelow.pull("deep_dwarf") == 1.0,
+		"drow and goblinoids are pulled up to raid; deep dwarf are not")
 
 ## The ambush on the road, and the walk home: the goods land in the city's stores.
 func _goods_home(t: TestLog) -> void:

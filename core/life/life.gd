@@ -81,7 +81,7 @@ static func people_key(culture: String, role: String, slug: String, female := fa
 	if String(c.get("lineage", "")) != "":
 		base += ":" + String(c["lineage"])
 	elif "deep" in (c.get("tags", []) as Array):
-		base += ":deep"            # duergar, deep gnomes: the species drawn as of the deep
+		base += ":deep"            # deep dwarf, deep gnomes: the species drawn as of the deep
 	var lr: Dictionary = people_cfg().get("look_role", {})
 	var r := String(lr.get(role, lr.get(slug, SpawnDirector._people_role(slug))))
 	if culture == "bandit":

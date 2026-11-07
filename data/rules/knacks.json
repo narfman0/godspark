@@ -737,13 +737,13 @@
 			}
 		},
 		{
-			"id": "bond-people-duergar",
+			"id": "bond-people-deep_dwarf",
 			"kind": "bond",
-			"key": "people:duergar",
-			"name": "Bond with the duergar",
-			"text": "Better prices and a warmer welcome in the duergar holds.",
+			"key": "people:deep_dwarf",
+			"name": "Bond with the deep dwarves",
+			"text": "Better prices and a warmer welcome in the deep dwarf holds.",
 			"deeds": {
-				"trade:duergar": 3
+				"trade:deep_dwarf": 3
 			}
 		},
 		{

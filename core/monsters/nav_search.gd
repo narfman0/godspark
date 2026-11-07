@@ -5,6 +5,8 @@
 class_name NavSearch
 extends RefCounted
 
+## Rows a body in the water hauls itself up onto a bank.
+const HAUL_ROWS := 4
 const E := MonsterNav.Edge
 const SOLID := MonsterNav.SOLID
 const ONEWAY := MonsterNav.ONEWAY
@@ -231,6 +233,8 @@ func _expand(k: int, L: int, y: int) -> void:
 			if mode == E.SWIM and not (_wet(nl, ny) or _stand_at(nl, ny) or (o.y > 0 and prof.fly)):
 				continue
 			_relax(k, nl, ny, g0 + unit * (1.4142 if o.x != 0 and o.y != 0 else 1.0), mode, 0)
+		if mode == E.SWIM:
+			_haul_out(k, g0 + unit * 2.0, L, y)
 	if not prof.walker:
 		return
 	var ld := _ladder(L, y)
@@ -485,6 +489,18 @@ func _wet(L: int, y: int) -> bool:
 		if not (_cf(cc, r) & WET):
 			return false
 	return true
+
+## Out of the water onto a bank beside it, within the leap a body makes from the surface (the
+## follower presses it; PlayerController._swim).
+func _haul_out(k: int, g: float, L: int, y: int) -> void:
+	for dir: int in [1, -1]:
+		var nl := L + dir
+		for up in range(1, HAUL_ROWS + 1):
+			if _clear_at(L, y + up) != 1:
+				break
+			if _clear_at(nl, y + up) == 1 and _stand_at(nl, y + up):
+				_relax(k, nl, y + up, g + up * 0.1, E.SWIM, 0)
+				break
 
 ## -1 / +1: a wall touches that side of the box; 0 none.
 func _cling(L: int, y: int) -> int:

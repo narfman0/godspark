@@ -70,7 +70,7 @@ var adj := {}                 # site id -> [[neighbour id, route id], ...]
 var route_hours := {}         # route id -> hours at speed 1 (planning distance)
 var route_travel_h := {}      # route id -> game hours for a wagon at 1.5 tiles a second
 var route_lair_sites := {}    # route id -> [site ids a lair there would hunt from]
-var edge := {}                # "a:b" -> route id
+var edge := {}                # a * 100000 + b -> route id
 var market := {}              # SimEconomy.build_market, per econ tick
 ## Trade ledger for reports and sweeps, not saved. On only when a tool asks: `ledger_on` true fills
 ## `ledger`, route id -> {goods: {good: units}, value, trips, ambushes, taken, lost, beasts,
@@ -336,8 +336,8 @@ func _index_routes() -> void:
 		route_by_id[r.id] = r
 		adj[r.a].append([r.b, r.id])
 		adj[r.b].append([r.a, r.id])
-		edge["%d:%d" % [r.a, r.b]] = r.id
-		edge["%d:%d" % [r.b, r.a]] = r.id
+		edge[int(r.a) * 100000 + int(r.b)] = r.id
+		edge[int(r.b) * 100000 + int(r.a)] = r.id
 		route_hours[r.id] = maxf(r.length / world_w * CROSS_DAYS * DAY_H, 6.0)
 		route_travel_h[r.id] = maxf(r.length / (1.5 * GAME_HOUR_S), 0.05)
 		# Lair sites whose hunters reach this route: its endpoints, and same-family sites
@@ -758,7 +758,7 @@ func paths_from(src: int, mask: int) -> Array:
 
 ## Site ids reachable from src within `hours` (sorted by id), cached.
 func within(src: int, mask: int, hours: float) -> Array:
-	var key := "%d:%d:%d" % [src, mask, int(hours)]
+	var key := (src * 16 + mask) * 1000000 + int(hours)
 	if _within.has(key):
 		return _within[key]
 	var pr: Array = paths_from(src, mask)
@@ -788,7 +788,7 @@ func hours_between(src: int, dst: int, mask: int) -> float:
 	return pr[0].get(dst, INF)
 
 func route_id(a: int, b: int) -> int:
-	return edge.get("%d:%d" % [a, b], -1)
+	return edge.get(a * 100000 + b, -1)
 
 # ── Parties: creation, routing, position ─────────────────────────────────────
 

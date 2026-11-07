@@ -7,8 +7,8 @@
 ##
 ##   tools/soft_godot.sh --resolution 1280x720 -- offline cheats class=fighter gen=dev seed=3 \
 ##       world=/tmp/x world_tour=/tmp/claude-1000/godspark-m4ui timeout=400 [tour=journey]
-## tour=deep (gen=dev seed=4 suits it: a drow city and a duergar hold): the toll at a drow city's
-## gate, its street by lamplight, the duergar hold, a deep gnome warren (the hold refounded by a
+## tour=deep (gen=dev seed=4 suits it: a drow city and a deep dwarf hold): the toll at a drow city's
+## gate, its street by lamplight, the deep dwarf hold, a deep gnome warren (the hold refounded by a
 ## cheat: no generated world has deep gnomes until the crystal caverns are made), any warren, and
 ## the map with the deep settlements' names.
 ## tour=below (gen=dev seed=4: its drow city has a way up): a raid from below climbing its cave
@@ -121,7 +121,7 @@ func deep() -> void:
 		await wait(1.0)
 		await shot("34_drow_street_wide")
 		pres.rig.zoom = 1.1
-	for c: String in ["duergar", "kobold", "goblinoid"]:
+	for c: String in ["deep_dwarf", "kobold", "goblinoid"]:
 		if not info.has(c):
 			continue
 		var sid := int(info[c])
@@ -141,7 +141,7 @@ func deep() -> void:
 		await wait(8.0)          # a long way from the last: the chunks and their light come in
 		await shot("35_%s" % c)
 	# a deep gnome warren: the hold refounded by deep gnomes (a cheat)
-	var hold := int(info.get("duergar", info.get("kobold", info.get("goblinoid", -1))))
+	var hold := int(info.get("deep_dwarf", info.get("kobold", info.get("goblinoid", -1))))
 	if hold >= 0:
 		await host(func(h: WorldHost) -> void:
 			var me := me_host(h)
@@ -165,7 +165,7 @@ func deep() -> void:
 	var focus := cw.body.center()
 	var deep_xy: Array = []
 	for c: String in info:
-		if c in ["drow", "duergar", "kobold", "goblinoid", "deep_gnome"]:
+		if c in ["drow", "deep_dwarf", "kobold", "goblinoid", "deep_gnome"]:
 			deep_xy.append(MapLogic.site_xy(cw.world.meta, int(info[c])))
 	if not deep_xy.is_empty():
 		focus = Vector2.ZERO
@@ -230,6 +230,17 @@ func below() -> void:
 		var life := h.system(HostSystem.LIFE) as LifeSystem
 		info["mouth"] = life.below.mouth(h, int(info["way"]))
 		info["raid"] = life.cheat_below(int(info["city"]), -1, "way", 0.9, 8)
+		# the way the raid took, and a stretch of it with ground (a sinkhole's link has real cells
+		# on its rope and at its ends)
+		var climbing: SimParty = sim.parties.get(int(info["raid"]))
+		if climbing != null:
+			info["way"] = SimBelow.way_of(climbing)
+			info["mouth"] = life.below.mouth(h, int(info["way"]))
+			for k in 40:
+				climbing.frac = (k + 0.5) / 40.0
+				var q := life.road.party_pos(h, climbing)
+				if q.distance_to(info["mouth"]) > 6.0 and q.distance_to(info["mouth"]) < 40.0 and life.monsters(h).director._stand_near(h, q, "") != Vector2.INF:
+					break
 		print("TOUR below: city %s, way %s, mouth %s, raid %d" % [city.name, sim.route_name(int(info["way"])), info["mouth"], int(info["raid"])]))
 	if not info.has("city"):
 		print("TOUR below: no raiding city with a way up")

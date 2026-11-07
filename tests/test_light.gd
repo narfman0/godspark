@@ -12,6 +12,79 @@ func run(t: TestLog) -> void:
 	_region_bytes_check(t)
 	_own_light(t)
 	_view_lights(t)
+	_far_jump(t)
+
+## A long teleport on a client: the chunks left behind are dropped and the new ones arrive, then the
+## frames relight what is on screen. What is on screen comes first and what was left behind costs
+## next to nothing, however slow the frames (budget 0: one unit of work a frame).
+func _far_jump(t: TestLog) -> void:
+	var src := WorldGen.generate_named("dev", 4)
+	var w := TileWorld.new(src.width, src.height, 4, true)
+	var light := LightEngine.new(w)
+	light.deferred = true
+	var copy := func(cx: int, cy: int) -> void:
+		var from: Chunk = src.chunk_at(cx, cy)
+		var c := w.ensure_chunk(cx, cy)
+		c.fg = from.fg
+		c.bg = from.bg
+		c.liquid = from.liquid
+		w.chunk_changed.emit(cx, cy)
+	var around := func(at: Vector2i, r: int) -> Array:
+		var out: Array = []
+		for cy in range(at.y - r, at.y + r + 1):
+			for cx in range(at.x - r, at.x + r + 1):
+				if cx >= 0 and cy >= 0 and cx < w.chunks_x and cy < w.chunks_y:
+					out.append(Vector2i(cx, cy))
+		return out
+	var view := func(at: Vector2i) -> Rect2i:
+		return Rect2i(at * K.CHUNK - Vector2i(48, 32), Vector2i(128, 96))
+	# standing in the first town, everything arrived and lit
+	var town: Dictionary = (src.meta["sites"] as Array).filter(func(s: Dictionary) -> bool: return s["kind"] == "settlement")[1]
+	var deep: Dictionary = (src.meta["sites"] as Array).filter(func(s: Dictionary) -> bool: return s["kind"] == "settlement" and s["band"] != "surface")[0]
+	var a := Vector2i(int(town["x"]) >> 5, int(town["y"]) >> 5)
+	var b := Vector2i(int(deep["x"]) >> 5, int(deep["y"]) >> 5)
+	var old: Array = around.call(a, 3)
+	for c: Vector2i in old:
+		copy.call(c.x, c.y)
+	var guard := 0
+	while not light.process(1000000, view.call(a)) and guard < 1000:
+		guard += 1
+	# the jump: what was left behind goes first, as the host drops it
+	for c: Vector2i in old:
+		w.unload_chunk(c.x, c.y)
+	var new_chunks: Array = around.call(b, 3)
+	for c: Vector2i in new_chunks:
+		copy.call(c.x, c.y)
+	var want: Rect2i = view.call(b)
+	# what the view would draw this frame (region_bytes computes nothing, level_at would)
+	var truth := LightEngine.new(src)
+	truth.ensure_region(want)
+	var true_blk := truth.region_bytes(want, false)
+	var true_sky := truth.region_bytes(want, true)
+	var wrong := func() -> int:
+		var blk := light.region_bytes(want, false)
+		var sky := light.region_bytes(want, true)
+		var bad := 0
+		for i in range(0, blk.size(), 11):
+			if absi(blk[i] - true_blk[i]) > 2 or absi(sky[i] - true_sky[i]) > 2:
+				bad += 1
+		return bad
+	var frames := 0
+	var done := false
+	while not done and frames < 1000:
+		done = light.process(0, want)
+		frames += 1
+		if wrong.call() == 0:
+			break
+	var on_screen := ((want.end.x - 1 >> 5) - (want.position.x >> 5) + 1) * ((want.end.y - 1 >> 5) - (want.position.y >> 5) + 1)
+	print("  far jump: %d frames to light %d chunks on screen (%d left behind, %d arrived)" % [frames, on_screen, old.size(), new_chunks.size()])
+	t.check(frames <= on_screen + new_chunks.size(), "what is on screen is lit in about one frame a chunk (%d frames, %d on screen)" % [frames, on_screen])
+	t.eq(wrong.call(), 0, "and it is the same light a whole world gives")
+	var more := 0
+	while not light.process(0, want) and more < 200:
+		more += 1
+	t.check(light.backlog() == 0, "and what was left behind is forgotten in %d more frames" % more)
+	t.eq(wrong.call(), 0, "changing nothing on screen")
 
 ## SRD torch: bright to 20 ft (8 tiles), dim another 20 ft (to 16 tiles), dark beyond.
 func _torch_anchor(t: TestLog) -> void:

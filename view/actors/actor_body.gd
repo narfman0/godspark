@@ -351,8 +351,9 @@ func _apply_overlay() -> void:
 		over = _flash_mat
 	elif _rim.a > 0.0:
 		over = _rim_mat
-	for g: GeometryInstance3D in _surfaces():
-		if is_instance_valid(g):
+	for s: Variant in _surfaces():            # (untyped: a typed loop fails on a freed mesh before the check)
+		if is_instance_valid(s):
+			var g: GeometryInstance3D = s
 			g.material_overlay = over
 			if over == _rim_mat:
 				g.set_instance_shader_parameter("rim", _rim)
@@ -366,9 +367,9 @@ func _step_flash(delta: float) -> void:
 	if _flash_s <= 0.0:
 		_apply_overlay()
 		return
-	for g: GeometryInstance3D in _surfaces():
-		if is_instance_valid(g):
-			g.set_instance_shader_parameter("flash", c)
+	for s: Variant in _surfaces():
+		if is_instance_valid(s):
+			(s as GeometryInstance3D).set_instance_shader_parameter("flash", c)
 
 func _step_primitive(delta: float) -> void:
 	if kind != "primitive" or state == "death":

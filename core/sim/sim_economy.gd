@@ -434,10 +434,20 @@ static func _plan_caravan(sim: WorldSim, s: SimSettlement) -> void:
 	var best_profit := MIN_PROFIT
 	var best: Array = []
 	var max_wagons := clampi(s.workers / 40, 1, 6)
-	for sid in sim.within(s.id, mask, reach):
+	var cands: Array = sim.within(s.id, mask, reach)
+	# a people that goes down (cultures.json goes_down) takes the way at its own town to the deep
+	# town at its foot, and no further: the deeps are no short cut between surface towns
+	var down := {}
+	if bool(c.get("goes_down", false)):
+		for nr: Array in sim.adj.get(s.id, []):
+			var rid := int(nr[1])
+			if int(sim.route_by_id[rid].cls) == WorldSim.LINK and float(sim.route_travel_h[rid]) <= reach:
+				down[int(nr[0])] = float(sim.route_travel_h[rid])
+		cands = cands + down.keys()
+	for sid in cands:
 		if not sim.settlements.has(sid):
 			continue
-		var hours: float = dist[sid]
+		var hours: float = down[sid] if down.has(sid) else dist[sid]
 		var d: SimSettlement = sim.settlements[sid]
 		if d.besieged_by >= 0:
 			continue
@@ -469,6 +479,8 @@ static func _plan_caravan(sim: WorldSim, s: SimSettlement) -> void:
 				best = [sid, e[1], int(amount), wagons, ps, 0.0, amount * (pd - ps) * iso, pd]
 	if best.is_empty():
 		return
+	if down.has(int(best[0])):
+		mask = mask | WorldSim.LINK
 	# Danger on the way only matters for the deal actually considered.
 	var risk := _path_risk(sim, s.id, best[0], mask)
 	if best_profit - best[6] * risk < MIN_PROFIT:

@@ -43,7 +43,7 @@
 		"kobold": ["Not a trap. Probably.", "Dragons are great. Ask anyone."],
 		"gnoll": ["Hungry. Always hungry."],
 		"bandit": ["Coin first, questions never.", "You didn't see me. Nobody does."],
-		"duergar": ["Work, then talk. Then more work.", "The forge does not care who is watching.", "Down here a debt is never forgotten."],
+		"deep_dwarf": ["Work, then talk. Then more work.", "The forge does not care who is watching.", "Down here a debt is never forgotten."],
 		"deep_gnome": ["Quiet feet live longest.", "Listen to the stone; it hums before it falls.", "We were never here. Remember that."]
 	},
 	"knows": {

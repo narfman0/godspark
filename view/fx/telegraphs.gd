@@ -10,7 +10,7 @@ extends Node3D
 const SHADER := preload("res://view/fx/telegraph.gdshader")
 const CAP := 16
 enum Shape { ARC, CONE, LINE, CIRCLE, SQUARE }
-const MONSTER_COLOR := Color(0.85, 0.27, 0.17, 1.0)
+const MONSTER_COLOR := Color(0.85, 0.27, 0.17, 0.7)     # thin enough to see the swinger through in a dark cave
 const ALLY_COLOR := Color(0.18, 0.61, 0.58, 0.85)
 const AIM_COLOR := Color(0.96, 0.85, 0.45, 0.9)
 ## The own swing: the same gold, lighter (it shows at every swing).

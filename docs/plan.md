@@ -101,7 +101,7 @@ committed; a public repo stays runnable through the primitive fallbacks.
 
 ## SRD findings that shape the design
 
-- SRD 5.2.1 has **no drow, duergar or mind flayer stat blocks**. "Drow" exists only as an Elf
+- SRD 5.2.1 has **no drow or mind flayer stat blocks, and no duergar at all** (a 5.1 word: the game says deep dwarf). "Drow" exists only as an Elf
   lineage and "Underdark" as a term (both verified in the PDF). Drow raiders are therefore
   composed: NPC stat block (Bandit, Scout, Assassin, Mage, Priest, Knight...) plus species
   and lineage traits. This needs one small addon feature, `make_npc(role, species, lineage)`,

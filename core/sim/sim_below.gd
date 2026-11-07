@@ -20,9 +20,9 @@ extends RefCounted
 ## Days guards stay at a way after an ambush; another ambush through it renews them.
 const WATCH_DAYS := 90
 ## Share of the town's soldiers posted, and the bounds.
-const WATCH_SHARE := 0.15
+const WATCH_SHARE := 0.35
 const WATCH_MIN := 3
-const WATCH_MAX := 12
+const WATCH_MAX := 30
 ## A road reached through a way held by guards hostile to the raiders weighs this much.
 const GUARDED := 0.35
 ## Chance a raid from below runs into the watch at a guarded way (each way through it).

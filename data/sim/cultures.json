@@ -1,10 +1,10 @@
 {
-	"_doc": "Peoples of the strategic sim, built only from SRD 5.2.1 content. species/lineage name SRD species (drow is the Elf lineage). people: stat block for non-combatants. Recipes are [slug, weight] lists of SRD monster stat blocks; a party of n is allocated by largest remainder. mobility: route classes caravans and migrants use (road = surface road, deep = deep road, link = a route joining a deep site to the surface). raid_mobility: classes raiders and armies use. bands/biomes: where the culture settles, with weights; a biome left out weighs 0.4 and every generated biome is named for the surface peoples, so a misfit is a choice. farm/craft/luxury scale production. soldiers: garrison as a fraction of population. raid: base raiding drive. Optional (docs/tracks/peoples-below.md): tags ('deep': a people of the Underdark, drawn as species:deep, e.g. duergar are dwarves with the deep tag, since SRD 5.2.1 has no duergar or deep gnome lineage); makes: good -> how much more (over 1) or less (under 1) of it their land gives them (it scales the land's share, so the price and stockpile follow: a people that doesn't make a good buys it); wants: good -> how much more of it they keep in store (it scales the stock target, so they pay more for it); roles: the SRD stat block each role of their people is built from with make_npc (townsfolk, keeper, merchant, smith, priest, mage, guard, scout, raider); first_roles: who a settlement shows first, by tier, in place of data/life/people.json; estranged: relations lost with every other people; trade_floor: relations under which their caravans won't go to a people (default -20); stance: how they meet players, see data/life/standing.json and docs/tracks/peoples-below.md (abroad: hostile away from home until standing reaches spare_at; toll: what a player pays at the gate of their town (coin by tier, or a favour of standing; free at free_at; good for days; their people turn on one who is margin tiles inside the outermost building unpaid for grace_s); friendly_at: their own line for friendly); raids_up: how much more a surface road reached by a way up weighs to their raiders in the deeps (docs/tracks/raids-below.md; 1 when absent). ",
+	"_doc": "Peoples of the strategic sim, built only from SRD 5.2.1 content. species/lineage name SRD species (drow is the Elf lineage). people: stat block for non-combatants. Recipes are [slug, weight] lists of SRD monster stat blocks; a party of n is allocated by largest remainder. mobility: route classes caravans and migrants use (road = surface road, deep = deep road, link = a route joining a deep site to the surface). raid_mobility: classes raiders and armies use. bands/biomes: where the culture settles, with weights; a biome left out weighs 0.4 and every generated biome is named for the surface peoples, so a misfit is a choice. farm/craft/luxury scale production. soldiers: garrison as a fraction of population. raid: base raiding drive. Optional (docs/tracks/peoples-below.md): tags ('deep': a people of the Underdark, drawn as species:deep, e.g. deep dwarves are dwarves with the deep tag, since SRD 5.2.1 has no lineage for them or for deep gnomes); makes: good -> how much more (over 1) or less (under 1) of it their land gives them (it scales the land's share, so the price and stockpile follow: a people that doesn't make a good buys it); wants: good -> how much more of it they keep in store (it scales the stock target, so they pay more for it); roles: the SRD stat block each role of their people is built from with make_npc (townsfolk, keeper, merchant, smith, priest, mage, guard, scout, raider); first_roles: who a settlement shows first, by tier, in place of data/life/people.json; estranged: relations lost with every other people; trade_floor: relations under which their caravans won't go to a people (default -20); stance: how they meet players, see data/life/standing.json and docs/tracks/peoples-below.md (abroad: hostile away from home until standing reaches spare_at; toll: what a player pays at the gate of their town (coin by tier, or a favour of standing; free at free_at; good for days; their people turn on one who is margin tiles inside the outermost building unpaid for grace_s); friendly_at: their own line for friendly); goes_down: their caravans take a way at their own town down to the deep town at its foot (only there: mobility still rules every other trip); raids_up: how much more a surface road reached by a way up weighs to their raiders in the deeps (docs/tracks/raids-below.md; 1 when absent). ",
 	"human": {
 		"name": "humans", "adj": "human", "species": "human", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 4,
 		"bands": ["surface"], "biomes": {"meadow": 3, "coast": 3, "forest": 1, "hills": 2, "swamp": 1, "mountain": 0.4, "desert": 0.5},
-		"mobility": ["road"], "raid_mobility": ["road"],
+		"mobility": ["road"], "goes_down": true, "raid_mobility": ["road"],
 		"temperament": {"trader": 3, "expansionist": 3, "raider": 1, "isolationist": 1},
 		"farm": 1.0, "craft": 1.0, "luxury": 0.3, "soldiers": 0.05, "raid": 0.1, "takes_captives": false,
 		"guards": [["guard", 8], ["guard-captain", 0.6], ["warrior-veteran", 0.6]],
@@ -43,7 +43,7 @@
 		"name": "halflings", "adj": "halfling", "species": "halfling", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 2,
 		"bands": ["surface"], "biomes": {"meadow": 6, "hills": 1, "forest": 0.4, "swamp": 0.2, "mountain": 0.1, "desert": 0.1},
-		"mobility": ["road"], "raid_mobility": ["road"],
+		"mobility": ["road"], "goes_down": true, "raid_mobility": ["road"],
 		"temperament": {"trader": 4, "isolationist": 2},
 		"farm": 1.15, "craft": 0.9, "luxury": 0.3, "soldiers": 0.04, "raid": 0.02, "takes_captives": false,
 		"guards": [["guard", 6], ["scout", 3]],
@@ -108,7 +108,7 @@
 		"name": "tieflings", "adj": "tiefling", "species": "tiefling", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 1,
 		"bands": ["surface"], "biomes": {"coast": 2, "meadow": 1, "desert": 2.5, "swamp": 2.5, "forest": 0.4, "mountain": 0.4},
-		"mobility": ["road"], "raid_mobility": ["road"],
+		"mobility": ["road"], "goes_down": true, "raid_mobility": ["road"],
 		"temperament": {"trader": 4, "expansionist": 1, "raider": 1},
 		"farm": 0.9, "craft": 1.1, "luxury": 0.8, "soldiers": 0.05, "raid": 0.08, "takes_captives": false,
 		"guards": [["guard", 5], ["spy", 1], ["priest", 0.4], ["mage", 0.3]],
@@ -196,8 +196,8 @@
 		"army": [["bandit", 8], ["tough", 4], ["bandit-captain", 1], ["tough-boss", 0.4]],
 		"faction_forms": ["the {n} Brotherhood", "the {n} Gang"]
 	},
-	"duergar": {
-		"name": "duergar", "adj": "duergar", "species": "dwarf", "lineage": "", "tags": ["deep"], "monstrous": false,
+	"deep_dwarf": {
+		"name": "deep dwarf", "adj": "deep dwarf", "species": "dwarf", "lineage": "", "tags": ["deep"], "monstrous": false,
 		"people": "commoner", "weight": 2.5,
 		"bands": ["deeps", "caves"], "biomes": {"crystal": 5, "magma": 5, "underdark": 2.5, "caves": 2, "fungal": 1, "deep_lake": 0.5},
 		"mobility": ["deep", "link"], "raid_mobility": ["deep", "link"],

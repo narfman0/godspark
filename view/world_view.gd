@@ -72,6 +72,7 @@ var hour := 12.0
 var lights: WorldLights
 var _light_rect := Rect2i()
 var _light_dirty := true
+var _frame_us := 0
 var _img_block: Image
 var _img_sky: Image
 var _tex_block: ImageTexture
@@ -353,9 +354,10 @@ func is_idle() -> bool:
 func chunk_count() -> int:
 	return _chunks.size()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if world == null:
 		return
+	_frame_us = int(delta * 1000000.0)
 	_collect()
 	if _mat_dirty:
 		_mat_dirty = false
@@ -493,7 +495,8 @@ func _refill_light() -> void:
 	var t0 := Time.get_ticks_usec()
 	if light.deferred:
 		# What is not lit yet reads dark for a frame or two; the nearest chunks come first.
-		_light_dirty = not light.process(light_budget_us, _light_rect)
+		# A frame that takes long anyway can give light more: a slow renderer gets the same seconds.
+		_light_dirty = not light.process(maxi(light_budget_us, _frame_us / 5), _light_rect)
 	else:
 		light.ensure_region(_light_rect)
 		_light_dirty = false

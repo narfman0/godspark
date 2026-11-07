@@ -960,6 +960,8 @@ func _engage(a: Actor, b: Actor) -> void:
 func _sight_opts(a: Actor, b: Actor, opts: Dictionary) -> void:
 	if not sight.can_see(a.e, b.e):
 		opts["disadvantage"] = true
+	if sight.sun_shy(a.e) and sight.in_sunlight(CombatSight.eye(a.e)):
+		opts["disadvantage"] = true       # Sunlight Sensitivity
 	if not sight.can_see(b.e, a.e):
 		opts["advantage"] = true
 

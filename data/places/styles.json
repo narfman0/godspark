@@ -5,7 +5,7 @@
 		"halfling": "halfling", "gnome": "halfling",
 		"dwarf": "dwarf", "goliath": "dwarf",
 		"elf": "elf",
-		"drow": "drow", "duergar": "duergar", "deep_gnome": "deep_gnome",
+		"drow": "drow", "deep_dwarf": "deep_dwarf", "deep_gnome": "deep_gnome",
 		"goblinoid": "raider", "kobold": "raider", "gnoll": "raider", "bandit": "raider", "orc": "raider"
 	},
 	"deep": {"goblinoid": "goblin_warren", "kobold": "kobold_warren"},
@@ -47,11 +47,11 @@
 			"roof": {"shape": "tent", "step": 1, "overhang": 0},
 			"tall": 0.0, "kit": "raider", "plan": "camp"
 		},
-		"duergar": {
+		"deep_dwarf": {
 			"palette": {"wall": "granite", "floor": "slate", "masonry": "granite", "roof": "granite", "base": "granite",
 				"street": "cobblestone", "lamp": "torch", "awning": "awning", "walk": "platform", "back": "slate_wall"},
 			"roof": {"shape": "flat", "step": 0, "overhang": 0},
-			"tall": 0.6, "kit": "duergar", "plan": "town", "street_lamps": true
+			"tall": 0.6, "kit": "deep_dwarf", "plan": "town", "street_lamps": true
 		},
 		"deep_gnome": {
 			"palette": {"wall": "mossy_stone", "floor": "planks", "masonry": "dressed_stone", "roof": "dressed_stone", "base": "dressed_stone",
