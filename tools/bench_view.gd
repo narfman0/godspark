@@ -61,6 +61,10 @@ func _initialize() -> void:
 	for i in 20:
 		ChunkMesher.build_arrays(busy)
 	print("  busy chunk (4,3): %.2f ms" % ((Time.get_ticks_usec() - t) / 20000.0))
+	t = Time.get_ticks_usec()
+	for i in 20:
+		ChunkMesher.emitters(busy)
+	print("  its light-giving tiles for the lamps (ChunkMesher.emitters): %.2f ms" % ((Time.get_ticks_usec() - t) / 20000.0))
 
 	# Light: one chunk region from cold (includes its padding), a full world, edits, movers.
 	var light := LightEngine.new(world)

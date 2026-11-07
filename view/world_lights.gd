@@ -28,6 +28,9 @@ var _time := 0.0
 var _dust: MeshInstance3D
 ## The sources lit last frame, nearest first: [{key, pos, color, radius, level}] (for tests, tools).
 var lit: Array = []
+## Do the world's dressing (trees, rocks, plants) cast shadows, by the quality's "dressing".
+## DressingView reads it when it builds.
+static var dressing_casts := true
 
 func setup(v: WorldView) -> void:
 	view = v
@@ -66,6 +69,7 @@ func set_quality(q: String) -> void:
 	var table: Dictionary = LightSources.setting("shadows", {})
 	quality = q if table.has(q) else "low"
 	_q = table.get(quality, {"sun": true, "sun_size": 2048, "lamps": 4, "atlas": 2048, "soft": false, "cube": false})
+	dressing_casts = bool(_q.get("dressing", true))
 	if sun != null:
 		_apply_quality()
 
@@ -171,10 +175,25 @@ func _sun() -> void:
 	sun.basis = Basis.looking_at(-dir, Vector3.UP if absf(dir.y) < 0.99 else Vector3.FORWARD)
 	sun.light_color = (l["color"] as Color) * view.biome_light()
 	sun.light_energy = float(l["energy"])
-	sun.visible = sun.light_energy > 0.001
+	sun.visible = sun.light_energy > 0.001 and sky_in_view()
 	var cam := get_viewport().get_camera_3d() if get_viewport() != null else null
 	if cam != null:
 		sun.directional_shadow_max_distance = absf(cam.global_position.z) + float(_sun_d().get("shadow_reach_m", 30.0))
+
+## Does the sky reach anything in view? Some column's open sky starts at or under the top of the
+## view (a few tiles' margin for covered light). Deep underground it does not, and the sun and its
+## shadow map cost nothing there.
+func sky_in_view() -> bool:
+	if view.light == null:
+		return true
+	var half := view.view_half + Vector2(6, 6)
+	var top := view.focus.y + half.y
+	var x := floori(view.focus.x - half.x)
+	while x <= ceili(view.focus.x + half.x):
+		if view.light.sky_top(x) <= top:
+			return true
+		x += 2
+	return false
 
 ## Every source near the view: the emissive tiles of the meshed chunks and the carried lights.
 func candidates() -> Array:
