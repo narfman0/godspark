@@ -63,18 +63,21 @@ static func finish(c: GenContext, _rng: RandomNumberGenerator) -> void:
 		if soil[c.fg[x + y * c.w]] != 0:
 			c.fg[x + y * c.w] = c.col_top[x]
 
-static func _biome_for(c: GenContext, x: int, band: String) -> String:
+## The biome a site stands in: the surface strip, the caves, or below them the underground
+## region under it (the underdark where a world has none).
+static func _biome_for(c: GenContext, x: int, y: int, band: String) -> String:
 	match band:
 		"surface", "sky":
 			return StageBiomes.biome_name(c, x)
 		"caves":
 			return "caves"
 		_:
-			return "underdark"
+			var r := c.region_at(x, y)
+			return "underdark" if r.is_empty() else String(r["biome"])
 
 static func _add(c: GenContext, kind: String, x: int, y: int, size: int) -> Dictionary:
 	var band := c.band_at(y)
-	var s := {"id": c.sites.size(), "kind": kind, "x": x, "y": y, "biome": _biome_for(c, x, band),
+	var s := {"id": c.sites.size(), "kind": kind, "x": x, "y": y, "biome": _biome_for(c, x, y, band),
 		"band": band, "size": size}
 	c.sites.append(s)
 	return s

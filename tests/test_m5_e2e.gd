@@ -35,7 +35,7 @@ func run(t_: TestLog) -> void:
 	t.check(T >= 0 and N >= 0 and road >= 0 and over.x >= 0, "two towns with a pass between them (%d, %d, route %d, over cells %s)" % [T, N, road, over])
 	if T < 0 or N < 0 or road < 0 or over.x < 0:
 		return
-	t.eq((w.meta["biomes"] as Array).size(), 5, "a world of five biomes")
+	t.eq(BiomeIds.strip(w.meta).size(), 5, "a world of five biomes")
 	_join()
 	if not _ready():
 		t.check(false, "both players joined with every system")

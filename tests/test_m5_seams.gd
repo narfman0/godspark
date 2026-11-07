@@ -99,7 +99,7 @@ func _water(t: TestLog) -> void:
 	for sd: int in [1, 4, 15]:
 		var w := WorldGen.generate_named("dev", sd)
 		var seg: Dictionary = {}
-		for s: Dictionary in w.meta["biomes"]:
+		for s: Dictionary in BiomeIds.strip(w.meta):
 			if s["biome"] == "swamp":
 				seg = s
 		var wet := 0

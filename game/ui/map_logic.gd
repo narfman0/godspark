@@ -6,17 +6,26 @@ class_name MapLogic
 extends RefCounted
 
 ## The land's labels, from META: regions over the ground, ranges at their peaks, rivers at their
-## water, west to east within each kind: [{kind, name, x, y, x0, x1}]. Crossings are in
-## crossings(). Old saves have no names and give no labels.
+## water, west to east within each kind: [{kind, name, x, y, x0, x1}]. Underground regions are
+## "region" labels too, with band, y0 and y1, at their middle (the map draws one once a player
+## has been in it: seen_regions). Crossings are in crossings(). Old saves have no names and give
+## no labels.
 static func land_labels(meta: Dictionary) -> Array:
 	var out: Array = []
 	var surf: Array = meta.get("surface", [])
-	for s: Dictionary in meta.get("biomes", []):
+	var all: Array = meta.get("biomes", [])
+	for i in all.size():
+		var s: Dictionary = all[i]
 		if String(s.get("name", "")) == "":
 			continue
 		var x0 := int(s["x0"])
 		var x1 := int(s["x1"])
 		var mid := (x0 + x1) / 2
+		if s.has("band"):
+			# an underground region (M6): at its middle, drawn once a player has been in it
+			out.append({"kind": "region", "name": s["name"], "biome": s.get("biome", ""), "band": s["band"], "i": i, "x": mid,
+				"y": (int(s["y0"]) + int(s["y1"])) / 2, "x0": x0, "x1": x1, "y0": int(s["y0"]), "y1": int(s["y1"])})
+			continue
 		var y: int = surf[mid] if mid < surf.size() else 0
 		out.append({"kind": "region", "name": s["name"], "biome": s.get("biome", ""), "x": mid, "y": y, "x0": x0, "x1": x1})
 	var b: Dictionary = meta.get("barriers", {})
@@ -29,6 +38,11 @@ static func land_labels(meta: Dictionary) -> Array:
 			out.append({"kind": "river", "name": r["name"], "x": (int(r["x0"]) + int(r["x1"])) / 2, "y": int(r.get("water", 0)),
 				"x0": int(r["x0"]), "x1": int(r["x1"])})
 	return out
+
+## The key a seen underground region has among a player's seen places (Deals' ATLAS seen ids):
+## below zero, so it never meets a site id. i: its index in meta.biomes.
+static func region_key(i: int) -> int:
+	return -1 - i
 
 ## The left edge of a label `w` wide that wants to be centred at x, kept inside a map `width` wide.
 static func fit_x(x: float, w: float, width: float) -> float:

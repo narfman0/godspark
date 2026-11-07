@@ -1,5 +1,5 @@
 {
-	"_comment": "Ids are stable once a world has been saved: append, never renumber. hardness = seconds to dig bare-handed, negative = unbreakable. emit = light given off, 0-15. platform = one-way, solid only from above. ladder = climbable, not solid; its top rung is standable. stairs = one-way like a platform, laid one tile up per tile across: 1 rises to the right (stairs_r), 2 to the left (stairs_l); see core/entity/player_controller.gd. Ids 10-13 are the traversal track's (stairs, rope, rubble). Tiles 21-33 and walls 10-17 are the surface biomes' (data/worldgen/biomes.json). Tiles 96-127 and walls 40-55 are the places track's (buildings, roads, lamps), and the passages stage never cuts them; 112-116 are the biomes' road surfaces, 117-119 the rivers' (water is a tile for now: walked through, not swum, and it cannot be dug).",
+	"_comment": "Ids are stable once a world has been saved: append, never renumber. hardness = seconds to dig bare-handed, negative = unbreakable. emit = light given off, 0-15. platform = one-way, solid only from above. ladder = climbable, not solid; its top rung is standable. stairs = one-way like a platform, laid one tile up per tile across: 1 rises to the right (stairs_r), 2 to the left (stairs_l); see core/entity/player_controller.gd. Ids 10-13 are the traversal track's (stairs, rope, rubble). Tiles 21-33 and walls 10-17 are the surface biomes' (data/worldgen/biomes.json). Tiles 96-127 and walls 40-55 are the places track's (buildings, roads, lamps), and the passages stage never cuts them; 112-116 are the biomes' road surfaces, 117-119 the rivers' (water is a tile: walked through where it is only a tile, swum where the cell also holds liquid, as in the deep lake; it cannot be dug). Tiles 34-46 and walls 18-21 are the underground regions' (data/worldgen/biomes.json underground): rock, floor and glow per region; glow tiles are lights that stand in open cells (shape: cap, crystal, moss, for the mesher). 120-121 are the magma's, in the range the passages stage never cuts: lava burns (burn: data/combat.json lava) and is a wall to walkers' nav, the lava bridge is the stone deck over a pool.",
 	"tiles": [
 		{"id": 0, "name": "air", "solid": false, "opaque": false},
 		{"id": 1, "name": "dirt", "solid": true, "opaque": true, "hardness": 0.4, "color": "#7a5a3c"},
@@ -32,6 +32,19 @@
 		{"id": 31, "name": "mire", "solid": true, "opaque": true, "hardness": 0.4, "color": "#4f5a38"},
 		{"id": 32, "name": "mud", "solid": true, "opaque": true, "hardness": 0.4, "color": "#3e3a2c"},
 		{"id": 33, "name": "bog_stone", "solid": true, "opaque": true, "hardness": 1.0, "color": "#4a5044"},
+		{"id": 34, "name": "spore_stone", "solid": true, "opaque": true, "hardness": 1.0, "color": "#5b4a66"},
+		{"id": 35, "name": "mycelium", "solid": true, "opaque": true, "hardness": 0.5, "color": "#8c7a9e"},
+		{"id": 36, "name": "glow_cap", "solid": false, "opaque": false, "hardness": 0.1, "emit": 9, "shape": "cap", "color": "#6ff0c8"},
+		{"id": 37, "name": "crystal_stone", "solid": true, "opaque": true, "hardness": 1.4, "color": "#8a97b0"},
+		{"id": 38, "name": "geode_floor", "solid": true, "opaque": true, "hardness": 1.2, "color": "#aab8d2"},
+		{"id": 39, "name": "crystal_cluster", "solid": false, "opaque": false, "hardness": 0.4, "emit": 11, "shape": "crystal", "color": "#9fe4ff"},
+		{"id": 40, "name": "lake_stone", "solid": true, "opaque": true, "hardness": 1.1, "color": "#45525e"},
+		{"id": 41, "name": "shore_sand", "solid": true, "opaque": true, "hardness": 0.3, "color": "#b9b39a"},
+		{"id": 42, "name": "silt", "solid": true, "opaque": true, "hardness": 0.4, "color": "#4d5a58"},
+		{"id": 43, "name": "basalt", "solid": true, "opaque": true, "hardness": 1.6, "color": "#3a3438"},
+		{"id": 44, "name": "ash", "solid": true, "opaque": true, "hardness": 0.4, "color": "#5f5753"},
+		{"id": 45, "name": "obsidian", "solid": true, "opaque": true, "hardness": 2.5, "color": "#1f1826"},
+		{"id": 46, "name": "lumen_moss", "solid": false, "opaque": false, "hardness": 0.05, "emit": 6, "shape": "moss", "color": "#7dffb8"},
 		{"id": 64, "name": "campfire", "solid": false, "opaque": false, "hardness": 0.3, "emit": 15, "color": "#ff9a3c"},
 		{"id": 65, "name": "bed", "solid": false, "opaque": false, "hardness": 0.3, "color": "#a8423f"},
 		{"id": 66, "name": "shrine", "solid": false, "opaque": false, "hardness": 2.0, "color": "#d9c8ff"},
@@ -58,7 +71,9 @@
 		{"id": 116, "name": "green_lane", "solid": true, "opaque": true, "hardness": 0.5, "color": "#8c9c58"},
 		{"id": 117, "name": "water", "solid": false, "opaque": false, "hardness": -1, "color": "#3a78b5"},
 		{"id": 118, "name": "river_bed", "solid": true, "opaque": true, "hardness": 0.8, "color": "#5c6b6e"},
-		{"id": 119, "name": "ford_stones", "solid": true, "opaque": true, "hardness": 1.0, "color": "#8a9a9c"}
+		{"id": 119, "name": "ford_stones", "solid": true, "opaque": true, "hardness": 1.0, "color": "#8a9a9c"},
+		{"id": 120, "name": "lava", "solid": false, "opaque": false, "hardness": -1, "emit": 15, "burn": true, "color": "#ff5a14"},
+		{"id": 121, "name": "lava_bridge", "solid": true, "opaque": true, "hardness": 2.0, "color": "#4a4044"}
 	],
 	"walls": [
 		{"id": 0, "name": "none"},
@@ -75,6 +90,10 @@
 		{"id": 15, "name": "sandstone_wall", "color": "#7d5d3a"},
 		{"id": 16, "name": "mud_wall", "color": "#2a2720"},
 		{"id": 17, "name": "bog_wall", "color": "#2f3430"},
+		{"id": 18, "name": "spore_wall", "color": "#3a2f42"},
+		{"id": 19, "name": "crystal_wall", "color": "#4c5468"},
+		{"id": 20, "name": "lake_wall", "color": "#2b343c"},
+		{"id": 21, "name": "basalt_wall", "color": "#211c20"},
 		{"id": 40, "name": "plaster_wall", "color": "#c9b994"},
 		{"id": 41, "name": "dressed_wall", "color": "#6e675d"},
 		{"id": 42, "name": "elf_wall", "color": "#8e8763"},

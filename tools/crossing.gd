@@ -31,6 +31,8 @@ func _initialize() -> void:
 	var faults := CrossingBot.faults(world, r)
 	for f: String in faults:
 		print("  FAULT %s" % f)
+	if r.has("below_at"):
+		print("  deepest under the line at %s" % [r["below_at"]])
 	var names: Array = (r["entered"] as Array).map(func(e: Dictionary) -> String: return String(e["biome"]))
 	print("CROSSING %s seed=%d biomes=%d %s crossings=%d %s time=%.0f s (%.1f min) ticks=%d legs=%d below=%.1f digs=%d tiles_changed=%s walked in %d ms" % [
 		"PASS" if faults.is_empty() else "FAIL", sd, names.size(), ">".join(names), (r["crossed"] as Array).size(), kinds, r["seconds"], float(r["seconds"]) / 60.0, r["ticks"], r["legs"], r["below"],

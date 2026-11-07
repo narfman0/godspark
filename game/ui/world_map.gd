@@ -20,6 +20,9 @@ const ROUTE_STYLE := {"road": [Color("8a5a2b"), 3.0], "deep_road": [Color("6a4a8
 const BIOME_TINT := {"meadow": Color("8cc152"), "forest": Color("2f7d3a"), "mountain": Color("9a9aa2"), "desert": Color("e5c77f"),
 	"swamp": Color("5a6b3a")}
 const RIVER := Color("3f7fb0")
+## Underground regions, drawn once seen (M6).
+const REGION_TINT := {"underdark": Color("55556a"), "fungal": Color("a070d8"), "crystal": Color("8fd0ff"), "deep_lake": Color("3f7fd0"),
+	"magma": Color("e0602a")}
 ## Where a land label may go, px down from its place, when something is in the way.
 const LABEL_STEPS := {"region": [0.0, -16.0, -32.0], "range": [0.0, -16.0, -32.0], "river": [0.0, 16.0, 32.0, -36.0]}
 
@@ -296,9 +299,18 @@ func _place_boxes(meta: Dictionary, kn: Dictionary) -> Array[Rect2]:
 ## and the names, which take the size of what they name. taken: the boxes they keep off.
 func _draw_land(c: Control, meta: Dictionary, taken: Array[Rect2]) -> void:
 	var surf: Array = meta.get("surface", [])
-	var labels := MapLogic.land_labels(meta)
+	var kn := known()
+	var labels := MapLogic.land_labels(meta).filter(func(l: Dictionary) -> bool:
+		return not l.has("band") or kn.get(MapLogic.region_key(int(l["i"])), "") == "seen")
 	for l: Dictionary in labels:
-		if l["kind"] == "region" and not surf.is_empty():
+		if l.has("band"):
+			# an underground region the player has been in: its span tinted at its depth
+			var col: Color = REGION_TINT.get(String(l.get("biome", "")), UiTheme.INK_SOFT)
+			var a := _p(Vector2(float(l["x0"]), float(l["y1"])))
+			var b := _p(Vector2(float(l["x1"]) + 1.0, float(l["y0"])))
+			c.draw_rect(Rect2(a, b - a), Color(col, 0.22))
+			c.draw_rect(Rect2(a, b - a), Color(col, 0.6), false, 1.5)
+		elif l["kind"] == "region" and not surf.is_empty():
 			var col: Color = BIOME_TINT.get(String(l.get("biome", "")), UiTheme.INK_SOFT)
 			var line := PackedVector2Array()
 			var step := maxi(1, roundi(6.0 / zoom))
@@ -338,7 +350,7 @@ func _draw_land(c: Control, meta: Dictionary, taken: Array[Rect2]) -> void:
 			var at := _p(Vector2(float(l["x"]), float(l["y"])))
 			var size := UiTheme.BODY if kind != "river" else UiTheme.SMALL
 			var col: Color = UiTheme.INK if kind == "region" else (UiTheme.INK_SOFT if kind == "range" else RIVER.darkened(0.35))
-			var y := at.y - (34.0 if kind == "region" else (12.0 if kind == "range" else -18.0))
+			var y := at.y - (34.0 if kind == "region" and not l.has("band") else (12.0 if kind != "river" else -18.0))
 			var w := UiTheme.text_width(name_, size)
 			var box := Rect2(MapLogic.fit_x(at.x, w, c.size.x), y - 14.0, w, 16.0)
 			var dy := MapLogic.free_row(box, shown, LABEL_STEPS[kind])

@@ -128,6 +128,23 @@ static func _targets(world: TileWorld) -> Array:
 		var cells: Array = rv["crossing"]["cells"]
 		out.append(["river %d west" % rv["id"], Vector2(float(cells[0][0]) + 0.5, float(cells[0][1]))])
 		out.append(["river %d east" % rv["id"], Vector2(float(cells[-1][0]) + 0.5, float(cells[-1][1]))])
+	# the underground (M6): the lake's shore path, the lava bridges, the sinkholes, the nadir floor
+	var d: Dictionary = world.meta.get("descent", {})
+	var at := func(q: Array) -> Vector2: return Vector2(float(q[0]) + 0.5, float(q[1]))
+	var lc: Array = d.get("lake", {}).get("crossing", {}).get("cells", [])
+	if lc.size() >= 2:
+		out.append(["lake west", at.call(lc[0])])
+		out.append(["lake east", at.call(lc[-1])])
+	for t: Dictionary in d.get("lava", []):
+		for b: Dictionary in t["bridges"]:
+			out.append(["lava bridge %d west" % b["x0"], at.call(b["cells"][0])])
+			out.append(["lava bridge %d east" % b["x0"], at.call(b["cells"][-1])])
+	for i in (d.get("sinkholes", []) as Array).size():
+		var sk: Dictionary = d["sinkholes"][i]
+		out.append(["sinkhole %d top" % i, at.call([int(sk["rope"]) - 1, int(sk["top"])])])
+		out.append(["sinkhole %d bottom" % i, at.call([int(sk["rope"]) - 1, int(sk["bottom"])])])
+	if (d.get("nadir", []) as Array).size() == 2:
+		out.append(["nadir floor", at.call(d["nadir"])])
 	return out
 
 static func _reached(f: NavSearch, prof: NavProfile, p: Vector2) -> bool:

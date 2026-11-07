@@ -10,7 +10,8 @@ const SOLID := MonsterNav.SOLID
 const ONEWAY := MonsterNav.ONEWAY
 const LADDER := MonsterNav.LADDER
 const WET := MonsterNav.WET
-const KNOWN := MonsterNav.KNOWN
+const HAZARD := MonsterNav.HAZARD
+const UNKNOWN := MonsterNav.UNKNOWN
 const MARGIN := 24
 ## Tiles of a jump's landing box that must lie over floor (a sliver over a ledge's corner is
 ## not a landing a body makes reliably).
@@ -76,6 +77,7 @@ func setup(w: TileWorld, p: NavProfile, s: Vector2i, gl: Vector2i, t: Vector2i, 
 	FW = W + 2 * MARGIN
 	FH = H + 2 * MARGIN
 	_flags.resize(FW * FH)
+	_flags.fill(UNKNOWN)
 	_clear.resize(W * H)
 	_stand.resize(W * H)
 	_g.resize(W * H)
@@ -403,13 +405,13 @@ func _jumps(k: int, g0: float, L: int, y: int) -> void:
 			continue
 		var ok := true
 		for o: int in j["asc"]:
-			if _cf(L + (o & 1023) - 512, y + ((o >> 10) & 1023) - 512) & SOLID:
+			if _cf(L + (o & 1023) - 512, y + ((o >> 10) & 1023) - 512) & (SOLID | HAZARD):
 				ok = false
 				break
 		if not ok:
 			continue
 		for o: int in j["desc"]:
-			if _cf(L + (o & 1023) - 512, y + ((o >> 10) & 1023) - 512) & (SOLID | ONEWAY):
+			if _cf(L + (o & 1023) - 512, y + ((o >> 10) & 1023) - 512) & (SOLID | ONEWAY | HAZARD):
 				ok = false
 				break
 		if ok:
@@ -433,6 +435,9 @@ func _clear_at(L: int, y: int) -> int:
 	for r in range(y, y + prof.ch):
 		for c in range(L, L + prof.cw):
 			var f := _cf(c, r)
+			if f & HAZARD:
+				v = 2
+				break
 			if f & SOLID:
 				if _dig_mask != 0 and f & _dig_mask:
 					v = 3
@@ -441,6 +446,8 @@ func _clear_at(L: int, y: int) -> int:
 					break
 		if v == 2:
 			break
+	if v != 2 and not prof.swimmer and not prof.fly and _wet(L, y):
+		v = 2           # no swim speed: deep water is a wall
 	if k >= 0:
 		_clear[k] = v
 	return v
@@ -501,8 +508,8 @@ func _cf(x: int, y: int) -> int:
 		return MonsterNav.cell_flags(world, x, y)
 	var i := lx + ly * FW
 	var v := _flags[i]
-	if v == 0:
-		v = MonsterNav.cell_flags(world, x, y) | KNOWN
+	if v == UNKNOWN:
+		v = MonsterNav.cell_flags(world, x, y)
 		_flags[i] = v
 	return v
 

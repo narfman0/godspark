@@ -10,6 +10,7 @@ const BAND_CUTS := [["nadir", 0.0], ["deeps", 0.14], ["caves", 0.42], ["surface"
 const ROAD_H := 6
 const RAMP_H := 5
 const _Barriers := preload("stage_barriers.gd")
+const _Deep := preload("stage_deep.gd")
 
 var w: int
 var h: int
@@ -45,6 +46,14 @@ var ranges: Array = []             ## mountain ranges (stage_barriers.gd)
 var rivers: Array = []             ## rivers (stage_barriers.gd)
 var reserved := PackedByteArray()  ## per column: 1 kept for a barrier (no towns, ramps, entrances)
 var pass_y := PackedInt32Array()   ## per column: feet row of a range's pass, -1 elsewhere
+var regions: Array = []            ## underground regions (stage_deep.gd): meta rows {biome, band, x0, x1, y0, y1}
+var reg_col := {}                  ## band -> PackedByteArray: per column, the index into regions (255: none)
+var liquid := PackedByteArray()    ## liquid per cell (Chunk.liquid), empty until a stage lays some
+var lake := {}                     ## the deep lake (stage_deep.gd), meta.descent.lake
+var lava: Array = []               ## lava tubes (stage_deep.gd)
+var sinkholes: Array = []          ## sinkholes (stage_deep.gd)
+var entrances: Array = []          ## cave mouths: Vector2i where an entrance worm broke the ground
+var nadir_floor := Vector2i(-1, -1) ## a feet cell on the nadir floor every walker must reach (descent)
 
 var AIR := 0
 var BEDROCK: int
@@ -125,6 +134,22 @@ func noise(rng: RandomNumberGenerator, freq: float, octaves := 1,
 static func noise_bytes(n: FastNoiseLite, x0: int, y0: int, gw: int, gh: int) -> PackedByteArray:
 	n.offset = Vector3(x0, y0, 0)
 	return n.get_image(gw, gh, false, false, false).get_data()
+
+## The underground region (a regions row) at a cell, or {} (the surface, the caves band, or a
+## world with none). Nominal bounds: no seam dither (stage_deep.gd paints the seams).
+func region_at(x: int, y: int) -> Dictionary:
+	var band := band_at(y)
+	var col: PackedByteArray = reg_col.get(band, PackedByteArray())
+	if col.is_empty():
+		return {}
+	var i := col[clampi(x, 0, w - 1)]
+	return {} if i == 255 else regions[i]
+
+## Liquid level 0-15 at cell index i (laid by a stage).
+func set_liquid(i: int, level: int) -> void:
+	if liquid.is_empty():
+		liquid.resize(w * h)
+	liquid[i] = level
 
 func is_solid(x: int, y: int) -> bool:
 	if x < 0 or y < 0 or x >= w or y >= h:
@@ -224,18 +249,24 @@ func to_world() -> TileWorld:
 			var c := world.chunk_at(cx, cy)
 			c.fg = fimg.get_region(r).get_data()
 			c.bg = bimg.get_region(r).get_data()
+	if not liquid.is_empty():
+		var limg := Image.create_from_data(w, h, false, Image.FORMAT_R8, liquid)
+		for cy in world.chunks_y:
+			for cx in world.chunks_x:
+				world.chunk_at(cx, cy).liquid = limg.get_region(Rect2i(cx * K.CHUNK, cy * K.CHUNK, K.CHUNK, K.CHUNK)).get_data()
 	for i in range(0, objects.size(), 4):
 		var ox := objects[i + 1]
 		var oy := objects[i + 2]
 		world.chunk_at(ox >> 5, oy >> 5).add_object(objects[i], ox & 31, oy & 31, objects[i + 3])
 	world.meta = {
 		"surface": Array(surface),
-		"biomes": biomes.duplicate(true),
+		"biomes": biomes.duplicate(true) + regions.duplicate(true),
 		"climate": climate.duplicate(true),
 		"bands": bands.duplicate(true),
 		"sites": sites.duplicate(true),
 		"routes": routes.duplicate(true),
 		"places": places.duplicate(true),
 		"barriers": _Barriers.meta(self),
+		"descent": _Deep.meta(self),
 	}
 	return world

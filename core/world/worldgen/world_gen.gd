@@ -28,28 +28,36 @@ const RoadsStage := preload("stage_roads.gd")
 const Passages := preload("stage_passages.gd")
 const Barriers := preload("stage_barriers.gd")
 const Names := preload("../region_names.gd")
+const Deep := preload("stage_deep.gd")
 
 ## [name, script, static method]. Append new stages where they belong; names are the RNG
 ## keys, so renaming a stage changes every world.
 const STAGES := [
 	["biomes", Biomes, "run"],
+	["regions", Deep, "plan"],
 	["surface", Surface, "run"],
 	["layers", Layers, "run"],
 	["caves", Caves, "run"],
+	["region_caves", Deep, "shape"],
 	["cave_steps", CaveSteps, "run"],
 	["caverns", Deeps, "caverns"],
 	["deep_road", Deeps, "deep_road"],
 	["ascent", Deeps, "ascent"],
 	["portal", Deeps, "portal"],
+	["lake", Deep, "lake"],
+	["lava", Deep, "lava"],
 	["barriers", Barriers, "run"],
 	["ruins", Sites, "ruins"],
 	["ores", Ores, "run"],
+	["region_rock", Deep, "rock"],
 	["finish", Sites, "finish"],
 	["sites", Sites, "sites"],
 	["routes", Sites, "routes"],
+	["sinkholes", Deep, "sinkholes"],
 	["places", PlacesStage, "run"],
 	["roads", RoadsStage, "run"],
 	["passages", Passages, "run"],
+	["glow", Deep, "glow"],
 	["dressing", DressingStage, "run"],
 	["names", Names, "run"],
 ]
@@ -80,7 +88,7 @@ static func generate(width: int, height: int, world_seed: int, opts := {}) -> Ti
 		last_timings[st[0]] = (Time.get_ticks_usec() - t0) / 1000
 		if st[0] == stop:
 			break
-	if stop != "" and not stop in ["routes", "places", "roads", "passages", "dressing", "names"]:
+	if stop != "" and not stop in ["routes", "sinkholes", "places", "roads", "passages", "glow", "dressing", "names"]:
 		c.survey()
 	stage_index = STAGES.size()
 	var t1 := Time.get_ticks_usec()

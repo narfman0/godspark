@@ -48,7 +48,7 @@ func _check_world(t: TestLog, world: TileWorld, label: String) -> void:
 	t.eq(bad, 0, "%s: surface[x] is the highest solid tile" % label)
 
 	# biome strip covers the width, in order, no gaps
-	var strip: Array = m["biomes"]
+	var strip: Array = BiomeIds.strip(m)
 	var next := 0
 	for seg: Dictionary in strip:
 		t.check(int(seg["x0"]) == next and int(seg["x1"]) >= int(seg["x0"]) and seg["biome"] is String,

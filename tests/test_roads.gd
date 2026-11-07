@@ -33,7 +33,9 @@ func run(t: TestLog) -> void:
 			if world.is_solid(p.x, p.y) or world.is_solid(p.x, p.y + 1) or world.is_solid(p.x, p.y + 2) or world.is_solid(p.x, p.y + 3):
 				feet_ok = false
 			var u := world.get_fg(p.x, p.y - 1)
-			if not world.is_solid(p.x, p.y - 1) and TileDefs.platform[u] == 0:
+			# a ladder's head holds a body as a walkway does (a sinkhole's rope comes up through its deck)
+			var head := TileDefs.ladder[u] != 0 and TileDefs.ladder[world.get_fg(p.x, p.y)] == 0
+			if not world.is_solid(p.x, p.y - 1) and TileDefs.platform[u] == 0 and not head:
 				feet_ok = false
 		t.check(cols_ok, "road %d: one column per step" % r["id"])
 		t.check(feet_ok, "road %d: every cell has a floor and 4 clear rows (a wagon fits)" % r["id"])

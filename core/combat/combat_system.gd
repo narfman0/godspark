@@ -38,6 +38,8 @@ class Actor:
 	var reaction_ready := 0.0
 	## Next round boundary (host seconds); -1 until the creature first acts or is acted on.
 	var round_at := -1.0
+	## When lava next burns it (host seconds), while it touches lava; -1 when it does not.
+	var burn_at := -1.0
 	var last_hostile := -1000.0
 	## The last blow traded with a foe, or swung at one.
 	var last_foe := -1000.0
@@ -189,6 +191,7 @@ func tick(_h: WorldHost) -> void:
 		if a.e.is_player() and cond_mask(a.e.combatant) != a.cond_mask:
 			_touched[a.e.id] = true      # conditions changed outside combat (rules: down, up): tell the owner
 		_fall(a)
+		_burn(a)
 		_round(a)
 		_prone(a)
 		_sequence(a)
@@ -242,6 +245,30 @@ func _fall_damage(a: Actor, ft: float) -> void:
 	var amount := floori(Dice.roll_nd(dice, 6) * float(f.get("damage_mult", 0.5)) * (1.0 - resist))
 	if amount > 0:
 		damage(0, a.e, amount, SRD.DamageType.BLUDGEONING, {"what": "fall"})
+
+## Lava (TileDefs.burn): a body whose box touches it takes fire damage at once, then again every
+## every_s while it stays (data/combat.json lava: 2d6 fire a round, the SRD's fire damage, so
+## resistance and immunity apply through take_damage).
+func _burn(a: Actor) -> void:
+	if not touches_lava(host.world, a.e.body):
+		a.burn_at = -1.0
+		return
+	if a.burn_at >= 0.0 and now < a.burn_at - 1e-6:
+		return
+	var d := CombatTempo.section("lava")
+	a.burn_at = now + float(d.get("every_s", K.ROUND_SECONDS))
+	var amount := Dice.roll_nd(int(d.get("dice", 2)), int(d.get("sides", 6)))
+	damage(0, a.e, amount, String(d.get("type", "fire")), {"what": "lava"})
+
+## Does any cell under the body's box hold lava?
+static func touches_lava(world: TileWorld, b: Body) -> bool:
+	var burn := TileDefs.burn
+	for y in range(floori(b.pos.y + 0.01), ceili(b.top() - 0.01)):
+		for x in range(floori(b.left() + 0.01), ceili(b.right() - 0.01)):
+			var id := world.get_fg(x, y)
+			if id < burn.size() and burn[id] != 0:
+				return true
+	return false
 
 ## Every ROUND_SECONDS of a creature's own round clock: the end of its turn and the start
 ## of the next (effects expire, repeat saves, once-per-turn features reset, recharges).

@@ -84,7 +84,7 @@ static func _span(kind: String, row: Dictionary, path: Array) -> Dictionary:
 
 ## Walk it. cold-end column to hot-end column, one body, every tick the real controller.
 static func walk(world: TileWorld) -> Dictionary:
-	var biomes: Array = world.meta.get("biomes", [])
+	var biomes: Array = BiomeIds.strip(world.meta)
 	var way := line(world)
 	var x0 := int(biomes[0]["x0"]) + END_MARGIN
 	var x1 := int(biomes[-1]["x1"]) - END_MARGIN
@@ -183,7 +183,10 @@ static func _note(b: Body, w: Dictionary) -> void:
 	var way: PackedInt32Array = w["way"]
 	var grounded := b.on_floor or b.on_stairs
 	if grounded:
-		r["below"] = maxf(float(r["below"]), way[clampi(x, 0, way.size() - 1)] - b.pos.y)
+		var under := way[clampi(x, 0, way.size() - 1)] - b.pos.y
+		if under > float(r["below"]):
+			r["below"] = under
+			r["below_at"] = [x, floori(b.pos.y)]
 	var todo: Array = w["todo"]
 	if todo.is_empty():
 		return
@@ -206,7 +209,7 @@ static func faults(world: TileWorld, r: Dictionary) -> Array:
 	if not r["ok"]:
 		out.append("stopped: %s" % r["why"])
 	var want: Array = []
-	for s: Dictionary in world.meta.get("biomes", []):
+	for s: Dictionary in BiomeIds.strip(world.meta):
 		want.append(String(s["biome"]))
 	var got: Array = (r["entered"] as Array).map(func(e: Dictionary) -> String: return String(e["biome"]))
 	if got != want:

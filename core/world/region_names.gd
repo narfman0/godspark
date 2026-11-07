@@ -1,6 +1,7 @@
 ## Names for the land: each stretch of a biome, each range, each river (data/setting/names.json).
-## A pure function of the seed. Stage "names" writes them into the strip and the barriers, so they
-## reach meta.biomes[i].name and meta.barriers.{ranges,rivers}[i].name.
+## A pure function of the seed. Stage "names" writes them into the strip, the barriers and the
+## underground regions, so they reach meta.biomes[i].name (surface and underground rows) and
+## meta.barriers.{ranges,rivers}[i].name.
 class_name RegionNames
 extends RefCounted
 
@@ -23,6 +24,10 @@ static func run(c: RefCounted, rng: RandomNumberGenerator) -> void:
 		r["name"] = range_name(rng, taken)
 	for r: Dictionary in c.rivers:
 		r["name"] = river(rng, taken)
+	var regs: Variant = c.get("regions")           # underground (M6): after, so the rest keep theirs
+	if regs is Array:
+		for r: Dictionary in regs:
+			r["name"] = region(String(r["biome"]), rng, taken)
 
 static func _pick(list: Array, rng: RandomNumberGenerator) -> String:
 	return String(list[rng.randi_range(0, list.size() - 1)])

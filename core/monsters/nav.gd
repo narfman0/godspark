@@ -17,7 +17,9 @@
 ##   LADDER    up / down a ladder in the box's centre column (anyone)
 ##   CLING     up / down a wall and over its top (bodies with a climb speed)
 ##   FLY       any of the 8 neighbours through open space (bodies with a fly speed)
-##   SWIM      any of the 8 neighbours through liquid (everyone; half speed without a swim speed)
+##   SWIM      any of the 8 neighbours through liquid (bodies with a swim speed; a walker without
+##             one wades where the water is under half its height and goes no deeper)
+## Lava (TileDefs.burn) is a wall to every body: no node's box holds it, no jump sweeps it.
 ## Diggers (a burrow speed, or the Tunnelling affix) may also walk through solid tiles up to
 ## a hardness; the follower digs them (NavFollow).
 ##
@@ -43,7 +45,9 @@ const WET := 8          # liquid at least half full
 const SOFT := 16        # diggable by the Tunnelling affix (hardness <= SOFT_HARDNESS)
 const ROCK := 32        # diggable by a burrower (hardness <= ROCK_HARDNESS)
 const STAIR := 64       # a stair tread (also ONEWAY)
-const KNOWN := 128
+const HAZARD := 128     # lava: no body's box goes there; not a floor either
+## A search's cell cache holds this until the cell is read (no real cell has every flag).
+const UNKNOWN := 255
 const SOFT_HARDNESS := 0.6
 const ROCK_HARDNESS := 2.0
 ## Falls longer than this (tiles) cost extra (well inside the free 20 ft = 8 tiles of fall damage).
@@ -58,8 +62,8 @@ static var _profiles := {}
 
 ## What a body of these MoveStats can do, with its recorded jumps. Cached per movement key.
 static func profile(stats: MoveStats, dig_hardness := 0.0) -> NavProfile:
-	var key := "%s|%.2f|%.2f|%.2f|%.2f|%.2f|%d|%.2f" % [stats.size_name, stats.run_speed, stats.jump_velocity,
-		stats.gravity, stats.climb_speed, stats.fly_speed, stats.step_tiles, dig_hardness]
+	var key := "%s|%.2f|%.2f|%.2f|%.2f|%.2f|%d|%.2f|%d" % [stats.size_name, stats.run_speed, stats.jump_velocity,
+		stats.gravity, stats.climb_speed, stats.fly_speed, stats.step_tiles, dig_hardness, 1 if stats.swim > 0.0 else 0]
 	var p: NavProfile = _profiles.get(key)
 	if p != null:
 		return p
@@ -75,6 +79,7 @@ static func profile(stats: MoveStats, dig_hardness := 0.0) -> NavProfile:
 	p.fly = stats.fly_speed > 0.0
 	p.walker = stats.run_speed > 0.5
 	p.swim_speed = stats.swim_speed
+	p.swimmer = stats.swim > 0.0 or not p.walker
 	p.dig = dig_hardness
 	p.run = maxf(stats.run_speed, 0.5)
 	p.max_speed = maxf(maxf(p.run, stats.fly_speed), maxf(stats.swim_speed, stats.ladder_speed))
@@ -120,6 +125,8 @@ static func cell_flags(world: TileWorld, x: int, y: int) -> int:
 			f |= ONEWAY
 	if (world.get_liquid(x, y) & 15) >= 8:
 		f |= WET
+	if TileDefs.burn[id] != 0:
+		f |= HAZARD
 	return f
 
 # --- jumps: recorded from the real controller -------------------------------------------------

@@ -489,6 +489,13 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, so
 				buf.box(Vector3(lx, ly, -0.42), Vector3(lx + 1, ly + 1, -0.3), col, id, wk)
 				if ids[c + PAD] != water:
 					buf.box(Vector3(lx, ly + 0.86, -0.3), Vector3(lx + 1, ly + 1, 0.42), col.lightened(0.35), id, wk)
+			elif TileDefs.burn[id] != 0:
+				# Lava: a glowing sheet behind the actors, a brighter crust along the top.
+				buf.box(Vector3(lx, ly, -0.42), Vector3(lx + 1, ly + 1, -0.3), col, id, KIND_EMIT)
+				if TileDefs.burn[ids[c + PAD]] == 0:
+					buf.box(Vector3(lx, ly + 0.8, -0.3), Vector3(lx + 1, ly + 1, 0.42), col.lightened(0.3), id, KIND_EMIT)
+			elif emit[id] > 0 and TileDefs.shape[id] != "":
+				_glow(buf, lx, ly, TileDefs.shape[id], col, id, sol[c - PAD] == 0 and sol[c + PAD] != 0)
 			elif emit[id] > 0:
 				# A stick with a glowing head.
 				buf.box(Vector3(lx + 0.44, ly, -0.06), Vector3(lx + 0.56, ly + 0.5, 0.06), STICK.srgb_to_linear(), id, KIND_BLOCK)
@@ -515,6 +522,34 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, so
 				buf.box(Vector3(lx + 0.24, ly + 0.7, -0.32), Vector3(lx + 0.76, ly + 0.8, -0.24), col, id, KIND_BLOCK)
 			else:
 				buf.box(Vector3(lx + 0.4, ly, -0.1), Vector3(lx + 0.6, ly + 0.6, 0.1), col, id, KIND_BLOCK)
+
+## A light that grows in a cell (TileDefs.shape): cap, a pale stem under a glowing cap; crystal,
+## three glowing shards; moss, a glowing carpet. hung: it grows down from the cell's ceiling.
+static func _glow(buf: MeshBuf, lx: int, ly: int, kind: String, col: Color, id: int, hung: bool) -> void:
+	var y0 := float(ly)
+	var up := 1.0
+	if hung:
+		y0 = ly + 1.0
+		up = -1.0
+	var at := func(h0: float, h1: float) -> Array:
+		var a := y0 + up * h0
+		var b := y0 + up * h1
+		return [minf(a, b), maxf(a, b)]
+	match kind:
+		"cap":
+			var stem: Array = at.call(0.0, 0.45)
+			buf.box(Vector3(lx + 0.44, stem[0], -0.06), Vector3(lx + 0.56, stem[1], 0.06), Color("#d8d0e0").srgb_to_linear(), id, KIND_BLOCK)
+			var cap: Array = at.call(0.4, 0.62)
+			buf.box(Vector3(lx + 0.22, cap[0], -0.2), Vector3(lx + 0.78, cap[1], 0.2), col, id, KIND_EMIT)
+		"crystal":
+			for k in 3:
+				var cx := lx + 0.25 + k * 0.25
+				var tall := [0.55, 0.85, 0.45][k] as float
+				var sh: Array = at.call(0.0, tall)
+				buf.box(Vector3(cx - 0.07, sh[0], -0.08 + k * 0.05), Vector3(cx + 0.07, sh[1], 0.06 + k * 0.05), col, id, KIND_EMIT)
+		_:
+			var mat: Array = at.call(0.0, 0.12)
+			buf.box(Vector3(lx, mat[0], -0.4), Vector3(lx + 1, mat[1], 0.4), col, id, KIND_EMIT)
 
 ## One stair cell: a tread the full depth at the top of the cell, a riser down its low side,
 ## and a diagonal stringer at the back from this tread's low corner to the next one's.

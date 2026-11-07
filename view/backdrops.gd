@@ -122,7 +122,7 @@ func _read_world() -> void:
 	else:
 		_ground.fill(float(world.height) * 0.5)
 	_strip.clear()
-	for s: Variant in world.meta.get("biomes", []):
+	for s: Variant in BiomeIds.strip(world.meta):
 		if s is Dictionary:
 			_strip.append({"x0": int(s["x0"]), "x1": int(s["x1"]), "biome": String(s["biome"])})
 	_sites.clear()

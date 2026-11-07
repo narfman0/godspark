@@ -82,7 +82,7 @@ func biome_at(h: WorldHost, x: float, band: String) -> String:
 	var bb: Dictionary = cfg().get("band_biome", {})
 	if bb.has(band):
 		return String(bb[band])
-	for s: Variant in h.world.meta.get("biomes", []):
+	for s: Variant in BiomeIds.strip(h.world.meta):
 		if s is Dictionary and x >= float(s["x0"]) and x <= float(s["x1"]) + 1.0:
 			return String(s["biome"])
 	return "meadow"

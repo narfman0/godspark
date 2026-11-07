@@ -57,7 +57,7 @@ func run(t_: TestLog) -> void:
 	t.check(T >= 0 and N >= 0 and road >= 0 and cells.size() > 20, "two towns joined by a road (%d, %d, route %d, %d cells)" % [T, N, road, cells.size()])
 	if T < 0 or N < 0 or road < 0:
 		return
-	t.eq((w.meta["biomes"] as Array).size(), 5, "a world of five biomes")
+	t.eq(BiomeIds.strip(w.meta).size(), 5, "a world of five biomes")
 	t.eq(sim().route_by_id[road].get("crossings", []), ["ford"], "and the road between the towns fords a river")
 	_famine(T)
 	_join()

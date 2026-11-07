@@ -124,6 +124,7 @@ static func _entrances(c: GenContext, rng: RandomNumberGenerator) -> void:
 		if end_x < 20 or end_x > c.w - 20 or Barriers.reserved_in(c, mini(x, end_x), maxi(x, end_x)):
 			continue
 		_worm(c, rng, x, c.ground[x] + 2, ang, steps, rng.randf_range(2.2, 3.0), cb[0], -4, 0.12, false)
+		c.entrances.append(Vector2i(x, c.ground[x] + 1))
 		placed += 1
 
 static func _near_flat(c: GenContext, x: int, margin: int) -> bool:

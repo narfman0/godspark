@@ -136,7 +136,7 @@ func _ground(t: TestLog) -> void:
 	for d: Dictionary in defs:
 		by_name[d["name"]] = d
 	var seam := 24
-	for seg: Dictionary in w.meta["biomes"]:
+	for seg: Dictionary in BiomeIds.strip(w.meta):
 		var d: Dictionary = by_name[seg["biome"]]
 		var seen_top := {}
 		var soil := 0
@@ -165,7 +165,7 @@ func _seams(t: TestLog) -> void:
 	var by_name := {}
 	for d: Dictionary in defs:
 		by_name[d["name"]] = d
-	var strip: Array = w.meta["biomes"]
+	var strip: Array = BiomeIds.strip(w.meta)
 	var surf: Array = w.meta["surface"]
 	for i in range(1, strip.size()):
 		var sx := int(strip[i]["x0"])

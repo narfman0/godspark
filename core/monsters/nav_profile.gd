@@ -16,6 +16,9 @@ var walker := true
 var climb := false
 var fly := false
 var swim_speed := 5.0
+## Has a swim speed of its own (or no walk): plans through deep water. A walker without one
+## treats water over half its height as a wall.
+var swimmer := false
 ## Hardest tile it digs through (0: none).
 var dig := 0.0
 var run := 13.0

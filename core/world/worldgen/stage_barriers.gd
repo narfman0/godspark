@@ -385,8 +385,9 @@ static func _river(c: GenContext, rv: Dictionary) -> void:
 # --- what a road crosses --------------------------------------------------------------------
 
 ## What a walk between columns xa < xb crosses, west to east: {kind, id, x0, x1, cells} (feet
-## cells one column apart, walked instead of graded). kind: pass, bridge, ford, or shelf, the
-## level ground at an under-route's mouth, which only holds the road to its height.
+## cells one column apart, walked instead of graded). kind: pass, bridge, ford, sinkhole (the
+## deck over one, stage_deep.gd), or shelf, the level ground at an under-route's mouth, which only
+## holds the road to its height.
 static func crossings(c: GenContext, xa: int, xb: int) -> Array:
 	var out: Array = []
 	for rg: Dictionary in c.ranges:
@@ -398,6 +399,10 @@ static func crossings(c: GenContext, xa: int, xb: int) -> Array:
 	for rv: Dictionary in c.rivers:
 		if xa < int(rv["x0"]) - 2 and xb > int(rv["x1"]) + 2:
 			out.append({"kind": rv["kind"], "id": rv["id"], "x0": rv["x0"], "x1": rv["x1"], "cells": rv["crossing"]["cells"]})
+	for i in c.sinkholes.size():          # a sinkhole's deck (stage_deep.gd): walked as it lies, at no cost
+		var cells: Array = c.sinkholes[i]["cells"]
+		if xa < (cells[0] as Vector2i).x and xb > (cells[-1] as Vector2i).x:
+			out.append({"kind": "sinkhole", "id": i, "x0": (cells[0] as Vector2i).x, "x1": (cells[-1] as Vector2i).x, "cells": cells})
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["x0"]) < int(b["x0"]))
 	return out
 

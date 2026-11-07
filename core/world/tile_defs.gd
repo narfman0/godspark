@@ -16,6 +16,8 @@ static var stairs: PackedByteArray = []      ## one-way stair treads: 1 rises to
 static var opaque: PackedByteArray = []      ## blocks light
 static var emit: PackedByteArray = []        ## light given off, 0-15
 static var hardness: PackedFloat32Array = [] ## seconds to dig bare-handed; negative = unbreakable
+static var burn: PackedByteArray = []        ## lava: burns what touches it (data/combat.json lava), a wall to walkers' nav
+static var shape: PackedStringArray = []     ## how the mesher draws a light that stands in a cell: cap, crystal, moss ("" a post)
 static var colors: PackedColorArray = []
 static var wall_names: PackedStringArray = []
 static var wall_colors: PackedColorArray = []
@@ -41,6 +43,8 @@ static func ensure() -> void:
 	opaque.resize(n)
 	emit.resize(n)
 	hardness.resize(n)
+	burn.resize(n)
+	shape.resize(n)
 	colors.resize(n)
 	for row: Dictionary in tiles:
 		var i := int(row["id"])
@@ -53,6 +57,8 @@ static func ensure() -> void:
 		opaque[i] = 1 if row.get("opaque", false) else 0
 		emit[i] = int(row.get("emit", 0))
 		hardness[i] = float(row.get("hardness", 0.0))
+		burn[i] = 1 if row.get("burn", false) else 0
+		shape[i] = String(row.get("shape", ""))
 		colors[i] = Color(row.get("color", "#ff00ff"))
 		_ids[row["name"]] = i
 	var walls: Array = data["walls"]

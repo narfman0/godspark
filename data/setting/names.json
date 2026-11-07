@@ -9,7 +9,12 @@
   "hills": {"adj": ["Round", "Low", "Rolling"], "noun": ["Hills", "Barrows", "Knolls"]},
   "coast": {"adj": ["Gull", "Grey", "Salt"], "noun": ["Shore", "Strand", "Coast"]},
   "tundra": {"adj": ["White", "Still", "Pale"], "noun": ["Barrens", "Snows", "Wastes"]},
-  "jungle": {"adj": ["Green", "Steaming", "Vine"], "noun": ["Tangle", "Canopy", "Thicket"]}
+  "jungle": {"adj": ["Green", "Steaming", "Vine"], "noun": ["Tangle", "Canopy", "Thicket"]},
+  "underdark": {"adj": ["Lightless", "Endless", "Hollow", "Silent", "Deep", "Old", "Echoing", "Black", "Starless", "Forgotten", "Sunless", "Long"], "noun": ["Halls", "Vaults", "Galleries", "Reaches", "Hollows", "Depths", "Warrens", "Dark"]},
+  "fungal": {"adj": ["Glowing", "Spore", "Puffball", "Mould", "Pale", "Bloom", "Soft", "Damp", "Lantern", "Cap", "Rotting", "Velvet"], "noun": ["Groves", "Caps", "Gardens", "Thickets", "Meadows", "Forest", "Blooms", "Stalks"]},
+  "crystal": {"adj": ["Shining", "Prism", "Glass", "Singing", "Shard", "Cold", "Bright", "Faceted", "Quartz", "Geode", "Splintered", "Clear"], "noun": ["Caverns", "Vaults", "Spires", "Grottoes", "Teeth", "Chambers", "Fields", "Lights"]},
+  "deep_lake": {"adj": ["Still", "Black", "Sunless", "Cold", "Silver", "Lightless", "Mirror", "Drowned", "Deep", "Quiet", "Grey", "Weeping"], "noun": ["Sea", "Mere", "Water", "Lake", "Deeps", "Shallows", "Pool", "Tarn"]},
+  "magma": {"adj": ["Burning", "Molten", "Cinder", "Ember", "Smoking", "Red", "Ash", "Searing", "Brimstone", "Glowing", "Scorched", "Slag"], "noun": ["Rivers", "Furnace", "Forge", "Pits", "Flows", "Tubes", "Hearth", "Wastes"]}
  },
  "range": {"adj": ["Anvil", "Cloven", "Widow's", "Ember", "Giant's", "Old King's", "Storm", "Whetstone", "Sawtooth", "Thunder", "Raven", "Wolf"], "noun": ["Teeth", "Horns", "Wall", "Crown", "Ridge", "Stair", "Peaks", "Range"]},
  "river": {"stem": ["Ald", "Bren", "Cald", "Dor", "Elm", "Fenn", "Harr", "Lor", "Marl", "Nar", "Oss", "Ren", "Sel", "Tam", "Ulm", "Wend", "Yar", "Thorn"], "end": ["ow", "ey", "wyn", "ash", "ind", "ure", "esk", "ath", "en", "brook", "water"]},

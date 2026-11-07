@@ -42,7 +42,7 @@ func _biomes(t: TestLog) -> void:
 	ms.director_enabled = 0
 	ms.lairs_enabled = false
 	h.add_system(ms)
-	for s: Dictionary in w.meta["biomes"]:
+	for s: Dictionary in BiomeIds.strip(w.meta):
 		var x := (float(s["x0"]) + float(s["x1"])) * 0.5
 		t.eq(ms.director.biome_at(h, x, "surface"), s["biome"], "the director reads the ground at %d" % int(x))
 		var pack: Array = ms.director.build_pack(h, "surface", s["biome"], {"cr": [0, 3], "pack_cr": 4.0}, 4.0)

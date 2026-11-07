@@ -21,7 +21,7 @@ func _walks(t: TestLog, world: TileWorld, sd: int) -> void:
 	var label := "dev seed %d" % sd
 	t.check(r["ok"], "%s: the walker reached the hot end (%s)" % [label, r["why"]])
 	t.eq(CrossingBot.faults(world, r), [], "%s: a whole crossing" % label)
-	var strip: Array = world.meta["biomes"]
+	var strip: Array = BiomeIds.strip(world.meta)
 	var got: Array = (r["entered"] as Array).map(func(e: Dictionary) -> String: return String(e["biome"]))
 	var want: Array = strip.map(func(s: Dictionary) -> String: return String(s["biome"]))
 	t.eq(got, want, "%s: every biome entered in the strip's order" % label)
@@ -66,7 +66,7 @@ func _a_blocked_pass_stops_it(t: TestLog) -> void:
 func _faults_are_seen(t: TestLog) -> void:
 	var world := WorldGen.generate(2048, 1024, 1, {"stop_after": "names"})
 	var good := {"ok": true, "why": "", "digs": 0, "tiles_changed": false, "below": 0.0, "crossed": [], "entered": []}
-	for s: Dictionary in world.meta["biomes"]:
+	for s: Dictionary in BiomeIds.strip(world.meta):
 		good["entered"].append({"biome": s["biome"]})
 	for span: Dictionary in CrossingBot.spans(world):
 		good["crossed"].append({"kind": span["kind"], "name": span["name"], "off": 0.0})

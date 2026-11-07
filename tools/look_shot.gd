@@ -24,7 +24,7 @@ func _initialize() -> void:
 	var world := _world(o) if not o.has("sheet") else _sheet_world()
 	if o.has("list"):
 		for s: Dictionary in world.meta.get("biomes", []):
-			print("BIOME %s %d-%d temp %.2f" % [s["biome"], s["x0"], s["x1"], s.get("temp", 0.0)])
+			print("BIOME %s %d-%d temp %.2f %s" % [s["biome"], s["x0"], s["x1"], s.get("temp", 0.0), s.get("band", "")])
 		quit()
 		return
 	var x := _x(world, o)
@@ -172,10 +172,10 @@ static func _x(world: TileWorld, o: Dictionary) -> int:
 	if o.has("spawn"):
 		return floori((load("res://game/main.gd").spawn_for(world, Vector2.ZERO) as Vector2).x)
 	if o.has("seam"):
-		var b: Array = world.meta.get("biomes", [])
+		var b: Array = BiomeIds.strip(world.meta)
 		return int(b[int(o["seam"])]["x0"])
 	var want := String(o.get("biome", ""))
-	for s: Dictionary in world.meta.get("biomes", []):
+	for s: Dictionary in BiomeIds.strip(world.meta):
 		if String(s["biome"]) == want:
 			return int(lerpf(float(s["x0"]), float(s["x1"]), float(o.get("at", 0.5))))
 	return world.width / 2
@@ -188,7 +188,7 @@ static func _open(world: TileWorld, x: int) -> bool:
 	return true
 
 static func _biome(world: TileWorld, x: int) -> String:
-	for s: Dictionary in world.meta.get("biomes", []):
+	for s: Dictionary in BiomeIds.strip(world.meta):
 		if x >= int(s["x0"]) and x <= int(s["x1"]):
 			return String(s["biome"])
 	return "?"

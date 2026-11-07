@@ -32,6 +32,7 @@ extends RefCounted
 
 const GenContext := preload("gen_context.gd")
 const Barriers := preload("stage_barriers.gd")
+const Deep := preload("stage_deep.gd")
 
 const JUMP_UP := 4
 const JUMP_ACROSS := 4
@@ -169,7 +170,8 @@ const REACH_ROUNDS := 3
 static var reach_stats := {}
 
 ## What must be reachable: [label, feet cell] for every site and both ends of every route's
-## path. The first surface settlement (the spawn) comes first.
+## path, and the underground's crossings, sinkholes and nadir floor (stage_deep.gd). The first
+## surface settlement (the spawn) comes first.
 static func targets(c: GenContext) -> Array:
 	var out: Array = []
 	var spawn := -1
@@ -186,6 +188,7 @@ static func targets(c: GenContext) -> Array:
 		if path.size() >= 2:
 			out.append(["route %d a" % r["id"], Vector2i(int(path[0][0]), int(path[0][1]))])
 			out.append(["route %d b" % r["id"], Vector2i(int(path[-1][0]), int(path[-1][1]))])
+	out.append_array(Deep.targets(c))
 	return out
 
 ## Deep routes flagged rough: walk them again one tile up or down per column; a clean walk
@@ -632,6 +635,9 @@ class Passer extends RefCounted:
 			if marks > 0:
 				mine.sort()
 			cand[x] = mine
+		var burn := TileDefs.burn
+		var liq := c.liquid
+		var wet := not liq.is_empty()
 		for x in w - 1:
 			var ca: PackedInt32Array = cand[x]
 			var cb: PackedInt32Array = cand[x + 1]
@@ -660,6 +666,8 @@ class Passer extends RefCounted:
 				var b := fg[x + 1 + (y - 1) * w]
 				if solid[a] != 0 or solid[b] != 0 or oneway[a] != 0 or oneway[b] != 0 \
 						or (climb[a] != 0 and climb[fg[x + y * w]] == 0) or (climb[b] != 0 and climb[fg[x + 1 + y * w]] == 0):
+					if _harmed(fg, burn, liq, wet, x, y):
+						continue
 					sid[x + y * w] = spx.size()
 					spx.append(x)
 					spy.append(y)
@@ -669,6 +677,17 @@ class Passer extends RefCounted:
 		net.resize(spx.size())
 		stats["spots"] = spx.size()
 		stats["spots_ms"] = (Time.get_ticks_usec() - t0) / 1000
+
+	## Lava in the box (a walker's nav treats it as a wall) or water a body would swim in (no
+	## walker plans a swim): not a standing spot, so no join believes in one there.
+	func _harmed(fg: PackedByteArray, burn: PackedByteArray, liq: PackedByteArray, wet: bool, x: int, y: int) -> bool:
+		for dy in 3:
+			var i := x + (y + dy) * w
+			if burn[fg[i]] != 0 or burn[fg[i + 1]] != 0:
+				return true
+			if wet and (liq[i] >= 8 or liq[i + 1] >= 8):
+				return true
+		return false
 
 	# --- 2. two-way moves ----------------------------------------------------------------------
 

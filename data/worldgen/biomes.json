@@ -9,6 +9,38 @@
 		"seam": {"share": 0.014, "tiles": [10, 72]},
 		"ramp": {"share": 0.035, "tiles": [20, 150]}
 	},
+	"underground": {
+		"_doc": "Regions of the underground biomes in the deeps and the nadir (core/world/worldgen/stage_deep.gd). A world narrower than min_world has none. bands: per band, the regions laid along it; each kind gets one region per `every` tiles of width (at least one), its width drawn from share (a fraction of the world's width) and clamped to tiles; the plain underdark fills the gaps (at least gap tiles each, margin kept at both ends of the world). seam = columns over which two neighbours' rock interleaves. regions: per biome its rock (replaces slate and stone in the band), floor (the top of rock under open air), wall (behind), glow (a light tile on floors, `every` columns on average; hang: also from ceilings), map_color (tools/worldmap.gd and the world map), and its own cave shape: round (domes: per `per` cells of region, radius r), angular (cellular chambers: freq, cut = the share of cells opened, rim = rock kept between them), lake (lake: the basin), tube (lava tubes in the low nadir with pools: pool width, bridge_over = pools this wide get a lava bridge, every = columns between pools).",
+		"min_world": 2048,
+		"margin": 64,
+		"gap": 96,
+		"seam": 28,
+		"bands": {
+			"deeps": [
+				{"biome": "fungal", "every": 4096, "share": [0.07, 0.10], "tiles": [180, 900]},
+				{"biome": "crystal", "every": 5000, "share": [0.05, 0.08], "tiles": [160, 700]},
+				{"biome": "deep_lake", "every": 8192, "share": [0.06, 0.08], "tiles": [220, 640]}
+			],
+			"nadir": [
+				{"biome": "magma", "every": 4096, "share": [0.12, 0.17], "tiles": [260, 1400]}
+			]
+		},
+		"regions": {
+			"underdark": {"rock": "slate", "floor": "slate", "wall": "slate_wall", "map_color": "#55556a"},
+			"fungal": {"rock": "spore_stone", "floor": "mycelium", "wall": "spore_wall", "map_color": "#a070d8",
+				"glow": {"tile": "glow_cap", "every": 6},
+				"shape": {"kind": "round", "per": 9000, "r": [9, 22]}},
+			"crystal": {"rock": "crystal_stone", "floor": "geode_floor", "wall": "crystal_wall", "map_color": "#8fd0ff",
+				"glow": {"tile": "crystal_cluster", "every": 9, "hang": true},
+				"shape": {"kind": "angular", "freq": 0.03, "cut": 0.42, "rim": 0.18},
+				"ores": {"times": 3.0, "tiles": ["copper_ore", "iron_ore", "silver_ore"]}},
+			"deep_lake": {"rock": "lake_stone", "floor": "shore_sand", "wall": "lake_wall", "map_color": "#3f7fd0",
+				"glow": {"tile": "lumen_moss", "every": 5},
+				"shape": {"kind": "lake", "bed": "silt", "depth": [10, 26], "air": [12, 22], "beach": [8, 14], "islands_per": 140, "island_w": [12, 26]}},
+			"magma": {"rock": "basalt", "floor": "ash", "wall": "basalt_wall", "map_color": "#e0602a",
+				"shape": {"kind": "tube", "h": [7, 26], "pool": [3, 16], "deep": 3, "bridge_over": 5, "every": [40, 90], "rim": "obsidian"}}
+		}
+	},
 	"biomes": [
 		{"name": "meadow", "share": [0.17, 0.27], "top": "grass", "road": "green_lane", "soil": "dirt", "soil_wall": "dirt_wall", "stone": "stone", "stone_wall": "stone_wall", "soil_depth": [6, 14], "map_color": "#8cc152",
 			"height": {"base": 0.0, "big": 0.45, "mid": 0.7, "fine": 0.8, "ridge": 0.0, "dune": 0.0, "step": 1}},

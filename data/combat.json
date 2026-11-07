@@ -57,6 +57,7 @@
 		"prone_stand_s": 1.0
 	},
 	"fall": {"_comment": "net drop from the last footing; dice = floor(ft / ft_per_die) once over free_ft; the roll times damage_mult, rounded down", "free_ft": 20.0, "ft_per_die": 10.0, "max_dice": 20, "damage_mult": 0.5},
+	"lava": {"_comment": "a body touching a lava tile (TileDefs.burn) takes dice d sides of this damage type at once, then every every_s seconds while it stays (2: a round, K.ROUND_SECONDS)", "dice": 2, "sides": 6, "type": "fire", "every_s": 2.0},
 	"death": {"monster_linger_s": 1.5, "player_respawn_s": 3.0},
 	"in_combat_s": 5.0,
 	"push_tiles_per_5ft": 2.0,

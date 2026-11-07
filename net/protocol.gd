@@ -56,7 +56,7 @@ class_name Protocol
 extends RefCounted
 
 const MAGIC := 0x4B505347    # "GSPK"
-const VERSION := 12  # 9: biome tiles 21-33, 112-116 and walls 10-17; 10: river tiles 117-119; 11: the dodge roll and richer SWING and STATUS (an older peer cannot read them); 12: ENT_ADD says what a body holds
+const VERSION := 13  # 9: biome tiles 21-33, 112-116 and walls 10-17; 10: river tiles 117-119; 11: the dodge roll and richer SWING and STATUS (an older peer cannot read them); 12: ENT_ADD says what a body holds; 13: the underground's tiles 34-46, 120-121 and walls 18-21, liquid in the deep lake
 ## ENT_ADD rank byte: index into this list.
 const RANKS := ["standard", "minion", "elite", "champion", "boss"]
 const MAX_STR := 64
