@@ -146,7 +146,7 @@ static func _make(sim: WorldSim, world_seed: int, sid: int, day: int, kind: Stri
 			if target.is_empty():
 				return {}
 		"message":
-			var cand: Array = Deals.neighbours(sim, sid)
+			var cand: Array = Deals.message_towns(sim, sid)
 			if cand.is_empty():
 				return {}
 			var to: int = Deals.pick(cand, key)

@@ -138,18 +138,6 @@ static func sites(c: GenContext, rng: RandomNumberGenerator) -> void:
 			if _headroom(c, x, int(r["y"]), 3):
 				_add(c, "ruin", x, int(r["y"]), int(r["w"]))
 				break
-	# The deep lake's lair (M6): on its middle island, else its west beach, so the sim's lair there
-	# stands in the deep_lake region and a creature of the water (the aboleth) has its water near.
-	# Off until M6 integration (opts lake_lair): a new site moves the sim on every world.
-	if not c.lake.is_empty() and bool(c.opts.get("lake_lair", false)):
-		var lk: Dictionary = c.lake
-		var at := Vector2i(int(lk["x0"]) + 6, int(lk["water"]) + 5)
-		var isl: Array = lk.get("islands", [])
-		if not isl.is_empty():
-			var mid: Dictionary = isl[isl.size() / 2]
-			at = Vector2i(int(mid["x"]), int(mid["top"]) + 1)
-		if _headroom(c, at.x, at.y, 4):
-			lk["lair"] = _add(c, "lair", at.x, at.y, 8)["id"]
 	# Cave lairs: open pockets with a floor, spread apart.
 	var cb: Array = c.bands["caves"]
 	var want := maxi(2, int(5 * c.sx()))
@@ -175,6 +163,20 @@ static func sites(c: GenContext, rng: RandomNumberGenerator) -> void:
 		if ok:
 			lairs.append(Vector2i(x, y))
 			_add(c, "lair", x, y, 8)
+	# The deep lake's lair (M6): on its middle island, else its west beach, so the sim's lair there
+	# stands in the deep_lake region and a creature of the water (the aboleth) has its water near.
+	# Last of the sites, and marked: no other site's id moves, and the sim draws it on its own generator.
+	if not c.lake.is_empty() and bool(c.opts.get("lake_lair", true)):
+		var lk: Dictionary = c.lake
+		var at := Vector2i(int(lk["x0"]) + 6, int(lk["water"]) + 5)
+		var isl: Array = lk.get("islands", [])
+		if not isl.is_empty():
+			var mid: Dictionary = isl[isl.size() / 2]
+			at = Vector2i(int(mid["x"]), int(mid["top"]) + 1)
+		if _headroom(c, at.x, at.y, 4):
+			var site := _add(c, "lair", at.x, at.y, 8)
+			site["lake"] = true
+			lk["lair"] = site["id"]
 
 static func _flat_gap(c: GenContext, x: int) -> int:
 	var gap := 1 << 30

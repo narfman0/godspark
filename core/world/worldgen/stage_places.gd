@@ -13,6 +13,7 @@ extends RefCounted
 
 const GenContext := preload("gen_context.gd")
 const Barriers := preload("stage_barriers.gd")
+const Deep := preload("stage_deep.gd")
 
 const MAX_CUT := 12
 const HALF_MAX := 150
@@ -25,7 +26,7 @@ static func run(c: GenContext, _rng: RandomNumberGenerator) -> void:
 	PlaceStyles.ensure()
 	Dressing.ensure()
 	c.places = {}
-	var sim := WorldSim.from_meta({"sites": c.sites, "routes": c.routes, "surface": c.surface, "barriers": Barriers.meta(c)}, c.world_seed)
+	var sim := WorldSim.from_meta({"sites": c.sites, "routes": c.routes, "surface": c.surface, "barriers": Barriers.meta(c), "ways": Deep.ways(c)}, c.world_seed)
 	for s: Dictionary in c.sites:
 		if s["kind"] != "settlement":
 			continue

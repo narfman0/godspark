@@ -120,6 +120,16 @@ static func neighbours(sim: WorldSim, sid: int) -> Array:
 	out.sort()
 	return out
 
+## The towns a message goes to: by road, or down a link only for a town with no road (a surface
+## keeper does not send word to the drow by a sinkhole's rope).
+static func message_towns(sim: WorldSim, sid: int) -> Array:
+	var out: Array = []
+	for nr: Array in sim.adj.get(sid, []):
+		if int(sim.route_by_id[int(nr[1])].cls) != WorldSim.LINK and not int(nr[0]) in out:
+			out.append(int(nr[0]))
+	out.sort()
+	return out if not out.is_empty() else neighbours(sim, sid)
+
 ## Route ids touching a site.
 static func routes_of(sim: WorldSim, sid: int) -> Array:
 	var out: Array = []

@@ -268,6 +268,6 @@ func to_world() -> TileWorld:
 		"places": places.duplicate(true),
 		"barriers": _Barriers.meta(self),
 		"descent": _Deep.meta(self),
-		"ways": _Deep.ways(self) if bool(opts.get("ways", false)) else [],     # off until M6 integration: see docs/tracks/deep.md
+		"ways": _Deep.ways(self),
 	}
 	return world

@@ -309,6 +309,22 @@ func _kits(t: TestLog) -> void:
 
 ## A generated world's drow city and duergar hold: people at their posts on the real place, lit,
 ## a shop with the people's goods, a smith, work, and lines of their own.
+## The sim worldgen builds places for is the sim the host runs, ways and all: a link in one and not
+## the other moves its generator, and towns come out built for the wrong people.
+func _places_match(t: TestLog) -> void:
+	for sd: int in [4, 27]:
+		var w := WorldGen.generate_named("dev", sd)
+		var sim := WorldSim.from_meta(w.meta, w.world_seed)
+		var checked := 0
+		for sid: int in WorldSim._sorted_keys(sim.settlements):
+			var s: SimSettlement = sim.settlements[sid]
+			var place := Places.place(w, sid)
+			if place.is_empty():
+				continue
+			checked += 1
+			t.eq(String(place.get("style", "")), PlaceStyles.style_for(s.culture, s.band), "dev %d: %s (%s) is built by its own people" % [sd, s.name, s.culture])
+		t.check(checked > 2 and not (w.meta["ways"] as Array).is_empty(), "dev %d has places and ways (%d)" % [sd, checked])
+
 func _town(t: TestLog) -> void:
 	# dev 27 (was 4: with the underground regions of M6 track deep, dev 4's second deep town
 	# stands in a fungal region and its people are kobolds)

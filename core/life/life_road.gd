@@ -151,7 +151,14 @@ func scan(h: WorldHost, players: Array) -> void:
 	for pl: HostEntity in players:
 		x0 = minf(x0, pl.body.pos.x - keep)
 		x1 = maxf(x1, pl.body.pos.x + keep)
-	for p: SimParty in sim.entities_near(x0, x1)["parties"]:
+	var here: Array = sim.entities_near(x0, x1)["parties"]
+	# a link from meta.ways leaves the line between its sites (a sinkhole may lie outside them, where
+	# party_x, a share of that line, never looks): its parties are found by their real place
+	for pid: int in sim.parties:
+		var p: SimParty = sim.parties[pid]
+		if (sim.route_by_id.get(p.route, {}) as Dictionary).has("top") and not p in here:
+			here.append(p)
+	for p: SimParty in here:
 		var pos := party_pos(h, p)
 		if pos == Vector2.INF:
 			continue

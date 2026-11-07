@@ -57,6 +57,13 @@ func run(t_: TestLog) -> void:
 	t.check(T >= 0 and N >= 0 and road >= 0 and cells.size() > 20, "two towns joined by a road (%d, %d, route %d, %d cells)" % [T, N, road, cells.size()])
 	if T < 0 or N < 0 or road < 0:
 		return
+	# the keeper's word goes to a neighbour picked by the day: a day whose word goes to N, by the
+	# road the test walks (the town's links moved the pick when the sinkholes became ways)
+	for i in 14:
+		var word := DealsQuests._make(rig.host.sim, w.world_seed, T, Deals.day(rig.host.sim), "message")
+		if int(word.get("target", {}).get("site", -1)) == N:
+			break
+		_age(1)
 	t.eq(BiomeIds.strip(w.meta).size(), 5, "a world of five biomes")
 	t.eq(sim().route_by_id[road].get("crossings", []), ["ford"], "and the road between the towns fords a river")
 	_famine(T)

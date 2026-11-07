@@ -30,13 +30,9 @@ func run(t: TestLog) -> void:
 	t.check(not seen.is_empty(), "the lake's water has packs (%s)" % [seen.keys()])
 	for s: String in seen:
 		t.eq(String(Ecology.row(s).get("medium", "")), "water", "%s lives in water" % s)
-	t.eq(int(lk.get("lair", -1)), -1, "no lake lair site, nor meta.ways, until M6 integration turns them on")
-	t.eq(w.meta.get("ways", []), [], "nor meta.ways")
-	# with them on (opts lake_lair, ways): the lake's lair site in the deep lake's region, its water
+	# on by default since M6 integration: the lake's lair site in the deep lake's region, its water
 	# near enough for a creature of the water (the aboleth) to come out in it (LairLink.water_near:
 	# 60 x 30 tiles), and a way per sinkhole with its rope as its path
-	w = WorldGen.generate_named("dev", 2, {"lake_lair": true, "ways": true})
-	host = WorldHost.new(w)
 	lk = w.meta["descent"]["lake"]
 	var lair := int(lk.get("lair", -1))
 	t.check(lair >= 0, "the lake has a lair site")
@@ -51,6 +47,15 @@ func run(t: TestLog) -> void:
 	for wy: Dictionary in ways:
 		var path: Array = wy.get("path", [])
 		t.check(path.size() > 20 and path[0] == wy["top"] and path[-1] == wy["bottom"], "%s's path runs from its top to its bottom (%d cells)" % [wy["kind"], path.size()])
+	# the sim's lair there favours a lake-only row, and its creature really has water
+	var abo := 0
+	for sd in 8:
+		var row := {"biome": "deep_lake", "band": "deeps"}
+		var r := RandomNumberGenerator.new()
+		r.seed = sd * 31 + 5
+		if WorldSim._pick_lair(SimData.lairs["deeps"], row, r)["id"] == "aboleth":
+			abo += 1
+	t.check(abo >= 5, "the aboleth is the lake's usual lair (%d of 8 draws)" % abo)
 	var linked := 0
 	for r: Dictionary in host.sim.routes:
 		if String(r.get("way", "")) == "sinkhole":

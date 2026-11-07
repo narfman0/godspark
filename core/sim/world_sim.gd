@@ -158,6 +158,8 @@ func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float, ba
 	for s in in_sites:
 		sites.append({"id": int(s.id), "kind": str(s.kind), "x": float(s.x), "y": float(s.y),
 			"biome": str(s.get("biome", "")), "band": str(s.get("band", "surface")), "size": float(s.get("size", 1))})
+		if bool(s.get("lake", false)):
+			sites[-1]["lake"] = true
 	sites.sort_custom(func(p, q): return p.x < q.x or (p.x == q.x and p.id < q.id))
 	var x0 := INF
 	var x1 := -INF
@@ -169,17 +171,30 @@ func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float, ba
 		routes.append({"id": int(r.id), "a": int(r.a), "b": int(r.b), "kind": str(r.kind),
 			"length": float(r.get("length", 0.0)), "name": "", "cls": 0})
 	_index_sites()
-	_add_ways(ways)
 	var barrier_rows := _barrier_rows(barriers)
 	_add_trails(barrier_rows)
+	_add_ways(ways)
 	for r in routes:
 		var a: Dictionary = site_by_id[r.a]
 		var b: Dictionary = site_by_id[r.b]
 		r["crossings"] = _crossed(barrier_rows, a, b)
 	_index_routes()
+	# Ways are named last, on a generator of their own, as the lake's lair is drawn on its own: a
+	# world's peoples and towns are the same draws with or without them (the sim's generator is
+	# what worldgen's places stage and every seed-bound fact rest on).
 	for r in routes:
-		r.name = SimNames.make(rng, "place", taken_names)
+		if not _own_name(r):
+			r.name = SimNames.make(rng, "place", taken_names)
 	_seed_world()
+	var own := RandomNumberGenerator.new()
+	own.seed = hash([world_seed, "ways"])
+	for r in routes:
+		if _own_name(r):
+			r.name = SimNames.make(own, "place", taken_names)
+
+## A way's link, or the lake lair's trail: named on the ways' own generator.
+func _own_name(r: Dictionary) -> bool:
+	return r.has("way") or bool(site_by_id[r.a].get("lake", false)) or bool(site_by_id[r.b].get("lake", false))
 
 ## Ways between the surface and the deeps that worldgen knows of besides its own ascent route
 ## (meta.ways: [{kind, top: [x, y], bottom: [x, y], path?: [[x, y]] top to bottom}], a cave mouth,
@@ -266,13 +281,17 @@ func _add_trails(barrier_rows := []) -> void:
 	var next_id := 0
 	for r in routes:
 		next_id = maxi(next_id, r.id + 1)
-	for s in sites:
+	# the lake's lair last, and nobody's nearest: the other sites' trails are what they were without it
+	var order: Array = sites.filter(func(q: Dictionary) -> bool: return not q.has("lake"))
+	var others := order.duplicate()
+	order += sites.filter(func(q: Dictionary) -> bool: return q.has("lake"))
+	for s in order:
 		if linked.has(s.id):
 			continue
 		var fam := SimData.band_family(s.band)
 		var best: Dictionary = {}
 		var best_d := INF
-		for o in sites:
+		for o in others:
 			if o.id == s.id or SimData.band_family(o.band) != fam:
 				continue
 			var d := absf(o.x - s.x) + crossing_length(_crossed(barrier_rows, s, o))
@@ -280,7 +299,7 @@ func _add_trails(barrier_rows := []) -> void:
 				best = o
 				best_d = d
 		if best.is_empty():
-			for o in sites:
+			for o in others:
 				if o.id != s.id and (best.is_empty() or absf(o.x - s.x) < absf(best.x - s.x)):
 					best = o
 		if best.is_empty():
@@ -518,23 +537,25 @@ func _derive_settlement(s: SimSettlement) -> void:
 func _spawn_lair(site_id: int, fam: String, log_it: bool) -> SimLair:
 	var table: Array = SimData.lairs.get(fam, SimData.lairs["surface"])
 	var site: Dictionary = site_by_id[site_id]
+	var own := RandomNumberGenerator.new()
+	own.seed = hash([seed, "lair", site_id, t])
+	# The lake's own lair site (stage sites) leaves the sim's generator alone altogether.
+	var gen := own if bool(site.get("lake", false)) else rng
 	# The draw as it has always been, on the sim's generator: a row by weight, then its members.
 	var total := 0.0
 	for e in table:
 		total += float(e.w)
-	var roll := rng.randf() * total
+	var roll := gen.randf() * total
 	var def: Dictionary = table[table.size() - 1]
 	for e in table:
 		roll -= float(e.w)
 		if roll <= 0.0:
 			def = e
 			break
-	var members := _lair_members(def, rng)
+	var members := _lair_members(def, gen)
 	# Where that row may not stand (its biomes or bands), or the ground favours some row (biome_w),
 	# the lair is drawn again by those rules on its own generator, never the sim's: a world with
 	# none of this draws its lairs, and everything after them, as before.
-	var own := RandomNumberGenerator.new()
-	own.seed = hash([seed, "lair", site_id, t])
 	if lair_weight(def, site) <= 0.0 or _favoured(table, site):
 		def = _pick_lair(table, site, own)
 		members = _lair_members(def, own)
@@ -553,8 +574,10 @@ func _spawn_lair(site_id: int, fam: String, log_it: bool) -> SimLair:
 	l.hunger_rate = float(def.hunger)
 	l.monsters = members
 	var words: Array = def.words
-	l.name = SimNames.make(rng, "place", taken_names) + " " + str(words[rng.randi_range(0, words.size() - 1)])
-	l.hunger = rng.randf_range(0.1, 0.5)
+	# (the lake's lair takes no name from the others: a clash would redraw on the sim's generator)
+	var names: Dictionary = taken_names.duplicate() if gen == own else taken_names
+	l.name = SimNames.make(gen, "place", names) + " " + str(words[gen.randi_range(0, words.size() - 1)])
+	l.hunger = gen.randf_range(0.1, 0.5)
 	l.x = site_by_id[site_id].x
 	l.biome = str(site_by_id[site_id].get("biome", ""))
 	lairs[site_id] = l
@@ -1104,6 +1127,8 @@ static func from_dict(d: Dictionary) -> WorldSim:
 	for s in d.sites:
 		sim.sites.append({"id": int(s.id), "kind": str(s.kind), "x": float(s.x), "y": float(s.y),
 			"biome": str(s.biome), "band": str(s.band), "size": float(s.size)})
+		if s.has("lake"):
+			sim.sites[-1]["lake"] = true
 	for r in d.routes:
 		var rr := {"id": int(r.id), "a": int(r.a), "b": int(r.b), "kind": str(r.kind),
 			"length": float(r.length), "name": str(r.name), "cls": int(r.cls)}
@@ -1115,7 +1140,7 @@ static func from_dict(d: Dictionary) -> WorldSim:
 			if r.has(k):
 				rr[k] = [float(r[k][0]), float(r[k][1])]
 		if r.has("path"):
-			rr["path"] = (r.path as Array).duplicate(true)
+			rr["path"] = (r.path as Array).map(func(q: Array) -> Array: return [int(q[0]), int(q[1])])
 		rr["crossings"] = Array(r.get("crossings", []))
 		sim.routes.append(rr)
 	sim.world_x0 = float(d.world_x0)

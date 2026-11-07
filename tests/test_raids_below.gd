@@ -347,8 +347,30 @@ func _on_screen(t: TestLog) -> void:
 	if pid <= 0:
 		return
 	var p: SimParty = sim.parties[pid]
+	# the way the raid took, and a stretch of it with ground to stand on: a sinkhole's link has real
+	# cells on its rope and at its ends, and its people are drawn only there
+	way = SimBelow.way_of(p)
+	mouth = life.below.mouth(host, way)
+	var ms := life.monsters(host)
+	for k in 40:
+		p.frac = (k + 0.5) / 40.0
+		var q := life.road.party_pos(host, p)
+		if q.distance_to(mouth) > 6.0 and q.distance_to(mouth) < 60.0 and ms.director._stand_near(host, q, "") != Vector2.INF:
+			break
 	var at := life.road.party_pos(host, p)
 	t.check(at != Vector2.INF, "it has a place on the way (%s)" % at)
+	t.check(ms.director._stand_near(host, at, "") != Vector2.INF, "with ground to stand on")
+	var by := sim.route_by_id[way] as Dictionary
+	if by.has("path"):
+		var walk := life.below.way_cells(host, way)
+		var rope := 0
+		for q: Array in by["path"]:
+			if Vector2i(int(q[0]), int(q[1])) in walk:
+				rope += 1
+		t.eq(rope, (by["path"] as Array).size(), "way_cells walks every cell of the sinkhole's rope (%s)" % SimBelow.way_kind(sim, way))
+		var lo := minf(float(sim.site_by_id[int(by.a)].x), float(sim.site_by_id[int(by.b)].x))
+		var hi := maxf(float(sim.site_by_id[int(by.a)].x), float(sim.site_by_id[int(by.b)].x))
+		print("  the way's rope at x=%.0f, its sites %.0f to %.0f" % [float(by["top"][0]), lo, hi])
 	var a := PB.player(host, "watcher", at + Vector2(-20, 0))
 	var b := PB.player(host, "second", at + Vector2(22, 0))
 	for i in 60:
@@ -496,7 +518,7 @@ func _two_players(t: TestLog) -> void:
 		for i in range(chron, sim.chronicle.size()):
 			if String(sim.chronicle[i].kind) == "ambush" and bool(sim.chronicle[i].get("below", false)):
 				return true
-		return false, 150.0)
+		return false, 260.0)      # goblins and gnomes on dev 4 take about 160 s of blows
 	var line := ""
 	for i in range(chron, sim.chronicle.size()):
 		if String(sim.chronicle[i].kind) == "ambush":

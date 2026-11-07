@@ -912,10 +912,11 @@ static func targets(c: GenContext) -> Array:
 
 ## meta.ways (the sim's ways between the surface and the deeps besides the ascent, WorldSim._add_ways):
 ## each sinkhole, {kind, top: [x, y], bottom: [x, y], path: [[x, y]]}, the path the feet cells down its
-## rope from the deck to the chamber floor. Written only with opts {"ways": true} until M6's
-## integration: a link route per sinkhole moves the sim on every world (docs/tracks/deep.md).
+## rope from the deck to the chamber floor (opts {"ways": false} writes none).
 static func ways(c: GenContext) -> Array:
 	var out: Array = []
+	if not bool(c.opts.get("ways", true)):
+		return out
 	for s: Dictionary in c.sinkholes:
 		var x := int(s["rope"]) - 1
 		var path: Array = []

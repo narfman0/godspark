@@ -893,7 +893,10 @@ func cheat_party(kind: String, from_site: int, to_site: int, frac := 0.9, n := 6
 		p.cargo = {"food": 100}
 		p.plan = {"good": "food", "paid": 1.0, "dest_name": sim.settlements[to_site].name, "escort": float(n), "leg": "out"}
 		s.out_caravans += 1
-	if not sim.send(p, to_site, WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK):
+	# the road between them when there is one, else by the ways its people use, else any way
+	var direct := sim.route_id(from_site, to_site)
+	var mask := int(sim.route_by_id[direct].cls) if direct >= 0 else sim.mask_for(c.raid_mobility if kind == "raid" else c.mobility)
+	if not sim.send(p, to_site, mask) and not sim.send(p, to_site, WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK):
 		sim.remove_party(p)
 		return -1
 	p.leg = maxi(0, p.path.size() - 2)

@@ -251,7 +251,7 @@ func _real_roads(t: TestLog) -> void:
 	var sim := WorldSim.from_meta(w.meta, 2)
 	var saw_pass := false
 	for r in sim.routes:
-		if r.has("trail"):
+		if r.has("trail") or r.has("way"):     # ways from meta.ways are the sim's, not worldgen's routes
 			continue
 		var was: Dictionary = {}
 		for m: Dictionary in w.meta.routes:
