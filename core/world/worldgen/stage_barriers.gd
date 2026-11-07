@@ -443,7 +443,7 @@ static func meta(c: GenContext) -> Dictionary:
 	var ranges: Array = []
 	for rg: Dictionary in c.ranges:
 		var top: Vector2i = rg["pass"]["top"]
-		ranges.append({"id": rg["id"], "x0": rg["x0"], "x1": rg["x1"], "peak": rg["peak"],
+		ranges.append({"id": rg["id"], "x0": rg["x0"], "x1": rg["x1"], "peak": rg["peak"], "name": rg.get("name", ""),
 			"walls": (rg["walls"] as Array).duplicate(true),
 			"pass": {"path": _cells(rg["pass"]["path"]), "top": [top.x, top.y], "galleries": rg["pass"].get("galleries", 0)},
 			"under": {"path": _cells(rg.get("under", {}).get("path", []))}})

@@ -1,1 +1,16 @@
-{}
+{
+ "_doc": "Names of the land, drawn per world by core/world/region_names.gd. Invented or plain English, SRD-safe: no Forgotten Realms place. region: per biome, an adjective and a noun, 'the Sallow Fen'. range: the same, 'the Cloven Teeth'. river: a stem and an ending, 'the River Marlow'.",
+ "region": {
+  "forest": {"adj": ["Hollow", "Greying", "Whispering", "Mossback", "Elder", "Sunken", "Bracken", "Fallow", "Hushed", "Rookery", "Ashwood", "Lichen"], "noun": ["Wood", "Weald", "Holt", "Shaw", "Boughs", "Thicket", "Wald", "Timberlands"]},
+  "swamp": {"adj": ["Drowned", "Sallow", "Reeking", "Black", "Sodden", "Leech", "Murk", "Rotting", "Heron", "Widow's", "Dim", "Lost"], "noun": ["Fen", "Mire", "Bog", "Slough", "Morass", "Sedge", "Carr", "Flats"]},
+  "meadow": {"adj": ["Golden", "Wide", "Barley", "Long", "Clover", "Merry", "Lark", "Harvest", "Shepherd's", "Green", "Bright", "Windmill"], "noun": ["Downs", "Leas", "Fields", "Vale", "Reach", "Meads", "Plain", "Pastures"]},
+  "mountain": {"adj": ["Grey", "Cold", "Broken", "High", "Iron", "Wind", "Cloven", "Bare", "Hawk", "Slate", "Pale", "Frost"], "noun": ["Heights", "Fells", "Scarps", "Crags", "Uplands", "Tors", "Steeps", "Marches"]},
+  "desert": {"adj": ["Burning", "Bone", "Salt", "Red", "Glass", "Thirsting", "Ashen", "Sun", "Vulture", "Sere", "Copper", "Silent"], "noun": ["Waste", "Sands", "Flats", "Barrens", "Dunes", "Expanse", "Pans", "Drylands"]},
+  "hills": {"adj": ["Round", "Low", "Rolling"], "noun": ["Hills", "Barrows", "Knolls"]},
+  "coast": {"adj": ["Gull", "Grey", "Salt"], "noun": ["Shore", "Strand", "Coast"]},
+  "tundra": {"adj": ["White", "Still", "Pale"], "noun": ["Barrens", "Snows", "Wastes"]},
+  "jungle": {"adj": ["Green", "Steaming", "Vine"], "noun": ["Tangle", "Canopy", "Thicket"]}
+ },
+ "range": {"adj": ["Anvil", "Cloven", "Widow's", "Ember", "Giant's", "Old King's", "Storm", "Whetstone", "Sawtooth", "Thunder", "Raven", "Wolf"], "noun": ["Teeth", "Horns", "Wall", "Crown", "Ridge", "Stair", "Peaks", "Range"]},
+ "river": {"stem": ["Ald", "Bren", "Cald", "Dor", "Elm", "Fenn", "Harr", "Lor", "Marl", "Nar", "Oss", "Ren", "Sel", "Tam", "Ulm", "Wend", "Yar", "Thorn"], "end": ["ow", "ey", "wyn", "ash", "ind", "ure", "esk", "ath", "en", "brook", "water"]}
+}

@@ -5,6 +5,52 @@
 class_name MapLogic
 extends RefCounted
 
+## The land's labels, from META: regions over the ground, ranges at their peaks, rivers at their
+## water, west to east within each kind: [{kind, name, x, y, x0, x1}]. Crossings are in
+## crossings(). Old saves have no names and give no labels.
+static func land_labels(meta: Dictionary) -> Array:
+	var out: Array = []
+	var surf: Array = meta.get("surface", [])
+	for s: Dictionary in meta.get("biomes", []):
+		if String(s.get("name", "")) == "":
+			continue
+		var x0 := int(s["x0"])
+		var x1 := int(s["x1"])
+		var mid := (x0 + x1) / 2
+		var y: int = surf[mid] if mid < surf.size() else 0
+		out.append({"kind": "region", "name": s["name"], "biome": s.get("biome", ""), "x": mid, "y": y, "x0": x0, "x1": x1})
+	var b: Dictionary = meta.get("barriers", {})
+	for r: Dictionary in b.get("ranges", []):
+		if String(r.get("name", "")) != "":
+			out.append({"kind": "range", "name": r["name"], "x": (int(r["x0"]) + int(r["x1"])) / 2, "y": int(r.get("peak", 0)),
+				"x0": int(r["x0"]), "x1": int(r["x1"])})
+	for r: Dictionary in b.get("rivers", []):
+		if String(r.get("name", "")) != "":
+			out.append({"kind": "river", "name": r["name"], "x": (int(r["x0"]) + int(r["x1"])) / 2, "y": int(r.get("water", 0)),
+				"x0": int(r["x0"]), "x1": int(r["x1"])})
+	return out
+
+## The ways across, from META: [{kind: pass | gallery | bridge | ford | under, x, y, name}].
+static func crossings(meta: Dictionary) -> Array:
+	var out: Array = []
+	var b: Dictionary = meta.get("barriers", {})
+	for r: Dictionary in b.get("ranges", []):
+		var top: Array = (r.get("pass", {}) as Dictionary).get("top", [])
+		if top.size() == 2:
+			out.append({"kind": "pass", "x": int(top[0]), "y": int(top[1]), "name": "the pass over %s" % r.get("name", "the range")})
+		var under: Array = (r.get("under", {}) as Dictionary).get("path", [])
+		if not under.is_empty():
+			var u: Array = under[under.size() / 2]
+			out.append({"kind": "under", "x": int(u[0]), "y": int(u[1]), "name": "the way under %s" % r.get("name", "the range")})
+	for r: Dictionary in b.get("rivers", []):
+		var c: Dictionary = r.get("crossing", {})
+		var cells: Array = c.get("cells", [])
+		if not cells.is_empty():
+			var m: Array = cells[cells.size() / 2]
+			out.append({"kind": String(c.get("kind", "ford")), "x": int(m[0]), "y": int(m[1]),
+				"name": "the %s on %s" % [c.get("kind", "ford"), r.get("name", "the river")]})
+	return out
+
 ## A site's feet cell from META, or Vector2.INF.
 static func site_xy(meta: Dictionary, sid: int) -> Vector2:
 	for s: Dictionary in meta.get("sites", []):

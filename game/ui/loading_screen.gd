@@ -19,6 +19,7 @@ const LINES := {
 	"roads": "Laying the roads",
 	"passages": "Opening the ways through",
 	"dressing": "Growing the last of it",
+	"names": "Naming the land",
 }
 
 ## Rough share of a medium world's time each stage takes (measured; the rest are quick), so

@@ -6,6 +6,9 @@
 ## see them. Hover a place for its card: name, people, faction and your standing there, its
 ## state, the last news you heard of it, the work that points at it. Drag to pan, wheel to
 ## zoom, Home to find yourself. Redraws on change and twice a second for moving things.
+## The land itself is common knowledge: the biomes' colours along the ground with their
+## regions' names, ranges and rivers with theirs, and the crossings (MapLogic.land_labels and
+## crossings), hover one for its name.
 class_name WorldMapScreen
 extends UiScreen
 
@@ -14,6 +17,9 @@ const CARD_X := 916.0
 const BANDS := {"sky": Color(0.75, 0.85, 0.95, 0.35), "surface": Color(0.55, 0.7, 0.4, 0.18), "caves": Color(0.45, 0.35, 0.25, 0.22),
 	"deeps": Color(0.3, 0.22, 0.35, 0.28), "nadir": Color(0.45, 0.15, 0.12, 0.3)}
 const ROUTE_STYLE := {"road": [Color("8a5a2b"), 3.0], "deep_road": [Color("6a4a8a"), 2.5]}
+const BIOME_TINT := {"meadow": Color("8cc152"), "forest": Color("2f7d3a"), "mountain": Color("9a9aa2"), "desert": Color("e5c77f"),
+	"swamp": Color("5a6b3a")}
+const RIVER := Color("3f7fb0")
 
 var dc: DealsClient
 var lc: LifeClient
@@ -170,6 +176,7 @@ func _draw_map() -> void:
 		poly.append(_p(Vector2(0, 0)))
 		c.draw_colored_polygon(poly, Color(UiTheme.PARCH_DEEP, 0.28))
 		c.draw_polyline(line, UiTheme.INK_SOFT, 1.6, true)
+	_draw_land(c, meta)
 	var kn := known()
 	# roads between known places
 	if dc != null:
@@ -259,6 +266,61 @@ func _draw_map() -> void:
 	c.draw_rect(Rect2(Vector2.ZERO, c.size), UiTheme.INK, false, 2.0)
 	# legend
 	UiTheme.text(c, Vector2(c.size.x - 290, c.size.y - 8), "faint: heard of     X: pinned work     pin: a rumour", UiTheme.TINY, UiTheme.INK_SOFT)
+
+## The land's own marks: a band of each biome's colour under the ground line, rivers, crossings,
+## and the names, which take the size of what they name.
+func _draw_land(c: Control, meta: Dictionary) -> void:
+	var surf: Array = meta.get("surface", [])
+	var labels := MapLogic.land_labels(meta)
+	for l: Dictionary in labels:
+		if l["kind"] == "region" and not surf.is_empty():
+			var col: Color = BIOME_TINT.get(String(l.get("biome", "")), UiTheme.INK_SOFT)
+			var line := PackedVector2Array()
+			var step := maxi(1, roundi(6.0 / zoom))
+			for x in range(int(l["x0"]), mini(int(l["x1"]), surf.size() - 1), step):
+				line.append(_p(Vector2(x, float(surf[x]) - 6.0 / zoom)))
+			if line.size() >= 2:
+				c.draw_polyline(line, Color(col, 0.75), 7.0, true)
+		elif l["kind"] == "river":
+			var a := _p(Vector2(float(l["x0"]), float(l["y"])))
+			var b := _p(Vector2(float(l["x1"]), float(l["y"])))
+			c.draw_line(a, b, RIVER, maxf(3.0, 8.0 * zoom))
+	for x: Dictionary in MapLogic.crossings(meta):
+		var p := _p(Vector2(float(x["x"]), float(x["y"])))
+		match String(x["kind"]):
+			"pass":
+				c.draw_polyline(PackedVector2Array([p + Vector2(-6, 4), p + Vector2(0, -4), p + Vector2(6, 4)]), UiTheme.INK, 2.5, true)
+			"under":
+				c.draw_arc(p, 6.0, PI, TAU, 10, UiTheme.INK, 2.0, true)
+			"bridge":
+				c.draw_line(p + Vector2(-7, -2), p + Vector2(7, -2), UiTheme.INK, 3.0)
+			_:
+				for k: int in [-5, 0, 5]:
+					c.draw_circle(p + Vector2(k, -1), 1.6, UiTheme.INK)
+	for x: Dictionary in MapLogic.crossings(meta):
+		if zoom >= _fit * 1.6 and String(x["kind"]) in ["pass", "bridge", "ford"]:
+			var p := _p(Vector2(float(x["x"]), float(x["y"])))
+			_label(c, String(x["kind"]).capitalize(), p + Vector2(0, -8), UiTheme.TINY, UiTheme.INK_SOFT)
+	var shown: Array[Rect2] = []
+	for kind: String in ["region", "range", "river"]:
+		for l: Dictionary in labels:
+			if l["kind"] != kind:
+				continue
+			var name_ := String(l["name"]).trim_prefix("the ")
+			var at := _p(Vector2(float(l["x"]), float(l["y"])))
+			var size := UiTheme.BODY if kind != "river" else UiTheme.SMALL
+			var col: Color = UiTheme.INK if kind == "region" else (UiTheme.INK_SOFT if kind == "range" else RIVER.darkened(0.35))
+			var y := at.y - (34.0 if kind == "region" else (12.0 if kind == "range" else -18.0))
+			var w := UiTheme.text_width(name_, size)
+			var box := Rect2(at.x - w * 0.5, y - 14.0, w, 16.0)
+			if shown.any(func(r: Rect2) -> bool: return r.intersects(box)):
+				continue
+			shown.append(box)
+			_label(c, name_, Vector2(at.x, y), size, col)
+
+func _label(c: Control, s: String, at: Vector2, size: int, col: Color) -> void:
+	var w := UiTheme.text_width(s, size)
+	UiTheme.text(c, at - Vector2(w * 0.5, 0), s, size, col, false, HORIZONTAL_ALIGNMENT_LEFT, -1, 0)
 
 # --- the card -----------------------------------------------------------------------------------------
 

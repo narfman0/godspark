@@ -19,6 +19,9 @@ func steps() -> void:
 	dc = cw.system(HostSystem.DEALS) as DealsClient
 	lc = cw.system(HostSystem.LIFE) as LifeClient
 	items = cw.system(HostSystem.ITEMS) as ItemsClient
+	if "tour=map" in OS.get_cmdline_user_args():
+		await map_only()
+		return
 	pres.rig.zoom = 1.6
 	await host(func(h: WorldHost) -> void:
 		var ds := h.system(HostSystem.DEALS) as DealsSystem
@@ -41,8 +44,27 @@ func steps() -> void:
 	await shot("04_rumours")
 	await more()
 
-## Later beats.
-## `tour=journey` on the command line runs only the journey's beats after the arrival.
+## `tour=map`: the land on the map, the whole world, then the middle of it close to.
+func map_only() -> void:
+	await wait(1.0)
+	await shot("00_spawn")
+	ui.open("map")
+	await wait(0.8)
+	var m := ui.screen("map") as WorldMapScreen
+	m.zoom = m._fit
+	m._clamp()
+	m.canvas.queue_redraw()
+	await wait(0.4)
+	await shot("01_map_whole")
+	m.zoom = m._fit * 4.0
+	m.origin = MapLogic.origin_for(cw.body.center(), m.world_size(), m.zoom, WorldMapScreen.MAP_RECT.size)
+	m._clamp()
+	m.canvas.queue_redraw()
+	await wait(0.4)
+	await shot("02_map_close")
+	ui.close("map")
+
+## Later beats. `tour=journey` on the command line runs only the journey's beats after the arrival.
 func more() -> void:
 	if "tour=journey" in OS.get_cmdline_user_args():
 		await journey()

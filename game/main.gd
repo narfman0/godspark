@@ -123,14 +123,24 @@ func _generate() -> TileWorld:
 		print("generated %s world %dx%d seed %d in %d ms" % [gen, world.width, world.height, world_seed, Time.get_ticks_msec() - t0])
 	return world
 
-## Players start at the first surface settlement site when the world has one.
+## Players start on the square of a settled surface town: a meadow town when there is one, and
+## of those the one nearest the world's middle, so a world starts in its mild heart and not at
+## its cold end. Sky towns only without any on the ground. Deterministic: ties go to the lower id.
 static func spawn_for(world: TileWorld, fallback: Vector2) -> Vector2:
-	# the square (centre lot) of the first settled surface place, on its street
+	var best := {}
+	var score := Vector3(INF, INF, INF)
 	for site: Dictionary in world.meta.get("sites", []):
 		var p := Places.place(world, int(site["id"]))
-		if site.get("band") in ["surface", "sky"] and not p.is_empty() and String(p.get("tier", "")) != "":
-			var c: Dictionary = p["lots"][0]
-			return Vector2(int(c["x"]) + int(c["w"]) / 2 + 0.5, float(p["street"][2]))
+		if not site.get("band") in ["surface", "sky"] or p.is_empty() or String(p.get("tier", "")) == "":
+			continue
+		var s := Vector3((0.0 if site.get("band") == "surface" else 2.0) + (0.0 if site.get("biome") == "meadow" else 1.0),
+			absf(float(site["x"]) - world.width * 0.5), float(site["id"]))
+		if s < score:
+			score = s
+			best = p
+	if not best.is_empty():
+		var c: Dictionary = best["lots"][0]
+		return Vector2(int(c["x"]) + int(c["w"]) / 2 + 0.5, float(best["street"][2]))
 	for site: Dictionary in world.meta.get("sites", []):
 		if site.get("kind") == "settlement" and site.get("band") in ["surface", "sky"]:
 			return Vector2(float(site["x"]) + 0.5, float(site["y"]))

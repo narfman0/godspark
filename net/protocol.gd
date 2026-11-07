@@ -73,7 +73,7 @@ const MAX_SYS := 32768
 ## Largest decompressed META body accepted.
 const MAX_META := 8 * 1024 * 1024
 ## The world.meta keys a client gets.
-const META_KEYS := ["biomes", "bands", "sites"]
+const META_KEYS := ["biomes", "bands", "sites", "barriers"]
 
 ## REJECT / KICK / BYE reasons.
 enum Why { NONE, VERSION, FULL, NAME_TAKEN, BAD_NAME, TIMEOUT, MALFORMED, SHUTDOWN, LEAVING, FINAL }
