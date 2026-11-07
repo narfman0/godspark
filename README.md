@@ -5,11 +5,28 @@ Underdark, biomes with their own ecology, settlements that trade, raid and starv
 long road to godhood. Working title.
 
 - Engine: Godot 4.7.1 (Forward+), GDScript.
-- Status: M4, "The living world on screen" (integrated, about to be played): on top of M2's
-  characters, combat, monsters and loot, the sim's settlements stand as real towns with their
-  people, caravans and raiders walk the roads, and you can talk, trade, take work and earn a
-  faction's patronage. See [docs/m4.md](docs/m4.md), [docs/m2.md](docs/m2.md),
-  [docs/plan.md](docs/plan.md) and [docs/architecture.md](docs/architecture.md).
+- Status: M5, "Biomes and the shape of the overworld" (integrated, about to be played): the world
+  is a climate journey from cold forest to hot desert through five biomes that look and feed
+  differently, with ranges and rivers you cross on foot, on top of M4's living world. Next:
+  lighting, then the Underdark's peoples. See [docs/m5.md](docs/m5.md), [docs/m4.md](docs/m4.md),
+  [docs/m2.md](docs/m2.md), [docs/plan.md](docs/plan.md) and
+  [docs/architecture.md](docs/architecture.md).
+
+## What M5 added
+
+- **A climate journey**: meadow, forest, mountain, desert and swamp lie cold to hot along a medium
+  world of 8192 x 2560, each with its own ground, sky, dressing and parallax. It generates in
+  about 25 s. A walk from end to end takes about 11 minutes.
+- **Barriers**: every range has a pass and an under-route, every river a bridge or a ford. You never
+  have to dig across, and roads, caravans and the sim's travel times all feel them.
+- **Land that feeds differently**: food, timber, ore, stone, salt, reagents, game and water come from
+  the biome. Salt is cheap in the desert and dear in the meadow, so caravans carry it over the
+  pass, and raiders wait there for them. Shops sell all of it.
+- **Monsters that belong**: each biome hunts its own, and a lair's name follows what comes out of it.
+- **Combat you can read**: swings on real clips, the arc you will hit, a highlight on your target,
+  hit, crit and miss you can tell apart, and a dodge roll on V.
+- **The map**: regions, ranges, rivers and crossings, named. Other players and people show their
+  weapons as soon as you see them.
 
 ## What M4 added
 
