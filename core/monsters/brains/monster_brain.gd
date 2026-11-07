@@ -12,7 +12,10 @@
 ## (waits in water).
 ##
 ## Movement: straight steering when the target is near and in line, else a NavPath from the
-## monsters system's budgeted planner (sys.request_plan), followed by NavFollow.
+## monsters system's budgeted planner (sys.request_plan), followed by NavFollow. Burrowers
+## (brains.json burrow.creatures) dig their own way (Burrow): through rock when rock is in the way,
+## a wandering tunneler (the purple worm) always, from cavern to cavern; one that comes up under
+## its prey (the bulette) tunnels beneath it, opens a shaft and leaps out (Deadly Leap).
 class_name MonsterBrain
 extends RefCounted
 
@@ -45,6 +48,7 @@ var plan_fail := 0
 ## Counters for tests and reports.
 var attacks := 0
 var plans := 0
+var leaps := 0
 
 var _t := 0.0
 var _sense_at := -1.0
@@ -66,6 +70,11 @@ var _line_goal := Vector2.INF
 var _line_ok := false
 var _reveal_at := -1.0
 var _dark := -1
+## Burrowing (Burrow): set by the monsters system for burrowers.
+var burrow: Burrow = null
+var _burrow_t := -1.0
+## A bulette that has come up out of the ground at its prey this chase.
+var surfaced := false
 
 static func cfg() -> Dictionary:
 	if _cfg.is_empty():
@@ -129,7 +138,7 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 			foe = seen
 			target_id = seen.id
 		if foe != null and state in [State.IDLE, State.WANDER, State.LURK]:
-			if state != State.LURK or _d(e, foe) <= float(arch().get("trigger", 6.0)) or provoked.has(foe.id):
+			if state != State.LURK or _d(e, foe) <= _trigger() or provoked.has(foe.id):
 				_enter(State.CHASE)
 	# busy in an attack: stand still facing the target (the telegraph)
 	if combat.busy(e):
@@ -149,10 +158,13 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 			_last = inp
 		State.IDLE, State.WANDER:
 			inp = _wander(host, e, dt)
+			if state == State.IDLE and burrow != null:
+				surfaced = false
 		State.RETURN:
 			if e.body.pos.distance_to(home) <= _num("home_tiles", 6.0):
 				_enter(State.IDLE if archetype not in ["lurker", "ambusher"] else State.LURK)
 				follow.path = null
+				surfaced = false
 			else:
 				inp = _go(host, e, home, dt, 1.0, Vector2i(2, 2))
 		State.FLEE:
@@ -184,6 +196,10 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 
 func _fight(host: WorldHost, combat: CombatSystem, e: HostEntity, foe: HostEntity, dt: float) -> PlayerInput:
 	var inp := PlayerInput.new()
+	if burrow != null and not surfaced and bool(Burrow.row(slug).get("surfaces", false)):
+		var up := _come_up(host, combat, e, foe)
+		if up != null:
+			return up
 	var dx := foe.body.pos.x - e.body.pos.x
 	var dist := HitShapes.gap(e.body.rect(), foe.body.rect())
 	var aim := foe.body.rect().get_center()
@@ -272,6 +288,11 @@ func _go(host: WorldHost, e: HostEntity, goal: Vector2, dt: float, speed: float,
 		foe: HostEntity = null) -> PlayerInput:
 	var b := e.body
 	var d := goal - b.pos
+	# a burrower with rock between it and where it is going digs its way
+	if burrow != null and _rock_between(host, e, goal):
+		var bi := _dig_toward(host, e, goal)
+		if bi != null:
+			return bi
 	var mid_jump := follow.active() and follow.jump_t >= 0
 	var direct: bool = not mid_jump and (b.on_floor or b.swimming) and absf(d.x) <= _num("direct_tiles", 10.0) and absf(d.y) <= 1.5 and e.stats.fly_speed <= 0.0
 	if direct:
@@ -339,6 +360,8 @@ func _dig_rate(e: HostEntity) -> float:
 	return maxf(e.stats.burrow_speed / 8.0, 1.5)
 
 func _wander(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
+	if burrow != null and bool(Burrow.row(slug).get("wanders", false)):
+		return _tunnel(host, e)
 	if archetype in ["lurker", "ambusher"]:
 		return PlayerInput.new()
 	if _t >= _wander_at:
@@ -370,6 +393,100 @@ func _rng(e: HostEntity) -> RandomNumberGenerator:
 	r.seed = hash([e.id, int(_t * 10.0)])
 	return r
 
+# --- burrowing -------------------------------------------------------------------------------------
+
+## How close prey may come before a lurker springs: its burrow row's trigger (tremorsense), else
+## its archetype's.
+func _trigger() -> float:
+	if burrow != null and Burrow.row(slug).has("trigger"):
+		return float(Burrow.row(slug)["trigger"])
+	return float(arch().get("trigger", 6.0))
+
+## Seconds since the brain last dug (it thinks at different rates calm and fighting).
+func _burrow_dt() -> float:
+	var d := clampf(_t - _burrow_t, 0.0, 0.5) if _burrow_t >= 0.0 else 0.0
+	_burrow_t = _t
+	return d
+
+func _rock_between(host: WorldHost, e: HostEntity, goal: Vector2) -> bool:
+	var from := e.body.pos + Vector2(0, e.body.size.y * 0.5)
+	return TileCollision.raycast(host.world, from, goal + Vector2(0, 0.5))["hit"] or (follow.failed and plan_fail > 0)
+
+## Dig toward goal (Burrow.step); null when it cannot (the way is built or bedrock).
+func _dig_toward(host: WorldHost, e: HostEntity, goal: Vector2) -> PlayerInput:
+	var inp := burrow.step(host, e, goal, _burrow_dt())
+	if inp == null:
+		return null
+	follow.path = null
+	return inp
+
+## A wandering tunneler: to a point within its row's wander_tiles (and wander_y) of home, a cavern
+## by preference (the first open cell of several tried), so its tunnels come to join caverns;
+## slowly (pace).
+func _tunnel(host: WorldHost, e: HostEntity) -> PlayerInput:
+	var row := Burrow.row(slug)
+	if _wander_to == Vector2.INF or _t >= _wander_at or e.body.pos.distance_to(_wander_to) < 2.5 or burrow.blocked:
+		var r := _rng(e)
+		var span := float(row.get("wander_tiles", 40.0))
+		var vy := float(row.get("wander_y", 10.0))
+		var pick := Vector2.INF
+		for k in 8:
+			var c := home + Vector2(r.randf_range(-span, span), r.randf_range(-vy, vy))
+			if pick == Vector2.INF:
+				pick = c
+			if not host.world.is_solid(floori(c.x), floori(c.y)) and host.world.in_bounds(floori(c.x), floori(c.y)):
+				pick = c
+				break
+		_wander_to = pick
+		_wander_at = _t + float(row.get("wander_s", 40.0))
+		burrow.blocked = false
+		_enter(State.WANDER)
+	var inp := burrow.step(host, e, _wander_to, _burrow_dt())
+	if inp == null:
+		_wander_to = Vector2.INF
+		return PlayerInput.new()
+	inp.move_x *= float(row.get("pace", 0.5))
+	return inp
+
+## A bulette after prey: down into the ground and along under it, a shaft up through the floor it
+## stands on, and the leap (its Deadly Leap, at the prey). Null once it is up (it fights as any).
+func _come_up(host: WorldHost, combat: CombatSystem, e: HostEntity, foe: HostEntity) -> PlayerInput:
+	var b := e.body
+	var row := Burrow.row(slug)
+	var depth := float(row.get("under_tiles", 4.0)) + b.size.y
+	# beneath the ground just beside it: the shaft opens next to the prey, not under its feet
+	var side := 1.0 if b.pos.x >= foe.body.pos.x else -1.0
+	var under := foe.body.pos + Vector2(side * (b.size.x * 0.5 + foe.body.size.x * 0.5 + 1.0), -depth)
+	var dx := absf(under.x - b.pos.x)
+	var dt := _burrow_dt()
+	if dx > 1.5 or b.pos.y > under.y + 1.5:
+		var inp := burrow.step(host, e, under, dt)
+		if inp == null:
+			surfaced = true          # cannot dig there: come at it on foot
+			return null
+		follow.path = null
+		return inp
+	# beneath it: open the way up, then leap
+	var cells := Burrow.shaft_cells(host.world, b, floori(foe.body.pos.y))
+	if not cells.is_empty():
+		if not burrow.dig(host, e, cells, dt) and burrow.blocked:
+			surfaced = true
+			return null
+		return PlayerInput.new()
+	var leap := -1
+	var acts := combat.actions_of(e)
+	for i in acts.size():
+		if String(acts[i]["name"]) == String(row.get("leap", "Deadly Leap")):
+			leap = i
+	# out of the shaft and onto it: it lands hard beside the prey, the far side
+	host.teleport(e, foe.body.pos + Vector2(-side * (b.size.x * 0.5 + foe.body.size.x * 0.5 + 0.2), 0.0))
+	TileCollision.depenetrate(host.world, b)
+	surfaced = true
+	if leap >= 0 and combat.start_attack(e, leap, foe.body.rect().get_center()):
+		attacks += 1
+		leaps += 1
+	return PlayerInput.new()
+
 # --- waiting in the dark ---------------------------------------------------------------------------
 
 ## One of the creatures that wait unseen in the dark (brains.json dark_ambush: ropers, cloakers).
@@ -400,18 +517,22 @@ func _sense(host: WorldHost, combat: CombatSystem, e: HostEntity) -> HostEntity:
 	var bd := INF
 	var sight := _num("sight_tiles", 30.0)
 	var hear := _num("hear_tiles", 20.0)
+	# tremorsense: what moves on the ground within its range (a bulette, a purple worm)
+	var tremor := float(combat.sight.senses_tiles(e).get("tremorsense", 0.0))
 	var life := host.system(HostSystem.LIFE)
 	for p: HostEntity in host.entities.values():
 		if p == e or (life == null and not p.is_player()):
 			continue
 		var d := _d(e, p)
-		if d > maxf(sight, hear) or d >= bd:
+		if d > maxf(maxf(sight, hear), tremor) or d >= bd:
 			continue
 		var pa := combat.actor(p)
 		if pa == null or not combat._targetable(pa) or not is_foe(host, e, p, d):
 			continue
 		var noticed := provoked.has(p.id)
 		if not noticed and d <= hear and combat.in_combat(p):
+			noticed = true
+		if not noticed and d <= tremor and p.body.on_floor:
 			noticed = true
 		if not noticed and d <= sight and combat.sight.can_see(e, p):
 			noticed = true

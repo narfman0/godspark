@@ -116,6 +116,10 @@ func spawn(slug: String, pos: Vector2, opts := {}) -> HostEntity:
 	if float(speeds.get("burrow", 0)) > 0.0:
 		rec["dig"] = MonsterNav.ROCK_HARDNESS if float(speeds.get("burrow", 0)) >= 20.0 else MonsterNav.SOFT_HARDNESS
 	brain.rec = rec
+	if Burrow.is_burrower(slug) and stats.burrow_speed > 0.0:
+		# a burrower digs as it moves (Burrow, within its cap), not through the planner
+		brain.burrow = Burrow.new(slug, stats)
+		rec["dig"] = 0.0
 	for a: String in affixes:
 		_affix_setup(a, stats, c, rec, brain)
 	MonsterNav.profile(stats, float(rec["dig"]))      # its jumps are recorded now, not in the planner

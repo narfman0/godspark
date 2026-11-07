@@ -22,6 +22,17 @@
 	"corner_tiles": 2.5,
 	"spacing_tiles": 1.6,
 	"dark_ambush": ["roper", "cloaker"],
+	"burrow": {
+		"natural": [[1, 3], [13, 13], [16, 63], [118, 118]],
+		"cap_per_min": 120,
+		"pile": 8,
+		"rate_per_tile_s": 1.0,
+		"min_rate": 0.5,
+		"creatures": {
+			"purple-worm": {"cap_per_min": 240, "rate_mult": 0.5, "wanders": true, "wander_tiles": 48, "wander_y": 14, "wander_s": 50, "pace": 0.5},
+			"bulette": {"cap_per_min": 150, "surfaces": true, "trigger": 40, "under_tiles": 3, "leap": "Deadly Leap"}
+		}
+	},
 	"reveal_s": 1.5,
 	"archetypes": {
 		"bruiser":    {"backoff": 0.4, "speed": 1.0},
