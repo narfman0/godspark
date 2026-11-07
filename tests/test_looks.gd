@@ -145,10 +145,11 @@ func _dressing(t: TestLog) -> void:
 	for id: String in defs:
 		var d: Dictionary = defs[id]
 		var fp: Array = d.get("footprint", [])
-		var ok: bool = String(d.get("model", "")).begins_with("res://assets/meshes/") and fp.size() == 2 \
+		var drawn: bool = String(d.get("model", "")).begins_with("res://assets/meshes/") or d.has("prim")
+		var ok: bool = drawn and fp.size() == 2 \
 			and int(fp[0]) >= 1 and int(fp[1]) >= 1 and d.get("anchor", "") in ["ground", "ceiling", "wall"] \
 			and float(d.get("fit_h", 0)) > 0.0 \
-			and ((float(d.get("weight", 0)) > 0.0 and d.get("where", {}).get("band", "") in ["surface", "cave"])
+			and ((float(d.get("weight", 0)) > 0.0 and d.get("where", {}).get("band", "") in ["surface", "cave", "below"])
 				or d.get("where", {}).get("band", "") == "place")   # building pieces are placed, not scattered
 		if not ok:
 			bad.append(id)
@@ -190,7 +191,8 @@ func _index(t: TestLog) -> void:
 			known[line] = true
 	var refs := Looks.all_paths()
 	for d: Dictionary in DressingView.defs().values():
-		refs.append(String(d.get("model", "")))
+		if d.has("model"):      # a row may be primitives alone (view/actors/prim_mesh.gd)
+			refs.append(String(d["model"]))
 		for v in d.get("textures", {}).values():
 			if String(v).begins_with("res://"):
 				refs.append(String(v))

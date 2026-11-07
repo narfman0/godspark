@@ -8,8 +8,9 @@
 ##   DressingView.scatter(world, x0, x1, seed)   # deterministic demo placement (no core RNG)
 ##
 ## Records are what the core should eventually own and replicate (tile-object records:
-## {id, x, y}, plus a variant byte if wanted); this node only needs that list. Objects whose
-## model is not fetched are skipped silently (dressing has no primitive fallback).
+## {id, x, y}, plus a variant byte if wanted); this node only needs that list. A row whose model
+## is not fetched draws its "prim" (view/actors/prim_mesh.gd) if it has one, else nothing: no art
+## must never mean no cave.
 class_name DressingView
 extends Node3D
 
@@ -41,7 +42,7 @@ static func model_parts(id: String) -> Dictionary:
 ## The same for any row with a model and textures: {parts, top}, or {} when its file is missing.
 static func parts_of(def: Dictionary) -> Dictionary:
 	var out := {}
-	var inst := GltfCache.instance(String(def.get("model", "")), int(def.get("lod", 0))) if not def.is_empty() else null
+	var inst := GltfCache.instance(String(def.get("model", "")), int(def.get("lod", 0))) if def.has("model") else null
 	if inst != null:
 		var parts: Array = []
 		var top := 0.0
@@ -55,6 +56,8 @@ static func parts_of(def: Dictionary) -> Dictionary:
 		inst.free()
 		if not parts.is_empty() and top > 0.0001:
 			out = {"parts": parts, "top": top}
+	if out.is_empty():
+		out = PrimMesh.build(def.get("prim"))
 	return out
 
 ## dressing.json "textures": {material name: png or "#hex" colour, "*": png for materials
@@ -130,6 +133,9 @@ func set_objects(recs: Array) -> void:
 			mmi.set_instance_shader_parameter("tint", Color.from_string(String(def.get("tint", "#ffffff")), Color.WHITE))
 			add_child(mmi)
 		counts[id] = int(counts.get(id, 0)) + xforms.size()
+	var wv := get_parent() as WorldView
+	if wv != null and wv.below != null:
+		wv.below.set_props(recs)
 
 ## World transform of one placed object: fitted to fit_h tiles, centred on its footprint,
 ## on its plane z, squashed in depth, with a per-cell jitter in scale and yaw.

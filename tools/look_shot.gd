@@ -10,6 +10,8 @@
 ##     on the floor around the hero] [torch=0: the hero carries no light] [monster=goblin-warrior: a
 ##     creature four tiles right of the hero, facing it] [shaft=3: a hole that wide dug from the
 ##     cave's ceiling up to the sky, six tiles right of the hero]
+##     [region=fungal: the most open floor of that underground biome (at=0.5: how far along its
+##     regions and across each), so a picture shows a cavern, not a crack] [hero=x,y: stand there]
 ##     [bench=300: pan for that many frames first and print the frame times] [seam=1: x at a seam]
 extends SceneTree
 
@@ -31,6 +33,10 @@ func _initialize() -> void:
 	while o.has("open") and x < world.width - 70 and not _open(world, x):
 		x += 16
 	var y := float(o.get("y", _ground(world, x)))
+	if o.has("region"):
+		var spot := _region_spot(world, String(o["region"]), float(o.get("at", 0.5)))
+		x = spot.x
+		y = spot.y
 	if o.has("cave"):
 		var c := _cave(world, x, int(y))
 		x = c.x
@@ -94,7 +100,11 @@ func _initialize() -> void:
 		view.set_focus(focus)
 		if frames > 3 and view.is_idle():
 			break
-	for i in 3:
+	frames = 0
+	while frames < 120 and not (view.below.props_settled() and view.is_idle()):
+		await process_frame
+		frames += 1
+	for i in 6:
 		await RenderingServer.frame_post_draw
 	if o.has("bench"):
 		await _bench(o, view, rig, focus)
@@ -205,6 +215,32 @@ static func _cave(world: TileWorld, x: int, surface: int) -> Vector2i:
 					return Vector2i(cx, cy)
 	return Vector2i(x, surface)
 
+## The floor cell with the most open air and light around it in the regions of that biome, looking at a third
+## of the regions' width around `at` of it. A dry floor: nothing to stand on is no picture.
+static func _region_spot(world: TileWorld, biome: String, at: float) -> Vector2i:
+	var rows: Array = BiomeIds.regions(world.meta).filter(func(r: Dictionary) -> bool: return r["biome"] == biome)
+	var r: Dictionary = rows[clampi(int(at * rows.size()), 0, rows.size() - 1)]
+	var w := int(r["x1"]) - int(r["x0"])
+	var mid := int(r["x0"]) + int(w * fposmod(at * rows.size(), 1.0))
+	var best := Vector2i(mid, int(r["y1"]))
+	var score := -1
+	for x in range(maxi(mid - w / 6, int(r["x0"]) + 30), mini(mid + w / 6, int(r["x1"]) - 30), 6):
+		for y in range(int(r["y0"]) + 8, int(r["y1"]) - 8):
+			if world.is_solid(x, y) or not world.is_solid(x, y - 1) or world.get_liquid(x, y) != 0:
+				continue
+			var n := 0
+			for dx in range(-26, 27, 4):
+				for dy in range(0, 26, 3):
+					if not world.is_solid(x + dx, y + dy):
+						n += 1
+					if TileDefs.emit[world.get_fg(x + dx, y + dy)] > 0:
+						n += 12
+			if n > score:
+				score = n
+				best = Vector2i(x, y)
+	print("region %s %s %d-%d: spot %s open %d" % [biome, r.get("name", ""), int(r["x0"]), int(r["x1"]), best, score])
+	return best
+
 ## A hole w wide from the ceiling over at up through the ground to open air.
 static func _shaft(world: TileWorld, at: Vector2i, w: int) -> void:
 	for x in range(at.x, at.x + w):
@@ -248,10 +284,12 @@ static func _ground(world: TileWorld, x: int) -> int:
 ## Every record in the chunks a client holds around the focus.
 static func _records(world: TileWorld, focus: Vector2) -> Array:
 	var out: Array = []
+	var rd := RegionDressing.new(world)
 	var ccx := int(focus.x) >> 5
 	var ccy := int(focus.y) >> 5
 	for cy in range(maxi(ccy - 3, 0), mini(ccy + 4, world.chunks_y)):
 		for cx in range(maxi(ccx - 5, 0), mini(ccx + 6, world.chunks_x)):
 			for r: Dictionary in Dressing.records_in(world, cx, cy):
 				out.append({"id": Dressing.name_of(r["id"]), "x": r["x"], "y": r["y"]})
+			out.append_array(rd.records_in(cx, cy))
 	return out
