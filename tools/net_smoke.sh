@@ -81,6 +81,10 @@ if [ "$DEALS" = 1 ]; then
 fi
 LIFE=${LIFE:-0}
 if [ "$LIFE" = 1 ]; then
+	# places=0, as ALL: the raid this smoke sends walks into town and can down a bot mid-step,
+	# and a downed player rightly places nothing (bot1 failed 2 runs in 7 that way)
+	BOT1_EXTRA="${BOT1_EXTRA:-} places=0"
+	BOT2_EXTRA="${BOT2_EXTRA:-} places=0"
 	WORLD=${WORLD:-gen=dev seed=4}     # a town of soft road: bots dig there while the raid is on
 	SPAWN=${SPAWN:-goblin-warrior:0}
 	SEE=${SEE:-none}       # checked below on either bot (people appear within a second of a join)

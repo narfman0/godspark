@@ -5,6 +5,7 @@
 #   tools/test.sh                 every test file
 #   tools/test.sh life deals      only files whose name contains one of these
 #   JOBS=1 LIMIT=300 tools/test.sh    processes at once; seconds allowed per file
+# (test_sim_world, test_roads and test_place_gen, which have time budgets, run last, alone.)
 # JOBS defaults to 8 (AGENTS.md: parallel Godot is allowed since 2026-11-07). Each process
 # waits until MemAvailable is at least 2.5 GB.
 cd "$(dirname "$0")/.." || exit 1
@@ -21,8 +22,12 @@ files=$(ls tests | grep -E '^test_.*\.gd$' | grep -v '^test_log\.gd$')
 if [ $# -gt 0 ]; then
 	files=$(echo "$files" | grep -F "$(printf '%s\n' "$@")")
 fi
+# Files with wall-clock budgets run alone, after the rest: every core busy slows a process by an
+# eighth or more, which says nothing about the code.
+solo=$(echo "$files" | grep -E '^test_(sim_world|roads|place_gen)\.gd$')
 start=$(date +%s)
-echo "$files" | xargs -P "$JOBS" -I{} bash -c 'one {}'
+echo "$files" | grep -vE '^test_(sim_world|roads|place_gen)\.gd$' | xargs -r -P "$JOBS" -I{} bash -c 'one {}'
+for f in $solo; do one "$f"; done
 bad=0
 for f in $files; do
 	rc=$(cat "$LOGS/$f.rc" 2>/dev/null || echo missing)

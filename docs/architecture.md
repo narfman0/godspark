@@ -977,6 +977,34 @@ are as they were.
 
 ## M6 contracts (the Underdark)
 
+### Integration (as built: [tracks/m6-integration.md](tracks/m6-integration.md))
+
+```
+meta.ways: on by default (opts ways: false), one row per sinkhole; WorldSim._add_ways makes each a
+  link, after the trails. A way's link and the lake's lair and its trail draw on generators of their
+  own (WorldSim._own_name, _spawn_lair) and names are taken after seeding, so a world's peoples, towns
+  and names are what they would be without them. stage_places gives its sim the same ways.
+site.lake: the deep lake's lair site, last of the sites (opts lake_lair: false: none), saved
+Deals.message_towns(sim, sid): by road; a link only for a town with no road
+LifeRoad.scan finds a party on a meta.ways link by its real place. A way's cells are real on its rope
+  and at its ends; between the rope's foot and the deep site they are a line through rock, and nobody
+  is drawn there
+cultures.json goes_down: caravans take the way at their own town to the deep town at its foot, never
+  further; every other trip keeps mobility (SimEconomy._plan_caravan)
+SimBelow.WATCH_SHARE 0.35, WATCH_MAX 30
+SimHealth.tally_war(sim, f, g), tally_fall(sim, how, d, army): stats war_a_b, conquest_by_at,
+  sack_by_at, fall_culture_by; observe()["drow"] {cities, years, whole, own_rule}, ["sides"]
+SimEconomy.price_at(s, g, target); WorldSim.edge keys a * 100000 + b
+LightEngine.process(budget_us, want): changes that reach want first, nearest its centre, then cold
+  chunks of want, then the changes left only go cold (_forget_chunk), at no frame's cost
+CombatSight.sun_shy(e), in_sunlight(p): Sunlight Sensitivity off the stat block; Disadvantage on attack
+  rolls in CombatSystem._sight_opts. No ability check in the game reads it yet
+MonsterBrain._lava_between(world, b, goal), _lava_beside(world, b, dir): direct chase, back-off, wander
+NavSearch._haul_out, HAUL_ROWS 4: a SWIM edge from the water onto a bank; NavFollow presses the leap
+NavFollow: on a STAIRS edge W waits until the body's centre has left a ladder's column
+culture id deep_dwarf (was duergar); the style, kit, Bond, names and shop rows follow. Protocol stays 13
+```
+
 ### Raids from below and the deep life (as built: [tracks/raids-below.md](tracks/raids-below.md))
 
 ```

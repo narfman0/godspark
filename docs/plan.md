@@ -201,11 +201,11 @@ Each ends in a playable co-op build and green headless suites.
 | M3 | Living strip | Headless strategic sim: settlements, food, population, trade, raids, chronicle, `tools/run_history.gd`, debug world map. **Runs in parallel with M1 and M2** (pure core) |
 | M4 | The living world on screen | Direction changed 2026-11-05: less building and collecting, more changing world and adventuring. Passable caves with ropes and crisscrossing stairs, real settlements, townsfolk, caravans and raids from the sim, then talk, shops, quests, patrons and standing. See [m4.md](m4.md) |
 | M5 | Biomes and the shape of the overworld | **Done** (integrated 2026-11-07, about to be played). Direction changed in [m4.md](m4.md): a climate journey through five biomes, ranges and rivers with ways across, biomes that set food and goods so scarcity drives caravans and raids, parallax, monsters that belong, a roll, and swings you can see. See [m5.md](m5.md) and [tracks/m5-integration.md](tracks/m5-integration.md) |
-| Next | Lighting | Dark underground, sunlight that stops, torches and lamps as real sources, shadows. See [lighting.md](lighting.md) |
-| Next | Underdark peoples (was M5, The Deep) | Full Underdark bands and biomes, drow city-states, deep roads, burrowers, aboleth sea, lair bosses, ores and crafting tiers, levels to 10 |
-| M6 | War and dragons | Diplomacy, armies, sieges, dragon lairs and tribute, reputation, player strongholds, levels to 20 |
-| M7 | Planes | Realm framework, portals, Nine Hells first, then Abyss, Elemental, Feywild and Shadowfell |
-| M8 | Apotheosis | Epic Boons, worshippers as a sim resource, divine trials on the planes, ascension |
+| Lighting | Lighting | **Done.** Dark underground, sunlight that stops, torches and lamps as real sources, shadows. See [lighting.md](lighting.md) |
+| M6 | Underdark peoples (was M5, The Deep) | **Integrated 2026-11-07; the look below (track 5) and the user's play are still to come.** Underground regions, the descent on foot, drow cities and other peoples, deep roads, raids from below and the surface's answer, lair bosses, burrowers, levels to 10. See [m6.md](m6.md) and [tracks/m6-integration.md](tracks/m6-integration.md) |
+| M7 | War and dragons | Next, unless the user says otherwise. Diplomacy, armies, sieges, dragon lairs and tribute, reputation, player strongholds, levels to 20. (It was numbered M6 here before the Underdark took that number; ores and crafting tiers, listed under the old Underdark row, were not built and move here for now) |
+| M8 | Planes | Realm framework, portals, Nine Hells first (below the nadir), then Abyss, Elemental, Feywild and Shadowfell |
+| M9 | Apotheosis | Epic Boons, worshippers as a sim resource, divine trials on the planes, ascension |
 
 The riskiest pieces come first: co-op tile streaming (M1) and whether the sim produces
 interesting history (M3). M3 can be judged from text output long before it has graphics.
