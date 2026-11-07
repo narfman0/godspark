@@ -1,5 +1,5 @@
 {
-	"_doc": "Quests from the sim's state (core/deals/deals_quests.gd). Offers are made once per settlement per game day from the sim as it stands when someone first asks, choices by a hash of (world seed, site, day), and kept for the day. Per kind: givers (roles, first present wins; keeper stands in when the town has none of them), days (time limit), coin (base + per, bounded by wealth_share of the town's wealth), standing, xp, item (chance of a smith-made piece), why (lines with placeholders), goal (one line). Placeholders: {town}, {lair}, {what}, {dest}, {raiders}, {good}, {n}, {site}, {dir}, {dist}, {faction}. abandon: standing lost when the party gives up (escort and defence only). beaten: share of the coin and standing paid when someone else got there first. Distances are tiles from the town. turn_in_margin: tiles around the giver town's place (its rect) within which work is handed in.",
+	"_doc": "Quests from the sim's state (core/deals/deals_quests.gd). Offers are made once per settlement per game day from the sim as it stands when someone first asks, choices by a hash of (world seed, site, day), and kept for the day. Per kind: givers (roles, first present wins; keeper stands in when the town has none of them), days (time limit), coin (base + per, bounded by wealth_share of the town's wealth), standing, xp, item (chance of a smith-made piece), why (lines with placeholders), goal (one line). Placeholders: {town}, {lair}, {what}, {dest}, {raiders}, {good}, {n}, {site}, {dir}, {dist}, {faction}; and for below {city}, {way}, {mouth}. below: a patron's bounty on the raiders from below who robbed the town's caravans within look_back_days (docs/tracks/raids-below.md). abandon: standing lost when the party gives up (escort and defence only). beaten: share of the coin and standing paid when someone else got there first. Distances are tiles from the town. turn_in_margin: tiles around the giver town's place (its rect) within which work is handed in.",
 	"max_offers": 4,
 	"wealth_share": 0.2,
 	"turn_in_margin": 20,
@@ -26,6 +26,9 @@
 		"hunt": {"givers": ["keeper", "priest"], "patron": true, "days": 14, "coin": [200, 15], "standing": 15, "xp": 600, "item": 1.0,
 			"why": ["The {what} of {lair} takes what it likes from us. Our patron asks you to end it.", "No one else can face {lair}. We ask you."],
 			"goal": "Clear the {what} at {lair} ({dist} {dir}).", "beaten": 0.25},
+		"below": {"givers": ["keeper", "priest"], "patron": true, "days": 20, "coin": [150, 0.05], "standing": 12, "xp": 500, "item": 1.0, "look_back_days": 60,
+			"why": ["{raiders} came up {way} by {mouth} and took our wagons. Our patron wants their nest found.", "They come up out of the dark by {way} and go back down with our goods. Follow them."],
+			"goal": "Go down by {way} (it comes up by {mouth}) to {city}, home of the {raiders} ({dist} {dir}), and come back with word of it.", "beaten": 0.25},
 		"siege": {"givers": ["keeper", "priest"], "patron": true, "days": 6, "coin": [250, 0], "standing": 15, "xp": 500, "item": 1.0,
 			"why": ["{site} is under siege by {raiders}. Break it.", "Our people in {site} are starving behind their walls."],
 			"goal": "Break the siege of {site}."}

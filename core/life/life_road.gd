@@ -30,7 +30,10 @@ func _init(l: LifeSystem) -> void:
 
 func route_cells(h: WorldHost, rid: int) -> Array:
 	if not _paths.has(rid):
-		_paths[rid] = Places.route_path(h.world, rid)
+		var path := Places.route_path(h.world, rid)
+		if path.is_empty() and life.below != null:
+			path = life.below.way_cells(h, rid)     # a way up from meta.ways (LifeBelow)
+		_paths[rid] = path
 	return _paths[rid]
 
 ## A point t of the way along a route (0 at site a), interpolated along its tile path
@@ -233,14 +236,25 @@ func _spawn_member(h: WorldHost, p: SimParty, slug: String, civ: bool, point: Ve
 	var r := Life.rng_for([h.world.world_seed, "party", p.id, slot])
 	var culture := p.culture if SimData.cultures.has(p.culture) else ""
 	var given := SimNames.make(r, culture if SimData.names.has(culture) else "place", {}) if culture != "" else ""
+	var shown := role
+	if not civ and p.kind == "raid" and culture != "":
+		shown = raid_role(culture, slug)
 	var opts := {"culture": culture, "slug": slug, "role": role, "pos": pos, "post": pos, "fighter": not civ,
 		"faction": p.faction if p.kind != "pack" else -1, "sim": {"kind": "party", "id": p.id, "role": role, "party": p.kind},
 		"talk": civ or p.kind in ["caravan", "patrol"], "friendly": p.kind in ["caravan", "migrants", "settlers", "patrol"],
-		"name": given + (", " + role if given != "" else ""), "span": 3.0, "female": r.randf() < 0.5}
+		"name": given + (", " + shown if given != "" else ""), "span": 3.0, "female": r.randf() < 0.5}
 	var e := life.spawn_person(h, opts)
 	if e != null:
 		rec["ids"][e.id] = slug
 		e.set_meta("slot", slot)
+
+## What a raider is called by its block: the culture's role for it (cultures.json roles: a drow
+## spy is a raider, a mage a mage, a priest a priest), else "raider".
+static func raid_role(culture: String, slug: String) -> String:
+	for role: String in ["raider", "scout", "mage", "priest", "guard"]:
+		if SimData.role_slug(culture, role) == slug:
+			return role
+	return "raider"
 
 func _spawn_wagon(h: WorldHost, p: SimParty, point: Vector2) -> bool:
 	var rec: Dictionary = active[p.id]

@@ -54,6 +54,9 @@ var route_threat := {}        # route id -> float, decays
 var route_traffic := {}       # route id -> {faction id: float}, decays
 var route_value := {}         # route id -> {faction id: coin of cargo sent along it}, decays
 var region_weather := {}      # region index -> float, this year
+## Guards a surface town posted at a way up after a raid from below (SimBelow): link route id ->
+## {home, faction, culture, n, n0, until, since}. Saved.
+var way_watch := {}
 var taken_names := {}
 var next_party := 1
 var next_faction := 1
@@ -204,7 +207,7 @@ func _add_ways(ways: Array) -> void:
 			continue
 		var length := absf(top.x - float(up.x)) + absf(bottom.x - float(down.x)) + absf(top.y - bottom.y) * 1.5 + absf(top.x - bottom.x)
 		routes.append({"id": next_id, "a": int(down.id), "b": int(up.id), "kind": "deep_road", "length": length,
-			"name": "", "cls": 0, "way": str(w.get("kind", "way"))})
+			"name": "", "cls": 0, "way": str(w.get("kind", "way")), "top": [top.x, top.y], "bottom": [bottom.x, bottom.y]})
 		next_id += 1
 
 func _nearest_settlement_site(p: Vector2, surface: bool) -> Dictionary:
@@ -1031,7 +1034,7 @@ func to_dict() -> Dictionary:
 		"chronicle": chronicle.duplicate(true), "stats": stats.duplicate(),
 		"route_threat": rt, "route_traffic": tr, "route_value": rv, "region_weather": rw, "taken_names": tn,
 		"next_party": next_party, "next_faction": next_faction, "world_x0": world_x0, "world_w": world_w,
-	}
+	}.merged({"way_watch": SimBelow.watch_to_dict(self)} if not way_watch.is_empty() else {})
 
 static func from_dict(d: Dictionary) -> WorldSim:
 	SimData.ensure()
@@ -1050,6 +1053,9 @@ static func from_dict(d: Dictionary) -> WorldSim:
 			rr["trail"] = bool(r.trail)
 		if r.has("way"):
 			rr["way"] = str(r.way)
+		for k: String in ["top", "bottom"]:
+			if r.has(k):
+				rr[k] = [float(r[k][0]), float(r[k][1])]
 		rr["crossings"] = Array(r.get("crossings", []))
 		sim.routes.append(rr)
 	sim.world_x0 = float(d.world_x0)
@@ -1102,4 +1108,5 @@ static func from_dict(d: Dictionary) -> WorldSim:
 		sim.taken_names[n] = true
 	sim.next_party = int(d.next_party)
 	sim.next_faction = int(d.next_faction)
+	SimBelow.watch_from_dict(sim, d.get("way_watch", {}))
 	return sim

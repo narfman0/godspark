@@ -41,6 +41,7 @@ static func tick_parties(sim: WorldSim, hours: int) -> void:
 				if p.timer <= 0.0:
 					SimEconomy._go_home(sim, p)
 	_encounters(sim, hours)
+	SimBelow.tick_parties(sim)
 
 static func _advance(sim: WorldSim, p: SimParty, hours: float) -> void:
 	while hours > 0.0 and p.state == "travel":
@@ -382,12 +383,21 @@ static func ambush_outcome(sim: WorldSim, ra: SimParty, v: SimParty, rid: int, h
 			row.taken += 1
 			row.lost += ledger_lost
 	_rel_hit(sim, v.faction, ra.faction, 14.0 if won else 7.0)
+	var below := SimBelow.is_below(ra)
+	if below:
+		if sim.ledger_on and v.kind == "caravan":
+			var brow := sim.ledger_row(rid)
+			brow["below"] = int(brow.get("below", 0)) + 1
+			if won:
+				brow["below_taken"] = int(brow.get("below_taken", 0)) + 1
+		SimBelow.ambushed(sim, ra, v, won and ra.size() > 0, loot_food + loot_goods, loot_coin)
 	sim.log_event("ambush", {
 		"raiders": _adj(ra.culture), "rfaction": sim.faction_name(ra.faction), "rfrom": _home_name(sim, ra),
 		"victim": v.kind, "vfrom": _home_name(sim, v), "vfaction": sim.faction_name(v.faction), "route": sim.route_name(rid),
 		"won": won, "killed": victim_dead, "lost": raider_dead, "food": loot_food, "goods": loot_goods,
 		"coin": loot_coin, "captives": captives, "patrol": not helpers.is_empty(), "motive": str(ra.plan.get("motive", "plunder")),
-	})
+	}.merged({"below": true, "way": sim.route_name(SimBelow.way_of(ra)), "wayid": SimBelow.way_of(ra), "home": ra.home,
+		"vhome": v.home} if below else {}))
 	_after_fight(sim, v)
 	for h in helpers:
 		_after_fight(sim, h)
@@ -644,6 +654,7 @@ static func tick_decisions(sim: WorldSim) -> void:
 		t0 = sim._prof("d_other", t0)
 	_tick_lairs(sim)
 	_tick_sieges(sim)
+	SimBelow.tick_watches(sim)
 
 static func _maybe_raid(sim: WorldSim, s: SimSettlement) -> void:
 	if s.out_raids > 0 or s.soldiers < 6 or s.besieged_by >= 0 or sim.t < int(s.cooldowns.get("raid", 0)):
@@ -667,6 +678,8 @@ static func _maybe_raid(sim: WorldSim, s: SimSettlement) -> void:
 	var dist: Dictionary = pr[0]
 	var ids: Array = pr[2]
 	var cands := route_targets(sim, s, hungry, mask, dist, reach)
+	if s.band != "surface":
+		cands = SimBelow.weigh(sim, s, cands, mask, dist)     # surface roads only by a way up
 	var total := 0.0
 	for cnd in cands:
 		total += cnd[2]
@@ -716,6 +729,8 @@ static func _maybe_raid(sim: WorldSim, s: SimSettlement) -> void:
 		p.dest = far
 		p.route = sim.route_id(path[0], path[1])
 		p.state = "travel"
+		if pick.size() > 3:
+			SimBelow.mark(sim, p, int(pick[3]))
 	else:
 		p = sim.new_party("raid", s.faction, s.culture, s.id, comp)
 		p.target = pick[1]

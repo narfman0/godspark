@@ -4,7 +4,8 @@
 ##   godot --headless -s res://tools/trade_report.gd -- gen=medium seed=N [days=3600] [cache=/dir]
 ## Prints every surface and deep route west to east (kind: road, deep road, or link between a deep
 ## site and the surface), the flows of goods between biomes, how barrier roads compare with flat
-## ones, and the deep roads and links up. cache as in tools/run_history.gd.
+## ones, the deep roads and links up, and raids from below (deep raiders up a way to a surface
+## road) apart from surface raids. cache as in tools/run_history.gd.
 extends SceneTree
 
 var _args := {}
@@ -25,6 +26,7 @@ func _initialize() -> void:
 	_routes(sim)
 	_flows(sim)
 	_compare(sim, days)
+	_below(sim)
 	quit()
 
 func _meta(gen: String, seed: int) -> Dictionary:
@@ -112,3 +114,28 @@ func _compare(sim: WorldSim, days: int) -> void:
 	var ambushes := int(sim.stats.get("ambushes", 0))
 	print("\n== In a line: %d caravans in %d days; %d%% of the coin carried crossed a barrier, %d%% moved between unlike biomes; %d ambushes, %d caravans lost." % [
 		trips, days, roundi(100.0 * over.value / maxf(all, 1.0)), roundi(100.0 * unlike / maxf(all, 1.0)), ambushes, int(sim.stats.get("caravans_lost", 0))])
+
+## Raids from below on surface roads, apart from the surface's own raids on them.
+func _below(sim: WorldSim) -> void:
+	print("\n== Raids from below on surface roads (deep raiders up a way), against surface raids")
+	print("  %4s %-6s %-6s %-12s %9s %7s %7s %7s %7s" % ["id", "from", "to", "crossings", "value", "ambus", "below", "taken", "surface"])
+	var tot := {"below": 0, "below_taken": 0, "surface": 0, "roads": 0}
+	for r: Dictionary in sim.routes:
+		if int(r.cls) != WorldSim.ROAD or not sim.ledger.has(r.id):
+			continue
+		var row: Dictionary = sim.ledger[r.id]
+		var b := int(row.get("below", 0))
+		var surf := int(row.get("ambushes", 0)) - b
+		tot.below += b
+		tot.below_taken += int(row.get("below_taken", 0))
+		tot.surface += surf
+		if b > 0:
+			tot.roads += 1
+			print("  %4d %-6s %-6s %-12s %9d %7d %7d %7d %7d" % [r.id, _biome(sim, r.a), _biome(sim, r.b), _cross(r), int(row.get("value", 0.0)),
+				int(row.get("ambushes", 0)), b, int(row.get("below_taken", 0)), surf])
+	var st := sim.stats
+	print("  raids from below sent %d, ambushes on surface roads %d (%d won) on %d roads; surface raiders' ambushes there %d" % [
+		int(st.get("raids_below", 0)), tot.below, tot.below_taken, tot.roads, tot.surface])
+	print("  carried home: %d goods, %d coin, by %d raids; guards posted at ways %d times, fights at the mouth %d (%d won, %d goods taken back)" % [
+		int(st.get("below_goods_home", 0)), int(st.get("below_coin_home", 0)), int(st.get("below_home", 0)), int(st.get("way_watches", 0)),
+		int(st.get("watch_fights", 0)), int(st.get("watch_wins", 0)), int(st.get("watch_recovered", 0))])

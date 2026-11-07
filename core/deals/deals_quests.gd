@@ -35,7 +35,7 @@ static func offers(sim: WorldSim, world_seed: int, sid: int, day: int) -> Array:
 	if s == null:
 		return []
 	var out: Array = []
-	for kind: String in ["defend", "bounty", "escort", "recover", "relief", "message", "hunt", "siege"]:
+	for kind: String in ["defend", "bounty", "escort", "recover", "relief", "message", "hunt", "siege", "below"]:
 		var q := _make(sim, world_seed, sid, day, kind)
 		if not q.is_empty():
 			out.append(q)
@@ -154,6 +154,30 @@ static func _make(sim: WorldSim, world_seed: int, sid: int, day: int, kind: Stri
 			vars["site"] = sim._site_label(to)
 			vars.merge(Deals.where(sim, sid, to))
 			x = float(vars["tiles"])
+		"below":
+			# raiders came up from below and robbed this town's caravans: its patron wants
+			# their city found, by the way they climbed
+			var since := sim.t - int(float(d.get("look_back_days", 60)) * WorldSim.DAY_H)
+			for i in range(sim.chronicle.size() - 1, -1, -1):
+				var e: Dictionary = sim.chronicle[i]
+				if int(e.get("t", 0)) < since:
+					break
+				if String(e.get("kind", "")) != "ambush" or not bool(e.get("below", false)) or int(e.get("vhome", -1)) != sid:
+					continue
+				var home := int(e.get("home", -1))
+				var way := int(e.get("wayid", -1))
+				if not sim.settlements.has(home) or not sim.route_by_id.has(way) or sim.settlements[home].faction == s.faction:
+					continue
+				var city: SimSettlement = sim.settlements[home]
+				var mouth := SimBelow.surface_end(sim, way)
+				target = {"city": home, "way": way, "faction": city.faction, "mark": sim.chronicle.size(), "mouth": mouth}
+				vars.merge({"city": SimNames.title(city.culture, city.name, city.band), "way": sim.route_name(way),
+					"raiders": "%s raiders" % SimConflict._adj(city.culture), "mouth": sim._site_label(mouth) if mouth >= 0 else "the hills"})
+				vars.merge(Deals.where(sim, sid, home))
+				x = float(city.pop())
+				break
+			if target.is_empty():
+				return {}
 		"siege":
 			for oid: int in WorldSim._sorted_keys(sim.settlements):
 				var o: SimSettlement = sim.settlements[oid]
@@ -201,6 +225,8 @@ static func _title(kind: String, v: Dictionary) -> String:
 			return "Word to %s" % v.get("site", "?")
 		"siege":
 			return "Break the siege of %s" % v.get("site", "?")
+		"below":
+			return "Bounty: the raiders of %s" % v.get("city", "the deep")
 	return kind
 
 ## Is this quest still offered (the thing it is about still there)?
@@ -216,6 +242,8 @@ static func still_valid(sim: WorldSim, q: Dictionary) -> bool:
 			return p != null and String(p.plan.get("leg", "out")) == "out" and p.leg == 0
 		"recover", "defend", "siege":
 			return sim.parties.has(int(t["party"]))
+		"below":
+			return sim.settlements.has(int(t["city"])) and sim.settlements[int(t["city"])].faction == int(t["faction"])
 	return true
 
 ## Where the quest's thing is (tiles), for "near" checks; INF when nowhere.
@@ -232,6 +260,8 @@ static func target_pos(sim: WorldSim, q: Dictionary, party_pos: Callable) -> Vec
 			return party_pos.call(p) if p != null else Vector2.INF
 		"message", "siege":
 			return Deals.site_xy(sim, int(t["site"]))
+		"below":
+			return Deals.site_xy(sim, int(t["city"]))
 	return Deals.site_xy(sim, int(q["site"]))
 
 ## Advance an active quest from the sim and the players' positions. Returns the new state
@@ -310,6 +340,30 @@ static func check(sim: WorldSim, q: Dictionary, ctx: Dictionary) -> String:
 				pr["have"] = 1
 				pr["text"] = "visited; go back"
 				return "ready"
+		"below":
+			var cid := int(t["city"])
+			if String(q["state"]) == "ready":
+				return ""
+			if not sim.settlements.has(cid) or sim.settlements[cid].faction != int(t["faction"]):
+				return "beaten"
+			var city: SimSettlement = sim.settlements[cid]
+			# found: a party member stood in the raiders' city
+			if not (at.call(cid, 30.0) as Array).is_empty():
+				t["found"] = true
+				pr["have"] = 1
+				pr["text"] = "found %s; go back" % SimNames.title(city.culture, city.name, city.band)
+				return "ready"
+			# or its raiders cut down by adventurers on their way
+			for i in range(int(t.get("mark", 0)), sim.chronicle.size()):
+				var e: Dictionary = sim.chronicle[i]
+				if String(e.get("kind", "")) == "raid_repelled" and str(e.get("rfrom", "")) == city.name and String(e.get("by", "")) == "adventurers":
+					t["found"] = true
+					pr["have"] = 1
+					pr["text"] = "its raiders are dead; go back"
+					t["mark"] = sim.chronicle.size()
+					return "ready"
+			t["mark"] = sim.chronicle.size()
+			pr["text"] = "find %s" % SimNames.title(city.culture, city.name, city.band)
 		"siege":
 			var oid := int(t["site"])
 			if not sim.settlements.has(oid) or str(sim.settlements[oid].faction) != String(q["faction"]):

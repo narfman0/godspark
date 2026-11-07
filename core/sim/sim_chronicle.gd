@@ -12,7 +12,7 @@ const WEIGHT := {"faction_fell": 10, "conquered": 9, "sacked": 9, "abandoned": 8
 	"siege_broken": 5, "bad_harvest": 5, "raid": 4, "monster_raid": 4, "tier_up": 4, "tier_down": 4,
 	"expedition_failed": 4, "apex_tribute": 3, "trade_opened": 3, "ambush": 3, "lair_new": 3,
 	"migrants": 2, "army": 2, "siege_lifted": 2, "patrol_clash": 2, "lair_attack": 1, "lair_empty": 1, "lair_cleared_players": 6,
-	"slain_by_players": 3, "raid_repelled": 4}
+	"slain_by_players": 3, "raid_repelled": 4, "way_watched": 3, "watch_fight": 3, "raid_home": 2}
 
 static func stamp(t: int) -> String:
 	var y := t / WorldSim.YEAR_H + 1
@@ -69,6 +69,8 @@ static func line(e: Dictionary) -> String:
 			var who := "%s raiders from %s" % [e.raiders, e.rfrom]
 			var victim: String = KIND_NOUN.get(str(e.victim), "travellers") + " from " + str(e.vfrom)
 			var s := "%s ambushed %s on %s" % [who, victim, e.route]
+			if bool(e.get("below", false)):
+				s = "%s came up %s and ambushed %s on %s" % [who, e.way, victim, e.route]
 			if e.motive == "hunger":
 				s = "hungry " + s
 			if e.patrol:
@@ -81,6 +83,20 @@ static func line(e: Dictionary) -> String:
 			else:
 				s += " and were driven off; %s dead, %s lost" % [_n(int(e.killed), "defender", "defenders"), _n(int(e.lost), "raider", "raiders")]
 			return s
+		"way_watched":
+			return "%s posts %d guards at %s, where raiders came up from below" % [e.site, int(e.n), e.way]
+		"watch_fight":
+			var s := "the guards of %s at %s met %s raiders from %s %s" % [e.site, e.way, e.raiders, e.rfrom,
+				"coming up" if str(e.get("leg", "out")) == "out" else "going home"]
+			if e.won:
+				s += " and drove them off (%d raiders and %d guards fell)" % [int(e.lost), int(e.killed)]
+				if int(e.back) > 0:
+					s += ", taking back %d goods" % int(e.back)
+			else:
+				s += " and could not stop them (%d raiders and %d guards fell)" % [int(e.lost), int(e.killed)]
+			return s
+		"raid_home":
+			return "%s raiders came home to %s by %s with %d goods and %d coin" % [e.raiders, e.site, e.way, int(e.goods), int(e.coin)]
 		"patrol_clash":
 			return "a patrol from %s caught %s raiders (%s) lying in wait on %s and %s; %d raiders and %d of the patrol fell" % [
 				e.pfrom, e.raiders, e.rfaction, e.route, "routed them" if e.won else "was beaten back", int(e.rlost), int(e.plost)]

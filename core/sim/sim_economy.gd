@@ -674,6 +674,8 @@ static func return_home(sim: WorldSim, p: SimParty) -> void:
 			_: h.out_other = maxi(h.out_other - 1, 0)
 	if p.kind == "caravan":
 		sim.stats_add("caravans_done", 1)
+	if SimBelow.is_below(p):
+		SimBelow.came_home(sim, p)
 	sim.remove_party(p)
 
 ## A party with nowhere to go: its people scatter (counted, never silently lost).

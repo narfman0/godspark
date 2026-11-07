@@ -1261,7 +1261,7 @@ func cheat(e: HostEntity, d: Dictionary) -> String:
 			if DealsQuests.delivers(q):
 				e.character.inventory.add(Items.make("trade:" + String(q["target"]["good"]), int(q["target"]["n"])))
 				return ""
-			if String(q["kind"]) in ["bounty", "hunt", "message"]:
+			if String(q["kind"]) in ["bounty", "hunt", "message", "below"]:
 				q["progress"]["have"] = int(q["progress"]["need"])
 				q["target"]["visited"] = true
 				q["state"] = "ready"

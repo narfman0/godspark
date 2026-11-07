@@ -23,6 +23,7 @@ var host: WorldHost:
 var _host: WeakRef
 var town: LifeTown
 var road: LifeRoad
+var below: LifeBelow
 ## Materialize at all (stance and standing work regardless).
 var enabled := true
 ## Print what happens (tools).
@@ -61,6 +62,7 @@ func attach(h: WorldHost) -> void:
 	SimData.ensure()
 	town = LifeTown.new(self)
 	road = LifeRoad.new(self)
+	below = LifeBelow.new(self)
 
 func monsters(h: WorldHost) -> MonstersSystem:
 	return h.system(HostSystem.MONSTERS) as MonstersSystem
@@ -513,6 +515,7 @@ func tick(h: WorldHost) -> void:
 		if enabled and monsters(h) != null:
 			town.scan(h, players)
 			road.scan(h, players)
+			below.scan(h, players)
 		_watch_gates(players)
 		_expire_grudges()
 		_run_scheduled(h)
@@ -530,6 +533,9 @@ func _reset(h: WorldHost) -> void:
 	road.clashes.clear()
 	road.settled.clear()
 	road._paths.clear()
+	for way: int in below.active.keys():
+		below.fold(h, way)
+	below.reset()
 	_sim = h.sim
 
 ## Deaths of any creature (Monsters marks them): Life's people are written back; kills by
@@ -561,6 +567,8 @@ func _died(h: WorldHost, e: HostEntity, b: MonsterBrain) -> void:
 		_out_gone.append(e.id)
 		if String(info.get("kind", "")) == "settlement":
 			town.died(h, int(info["id"]), e, info)
+		elif String(info.get("kind", "")) == "watch":
+			below.died(h, int(info["id"]), e)
 		else:
 			road.died(h, int(info["id"]), e, info, killers)
 	var players: Array = killers.filter(func(id: int) -> bool: return h.entity(id) != null and h.entity(id).is_player())
@@ -783,6 +791,34 @@ func summary() -> String:
 	return "towns %d, parties %d, spawned %d, alive %d, town deaths %d, party deaths %d, raids %d (done %d, stalled %d), ambushes %d, standing changes %d" % [
 		stats["towns"], stats["parties"], stats["spawned"], actors.size(), stats["town_deaths"], stats["party_deaths"], stats["raids"],
 		stats["raids_done"], int(stats.get("raids_stalled", 0)), stats["ambushes_done"], stats["standing_changes"]]
+
+## Host cheat: a raid from below out of deep settlement `from_site` for surface road `rid` (-1: the
+## one its raiders want most), put `frac` of the way along its way up (at "way") or waiting in
+## ambush on the road (at "road"). Returns the party id, or -1.
+func cheat_below(from_site: int, rid := -1, at := "way", frac := 0.5, n := 8) -> int:
+	var sim := host.sim
+	if sim == null or not sim.settlements.has(from_site):
+		return -1
+	var s: SimSettlement = sim.settlements[from_site]
+	if rid < 0:
+		var t := SimBelow.targets(sim, s, true)
+		if t.is_empty():
+			return -1
+		rid = int(t[0]["route"])
+	var p := SimBelow.launch(sim, s, rid, n)
+	if p == null:
+		return -1
+	var want := SimBelow.way_of(p) if at == "way" else rid
+	for i in p.path.size() - 1:
+		if sim.route_id(p.path[i], p.path[i + 1]) == want:
+			p.leg = i
+			p.route = want
+			p.frac = frac if at == "way" else 0.5
+			break
+	if at == "road":
+		p.state = "ambush"
+		p.timer = SimConflict.AMBUSH_DAYS * WorldSim.DAY_H
+	return p.id
 
 ## Put a raid or a caravan on the road from one settlement to another, `frac` of the way along
 ## its last leg (raids attack the target on arrival). Returns the party id, or -1.
