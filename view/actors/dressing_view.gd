@@ -32,8 +32,13 @@ static func defs() -> Dictionary:
 static func model_parts(id: String) -> Dictionary:
 	if _models.has(id):
 		return _models[id]
+	var out := parts_of(defs().get(id, {}))
+	_models[id] = out
+	return out
+
+## The same for any row with a model and textures: {parts, top}, or {} when its file is missing.
+static func parts_of(def: Dictionary) -> Dictionary:
 	var out := {}
-	var def: Dictionary = defs().get(id, {})
 	var inst := GltfCache.instance(String(def.get("model", ""))) if not def.is_empty() else null
 	if inst != null:
 		var parts: Array = []
@@ -48,7 +53,6 @@ static func model_parts(id: String) -> Dictionary:
 		inst.free()
 		if not parts.is_empty() and top > 0.0001:
 			out = {"parts": parts, "top": top}
-	_models[id] = out
 	return out
 
 ## dressing.json "textures": {material name: png or "#hex" colour, "*": png for materials

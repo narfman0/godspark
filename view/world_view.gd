@@ -12,6 +12,10 @@
 ## Light: two R8 textures (block and sky fields, raw levels, one texel per tile) cover a
 ## rectangle around the focus and reach every shader through the global uniforms in
 ## view/shaders/light.gdshaderinc. Light edits refill the textures and never remesh.
+##
+## Natural ground is meshed soft (ChunkMesher) and coloured from a material map, a wrapping texture
+## of one texel per tile that each chunk's build writes into. Behind and before the tiles stand
+## the Backdrops; sky and light take the biome under the focus from them.
 class_name WorldView
 extends Node3D
 
@@ -20,10 +24,14 @@ const BACKDROP_SHADER := preload("res://view/shaders/backdrop.gdshader")
 const ACTOR_SHADER := preload("res://view/shaders/actor.gdshader")
 const T := K.TILE_M
 ## The backdrop plane sits this far (metres) behind the background walls.
-const BACKDROP_Z := -1.2
+const BACKDROP_Z := -2.5
+## The material map, tiles. A power of two past the most the widest zoom keeps meshed.
+const MAT_W := 512
+const MAT_H := 256
 ## The least sun factor the picture uses for the sky field (moonlight); see _apply_sun.
 const NIGHT_VISUAL := 0.25
 const MOON_TINT := Color(0.52, 0.64, 1.0)
+const NIGHT_LOW := Color(0.04, 0.06, 0.13)
 
 ## Mesh builds in flight at once.
 @export var max_tasks := 3
@@ -42,6 +50,11 @@ var _terrain_mat: ShaderMaterial
 var _backdrop_mat: ShaderMaterial
 var _actor_mat: ShaderMaterial
 var _backdrop: MeshInstance3D
+var backdrops: Backdrops
+var soft := true       ## false: the old block look, for comparison pictures
+var _mat_img: Image
+var _mat_tex: ImageTexture
+var _mat_dirty := false
 var _chunks := {}      ## Vector2i -> MeshInstance3D (null while empty)
 var _wanted := {}      ## Vector2i -> true
 var _dirty := {}       ## Vector2i -> true, needs a (re)build
@@ -79,12 +92,36 @@ func setup(w: TileWorld, l: LightEngine) -> void:
 	_backdrop.position = Vector3(world.width * 0.5 * T, world.height * 0.5 * T, BACKDROP_Z)
 	_backdrop.material_override = _backdrop_mat
 	_backdrop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_backdrop.sorting_offset = -1000.0
+	_backdrop_mat.render_priority = -10
 	add_child(_backdrop)
+	_mat_img = Image.create(MAT_W, MAT_H, false, Image.FORMAT_RGBA8)
+	_mat_tex = ImageTexture.create_from_image(_mat_img)
+	RenderingServer.global_shader_parameter_set("gs_mat", _mat_tex)
+	RenderingServer.global_shader_parameter_set("gs_noise", Backdrops.noise_texture())
+	backdrops = Backdrops.new()
+	add_child(backdrops)
+	backdrops.setup(world)
+	keep_clear(0, Vector2.ZERO, 0.0)
+	keep_clear(1, Vector2.ZERO, 0.0)
 	_apply_sun()
+
+## The world's meta changed (a client's comes after its world): rebuild what reads it.
+func meta_changed() -> void:
+	if backdrops != null:
+		backdrops.rebuild()
+
+## Keep the foreground off a spot on the play plane (tiles): 0 the player, 1 the target. radius 0
+## lets it go; negative takes the data's.
+func keep_clear(slot: int, pos: Vector2, radius := -1.0) -> void:
+	if radius < 0.0:
+		radius = float(Backdrops.data().get("fore", {}).get("keep_tiles", 7.0))
+	RenderingServer.global_shader_parameter_set("gs_keep_a" if slot == 0 else "gs_keep_b", Vector4(pos.x, pos.y, radius, 0.0))
 
 ## Stream chunk meshes and light around pos (tile units).
 func set_focus(pos: Vector2) -> void:
 	focus = pos
+	backdrops.update(pos)
 	var lo := Vector2i(((pos - view_half) / K.CHUNK).floor()) - Vector2i.ONE
 	var hi := Vector2i(((pos + view_half) / K.CHUNK).floor()) + Vector2i.ONE
 	lo = lo.clamp(Vector2i.ZERO, Vector2i(world.chunks_x - 1, world.chunks_y - 1))
@@ -259,6 +296,9 @@ func _process(_delta: float) -> void:
 	if world == null:
 		return
 	_collect()
+	if _mat_dirty:
+		_mat_dirty = false
+		_mat_tex.update(_mat_img)
 	_launch()
 	_apply_sun()
 	if light.deferred and light.backlog() > 0:
@@ -283,6 +323,7 @@ func _collect() -> void:
 		stats["build"].append(out.get("usec", 0))
 		if not _wanted.has(key) or _dirty.has(key):
 			continue  # gone out of view, or edited again since: the next build wins
+		_write_mat(key, out.get("mat", PackedByteArray()))
 		var t0 := Time.get_ticks_usec()
 		var arrays: Array = out.get("arrays", [])
 		var mi: MeshInstance3D = _chunks.get(key)
@@ -326,14 +367,24 @@ func _launch() -> void:
 			_chunks[key] = null
 			continue
 		var t0 := Time.get_ticks_usec()
-		var snap := ChunkMesher.snapshot(world, key.x, key.y)
+		var snap := ChunkMesher.snapshot(world, key.x, key.y, soft)
 		stats["snapshot"].append(Time.get_ticks_usec() - t0)
 		var out := {}
 		var task := WorkerThreadPool.add_task(func() -> void:
 			var s := Time.get_ticks_usec()
 			out["arrays"] = ChunkMesher.build_arrays(snap)
+			if snap["soft"]:
+				out["mat"] = ChunkMesher.material_bytes(snap)
 			out["usec"] = Time.get_ticks_usec() - s, false, "chunk mesh")
 		_tasks[key] = {"task": task, "out": out}
+
+## A chunk's texels into the wrapping map. They keep their tiles' coordinates modulo its size.
+func _write_mat(key: Vector2i, bytes: PackedByteArray) -> void:
+	if bytes.is_empty():
+		bytes.resize(K.CHUNK * K.CHUNK * 4)
+	var img := Image.create_from_data(K.CHUNK, K.CHUNK, false, Image.FORMAT_RGBA8, bytes)
+	_mat_img.blit_rect(img, Rect2i(0, 0, K.CHUNK, K.CHUNK), Vector2i((key.x * K.CHUNK) % MAT_W, (key.y * K.CHUNK) % MAT_H))
+	_mat_dirty = true
 
 func _mark(cx: int, cy: int) -> void:
 	if cx < 0 or cy < 0 or cx >= world.chunks_x or cy >= world.chunks_y:
@@ -399,6 +450,7 @@ func _refill_light() -> void:
 
 func _apply_sun() -> void:
 	var s := light.sun
+	var b: Dictionary = backdrops.tint_at(focus.x)
 	# Moonlight: the rules sun at night (WorldClock.MOON) leaves open ground in Darkness, as
 	# the SRD has it, but a black screen is unplayable, so the picture draws the sky field at
 	# no less than NIGHT_VISUAL (about 15% brightness through gs_curve), tinted blue. Caves
@@ -406,7 +458,12 @@ func _apply_sun() -> void:
 	RenderingServer.global_shader_parameter_set("gs_sun", maxf(s, NIGHT_VISUAL))
 	var warm := Color(1.0, 0.62, 0.42).lerp(Color(1.0, 0.97, 0.92), clampf((s - 0.2) / 0.6, 0.0, 1.0))
 	warm = warm.lerp(MOON_TINT, 1.0 - smoothstep(0.05, 0.3, s))
-	RenderingServer.global_shader_parameter_set("gs_sky_tint", warm)
-	var top := sky_color(s)
-	_backdrop_mat.set_shader_parameter("sky_top", top)
-	_backdrop_mat.set_shader_parameter("sky_low", horizon_color(s))
+	RenderingServer.global_shader_parameter_set("gs_sky_tint", warm * (b["light"] as Color))
+	# Dusk's orange is for dusk: by moonlight the low sky and the haze go a deep blue.
+	var dark := 1.0 - smoothstep(0.08, 0.32, s)
+	var horizon := horizon_color(s).lerp(NIGHT_LOW, dark)
+	var top := sky_color(s) * (b["sky_top"] as Color)
+	var low := horizon * (b["sky_low"] as Color)
+	var day := smoothstep(0.1, 0.6, s)
+	RenderingServer.global_shader_parameter_set("gs_haze", horizon * (b["haze"] as Color))
+	backdrops.sky(top, low, low.lerp(Color(1.0, 0.98, 0.95), 0.6 * day).lerp(NIGHT_LOW * 1.7, dark), dark)

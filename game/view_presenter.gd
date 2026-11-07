@@ -175,6 +175,8 @@ func chronicle_history(lines: PackedStringArray) -> void:
 func meta_arrived(_meta: Dictionary) -> void:
 	if light != null:
 		light.reset()     # anything lit before the sky line was known
+	if view != null:
+		view.meta_changed()
 
 ## Combat events drive the actors: swings, rolls and flinches lie over the movement (ActorBody),
 ## the death clip holds as a state until the actor is back on its feet.
@@ -260,7 +262,17 @@ func frame(delta: float) -> void:
 		light.sun = s
 	view.view_half = rig.visible_half_extent()
 	view.set_focus(rig.pos)
+	view.keep_clear(0, cw.view_pos() + Vector2(0, cw.body.size.y * 0.5))
+	_keep_target()
 	env.background_color = WorldView.sky_color(light.sun)
+
+## The foreground stays off what the next swing would land on.
+func _keep_target() -> void:
+	var body: ActorBody = view.get_actor(int(fx.target.get("id", 0))) if fx != null and not fx.target.is_empty() else null
+	if body == null:
+		view.keep_clear(1, Vector2.ZERO, 0.0)
+	else:
+		view.keep_clear(1, Vector2(body.position.x, body.position.y) / K.TILE_M)
 
 func tile_at_screen(screen_pos: Vector2) -> Vector2i:
 	return view.tile_at_screen(screen_pos) if view != null else Vector2i.ZERO

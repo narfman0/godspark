@@ -1,0 +1,74 @@
+{
+ "_doc": "What stands behind and in front of the play plane: view only, nothing in core reads this. biomes: per surface biome, sky (sky_top, sky_low: multipliers on the time of day's colours), haze (the colour distance fades to, a multiplier on the horizon colour), light (a multiplier on the sky's light on everything), mist (0..1, how far up a backdrop the haze climbs), layers (colours and shapes by layer name), props (near silhouettes) and fore (foreground). layers: back to front; depth: tiles behind the play plane, so real perspective makes the parallax; k: how much of the real ground height a layer follows (see view/backdrops.gd); step: tiles between ribbon columns; haze: how much distance has already faded it; fade: tiles down from its top over which the biome's mist takes it; smooth: half-width in tiles of the ground's smoothing. A shape: amp (tiles of rolling hills), ridge (tiles of sharp ridges), scale (tiles a feature spans), teeth (tiles of a treeline's points), every (tiles between points), mesa (0..1, flattens tops into tables). models: props by name, fit_h tiles tall. near: how the near props are laid. fore: the foreground (z tiles in front of the play plane). blend_tiles: how far a biome's sky and backdrops blend across a seam, each way.",
+ "blend_tiles": 110,
+ "layers": [
+  {"name": "ranges", "depth": 1100, "k": 0.16, "step": 24, "haze": 0.55, "smooth": 260, "base": 34, "drop": 500, "fade": 150},
+  {"name": "far", "depth": 480, "k": 0.3, "step": 12, "haze": 0.34, "smooth": 180, "base": 12, "drop": 500, "fade": 100},
+  {"name": "mid", "depth": 190, "k": 0.5, "step": 4, "haze": 0.17, "smooth": 90, "base": 4, "drop": 400, "fade": 60}
+ ],
+ "near": {"depth": 68, "k": 0.72, "step": 3, "haze": 0.07, "smooth": 80, "base": 1, "drop": 300, "fade": 34, "segment": 96, "layer": "near"},
+ "fore": {"segment": 128, "z": [7.0, 13.0], "keep_tiles": 7.0, "town_margin": 24},
+ "models": {
+  "tree_generic": {"textures": {"*": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/Textures/PolygonNature_01.png"}, "model": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/FBX/SM_Tree_Generic_01.gltf"},
+  "tree_round": {"textures": {"*": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/Textures/PolygonNature_01.png"}, "model": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/FBX/SM_Tree_Round_02.gltf"},
+  "pine_tall": {"textures": {"*": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/Textures/PolygonNature_01.png"}, "model": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/FBX/SM_Tree_Pine_Large_01.gltf"},
+  "pine_poly": {"textures": {"*": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/Textures/PolygonNature_01.png"}, "model": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/FBX/SM_Tree_PolyPine_02.gltf"},
+  "alpine": {"model": "res://assets/meshes/POLYGON_NatureBiomes_AlpineMountain_SourceFiles_v2/SourceFiles/FBX/Environment/SM_Env_Pine_01.gltf"},
+  "crag": {"model": "res://assets/meshes/POLYGON_NatureBiomes_AlpineMountain_SourceFiles_v2/SourceFiles/FBX/Environment/SM_Env_Rock_Cliff_01.gltf"},
+  "cactus": {"model": "res://assets/meshes/POLYGON_NatureBiomes_AridDesert_SourceFiles_v2/SourceFiles/FBX/Environment/SM_Env_Cactus_01.gltf"},
+  "desert_dead": {"model": "res://assets/meshes/POLYGON_NatureBiomes_AridDesert_SourceFiles_v2/SourceFiles/FBX/Environment/SM_Env_Tree_Dead_01.gltf"},
+  "mesa": {"model": "res://assets/meshes/POLYGON_NatureBiomes_AridDesert_SourceFiles_v2/SourceFiles/FBX/Environment/SM_Env_Rock_Cliff_02.gltf"},
+  "mangrove": {"model": "res://assets/meshes/POLYGON_NatureBiomes_SwampMarshland_SourceFiles_v3/SourceFiles/FBX/SM_Env_Tree_Mangrove_01.gltf"},
+  "swamp_tree": {"model": "res://assets/meshes/POLYGON_NatureBiomes_SwampMarshland_SourceFiles_v3/SourceFiles/FBX/SM_Env_Tree_Swamp_02.gltf"},
+  "swamp_dead": {"model": "res://assets/meshes/POLYGON_NatureBiomes_SwampMarshland_SourceFiles_v3/SourceFiles/FBX/SM_Env_Tree_Dead_02.gltf"},
+  "fg_rock": {"model": "res://assets/meshes/POLYGON_NatureBiomes_AlpineMountain_SourceFiles_v2/SourceFiles/FBX/Environment/SM_Env_Rock_Small_02.gltf"},
+  "fg_desert_rock": {"model": "res://assets/meshes/POLYGON_NatureBiomes_AridDesert_SourceFiles_v2/SourceFiles/FBX/Environment/SM_Env_Rock_Small_02.gltf"},
+  "fg_fern": {"textures": {"*": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/Textures/PolygonNature_01.png"}, "model": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/FBX/SM_Plant_Fern_02.gltf"},
+  "fg_grass": {"model": "res://assets/meshes/POLYGON_NatureBiomes_MeadowForest_SourceFiles_v2/Meadow_Source_Files/FBX/SM_Env_Grass_Tall_Clump_01.gltf"},
+  "fg_reeds": {"model": "res://assets/meshes/POLYGON_NatureBiomes_SwampMarshland_SourceFiles_v3/SourceFiles/FBX/SM_Env_Reeds_01.gltf"},
+  "fg_bramble": {"model": "res://assets/meshes/POLYGON_NatureBiomes_AridDesert_SourceFiles_v2/SourceFiles/FBX/Environment/SM_Env_Bush_Bramble_02.gltf"},
+  "fg_branch": {"textures": {"*": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/Textures/PolygonNature_01.png"}, "model": "res://assets/meshes/POLYGON_Nature_Source_Files_v2/Source Files/FBX/SM_Tree_Branch_01.gltf"}
+ },
+ "biomes": {
+  "meadow": {"sky_top": [1.0, 1.0, 1.0], "sky_low": [1.0, 1.0, 0.98], "haze": [0.98, 1.0, 1.0], "light": [1.0, 1.0, 0.97], "mist": 0.45,
+   "layers": {
+    "ranges": {"color": "#7b93b4", "amp": 26, "ridge": 8, "scale": 300},
+    "far": {"color": "#6f9a86", "amp": 26, "ridge": 0, "scale": 170},
+    "mid": {"color": "#5d9a58", "amp": 13, "ridge": 0, "scale": 90, "teeth": 1.4, "every": 9},
+    "near": {"color": "#4a8346", "amp": 3, "ridge": 0, "scale": 44, "teeth": 0, "every": 9}},
+   "props": {"spacing": 15, "scale": 1.5, "list": [["tree_generic", 2, 10], ["tree_round", 3, 8]]},
+   "fore": {"spacing": 58, "list": [["fg_grass", 5, 3.2, 0], ["fg_rock", 1, 1.6, 0]]}},
+  "forest": {"sky_top": [0.72, 0.9, 0.86], "sky_low": [0.82, 0.96, 0.84], "haze": [0.72, 0.9, 0.76], "light": [0.88, 1.0, 0.86], "mist": 0.6,
+   "layers": {
+    "ranges": {"color": "#5e7f8a", "amp": 24, "ridge": 14, "scale": 240},
+    "far": {"color": "#3f6f62", "amp": 26, "ridge": 6, "scale": 150, "teeth": 2.4, "every": 13},
+    "mid": {"color": "#2c5f42", "amp": 12, "ridge": 0, "scale": 80, "teeth": 3.4, "every": 8},
+    "near": {"color": "#1f4a30", "amp": 3, "ridge": 0, "scale": 40, "teeth": 2.4, "every": 7}},
+   "props": {"spacing": 6, "scale": 1.7, "list": [["pine_tall", 3, 14], ["pine_poly", 3, 12], ["tree_generic", 2, 11]]},
+   "fore": {"spacing": 44, "list": [["fg_fern", 4, 3.0, 0], ["fg_branch", 3, 7.0, 15], ["fg_rock", 1, 1.6, 0]]}},
+  "mountain": {"sky_top": [0.82, 0.92, 1.12], "sky_low": [0.96, 0.98, 1.08], "haze": [0.92, 0.96, 1.08], "light": [0.96, 0.99, 1.08], "mist": 0.35,
+   "layers": {
+    "ranges": {"color": "#8598b8", "amp": 40, "ridge": 95, "scale": 210, "snow": "#e6edf6"},
+    "far": {"color": "#68758c", "amp": 22, "ridge": 58, "scale": 120, "snow": "#cfd9e6"},
+    "mid": {"color": "#4c5866", "amp": 12, "ridge": 26, "scale": 70, "teeth": 1.5, "every": 11},
+    "near": {"color": "#303d46", "amp": 3, "ridge": 8, "scale": 36, "teeth": 1.0, "every": 9}},
+   "props": {"spacing": 11, "scale": 1.5, "list": [["alpine", 4, 11], ["crag", 2, 12]]},
+   "fore": {"spacing": 60, "list": [["fg_rock", 3, 2.4, 0], ["fg_fern", 1, 2.2, 0]]}},
+  "desert": {"sky_top": [1.34, 1.08, 0.74], "sky_low": [1.2, 1.02, 0.76], "haze": [1.12, 0.96, 0.72], "light": [1.1, 1.0, 0.84], "mist": 0.5,
+   "layers": {
+    "ranges": {"color": "#c4a58a", "amp": 18, "ridge": 16, "scale": 320},
+    "far": {"color": "#b98d62", "amp": 26, "ridge": 0, "scale": 120, "mesa": 0.85},
+    "mid": {"color": "#c9a266", "amp": 10, "ridge": 0, "scale": 110},
+    "near": {"color": "#9c7a46", "amp": 3, "ridge": 0, "scale": 60}},
+   "props": {"spacing": 22, "scale": 1.6, "list": [["cactus", 4, 6], ["desert_dead", 2, 7], ["mesa", 1, 11]]},
+   "fore": {"spacing": 70, "list": [["fg_desert_rock", 3, 2.0, 0], ["fg_bramble", 2, 1.9, 0]]}},
+  "swamp": {"sky_top": [0.68, 0.8, 0.66], "sky_low": [0.82, 0.9, 0.62], "haze": [0.76, 0.84, 0.6], "light": [0.84, 0.94, 0.76], "mist": 0.85,
+   "layers": {
+    "ranges": {"color": "#6c7c6e", "amp": 12, "ridge": 6, "scale": 280},
+    "far": {"color": "#55685a", "amp": 10, "ridge": 0, "scale": 150, "teeth": 2.8, "every": 21},
+    "mid": {"color": "#3e5240", "amp": 5, "ridge": 0, "scale": 80, "teeth": 3.6, "every": 15},
+    "near": {"color": "#2d3e2c", "amp": 2, "ridge": 0, "scale": 44}},
+   "props": {"spacing": 9, "scale": 1.5, "list": [["mangrove", 4, 10], ["swamp_tree", 2, 11], ["swamp_dead", 3, 8]]},
+   "fore": {"spacing": 40, "list": [["fg_reeds", 5, 3.2, 0], ["fg_branch", 1, 7.0, 15]]}}
+ }
+}

@@ -20,6 +20,15 @@
 ## 0 block, 1 emissive, 2 wall, and UV is a world-space tile coordinate on the face's plane:
 ## enough for a texture array to replace the colours later. Per-tile colour variation is a
 ## hash in the shader, so it does not stop faces from merging.
+##
+## Soft mode (snapshot(..., true), what WorldView uses) draws natural ground as terrain, not
+## blocks, and changes nothing the core sees: an open corner of a natural tile is cut (CUT tiles
+## along each side) and an air cell in an inner corner gets the matching fillet, so a stair of
+## single steps reads as one slope through the middle of each tread, where a body stands.
+## Those faces are kind 3 (kind 4 for natural walls, 5 water), which the terrain shader colours
+## from the blended material map: material_bytes(snap), one texel per tile, so no face shows a
+## tile. Roofs cut too; other built things stay square, and plaster, timber and paving (SMOOTH)
+## only lose their per-tile colour.
 class_name ChunkMesher
 extends RefCounted
 
@@ -32,11 +41,53 @@ const WALL_Z := -0.5
 const KIND_BLOCK := 0.0
 const KIND_EMIT := 1.0
 const KIND_WALL := 2.0
+const KIND_SOFT := 3.0
+const KIND_SOFT_WALL := 4.0
+const KIND_WATER := 5.0
+## How far along each side an open corner is cut, and a fillet reaches, in tiles. At a half the cut
+## of one step and the fillet below it lie on one line.
+const CUT := 0.5
+const ROOT2 := 1.4142135
+## What is ground and not building: tile and wall names.
+const NATURAL := ["dirt", "grass", "stone", "bedrock", "rubble", "copper_ore", "iron_ore", "silver_ore", "slate",
+	"forest_floor", "loam", "mossy_stone", "scree", "gravel", "granite", "snow", "sand", "hardpan", "sandstone",
+	"mire", "mud", "bog_stone", "forest_track", "pass_road", "desert_track", "causeway", "green_lane",
+	"river_bed", "ford_stones"]
+## Built tiles that take the map's colour and grain but keep their corners; roofs (the first two
+## lines) are natural here too, for the cut: a stepped roof reads as a pitched one.
+const ROOFS := ["thatch", "shingles", "leaf_roof"]
+const SMOOTH := ["plaster", "timber", "logs", "planks", "elf_wood", "road", "dark_stone", "dressed_stone", "cobblestone", "canvas"]
+## Walls with no courses to show: they take the ground's shading too.
+const NATURAL_WALLS := ["dirt_wall", "stone_wall", "slate_wall", "loam_wall", "mossy_wall", "gravel_wall", "granite_wall",
+	"hardpan_wall", "sandstone_wall", "mud_wall", "bog_wall", "plaster_wall", "wood_wall", "elf_wall", "canvas_wall"]
 const STICK := Color("#6b4a2b")
+
+static var _soft := PackedByteArray()        ## per tile id: 1 natural
+static var _soft_wall := PackedByteArray()   ## per wall id: 1 natural
+
+static func _ensure_soft() -> void:
+	if not _soft.is_empty():
+		return
+	var s := PackedByteArray()
+	s.resize(TileDefs.names.size())
+	for n: String in NATURAL + ROOFS:
+		s[TileDefs.id(n)] = 1
+	for n: String in SMOOTH:
+		s[TileDefs.id(n)] = 2
+	var ws := PackedByteArray()
+	ws.resize(TileDefs.wall_colors.size())
+	for n: String in NATURAL_WALLS:
+		var i := TileDefs.wall_id(n)
+		if i > 0 and i < ws.size():
+			ws[i] = 1
+	_soft_wall = ws
+	_soft = s
 
 ## What a worker needs: copies (packed arrays are shared by reference, so duplicated) of the 3x3 chunks' foreground arrays (or a marker for outside
 ## the world: 0 air above it, 1 bedrock elsewhere) and this chunk's walls.
-static func snapshot(world: TileWorld, cx: int, cy: int) -> Dictionary:
+static func snapshot(world: TileWorld, cx: int, cy: int, soft := false) -> Dictionary:
+	if soft:
+		_ensure_soft()
 	var fgs: Array = []
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
@@ -55,7 +106,7 @@ static func snapshot(world: TileWorld, cx: int, cy: int) -> Dictionary:
 	var bg := own.bg.duplicate() if own != null else PackedByteArray()
 	if own == null:
 		bg.resize(K.CHUNK * K.CHUNK)
-	return {"cx": cx, "cy": cy, "fgs": fgs, "bg": bg, "bedrock": TileDefs.id("bedrock")}
+	return {"cx": cx, "cy": cy, "fgs": fgs, "bg": bg, "bedrock": TileDefs.id("bedrock"), "soft": soft}
 
 static func build(world: TileWorld, cx: int, cy: int) -> Array:
 	return build_arrays(snapshot(world, cx, cy))
@@ -91,15 +142,172 @@ static func build_arrays(snap: Dictionary) -> Array:
 			ids[i + j * PAD] = id
 			sol[i + j * PAD] = solid[id]
 	var buf := MeshBuf.new(Vector2(snap["cx"] * N, snap["cy"] * N))
-	_fronts(buf, ids, sol)
-	_edges(buf, ids, sol)
-	_walls(buf, ids, sol, snap["bg"])
-	_posts(buf, ids, sol)
+	var cut := PackedByteArray()
+	if snap.get("soft", false):
+		cut = _cuts(ids, sol)
+	_fronts(buf, ids, sol, cut)
+	_edges(buf, ids, sol, cut)
+	if not cut.is_empty():
+		_soft_cells(buf, ids, sol, cut)
+		_fillets(buf, ids, sol)
+	_walls(buf, ids, sol, snap["bg"], not cut.is_empty())
+	_posts(buf, ids, sol, not cut.is_empty())
 	return buf.arrays()
+
+## The chunk's material map, row by row: RGBA8, a natural tile's colour with alpha 255, all else
+## zero, so filtering blends ground with ground and a shader can tell how near it is to the edge.
+## Safe on a worker: it reads only the snapshot and TileDefs. Empty for a chunk with no tiles.
+static func material_bytes(snap: Dictionary) -> PackedByteArray:
+	var src: Variant = (snap["fgs"] as Array)[4]
+	var out := PackedByteArray()
+	if not src is PackedByteArray:
+		return out
+	out.resize(N * N * 4)
+	var fg := src as PackedByteArray
+	var colors := TileDefs.colors
+	for p in N * N:
+		var id := fg.decode_u16(p * 2)
+		if _soft[id] != 0:
+			var c := colors[id]
+			out[p * 4] = c.r8
+			out[p * 4 + 1] = c.g8
+			out[p * 4 + 2] = c.b8
+			out[p * 4 + 3] = 255
+	return out
+
+## Per padded cell, which of its corners are cut: bit 0 (+x, +y), 1 (-x, +y), 2 (-x, -y), 3 (+x, -y).
+static func _cuts(ids: PackedInt32Array, sol: PackedByteArray) -> PackedByteArray:
+	var cut := PackedByteArray()
+	cut.resize(PAD * PAD)
+	for j in range(1, PAD - 1):
+		for i in range(1, PAD - 1):
+			var c := i + j * PAD
+			if sol[c] == 0 or _soft[ids[c]] != 1:
+				continue
+			var r := sol[c + 1] == 0
+			var l := sol[c - 1] == 0
+			var u := sol[c + PAD] == 0
+			var d := sol[c - PAD] == 0
+			cut[c] = (1 if r and u else 0) | (2 if l and u else 0) | (4 if l and d else 0) | (8 if r and d else 0)
+	return cut
+
+static func _kind(id: int, cut: PackedByteArray) -> float:
+	return KIND_SOFT if not cut.is_empty() and _soft[id] != 0 else KIND_BLOCK
+
+## Keep the part of a polygon where (p - o).dot(n) >= 0.
+static func _clip(poly: PackedVector2Array, o: Vector2, n: Vector2) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var count := poly.size()
+	for i in count:
+		var a := poly[i]
+		var b := poly[(i + 1) % count]
+		var da := (a - o).dot(n)
+		var db := (b - o).dot(n)
+		if da >= 0.0:
+			out.append(a)
+		if (da >= 0.0) != (db >= 0.0):
+			out.append(a.lerp(b, da / (da - db)))
+	return out
+
+static func _fan(buf: MeshBuf, poly: PackedVector2Array, col: Color, id: int, kind: float) -> void:
+	for i in range(1, poly.size() - 1):
+		buf.tri(Vector3(poly[0].x, poly[0].y, FRONT), Vector3(poly[i].x, poly[i].y, FRONT),
+			Vector3(poly[i + 1].x, poly[i + 1].y, FRONT), Vector3(0, 0, 1), col, id, kind)
+
+## The sloped face between two points of the outline: its bevel from the front polygon's edge,
+## and its side down to the back. out is the outward normal in the plane.
+static func _slope(buf: MeshBuf, poly: PackedVector2Array, o1: Vector2, o2: Vector2, line_at: Vector2, out: Vector2,
+		col: Color, id: int, kind: float) -> void:
+	var i1 := Vector2.INF
+	var i2 := Vector2.INF
+	for p in poly:
+		if absf((p - line_at).dot(out)) > 0.002:
+			continue
+		if i1 == Vector2.INF or p.distance_squared_to(o1) < i1.distance_squared_to(o1):
+			i1 = p
+		if i2 == Vector2.INF or p.distance_squared_to(o2) < i2.distance_squared_to(o2):
+			i2 = p
+	var z := FRONT - BEVEL
+	if i1 != Vector2.INF:
+		var nb := Vector3(out.x, out.y, 1.0).normalized()
+		buf.quad(Vector3(o1.x, o1.y, z), Vector3(o2.x, o2.y, z), Vector3(i2.x, i2.y, FRONT), Vector3(i1.x, i1.y, FRONT), nb, col, id, kind)
+	buf.quad(Vector3(o1.x, o1.y, z), Vector3(o2.x, o2.y, z), Vector3(o2.x, o2.y, BACK), Vector3(o1.x, o1.y, BACK), Vector3(out.x, out.y, 0), col, id, kind)
+
+## Natural cells with a cut corner: a front polygon, and a slope for each cut.
+static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, cut: PackedByteArray) -> void:
+	var colors := TileDefs.colors
+	const CORNERS: Array[Vector2i] = [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(1, -1)]
+	for ly in N:
+		for lx in N:
+			var c := lx + 1 + (ly + 1) * PAD
+			var m := cut[c]
+			if m == 0:
+				continue
+			var id := ids[c]
+			var col := colors[id].srgb_to_linear()
+			var o := Vector2(lx, ly)
+			var poly := PackedVector2Array([o, o + Vector2(1, 0), o + Vector2(1, 1), o + Vector2(0, 1)])
+			if sol[c + 1] == 0:
+				poly = _clip(poly, o + Vector2(1 - BEVEL, 0), Vector2(-1, 0))
+			if sol[c - 1] == 0:
+				poly = _clip(poly, o + Vector2(BEVEL, 0), Vector2(1, 0))
+			if sol[c + PAD] == 0:
+				poly = _clip(poly, o + Vector2(0, 1 - BEVEL), Vector2(0, -1))
+			if sol[c - PAD] == 0:
+				poly = _clip(poly, o + Vector2(0, BEVEL), Vector2(0, 1))
+			for k in 4:
+				if m & (1 << k):
+					var s := CORNERS[k]
+					var out := Vector2(s).normalized()
+					var corner := o + Vector2(0.5, 0.5) + Vector2(s) * 0.5
+					var o1 := corner - Vector2(s.x, 0) * CUT
+					poly = _clip(poly, o1 - out * BEVEL, -out)
+			if poly.size() >= 3:
+				_fan(buf, poly, col, id, KIND_SOFT)
+			for k in 4:
+				if m & (1 << k):
+					var s := CORNERS[k]
+					var out := Vector2(s).normalized()
+					var corner := o + Vector2(0.5, 0.5) + Vector2(s) * 0.5
+					var o1 := corner - Vector2(s.x, 0) * CUT
+					var o2 := corner - Vector2(0, s.y) * CUT
+					_slope(buf, poly, o1, o2, o1 - out * BEVEL, out, col, id, KIND_SOFT)
+
+## Air in an inner corner of natural ground: a wedge that carries the slope on.
+static func _fillets(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -> void:
+	var colors := TileDefs.colors
+	for ly in N:
+		for lx in N:
+			var c := lx + 1 + (ly + 1) * PAD
+			if ids[c] != 0:
+				continue
+			for sy: int in [-1, 1]:
+				var b := c + sy * PAD
+				if sol[b] == 0 or _soft[ids[b]] != 1:
+					continue
+				for sx: int in [-1, 1]:
+					var a := c + sx
+					if sol[a] == 0 or _soft[ids[a]] != 1 or sol[b + sx] == 0:
+						continue
+					var s := Vector2(sx, sy)
+					var corner := Vector2(lx, ly) + Vector2(0.5, 0.5) + s * 0.5
+					var o1 := corner - Vector2(s.x, 0) * CUT
+					var o2 := corner - Vector2(0, s.y) * CUT
+					var into := s.normalized()        # toward the corner, into the ground
+					var far := corner - s
+					var near := corner + s * BEVEL
+					var poly := PackedVector2Array([near, Vector2(far.x, near.y), far, Vector2(near.x, far.y)])
+					poly = _clip(poly, o1 + into * BEVEL, into)
+					var id := ids[b]
+					var col := colors[id].srgb_to_linear()
+					if poly.size() >= 3:
+						_fan(buf, poly, col, id, KIND_SOFT)
+					_slope(buf, poly, o1, o2, o1 + into * BEVEL, -into, col, id, KIND_SOFT)
 
 ## Greedy front faces: horizontal runs of one id with the same top/bottom exposure, then
 ## stacked runs with the same span merged upward.
-static func _fronts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -> void:
+static func _fronts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, cut := PackedByteArray()) -> void:
+	var cuts := not cut.is_empty()
 	var rects: Array[PackedFloat32Array] = []   # [x0, x1, y0, y1, id]
 	var open := {}
 	for ly in N:
@@ -108,7 +316,7 @@ static func _fronts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -
 		var lx := 0
 		while lx < N:
 			var c := lx + 1 + row
-			if sol[c] == 0:
+			if sol[c] == 0 or (cuts and cut[c] != 0):
 				lx += 1
 				continue
 			var id := ids[c]
@@ -117,7 +325,7 @@ static func _fronts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -
 			var x0 := lx
 			while lx + 1 < N:
 				var n := lx + 2 + row
-				if sol[n] == 0 or ids[n] != id or (sol[n + PAD] == 0) != eu or (sol[n - PAD] == 0) != ed:
+				if sol[n] == 0 or ids[n] != id or (sol[n + PAD] == 0) != eu or (sol[n - PAD] == 0) != ed or (cuts and cut[n] != 0):
 					break
 				lx += 1
 			var il := sol[x0 + row] == 0
@@ -142,10 +350,13 @@ static func _fronts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -
 	for r in rects:
 		var col := colors[int(r[4])].srgb_to_linear()
 		buf.quad(Vector3(r[0], r[2], FRONT), Vector3(r[1], r[2], FRONT), Vector3(r[1], r[3], FRONT),
-			Vector3(r[0], r[3], FRONT), nz, col, int(r[4]), KIND_BLOCK)
+			Vector3(r[0], r[3], FRONT), nz, col, int(r[4]), _kind(int(r[4]), cut))
 
-## Bevels, side faces and inner-corner fillers, for each of the four directions.
-static func _edges(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -> void:
+## Bevels, side faces and inner-corner fillers, for each of the four directions. Where a cell's
+## corner is cut its run stops short of the corner, and _soft_cells draws the slope.
+static func _edges(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, cut := PackedByteArray()) -> void:
+	var cuts := not cut.is_empty()
+	var past := BEVEL * (ROOT2 - 1.0)   # how much further the front's edge stops than the outline
 	var colors := TileDefs.colors
 	for e: Vector2i in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
 		var s := Vector2i(1, 0) if e.x == 0 else Vector2i(0, 1)
@@ -174,25 +385,32 @@ static func _edges(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) ->
 				var end := start + Vector2(s) * (t - t0 + 1)
 				var se := sol[c0 - so] == 0
 				var ee := sol[c + so] == 0
-				var f0 := start + Vector2(s) * (BEVEL if se else 0.0) + fe
-				var f1 := end - Vector2(s) * (BEVEL if ee else 0.0) + fe
-				var k0 := start + ke
-				var k1 := end + ke
-				buf.quad(Vector3(f0.x, f0.y, FRONT), Vector3(f1.x, f1.y, FRONT), Vector3(k1.x, k1.y, FRONT - BEVEL),
-					Vector3(k0.x, k0.y, FRONT - BEVEL), nb, col, id, KIND_BLOCK)
-				buf.quad(Vector3(k0.x, k0.y, FRONT - BEVEL), Vector3(k1.x, k1.y, FRONT - BEVEL),
-					Vector3(k1.x, k1.y, BACK), Vector3(k0.x, k0.y, BACK), e3, col, id, KIND_BLOCK)
+				var kind := _kind(id, cut)
+				var cs := CUT if cuts and se and _soft[id] == 1 else 0.0
+				var ce := CUT if cuts and ee and _soft[id] == 1 else 0.0
+				var f0 := start + Vector2(s) * (cs + past if cs > 0.0 else (BEVEL if se else 0.0)) + fe
+				var f1 := end - Vector2(s) * (ce + past if ce > 0.0 else (BEVEL if ee else 0.0)) + fe
+				var k0 := start + Vector2(s) * cs + ke
+				var k1 := end - Vector2(s) * ce + ke
+				if (k1 - k0).dot(Vector2(s)) > 0.001:
+					if (f1 - f0).dot(Vector2(s)) < 0.0:
+						f0 = (f0 + f1) * 0.5
+						f1 = f0
+					buf.quad(Vector3(f0.x, f0.y, FRONT), Vector3(f1.x, f1.y, FRONT), Vector3(k1.x, k1.y, FRONT - BEVEL),
+						Vector3(k0.x, k0.y, FRONT - BEVEL), nb, col, id, kind)
+					buf.quad(Vector3(k0.x, k0.y, FRONT - BEVEL), Vector3(k1.x, k1.y, FRONT - BEVEL),
+						Vector3(k1.x, k1.y, BACK), Vector3(k0.x, k0.y, BACK), e3, col, id, kind)
 				# Inner corners: the neighbour along s is solid and so is the cell beyond it in e.
 				if not se and sol[c0 - so + eo] != 0:
 					buf.tri(Vector3(k0.x, k0.y, FRONT), Vector3(k0.x - e.x * BEVEL, k0.y - e.y * BEVEL, FRONT),
-						Vector3(k0.x, k0.y, FRONT - BEVEL), Vector3(s.x, s.y, 0), col, id, KIND_BLOCK)
+						Vector3(k0.x, k0.y, FRONT - BEVEL), Vector3(s.x, s.y, 0), col, id, kind)
 				if not ee and sol[c + so + eo] != 0:
 					buf.tri(Vector3(k1.x, k1.y, FRONT), Vector3(k1.x - e.x * BEVEL, k1.y - e.y * BEVEL, FRONT),
-						Vector3(k1.x, k1.y, FRONT - BEVEL), Vector3(-s.x, -s.y, 0), col, id, KIND_BLOCK)
+						Vector3(k1.x, k1.y, FRONT - BEVEL), Vector3(-s.x, -s.y, 0), col, id, kind)
 				t += 1
 
 ## Background wall plane behind open cells, greedy-merged per wall id.
-static func _walls(buf: MeshBuf, _ids: PackedInt32Array, sol: PackedByteArray, bg: PackedByteArray) -> void:
+static func _walls(buf: MeshBuf, _ids: PackedInt32Array, sol: PackedByteArray, bg: PackedByteArray, soft := false) -> void:
 	var rects: Array[PackedInt32Array] = []   # [x0, x1, y0, y1, wall]
 	var open := {}
 	for ly in N:
@@ -221,11 +439,12 @@ static func _walls(buf: MeshBuf, _ids: PackedInt32Array, sol: PackedByteArray, b
 	var nz := Vector3(0, 0, 1)
 	for r in rects:
 		buf.quad(Vector3(r[0], r[2], WALL_Z), Vector3(r[1], r[2], WALL_Z), Vector3(r[1], r[3], WALL_Z),
-			Vector3(r[0], r[3], WALL_Z), nz, colors[r[4]].srgb_to_linear(), r[4], KIND_WALL)
+			Vector3(r[0], r[3], WALL_Z), nz, colors[r[4]].srgb_to_linear(), r[4], KIND_SOFT_WALL if soft and _soft_wall[r[4]] != 0 else KIND_WALL)
 
 ## Non-solid, non-air tiles: a small post standing on the cell's floor.
-static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -> void:
+static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, soft := false) -> void:
 	var colors := TileDefs.colors
+	var wk := KIND_WATER if soft else KIND_BLOCK
 	var emit := TileDefs.emit
 	var water := TileDefs.id("water")
 	for ly in N:
@@ -237,9 +456,9 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) ->
 			var col := colors[id].srgb_to_linear()
 			if id == water:
 				# A sheet behind the actors, with a lighter skin along the top.
-				buf.box(Vector3(lx, ly, -0.42), Vector3(lx + 1, ly + 1, -0.3), col, id, KIND_BLOCK)
+				buf.box(Vector3(lx, ly, -0.42), Vector3(lx + 1, ly + 1, -0.3), col, id, wk)
 				if ids[c + PAD] != water:
-					buf.box(Vector3(lx, ly + 0.86, -0.3), Vector3(lx + 1, ly + 1, 0.42), col.lightened(0.35), id, KIND_BLOCK)
+					buf.box(Vector3(lx, ly + 0.86, -0.3), Vector3(lx + 1, ly + 1, 0.42), col.lightened(0.35), id, wk)
 			elif emit[id] > 0:
 				# A stick with a glowing head.
 				buf.box(Vector3(lx + 0.44, ly, -0.06), Vector3(lx + 0.56, ly + 0.5, 0.06), STICK.srgb_to_linear(), id, KIND_BLOCK)

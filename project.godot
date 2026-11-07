@@ -209,3 +209,27 @@ gs_tile_m={
 "type": "float",
 "value": 0.75
 }
+gs_anchor={
+"type": "float",
+"value": 0.0
+}
+gs_haze={
+"type": "color",
+"value": Color(0.7, 0.8, 0.9, 1)
+}
+gs_keep_a={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+gs_keep_b={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+gs_noise={
+"type": "sampler2D",
+"value": ""
+}
+gs_mat={
+"type": "sampler2D",
+"value": ""
+}
