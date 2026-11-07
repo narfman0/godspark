@@ -4,6 +4,9 @@
 ## tools/soft_godot.sh (CPU Vulkan).
 ##   tools/soft_godot.sh -s res://tools/life_shot.gd -- out=/tmp/x.png mode=day|night|caravan|raid
 ##     [seed=4] [zoom=1] [dx=0 dy=0] [ticks=600]
+##   mode=crossing gen=dev seed=15 cross=pass|bridge|ford [raid=1] [along=0.5] [ticks=300]: a caravan
+##     (a cheat, and so is the raid) on the first road with that crossing, `along` of the way
+##     over it; raid=1 sets raiders waiting a few tiles ahead of it, in an ambush.
 extends SceneTree
 
 func _initialize() -> void:
@@ -15,7 +18,7 @@ func _initialize() -> void:
 	DisplayServer.window_set_size(size)
 	root.size = size
 	var mode := String(o.get("mode", "day"))
-	var w := WorldGen.generate(1024, 512, int(o.get("seed", "4")))
+	var w := WorldGen.generate_named(String(o["gen"]), int(o.get("seed", "4"))) if o.has("gen") else WorldGen.generate(1024, 512, int(o.get("seed", "4")))
 	var host := WorldHost.new(w)
 	Dice.rng = host.rng
 	host.add_system(CombatSystem.new())
@@ -43,12 +46,15 @@ func _initialize() -> void:
 	if mode == "night":
 		host.sleep(fposmod(22.0 - host.clock.hour_of_day(), 24.0))
 	var focus := centre
+	var pid := -1
+	if mode == "crossing":
+		pid = _crossing(host, life, String(o.get("cross", "pass")), float(o.get("along", 0.5)), o.has("raid"))
+		print("life_shot: caravan party %d" % pid)
 	var nb := -1
 	for k: int in WorldSim._sorted_keys(host.sim.settlements):
 		if k != sid and not host.sim.path_between(k, sid, WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK).is_empty():
 			if nb < 0 or absf(host.sim.settlements[k].x - host.sim.settlements[sid].x) < absf(host.sim.settlements[nb].x - host.sim.settlements[sid].x):
 				nb = k
-	var pid := -1
 	if mode == "caravan" and nb >= 0:
 		pid = life.cheat_party("caravan", sid, nb, 0.3)
 	if mode == "raid" and nb >= 0:
@@ -59,7 +65,7 @@ func _initialize() -> void:
 				break
 		pid = life.cheat_party("raid", nb, sid, 0.97, 8)
 	for i in int(o.get("ticks", "600")):
-		if pid > 0 and mode == "caravan" and host.sim.parties.has(pid):
+		if pid > 0 and mode in ["caravan", "crossing"] and host.sim.parties.has(pid):
 			var pp := life.road.ground(host, life.road.party_pos(host, host.sim.parties[pid]))
 			if pp != Vector2.INF:
 				p.body.pos = pp + Vector2(-8, 0)
@@ -135,3 +141,52 @@ func _initialize() -> void:
 	print("life_shot: %s %s at %s, %s, %d actors drawn, life %s -> %s" % [mode, host.sim.settlements[sid].name, focus,
 		WorldClock.describe(host.clock.hours()), shown, life.summary(), out])
 	quit()
+
+## A caravan on the first road with this crossing, `along` of the way over it (a cheat), and raiders
+## ahead of it if asked (another). Returns the caravan's party id, or -1.
+static func _crossing(host: WorldHost, life: LifeSystem, kind: String, along: float, raid: bool) -> int:
+	var sim := host.sim
+	var bar: Dictionary = host.world.meta["barriers"]
+	for r: Dictionary in sim.routes:
+		if String(r.get("kind", "")) != "road" or not kind in r.get("crossings", []) \
+				or not sim.settlements.has(int(r.a)) or not sim.settlements.has(int(r.b)):
+			continue
+		var cells: Array = []
+		for row: Dictionary in bar["ranges"]:
+			if kind == "pass":
+				cells.append_array(row["pass"]["path"])
+		for row: Dictionary in bar["rivers"]:
+			if String(row["crossing"]["kind"]) == kind:
+				cells.append_array(row["crossing"]["cells"])
+		var on := {}
+		for q: Array in cells:
+			on[Vector2i(int(q[0]), int(q[1]))] = true
+		var path := Places.route_path(host.world, int(r.id))
+		var hit: Array = []
+		for i in path.size():
+			if on.has(path[i]):
+				hit.append(i)
+		if hit.is_empty():
+			continue
+		var f := float(hit[int((hit.size() - 1) * along)]) / path.size()
+		var pid := life.cheat_party("caravan", int(r.a), int(r.b), f)
+		if pid > 0 and raid:
+			var home := -1
+			for k: int in WorldSim._sorted_keys(sim.settlements):
+				var s: SimSettlement = sim.settlements[k]
+				if k != int(r.a) and k != int(r.b) and (home < 0 or s.faction != sim.settlements[int(r.a)].faction):
+					home = k
+			var s: SimSettlement = sim.settlements[home]
+			var ra := sim.new_party("raid", s.faction, s.culture, home, SimData.allocate(SimData.culture(s.culture).raiders, 5))
+			ra.plan = {"mode": "route", "motive": "plunder", "leg": "out"}
+			ra.target = int(r.id)
+			ra.path = [int(r.a), int(r.b)] as Array[int]
+			ra.leg = 0
+			ra.route = int(r.id)
+			ra.frac = f + 24.0 / path.size()
+			ra.state = "ambush"
+			ra.timer = 24.0
+			ra.dest = int(r.b)
+			s.out_raids += 1
+		return pid
+	return -1
