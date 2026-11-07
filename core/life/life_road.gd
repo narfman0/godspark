@@ -71,14 +71,29 @@ func display_frac(h: WorldHost, p: SimParty, route_frac: float) -> float:
 	var f := minf(p.frac + ahead / maxf(h.sim.leg_hours(p.kind, p.route), 0.01), maxf(stop, p.frac))
 	return f if int(h.sim.route_by_id[p.route].a) == p.path[p.leg] else 1.0 - f
 
-## The party's point on the ground (the first floor below, or out of rock).
-func ground(h: WorldHost, p: Vector2, slug := "") -> Vector2:
+## The party's point on the ground (the first floor below, or out of rock). A member's place
+## beside the point can be inside a building by the road: lifted out of that it would stand on
+## the roof and fall, so a spot higher than the ground can rise over the way from the point
+## (home: where the road is) is given up for one nearer the point, and the point itself at last.
+func ground(h: WorldHost, p: Vector2, slug := "", home := Vector2.INF) -> Vector2:
 	var ms := life.monsters(h)
 	if ms == null or p == Vector2.INF:
 		return p
 	# path cells are feet cells: stand there (out of rock upward, else down to a floor)
 	var q := ms.director._stand_near(h, p, slug)
-	return q if q != Vector2.INF else p
+	if home == Vector2.INF:
+		return q if q != Vector2.INF else p
+	for k in 4:
+		var at := p.lerp(home, float(k) / 3.0)
+		q = ms.director._stand_near(h, at, slug)
+		if q != Vector2.INF and q.y <= home.y + absf(at.x - home.x) + 1.5 and not _on_a_roof(h, q):
+			return q
+	return home
+
+## Feet on a building: the tile under them is one of the Places range that is no road or ford.
+static func _on_a_roof(h: WorldHost, q: Vector2) -> bool:
+	var id := h.world.get_fg(floori(q.x), floori(q.y) - 1)
+	return id >= 96 and id != TileDefs.id("road") and id != TileDefs.id("bridge") and (id < 112 or id > 119)
 
 # --- scan ----------------------------------------------------------------------------------
 
@@ -194,7 +209,7 @@ func _spawn_member(h: WorldHost, p: SimParty, slug: String, civ: bool, point: Ve
 	var slot := int(rec["slot"])
 	rec["slot"] = slot + 1
 	var role := String(cfg["civilian_role"].get(p.kind, "drover")) if civ else String(cfg["party_role"].get(p.kind, "escort"))
-	var pos := ground(h, point + Vector2(_slot_x(slot), 0), slug)
+	var pos := ground(h, point + Vector2(_slot_x(slot), 0), slug, point)
 	var r := Life.rng_for([h.world.world_seed, "party", p.id, slot])
 	var culture := p.culture if SimData.cultures.has(p.culture) else ""
 	var given := SimNames.make(r, culture if SimData.names.has(culture) else "place", {}) if culture != "" else ""
@@ -212,7 +227,7 @@ func _spawn_wagon(h: WorldHost, p: SimParty, point: Vector2) -> bool:
 	var slug := String(Life.people_cfg().get("wagon", "draft-horse"))
 	var slot := int(rec["slot"])
 	rec["slot"] = slot + 1
-	var pos := ground(h, point + Vector2(_slot_x(slot), 0), slug)
+	var pos := ground(h, point + Vector2(_slot_x(slot), 0), slug, point)
 	var e := life.spawn_person(h, {"culture": "", "slug": slug, "role": "wagon", "pos": pos, "post": pos, "fighter": false,
 		"faction": p.faction, "sim": {"kind": "party", "id": p.id, "role": "wagon", "party": p.kind},
 		"talk": false, "friendly": true, "name": "Wagon of %s" % SimConflict._home_name(h.sim, p), "span": 1.0})
@@ -240,7 +255,7 @@ func _posts(h: WorldHost, p: SimParty, point: Vector2) -> void:
 		b.post = dest + Vector2(_slot_x(int(e.get_meta("slot", 0))), 0)
 		var fighting: bool = combat != null and bool(combat.call("in_combat", e))
 		if not fighting and e.body.pos.distance_to(b.post) > 40.0:
-			var q := ground(h, b.post, String(e.look.get("slug", "")))
+			var q := ground(h, b.post, String(e.look.get("slug", "")), dest)
 			if q != Vector2.INF:
 				h.teleport(e, q)
 

@@ -13,11 +13,11 @@ static var _world: TileWorld
 
 static func world() -> TileWorld:
 	if _world == null:
-		_world = WorldGen.generate(1024, 512, 1)
+		_world = WorldGen.generate(1024, 512, 5)
 	return _world
 
 static func rig(life := true, rules := false) -> Dictionary:
-	var w := WorldGen.generate(1024, 512, 1)
+	var w := WorldGen.generate(1024, 512, 5)
 	var host := WorldHost.new(w)
 	Dice.rng = host.rng
 	var out := {"host": host}
@@ -46,6 +46,67 @@ static func put(host: WorldHost, name: String, pos: Vector2, tough := true) -> H
 		e.combatant.stats.current_hp = 9999
 	return e
 
+## A member's place beside the road can be inside a building: lifted out of it they would stand on
+## the roof and die in the fall (a drover on dev seed 5, when this test ran there). A hillside is
+## not a building: they do climb that.
+func _roof(t: TestLog) -> void:
+	var w := TileWorld.make_test(256, 128)
+	var g := w.height / 2
+	var plaster := TileDefs.id("plaster")
+	for x in range(110, 121):
+		for y in range(g, g + 8):
+			w.set_fg(x, y, plaster)
+		w.set_fg(x, g + 8, TileDefs.id("thatch"))
+	var dirt := TileDefs.id("dirt")
+	for x in range(150, 190):
+		for y in range(g, g + mini(x - 149, 12)):
+			w.set_fg(x, y, dirt)
+	var host := WorldHost.new(w)
+	host.add_system(CombatSystem.new())
+	var ms := MonstersSystem.new()
+	ms.director_enabled = 0
+	ms.lairs_enabled = false
+	host.add_system(ms)
+	var life := LifeSystem.new()
+	host.add_system(life)
+	var home := Vector2(107.5, g)
+	var inside := home + Vector2(7.2, 0.0)
+	var lifted: Vector2 = life.road.ground(host, inside, "commoner")
+	t.check(lifted.y > g + 8.0, "out of the wall upward is the roof (%s)" % lifted)
+	var placed: Vector2 = life.road.ground(host, inside, "commoner", home)
+	t.eq(placed.y, float(g), "a member by a house stays on the road (%s)" % placed)
+	t.check(placed.x < 110.0, "beside the wall")
+	var foot := Vector2(148.5, g)
+	var up: Vector2 = life.road.ground(host, foot + Vector2(3.6, 0.0), "commoner", foot)
+	t.check(up.y > g and up.y <= g + 5.0, "on a hillside a member stands on the slope (%s)" % up)
+
+	_seed_roofs(t, life)
+
+## The same on this test's own world, seed 5: every eighth cell of every road, the first dozen
+## places beside it. Some are roofs by the old lift; none is now.
+func _seed_roofs(t: TestLog, _l: LifeSystem) -> void:
+	var r := rig()
+	var h: WorldHost = r["host"]
+	var life: LifeSystem = r["life"]
+	var old := 0
+	var now := 0
+	var n := 0
+	for rt: Variant in h.world.meta.get("routes", []):
+		var cells: Array = life.road.route_cells(h, int(rt["id"]))
+		for i in range(0, cells.size(), 8):
+			var cell: Vector2i = cells[i]
+			var point := Vector2(cell.x + 0.5, cell.y)
+			for slot in 12:
+				var at := point + Vector2(life.road._slot_x(slot), 0)
+				n += 1
+				if LifeRoad._on_a_roof(h, life.road.ground(h, at, "commoner")):
+					old += 1
+				if LifeRoad._on_a_roof(h, life.road.ground(h, at, "commoner", point)):
+					now += 1
+	print("  roofs on seed 5: %d of %d places by the old lift, %d now" % [old, n, now])
+	t.check(old > 0, "seed 5 exercises it: places beside the roads lie in buildings (%d of %d)" % [old, n])
+	t.eq(now, 0, "and nobody is set on a roof")
+
 ## The surface settlement nearest the middle of the world.
 static func town_of(host: WorldHost) -> int:
 	var best := -1
@@ -65,7 +126,7 @@ static func ticks(host: WorldHost, n: int) -> void:
 		host.tick()
 
 func run(t: TestLog) -> void:
-	for f: String in ["_stance", "_standing", "_town", "_roads", "_dice"]:
+	for f: String in ["_roof", "_stance", "_standing", "_town", "_roads", "_dice"]:
 		if not has_method(f):
 			continue
 		var t0 := Time.get_ticks_msec()
