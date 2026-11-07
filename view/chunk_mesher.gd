@@ -148,7 +148,7 @@ static func build_arrays(snap: Dictionary) -> Array:
 	_fronts(buf, ids, sol, cut)
 	_edges(buf, ids, sol, cut)
 	if not cut.is_empty():
-		_soft_cells(buf, ids, sol, cut)
+		_soft_cells(buf, ids, sol, cut, snap["bg"])
 		_fillets(buf, ids, sol)
 	_walls(buf, ids, sol, snap["bg"], not cut.is_empty())
 	_posts(buf, ids, sol, not cut.is_empty())
@@ -250,9 +250,14 @@ static func _slope(buf: MeshBuf, poly: PackedVector2Array, o1: Vector2, o2: Vect
 		buf.quad(Vector3(o1.x, o1.y, z), Vector3(o2.x, o2.y, z), Vector3(i2.x, i2.y, FRONT), Vector3(i1.x, i1.y, FRONT), nb, col, id, kind)
 	buf.quad(Vector3(o1.x, o1.y, z), Vector3(o2.x, o2.y, z), Vector3(o2.x, o2.y, BACK), Vector3(o1.x, o1.y, BACK), Vector3(out.x, out.y, 0), col, id, kind)
 
-## Natural cells with a cut corner: a front polygon, and a slope for each cut.
-static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, cut: PackedByteArray) -> void:
+## Natural cells with a cut corner: a front polygon, a slope for each cut, and behind the cut-away
+## the wall the open cells beside it show. Walls stand only behind open cells, so without it the
+## camera, level with one column only, saw through the cut to the backdrop: a black or white
+## notch at every outer corner underground. By day on the surface the cells beside it show the
+## sky and so does the cut: nothing is drawn.
+static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, cut: PackedByteArray, bg: PackedByteArray) -> void:
 	var colors := TileDefs.colors
+	var wall_colors := TileDefs.wall_colors
 	const CORNERS: Array[Vector2i] = [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(1, -1)]
 	for ly in N:
 		for lx in N:
@@ -289,6 +294,14 @@ static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArra
 					var o1 := corner - Vector2(s.x, 0) * CUT
 					var o2 := corner - Vector2(0, s.y) * CUT
 					_slope(buf, poly, o1, o2, o1 - out * BEVEL, out, col, id, KIND_SOFT)
+					var w := 0
+					for n: Vector2i in [Vector2i(lx + s.x, ly), Vector2i(lx, ly + s.y)]:
+						if n.x >= 0 and n.x < N and n.y >= 0 and n.y < N and bg[n.x + n.y * N] != 0:
+							w = bg[n.x + n.y * N]
+							break
+					if w != 0:
+						buf.tri(Vector3(o1.x, o1.y, WALL_Z), Vector3(corner.x, corner.y, WALL_Z), Vector3(o2.x, o2.y, WALL_Z),
+							Vector3(0, 0, 1), wall_colors[w].srgb_to_linear(), w, KIND_SOFT_WALL if _soft_wall[w] != 0 else KIND_WALL)
 
 ## Air in an inner corner of natural ground: a wedge that carries the slope on.
 static func _fillets(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -> void:

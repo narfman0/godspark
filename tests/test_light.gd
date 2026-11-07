@@ -58,6 +58,19 @@ func _walls_and_corners(t: TestLog) -> void:
 	var open := light.level_at(64, 64 - 8)
 	t.check(behind > 0, "light bends around the end of a wall (got %d)" % behind)
 	t.check(behind < open, "and loses more than in the open (%d < %d)" % [behind, open])
+	# An inner corner: rock below and right of an open cell, and rock in the diagonal between
+	# them. The diagonal shows a face to the room, so it takes the glow like its neighbours.
+	for y in range(40, 50):
+		for x in range(40, 56):
+			world.set_fg(x, y, stone, true)
+	for y in range(44, 48):
+		for x in range(42, 48):
+			world.set_fg(x, y, TileDefs.AIR, true)
+	world.set_fg(44, 45, TileDefs.id("torch"), true)
+	var diag := light.level_at(48, 43)
+	t.check(diag > 0, "rock tucked in an inner corner is lit (got %d)" % diag)
+	t.check(diag <= light.level_at(48, 44) and diag <= light.level_at(47, 43), "but no brighter than the walls beside it")
+	t.eq(light.level_at(49, 42), 0, "and passes none of it on")
 
 func _sun_and_caves(t: TestLog) -> void:
 	var world := TileWorld.make_test()

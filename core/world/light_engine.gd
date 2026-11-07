@@ -541,27 +541,26 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 				ob.append(nu)
 			if d <= 0:
 				continue
+			# A diagonal step into the open needs both cells it squeezes between clear. Rock takes
+			# the glow diagonally regardless: the rock tucked in an inner corner shows a face to
+			# this cell, and rock passes nothing on, so nothing leaks.
 			var m: int
-			if cl and cd:
-				m = nd - 1
-				if op[m] < 2 and lv[m] < d:
-					lv[m] = d
-					db.append(m)
-			if cr and cd:
-				m = nd + 1
-				if op[m] < 2 and lv[m] < d:
-					lv[m] = d
-					db.append(m)
-			if cl and cu:
-				m = nu - 1
-				if op[m] < 2 and lv[m] < d:
-					lv[m] = d
-					db.append(m)
-			if cr and cu:
-				m = nu + 1
-				if op[m] < 2 and lv[m] < d:
-					lv[m] = d
-					db.append(m)
+			m = nd - 1
+			if ((cl and cd) or op[m] == 1) and op[m] < 2 and lv[m] < d:
+				lv[m] = d
+				db.append(m)
+			m = nd + 1
+			if ((cr and cd) or op[m] == 1) and op[m] < 2 and lv[m] < d:
+				lv[m] = d
+				db.append(m)
+			m = nu - 1
+			if ((cl and cu) or op[m] == 1) and op[m] < 2 and lv[m] < d:
+				lv[m] = d
+				db.append(m)
+			m = nu + 1
+			if ((cr and cu) or op[m] == 1) and op[m] < 2 and lv[m] < d:
+				lv[m] = d
+				db.append(m)
 	return lv
 
 func _on_tile_changed(x: int, y: int, layer: int, old: int, now: int) -> void:
