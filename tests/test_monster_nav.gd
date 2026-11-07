@@ -7,6 +7,7 @@ extends RefCounted
 func run(t: TestLog) -> void:
 	_jumps_recorded(t)
 	_stairs(t)
+	_stairs_by_ladder(t)
 	_stair_tiles(t)
 	_gap(t)
 	_pit(t)
@@ -112,6 +113,39 @@ func _stairs(t: TestLog) -> void:
 		"#####...#############",
 		"#####################"])
 	_ok(t, "two-high steps need jumps", NavMaps.run(m2, NavMaps.stats("medium")), [MonsterNav.Edge.JUMP])
+
+## A flight that starts beside a ladder (medium seed 3's portal ramp): W would take the ladder, and
+## the body would leave it under the treads. The follower holds W only past the ladder's column.
+func _stairs_by_ladder(t: TestLog) -> void:
+	var m := NavMaps.build([
+		"G.........H..#",
+		"####......H..#",
+		"....\\.....H..#",
+		".....\\....H..#",
+		"......\\...H..#",
+		".......\\..H..#",
+		"........\\.S..#",
+		".........##..#",
+		"..............",
+		"##############",
+	])
+	var st := NavMaps.stats("medium")
+	var prof := MonsterNav.profile(st)
+	var b := st.make_body()
+	b.pos = m["start"] - Vector2(0.13, 0.0)         # where the seed 3 walk stood: 0.37 into the column
+	TileCollision.update_contacts(m["world"], b)
+	t.check(TileCollision.ladder_at(m["world"], b), "the body starts with the ladder in its centre column")
+	var s := MonsterNav.start(m["world"], prof, b.pos, m["goal"], Vector2i(1, 1), false, 60000, Vector2i(96, 96))
+	while not s.step(100000):
+		pass
+	var p := s.result()
+	t.check(p != null and (p.how[1] & 15) == MonsterNav.Edge.STAIRS, "and the way starts up the treads (%s)" % (p.describe() if p != null else "no path"))
+	if p != null:
+		var f := NavFollow.new()
+		f.set_path(p)
+		var inp := f.input(m["world"], b, 1.0 / K.TICK_HZ, 2.0)
+		t.check(inp != null and inp.move_x < 0.0 and not inp.up, "it walks off the ladder without W, which would take the ladder")
+	_ok(t, "up a flight beside a ladder", NavMaps.run(m, st), [MonsterNav.Edge.STAIRS])
 
 func _gap(t: TestLog) -> void:
 	var m := NavMaps.build([

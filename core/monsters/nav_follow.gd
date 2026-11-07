@@ -133,7 +133,10 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 				inp.up = tp.y > b.pos.y + 0.002
 		E.STAIRS:
 			inp.move_x = _approach(world, b, _carrot(prof, b), dt)   # run up a flight, not node by node
-			inp.up = not b.on_stairs        # W takes a staircase; once on it, it keeps climbing
+			# W takes a staircase; once on it, it keeps climbing. Not with a ladder in the body's
+			# centre column: there W takes the ladder (a flight can start beside one). The leading
+			# edge reaches the tread after the centre has left the ladder.
+			inp.up = not b.on_stairs and not TileCollision.ladder_at(world, b)
 		E.DROP:
 			inp.move_x = _aim(world, b, tp.x, dt)
 			if b.climbing:                  # off a ladder or rope onto the floor beside it
