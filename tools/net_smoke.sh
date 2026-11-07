@@ -60,6 +60,9 @@ if [ "$WORLD_LIFE" = 1 ]; then
 	DEALS=1
 	LIFE=1
 	LIMIT=${LIMIT:-200}
+	# dev seed 25: the keeper's message goes over a ford, 308 columns. On seed 4 it went over the
+	# pass, 1053 columns, and the bot took 146 s of a 165 s run walking it there and back
+	WORLD=${WORLD:-gen=dev seed=25}
 	BOT1_EXTRA="deals_walk=1"
 	HOST_EXTRA="life_raid=6 life_caravan=12"
 fi
