@@ -345,7 +345,9 @@ func clash(h: WorldHost, pa: int, pb: int, by_player := 0) -> void:
 	if by_player != 0:
 		clashes[key]["players"][by_player] = true
 
-## A settlement raid or a monster pack within 48 tiles of the watched settlement it is going for.
+## A settlement raid or a monster pack within 48 tiles of the watched settlement it is going for
+## (of its buildings, LifeSystem.town_dist: a road ends at a town's gate, which in a wide town
+## is far from its square).
 func _at_target(h: WorldHost, p: SimParty) -> bool:
 	if not (p.kind == "pack" or (p.kind == "raid" and String(p.plan.get("mode", "")) == "settlement")):
 		return false
@@ -354,7 +356,7 @@ func _at_target(h: WorldHost, p: SimParty) -> bool:
 	var sid: int = p.path[p.path.size() - 1]
 	if not life.town.active.has(sid):
 		return false
-	return party_pos(h, p).distance_to(LifeTown.site_pos(h, sid)) <= 48.0
+	return life.town_dist(sid, party_pos(h, p)) <= 48.0
 
 ## A raid or pack the sim handed over on arrival at a watched settlement.
 func _start_raid(h: WorldHost, p: SimParty, rec: Dictionary) -> void:

@@ -17,6 +17,9 @@
 class_name LifeSystem
 extends HostSystem
 
+## How far out of town a scheduled cheat raid starts its walk in (tiles along its last leg).
+const CHEAT_WALK_IN := 40
+
 var host: WorldHost:
 	get:
 		return _host.get_ref() if _host != null else null
@@ -288,6 +291,18 @@ func town_span(sid: int) -> Vector2:
 		lo = minf(lo, float(rc[0]))
 		hi = maxf(hi, float(rc[0]) + float(rc[2]) - 1.0)
 	return Vector2(lo, hi)
+
+## How far a point is from a town: from the nearest end of its buildings' span, at its site's
+## height (a party at the end of the road into a wide town is at its gate, not 80 tiles from
+## its square); from the site itself when it has no building standing.
+func town_dist(sid: int, pos: Vector2) -> float:
+	var h := host
+	var site := LifeTown.site_pos(h, sid)
+	var span := town_span(sid)
+	if span.x > span.y:
+		return pos.distance_to(site)
+	var dx := maxf(maxf(span.x - pos.x, pos.x - (span.y + 1.0)), 0.0)
+	return Vector2(dx, pos.y - site.y).length()
 
 ## Standing earned by trading with a people: standing.json trade_per_coin a coin, at most
 ## trade_cap from trade alone.
@@ -760,16 +775,19 @@ func _run_scheduled(h: WorldHost) -> void:
 				if d < bd:
 					bd = d
 					to = sid
-		# The nearest neighbour of another faction by road, then by any way, then anyone: a town's
-		# own faction's raiders meet no guard and fall on the players alone, and a drow city
-		# straight below is nearest by x but its raiders are no smoke-test party.
+		# The nearest surface neighbour of another faction by road, then by any way, then the
+		# peoples below, then anyone: a town's own faction's raiders meet no guard and fall on
+		# the players alone, and the drow city or duergar hold straight below is nearest by x
+		# but its veterans are no party for level-1 players standing in the square (raids from
+		# below have their own cheat, cheat_below).
 		var from := -1
 		var any := WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK
 		var to_f: int = sim.settlements[to].faction
-		for pass_: Array in [[WorldSim.ROAD, true], [any, true], [any, false]]:
+		for pass_: Array in [[WorldSim.ROAD, true, true], [any, true, true], [any, true, false], [any, false, false]]:
 			var fd := INF
 			for sid: int in WorldSim._sorted_keys(sim.settlements):
 				if sid == to or (bool(pass_[1]) and sim.settlements[sid].faction == to_f) \
+						or (bool(pass_[2]) and SimData.is_deep(sim.settlements[sid].culture)) \
 						or sim.path_between(sid, to, int(pass_[0])).is_empty():
 					continue
 				var d := absf(sim.settlements[sid].x - sim.settlements[to].x)
@@ -779,13 +797,46 @@ func _run_scheduled(h: WorldHost) -> void:
 			if from >= 0:
 				break
 		var pid := cheat_party(String(job["kind"]), from, to, 1.0)
+		var how := "resolved"
 		if pid > 0:
 			var p: SimParty = sim.parties[pid]
-			p.leg = p.path.size() - 1
-			p.frac = 0.0
-			SimConflict._arrive(sim, p)
+			# A raid walks in from the edge of town along its last leg, so it meets the guards at
+			# the gate rather than materializing on the square on top of the players; Life hands
+			# it over within 48 tiles of the site (LifeRoad._at_target). A leg that never comes
+			# that close (a deep road ending at a way up), or a caravan, arrives at once.
+			var at := _walk_in_frac(h, p) if String(job["kind"]) == "raid" else -1.0
+			if at >= 0.0:
+				p.frac = at
+				how = "walks in from %d tiles out" % CHEAT_WALK_IN
+			else:
+				p.leg = p.path.size() - 1
+				p.frac = 0.0
+				SimConflict._arrive(sim, p)
+				if sim.parties.has(pid) and sim.parties[pid].frozen:
+					how = "fought in real time"
 		print("LIFE cheat: %s %d from %s arrives at %s (%s)" % [job["kind"], pid, sim._site_label(from) if from >= 0 else "-",
-			sim._site_label(to) if to >= 0 else "-", "fought in real time" if pid > 0 and sim.parties.has(pid) and sim.parties[pid].frozen else "resolved"])
+			sim._site_label(to) if to >= 0 else "-", how])
+
+## The fraction of a party's last leg at which it stands CHEAT_WALK_IN tiles from the site it
+## is bound for (town_dist), walking in from there; -1 when the leg's cells never come within
+## the handover range (LifeRoad._at_target's 48 tiles) or its tile path is unknown.
+func _walk_in_frac(h: WorldHost, p: SimParty) -> float:
+	var cells: Array = road.route_cells(h, p.route)
+	if cells.size() < 2 or not h.sim.route_by_id.has(p.route):
+		return -1.0
+	var sid: int = p.path[p.leg + 1]
+	# the leg's cells run from route a to route b; the party walks path[leg] -> path[leg + 1]
+	var forward: bool = int(h.sim.route_by_id[p.route].a) == p.path[p.leg]
+	var n := cells.size()
+	var end: Vector2i = cells[n - 1] if forward else cells[0]
+	if town_dist(sid, Vector2(end.x + 0.5, end.y)) > 44.0:
+		return -1.0
+	for k in n:                              # k steps back from the arriving end
+		var i := n - 1 - k if forward else k
+		var c: Vector2i = cells[i]
+		if town_dist(sid, Vector2(c.x + 0.5, c.y)) >= float(CHEAT_WALK_IN):
+			return float(i) / float(n - 1) if forward else 1.0 - float(i) / float(n - 1)
+	return 0.0
 
 func summary() -> String:
 	return "towns %d, parties %d, spawned %d, alive %d, town deaths %d, party deaths %d, raids %d (done %d, stalled %d), ambushes %d, standing changes %d" % [
