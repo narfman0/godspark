@@ -310,7 +310,9 @@ func _kits(t: TestLog) -> void:
 ## A generated world's drow city and duergar hold: people at their posts on the real place, lit,
 ## a shop with the people's goods, a smith, work, and lines of their own.
 func _town(t: TestLog) -> void:
-	var w := WorldGen.generate_named("dev", 4)
+	# dev 27 (was 4: with the underground regions of M6 track deep, dev 4's second deep town
+	# stands in a fungal region and its people are kobolds)
+	var w := WorldGen.generate_named("dev", 27)
 	var host := WorldHost.new(w)
 	Dice.rng = host.rng
 	host.add_system(CombatSystem.new())
@@ -390,7 +392,7 @@ func _town(t: TestLog) -> void:
 		host.remove_entity(p.id)
 		for i in 5:
 			host.tick()
-	t.check(seen.has("drow") and seen.has("duergar"), "dev 4 holds a drow and a duergar town (%s)" % [seen.keys()])
+	t.check(seen.has("drow") and seen.has("duergar"), "dev 27 holds a drow and a duergar town (%s)" % [seen.keys()])
 
 # --- 3. deep roads as trade ---------------------------------------------------------------------
 
@@ -591,13 +593,13 @@ static func first_of(host: WorldHost, culture: String) -> int:
 	return -1
 
 func _stance(t: TestLog) -> void:
-	var r := full_rig(4)
+	var r := full_rig(27)       # was 4: see _town
 	var host: WorldHost = r["host"]
 	var life: LifeSystem = r["life"]
 	var deals: DealsSystem = r["deals"]
 	var city := first_of(host, "drow")
 	var hold := first_of(host, "duergar")
-	t.check(city >= 0 and hold >= 0, "dev 4 has a drow city and a duergar hold with places")
+	t.check(city >= 0 and hold >= 0, "dev 27 has a drow city and a duergar hold with places")
 	if city < 0 or hold < 0:
 		return
 	var cs: SimSettlement = host.sim.settlements[city]
