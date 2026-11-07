@@ -7,6 +7,7 @@
 extends RefCounted
 
 const PB := preload("res://tests/test_peoples_below.gd")
+const Rig := preload("res://tests/net_rig.gd")
 
 func run(t: TestLog) -> void:
 	_planning(t)
@@ -16,6 +17,7 @@ func run(t: TestLog) -> void:
 	_watch_fights(t)
 	_save(t)
 	_on_screen(t)
+	_two_players(t)
 
 ## Three surface towns on a road with a pass between the second and third, a drow city below
 ## with a way up to the middle town, and a duergar hold beside it.
@@ -409,3 +411,114 @@ func _on_screen(t: TestLog) -> void:
 			host.tick()
 		t.eq(int(sim.way_watch[way].n) if sim.way_watch.has(way) else 0, n0 - 1, "a guard who falls is one fewer in the sim")
 	t.eq(sim.audit(), [] as Array[String], "the books balance")
+
+# --- two players, over the wire ------------------------------------------------------------------
+
+## A raid from below waiting on a surface road, a caravan coming, two players by: both clients get
+## the same raiders (host entities, sent to each), the ambush is fought on screen and settled into
+## the sim as an ambush from below, and the raiders turn for home with the goods, back to their way.
+func _two_players(t: TestLog) -> void:
+	var w := WorldGen.generate_named("dev", 4)
+	var rig := Rig.new(w)
+	Systems.install_host(rig.host)
+	var ms := rig.host.system(HostSystem.MONSTERS) as MonstersSystem
+	ms.director_enabled = 0
+	ms.lairs_enabled = false
+	ms.nav_fixed_slices = 8
+	rig.host.rng.seed = 404
+	Dice.rng = rig.host.rng
+	var sim := rig.host.sim
+	var life := rig.host.system(HostSystem.LIFE) as LifeSystem
+	var city := -1
+	for rid: int in WorldSim._sorted_keys(sim.route_by_id):
+		var rr: Dictionary = sim.route_by_id[rid]
+		if int(rr.cls) == WorldSim.LINK and sim.settlements.has(SimBelow.deep_end(sim, rid)) \
+				and SimBelow.pull(sim.settlements[SimBelow.deep_end(sim, rid)].culture) > 1.0:
+			city = SimBelow.deep_end(sim, rid)
+	if city < 0:
+		t.check(false, "a raiding city below on dev 4")
+		return
+	for rid: int in WorldSim._sorted_keys(sim.route_by_id):
+		var rr: Dictionary = sim.route_by_id[rid]
+		if int(rr.cls) == WorldSim.ROAD and sim.settlements.has(int(rr.a)) and not sim.route_value.has(rid):
+			trade(sim, rid, sim.settlements[int(rr.a)].faction, 3000.0, 8.0)
+	sim.settlements[city].soldiers = maxi(sim.settlements[city].soldiers, 40)
+	var targets := SimBelow.targets(sim, sim.settlements[city], true)
+	# a road with a town at each end and a walkable path
+	var road := -1
+	for tg: Dictionary in targets:
+		var rr: Dictionary = sim.route_by_id[int(tg["route"])]
+		if sim.settlements.has(int(rr.a)) and sim.settlements.has(int(rr.b)) and Places.route_path(w, int(tg["route"])).size() > 40:
+			road = int(tg["route"])
+			break
+	t.check(road >= 0, "the city's raiders have a surface road to wait on")
+	if road < 0:
+		return
+	var rr: Dictionary = sim.route_by_id[road]
+	var pid := life.cheat_below(city, road, "road", 0.5, 8)
+	var cid := life.cheat_party("caravan", int(rr.a), int(rr.b), 0.3, 4)
+	t.check(pid > 0 and cid > 0, "a raid from below waits on %s and a caravan from %s comes" % [sim.route_name(road), sim._site_label(int(rr.a))])
+	if pid <= 0 or cid <= 0:
+		return
+	var ra: SimParty = sim.parties[pid]
+	var cv: SimParty = sim.parties[cid]
+	if cv.route != road:
+		t.check(false, "the caravan is on the raided road (%d, %d)" % [cv.route, road])
+		return
+	cv.frac = 0.38 if int(rr.a) == cv.path[cv.leg] else 0.62
+	var at := life.road.party_pos(rig.host, ra)
+	for i in 2:
+		var c := rig.add_client(["first", "second"][i])
+		c.player_class = "fighter"
+		c.welcomed.connect(func(cw: ClientWorld) -> void: Systems.install_client(cw))
+	var ok := rig.until(func() -> bool: return rig.host_entity(0) != null and rig.host_entity(1) != null and rig.cw(0) != null and rig.cw(1) != null, 10.0)
+	t.check(ok >= 0.0, "both players joined")
+	if ok < 0.0:
+		return
+	for i in 2:
+		var he := rig.host_entity(i)
+		he.combatant.stats.max_hp = 9999
+		he.combatant.stats.current_hp = 9999
+		rig.host.teleport(he, at + Vector2(-24.0 if i == 0 else 26.0, 6.0))
+		TileCollision.depenetrate(rig.host.world, he.body)
+	rig.run(3.0)
+	var raiders := life.actors_of(pid)
+	t.check(raiders.size() >= 4, "the raid is on screen (%d)" % raiders.size())
+	var seen := [0, 0]
+	for e: HostEntity in raiders:
+		for i in 2:
+			if rig.cw(i).remotes.has(e.id):
+				seen[i] += 1
+	t.check(seen[0] == raiders.size() and seen[1] == raiders.size(), "both clients have every raider (%d, %d of %d)" % [seen[0], seen[1], raiders.size()])
+	# the caravan walks into the ambush; the fight is fought here and settled into the sim
+	var chron := sim.chronicle.size()
+	var took := rig.until(func() -> bool:
+		for i in range(chron, sim.chronicle.size()):
+			if String(sim.chronicle[i].kind) == "ambush" and bool(sim.chronicle[i].get("below", false)):
+				return true
+		return false, 150.0)
+	var line := ""
+	for i in range(chron, sim.chronicle.size()):
+		if String(sim.chronicle[i].kind) == "ambush":
+			line = sim.describe(sim.chronicle[i])
+	print("  on screen: %s (%.0f s)" % [line, took])
+	t.check(took >= 0.0, "the ambush is fought on screen and the sim records it as one from below")
+	t.check(int(life.stats.get("ambushes_done", 0)) >= 1 or line != "", "Life settled it")
+	if not sim.parties.has(pid):
+		t.check(true, "the raid was cut down")
+		return
+	t.eq(String(ra.plan.get("leg", "")), "home", "the raiders turn for home")
+	var way := SimBelow.way_of(ra)
+	var d0 := life.road.party_pos(rig.host, ra).distance_to(life.below.mouth(rig.host, way))
+	rig.run(20.0)
+	if sim.parties.has(pid):
+		var d1 := life.road.party_pos(rig.host, ra).distance_to(life.below.mouth(rig.host, way))
+		t.check(d1 < d0 or ra.route == way, "walking back to their way (%.0f -> %.0f tiles from the mouth)" % [d0, d1])
+		var seen2 := [0, 0]
+		for e: HostEntity in life.actors_of(pid):
+			for i in 2:
+				if rig.cw(i).remotes.has(e.id):
+					seen2[i] += 1
+		t.check(seen2[0] == seen2[1], "both still see the same raiders (%d, %d)" % [seen2[0], seen2[1]])
+	t.eq(sim.audit(), [] as Array[String], "the books balance")
+	Dice.rng = null
