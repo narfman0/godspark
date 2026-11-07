@@ -20,6 +20,7 @@ static var _by_name := {}
 static var _defs: Array = []      ## per id: the def Dictionary
 static var _fp: Array[Vector2i] = []
 static var _ceiling := PackedByteArray()
+static var _tables := {}          ## the file's other top-level keys
 
 static func ensure() -> void:
 	if not _ids.is_empty():
@@ -27,6 +28,7 @@ static func ensure() -> void:
 	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(FILE))
 	assert(d is Dictionary and d.has("ids"), "data/dressing.json needs an ids list")
 	var objs: Dictionary = d.get("objects", {})
+	_tables = d
 	for n: String in d["ids"]:
 		_by_name[n] = _ids.size()
 		_ids.append(n)
@@ -35,6 +37,12 @@ static func ensure() -> void:
 		var fp: Array = def.get("footprint", [1, 1])
 		_fp.append(Vector2i(int(fp[0]), int(fp[1])))
 		_ceiling.append(1 if String(def.get("anchor", "ground")) == "ceiling" else 0)
+
+## A top-level table of the file: density, ponds. {} if it has none.
+static func table(key: String) -> Dictionary:
+	ensure()
+	var v: Variant = _tables.get(key, {})
+	return v if v is Dictionary else {}
 
 static func count() -> int:
 	ensure()

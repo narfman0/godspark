@@ -4,11 +4,13 @@
 extends RefCounted
 
 const Rig := preload("res://tests/net_rig.gd")
+const GenContext := preload("res://core/world/worldgen/gen_context.gd")
 
 func run(t: TestLog) -> void:
 	_defs(t)
 	_chunk_blob(t)
 	_worldgen(t)
+	_biomes(t)
 	_host(t)
 
 func _defs(t: TestLog) -> void:
@@ -61,7 +63,7 @@ func _worldgen(t: TestLog) -> void:
 				if not Dressing.holds(a, r["id"], r["x"], r["y"]):
 					bad += 1
 	t.check(same, "the same seed places the same dressing")
-	t.check(surf > 40, "the surface is dressed (%d objects; only the meadow has a set so far)" % surf)
+	t.check(surf > 100, "the surface is dressed (%d objects)" % surf)
 	t.check(cave > 10, "caves are dressed (%d objects)" % cave)
 	t.eq(bad, 0, "every object stands on solid ground with a clear footprint")
 	t.check(WorldGen.last_timings.has("dressing"), "the stage is timed (%d ms)" % WorldGen.last_timings.get("dressing", -1))
@@ -71,6 +73,69 @@ func _worldgen(t: TestLog) -> void:
 	t.eq(back.content_hash(), a.content_hash(), "and loads with its objects (content_hash covers them)")
 	for f in DirAccess.get_files_at(dir):
 		DirAccess.remove_absolute(dir.path_join(f))
+
+## Every biome has its own dressing, a forest has trees, and pools keep to their rules.
+func _biomes(t: TestLog) -> void:
+	var world := WorldGen.generate_named("dev", 3)
+	var per := {}
+	var trees := {}
+	var bad := 0
+	for cy in world.chunks_y:
+		for cx in world.chunks_x:
+			for r: Dictionary in Dressing.records_in(world, cx, cy):
+				var d := Dressing.def(r["id"])
+				if String(d["where"].get("band", "surface")) != "surface":
+					continue
+				var b := _biome(world, r["x"])
+				per[b] = int(per.get(b, 0)) + 1
+				if Dressing.footprint(r["id"]).y >= 7:
+					trees[b] = int(trees.get(b, 0)) + 1
+				if not Dressing.holds(world, r["id"], r["x"], r["y"]):
+					bad += 1
+	for b: String in ["meadow", "forest", "mountain", "desert", "swamp"]:
+		t.check(int(per.get(b, 0)) >= 20, "%s has its own dressing (%d)" % [b, per.get(b, 0)])
+	t.check(int(trees.get("forest", 0)) * 3 > int(trees.get("desert", 0)) * 4, "the forest has more trees than the desert (%s)" % trees)
+	t.check(int(trees.get("forest", 0)) >= 30, "and it has trees (%d on dev)" % trees.get("forest", 0))
+	t.eq(bad, 0, "scattered dressing stands on what holds it")
+	_pools(t)
+
+## Pools take level ground that is no road or place, which is rare on a settled world, so these
+## stand on a made one: a flat swamp, with one column of road in it.
+func _pools(t: TestLog) -> void:
+	var c := GenContext.new(512, 128, 9, {"only_biome": "swamp"})
+	WorldGen.Biomes.run(c, WorldGen.rng_for(9, "biomes"))
+	var mire := TileDefs.id("mire")
+	var mud := TileDefs.id("mud")
+	var road := 200
+	for x in c.w:
+		c.surface[x] = 60
+		for y in 61:
+			c.fg[x + y * c.w] = mud
+		c.fg[x + 60 * c.w] = TileDefs.id("causeway") if x == road else mire
+	WorldGen.DressingStage._ponds(c, WorldGen.rng_for(9, "dressing"), [Vector2i(300, 360)])
+	var water := TileDefs.id("water")
+	var pools := 0
+	var wrong := 0
+	for x in c.w:
+		var wet := c.fg[x + 60 * c.w] == water
+		if wet:
+			pools += 1
+			wrong += 1 if c.surface[x] > 59 or c.solid[c.fg[x + c.surface[x] * c.w]] == 0 else 0
+		if x > 0 and absi(c.surface[x] - c.surface[x - 1]) > 1:
+			wrong += 1
+	t.check(pools > 20, "a flat swamp has pools (%d columns)" % pools)
+	t.eq(wrong, 0, "each on a bed, with banks a row a column")
+	t.eq(c.fg[road + 60 * c.w], TileDefs.id("causeway"), "not on a road")
+	var settled := 0
+	for x in range(300, 361):
+		settled += 1 if c.fg[x + 60 * c.w] == water else 0
+	t.eq(settled, 0, "nor in a town")
+
+static func _biome(world: TileWorld, x: int) -> String:
+	for s: Dictionary in world.meta["biomes"]:
+		if x >= int(s["x0"]) and x <= int(s["x1"]):
+			return s["biome"]
+	return ""
 
 func _host(t: TestLog) -> void:
 	var world := TileWorld.make_test(256, 128)
