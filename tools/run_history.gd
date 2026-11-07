@@ -207,6 +207,8 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 	var biomes := {}
 	var routes := {"pass": {}, "river": {}, "flat": {}, "deep": {}, "link": {}}
 	var deep := {"start": 0, "end": 0, "survived": 0, "min": 0, "worlds": 0, "cultures": {}}
+	var below := {}
+	var below_lines: PackedStringArray = []
 	var lines: PackedStringArray = []
 	var n := 0
 	var lo0 := 1 << 40
@@ -231,6 +233,19 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 			deep[k] += int(hd.get(k, 0))
 		for c in hd.get("cultures", {}):
 			deep.cultures[c] = int(deep.cultures.get(c, 0)) + int(hd.cultures[c])
+		var hb: Dictionary = h.get("below", {})
+		for k in hb:
+			if k == "by":
+				var by: Dictionary = below.get("by", {})
+				for c in hb.by:
+					by[c] = int(by.get(c, 0)) + int(hb.by[c])
+				below["by"] = by
+			else:
+				below[k] = int(below.get(k, 0)) + int(hb[k])
+		below_lines.append("seed %3d: raids from below %3d, ambushes %3d (won %3d), goods taken %5d, home %3d with %5d goods %5d coin; watches %2d, fights at the mouth %2d (won %2d); bounties %2d; %s" % [
+			seed, int(hb.get("sent", 0)), int(hb.get("ambushes", 0)), int(hb.get("wins", 0)), int(hb.get("taken", 0)), int(hb.get("home", 0)),
+			int(hb.get("goods_home", 0)), int(hb.get("coin_home", 0)), int(hb.get("watches", 0)), int(hb.get("watch_fights", 0)),
+			int(hb.get("watch_wins", 0)), int(hb.get("bounties", 0)), hb.get("by", {})])
 		lines.append("seed %3d: pop %5d -> %5d (min %5d, max %5d)  settl %2d -> %2d  fell %2d  founded %2d  caravans %4d  ambush %3d  raids %3d  wars %2d  conq %d sack %d  famine %3d  lairs cleared %2d  bad %d" % [
 			seed, h.pop0, h.pop1, h.pop_min, h.pop_max, h.settl0, h.settl1, h.fell, h.founded, h.caravans, h.ambushes,
 			h.raids, h.wars, h.conquests, h.sacks, h.famines, h.lairs_cleared, h.bad])
@@ -268,6 +283,15 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 	print("  deep settlements: %d worlds with any; a world %.1f at the start, %.1f at the end, the fewest %.1f; %d of %d of the first still stand; at the end: %s" % [
 		deep.worlds, deep.start / float(n), deep.end / float(n), deep.min / float(n), deep.survived, deep.start,
 		", ".join(dc.map(func(c): return "%s %d" % [c, deep.cultures[c]]))])
+	print("\n== Raids from below (deep raiders up a way to a surface road), per seed")
+	for l in below_lines:
+		print("  " + l)
+	var fn := float(n)
+	print("  a world: raids from below %.1f, ambushes on surface roads %.1f (won %.1f), goods taken %.0f, raids home %.1f carrying %.0f goods and %.0f coin, watches posted %.1f, fights at the mouth %.1f (won %.1f, %.0f goods taken back), bounties offered %.1f; by %s" % [
+		below.get("sent", 0) / fn, below.get("ambushes", 0) / fn, below.get("wins", 0) / fn, below.get("taken", 0) / fn,
+		below.get("home", 0) / fn, below.get("goods_home", 0) / fn, below.get("coin_home", 0) / fn, below.get("watches", 0) / fn,
+		below.get("watch_fights", 0) / fn, below.get("watch_wins", 0) / fn, below.get("recovered", 0) / fn, below.get("bounties", 0) / fn,
+		below.get("by", {})])
 	for kind in routes:
 		var r: Dictionary = routes[kind]
 		var nr := maxf(r.get("routes", 0.0), 1.0)

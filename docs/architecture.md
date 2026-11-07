@@ -974,3 +974,22 @@ are as they were.
 - `MapLogic.free_row(box, taken, steps)`: where a land label goes clear of places and of other labels.
 - `CrossingBot` (`tests/crossing_bot.gd`): one body walking a world's surface end to end,
   for `tools/crossing.gd` and `tests/test_m5_crossing.gd`.
+
+## M6 contracts (the Underdark)
+
+### Raids from below and the deep life (as built: [tracks/raids-below.md](tracks/raids-below.md))
+
+```
+SimBelow (core/sim/sim_below.gd): a raid from a deep settlement on a surface road needs a link on
+  its path (a way up); plan.below = way route id, plan.way = kind, out_t/due_t/back_t; targets(sim, s),
+  launch(sim, s, rid, n); sim.way_watch {way: {home, faction, culture, n, until}} (saved): guards a
+  raided town posts at the way; cultures.json raids_up (pull); quest kind "below" (DealsQuests)
+LifeBelow (life.below): way_cells(h, rid), mouth(h, rid); watch guards at the mouth (meta sim kind
+  "watch"); LifeSystem.cheat_below(city, road, at, frac, n)
+lairs.json rows: biomes, bands, biome_w, charmed [slug, min, max], species; a row the old draw picks
+  that may not stand at the site is drawn again on the lair's own generator (worlds unchanged)
+CombatSystem.legendary(e, foe) (addon MonsterActions legendary_*), holds_any(e), set_hidden(e, on)
+  (Invisible until it attacks); CombatSight.field_category(p) (light field, no torches)
+Burrow (core/monsters/burrow.gd): a burrower's movement, natural tiles only (brains.json
+  burrow.natural), through TileWorld.set_fg, rubble owed as Items.tile_drop, cap_per_min per creature
+```

@@ -11,6 +11,10 @@
 ## gate, its street by lamplight, the duergar hold, a deep gnome warren (the hold refounded by a
 ## cheat: no generated world has deep gnomes until the crystal caverns are made), any warren, and
 ## the map with the deep settlements' names.
+## tour=below (gen=dev seed=4: its drow city has a way up): a raid from below climbing its cave
+## mouth, the ambush on a surface road (a pass road where the raiders can reach one), the watch the
+## town posts at the mouth, a roper in the dark, an aboleth in a lake dug for it (no generated world
+## has a deep lake until the deep biomes land), a purple worm's tunnel (docs/tracks/raids-below.md).
 class_name WorldTour
 extends UiTour
 
@@ -28,6 +32,9 @@ func steps() -> void:
 		return
 	if "tour=deep" in OS.get_cmdline_user_args():
 		await deep()
+		return
+	if "tour=below" in OS.get_cmdline_user_args():
+		await below()
 		return
 	pres.rig.zoom = 1.6
 	await host(func(h: WorldHost) -> void:
@@ -170,6 +177,260 @@ func deep() -> void:
 	await wait(0.5)
 	await shot("37_map_deep")
 	ui.close("map")
+
+## Go to `at` as a walker comes: first 240 tiles off, then in (a long jump straight in leaves the
+## view's light and chunks behind for a while on the CPU renderer).
+func _come_to(at: Vector2, settle := 6.0) -> void:
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		h.teleport(me, at + Vector2(240.0, 0.0))
+		TileCollision.depenetrate(h.world, me.body))
+	await wait(2.5)
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		h.teleport(me, at)
+		TileCollision.depenetrate(h.world, me.body))
+	await wait(settle)
+
+## Open floor cells of the deep roads (their feet-cell paths), fraction k along all of them.
+static func deep_cell(h: WorldHost, k: float) -> Vector2:
+	var cells: Array = []
+	for rid: int in WorldSim._sorted_keys(h.sim.route_by_id):
+		if int(h.sim.route_by_id[rid].cls) == WorldSim.DEEP:
+			cells.append_array(Places.route_path(h.world, rid))
+	if cells.is_empty():
+		return Vector2.INF
+	var c: Vector2i = cells[clampi(int(k * cells.size()), 0, cells.size() - 1)]
+	return Vector2(c.x + 0.5, c.y)
+
+## `tour=below`: raids from below and the deep life (docs/tracks/raids-below.md).
+func below() -> void:
+	var info := {}
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		me.combatant.stats.max_hp = 2000
+		me.combatant.stats.current_hp = 2000
+		var sim := h.sim
+		for rid: int in WorldSim._sorted_keys(sim.route_by_id):
+			var rr: Dictionary = sim.route_by_id[rid]
+			var deep := SimBelow.deep_end(sim, rid)
+			if int(rr.cls) == WorldSim.LINK and sim.settlements.has(deep) and SimBelow.pull(sim.settlements[deep].culture) > 1.0:
+				info["city"] = deep
+				info["way"] = rid
+		if not info.has("city"):
+			return
+		# a world just begun has sent no caravans yet: give its roads the trade a year would
+		for rid: int in WorldSim._sorted_keys(sim.route_by_id):
+			var rr: Dictionary = sim.route_by_id[rid]
+			if int(rr.cls) == WorldSim.ROAD and sim.settlements.has(int(rr.a)) and not sim.route_value.has(rid):
+				sim.route_value[rid] = {sim.settlements[int(rr.a)].faction: 3000.0}
+				sim.route_traffic[rid] = {sim.settlements[int(rr.a)].faction: 8.0}
+		var city: SimSettlement = sim.settlements[int(info["city"])]
+		city.soldiers = maxi(city.soldiers, 60)
+		var life := h.system(HostSystem.LIFE) as LifeSystem
+		info["mouth"] = life.below.mouth(h, int(info["way"]))
+		info["raid"] = life.cheat_below(int(info["city"]), -1, "way", 0.9, 8)
+		print("TOUR below: city %s, way %s, mouth %s, raid %d" % [city.name, sim.route_name(int(info["way"])), info["mouth"], int(info["raid"])]))
+	if not info.has("city"):
+		print("TOUR below: no raiding city with a way up")
+		return
+	pres.rig.zoom = 1.3
+	# the raid climbing out of the mouth
+	await host(func(h: WorldHost) -> void:
+		var me := me_host(h)
+		var life := h.system(HostSystem.LIFE) as LifeSystem
+		var p: SimParty = h.sim.parties.get(int(info["raid"]))
+		var at: Vector2 = info["mouth"]
+		if p != null and life.road.party_pos(h, p) != Vector2.INF:
+			at = (at + life.road.party_pos(h, p)) * 0.5
+		h.teleport(me, at + Vector2(-10.0, 3.0))
+		TileCollision.depenetrate(h.world, me.body))
+	await wait(5.0)
+	await shot("40_raid_climbing")
+	await wait(4.0)
+	await shot("41_raid_out_of_the_mouth")
+	# the ambush on a surface road, a pass road where they can reach one
+	await host(func(h: WorldHost) -> void:
+		var sim := h.sim
+		var life := h.system(HostSystem.LIFE) as LifeSystem
+		var targets := SimBelow.targets(sim, sim.settlements[int(info["city"])], true)
+		var road := -1
+		for tg: Dictionary in targets:
+			var rr: Dictionary = sim.route_by_id[int(tg["route"])]
+			if not (sim.settlements.has(int(rr.a)) and sim.settlements.has(int(rr.b))):
+				continue
+			if road < 0 or ("pass" in (tg["crossings"] as Array) and not "pass" in (sim.route_by_id[road].get("crossings", []) as Array)):
+				road = int(tg["route"])
+		if road < 0:
+			return
+		info["road"] = road
+		var rr: Dictionary = sim.route_by_id[road]
+		var pid := life.cheat_below(int(info["city"]), road, "road", 0.5, 8)
+		var cid := life.cheat_party("caravan", int(rr.a), int(rr.b), 0.42, 4)
+		info["ambush"] = pid
+		var p: SimParty = sim.parties.get(pid)
+		if p != null:
+			info["ambush_at"] = life.road.party_pos(h, p) + Vector2(-14.0, 3.0)
+			p.held = true            # it waits for the picture to come in
+		print("TOUR below: ambush on %s (%s), raid %d, caravan %d" % [sim.route_name(road), "+".join(rr.get("crossings", [])), pid, cid]))
+	if info.has("ambush_at"):
+		await _come_to(info["ambush_at"], 4.0)
+		await host(func(h: WorldHost) -> void:
+			var p: SimParty = h.sim.parties.get(int(info["ambush"]))
+			if p != null:
+				p.held = false)
+	await wait(2.0)
+	await shot("42_ambush_waiting")
+	await wait(10.0)
+	await shot("43_ambush_fight")
+	# the watch at the mouth
+	await host(func(h: WorldHost) -> void:
+		var sim := h.sim
+		var town := SimBelow.surface_end(sim, int(info["way"]))
+		if sim.settlements.has(town):
+			sim.settlements[town].soldiers = maxi(sim.settlements[town].soldiers, 40)
+			SimBelow.post_watch(sim, town, int(info["way"]))
+		var me := me_host(h)
+		h.teleport(me, Vector2(info["mouth"]) + Vector2(-8.0, 3.0))
+		TileCollision.depenetrate(h.world, me.body))
+	await wait(5.0)
+	await shot("44_watch_at_mouth")
+	# the deep life: a dark stretch of the deeps by the city
+	await host(func(h: WorldHost) -> void:
+		var ms := h.system(HostSystem.MONSTERS) as MonstersSystem
+		var combat := h.system(HostSystem.COMBAT) as CombatSystem
+		var me := me_host(h)
+		var spot := Vector2.INF
+		for k in 40:
+			var at := deep_cell(h, 0.1 + k * 0.02)
+			if at != Vector2.INF and combat.sight.field_category(at + Vector2(0, 1)) == LightEngine.Category.DARK:
+				spot = at
+				break
+		if spot == Vector2.INF:
+			return
+		info["dark"] = spot
+		var e := ms.spawn("roper", spot, {"home": spot})
+		info["roper"] = e.id if e != null else -1
+		print("TOUR below: a roper waits at %s, hidden %s" % [spot, combat.is_hidden(e) if e != null else false]))
+	if info.has("dark"):
+		pres.rig.zoom = 1.0
+		await _come_to(Vector2(info["dark"]) + Vector2(-12.0, 1.0), 6.0)
+		await shot("45_roper_in_the_dark")
+		await host(func(h: WorldHost) -> void:
+			var me := me_host(h)
+			h.teleport(me, Vector2(info["dark"]) + Vector2(-4.0, 1.0))
+			TileCollision.depenetrate(h.world, me.body))
+		await wait(2.5)
+		await shot("46_roper_springs")
+	# the aboleth: a lake dug in the deeps, a lair site beside it made its sea
+	await host(func(h: WorldHost) -> void:
+		var sim := h.sim
+		var w := h.world
+		var c := MapLogic.site_xy(h.world.meta, int(info["city"]))
+		var ms := h.system(HostSystem.MONSTERS) as MonstersSystem
+		var floor := deep_cell(h, 0.75)
+		if floor == Vector2.INF:
+			return
+		var x0 := floori(floor.x) - 18
+		var y0 := floori(floor.y)
+		var water := TileDefs.id("water")
+		for x in range(x0, x0 + 36):
+			for y in range(y0 - 7, y0):
+				if Burrow.natural(w.get_fg(x, y)) or w.get_fg(x, y) == TileDefs.AIR:
+					w.set_fg(x, y, water)
+		# a lair site near: an aboleth sea there, with its thralls
+		# a lair site to hold it (dev worlds have few below): the nearest one, moved to the lake
+		var lid := -1
+		var bd := INF
+		for s: Dictionary in sim.sites:
+			if String(s.kind) in ["lair", "ruin"] and not sim.settlements.has(int(s.id)):
+				var d := absf(float(s.x) - floor.x) + (0.0 if SimData.band_family(String(s.band)) == "deeps" else 100000.0)
+				if d < bd:
+					bd = d
+					lid = int(s.id)
+		if lid < 0:
+			print("TOUR below: no lair site for the aboleth")
+			return
+		sim.site_by_id[lid]["band"] = "deeps"
+		var site: Dictionary = sim.site_by_id[lid]
+		site["x"] = floor.x
+		site["y"] = floor.y
+		site["biome"] = "deep_lake"
+		var l := SimLair.new()
+		l.id = lid
+		l.kind = "aboleth"
+		l.family = "deeps"
+		l.name = "Glimmerdeep Sea"
+		l.apex = true
+		l.monsters = {"aboleth": 1, "chuul": 1, "warrior-infantry": 2, "scout": 1}
+		l.max_n = 4
+		l.hunger = 0.3
+		l.x = floor.x
+		l.biome = "deep_lake"
+		sim.lairs[lid] = l
+		(ms.lairs as LairLink).fold(h, lid)
+		# lamps along the shore and over the water, to see it by
+		for x in range(x0 - 6, x0 + 44, 6):
+			if h.world.get_fg(x, y0 + 3) == TileDefs.AIR:
+				h.world.set_fg(x, y0 + 3, TileDefs.id("torch"))
+		info["lake"] = floor
+		print("TOUR below: a lake at %s, lair %d made an aboleth sea" % [floor, lid]))
+	if info.has("lake"):
+		pres.rig.zoom = 1.7
+		await _come_to(Vector2(info["lake"]) + Vector2(-20.0, 2.0), 8.0)
+		await shot("47_aboleth_lair")
+		await host(func(h: WorldHost) -> void:
+			var me := me_host(h)
+			h.teleport(me, Vector2(info["lake"]) + Vector2(-3.0, 3.0))
+			TileCollision.depenetrate(h.world, me.body))
+		await wait(4.0)
+		await shot("47b_aboleth_rises")
+	# a purple worm's tunnel through the rock
+	await host(func(h: WorldHost) -> void:
+		var ms := h.system(HostSystem.MONSTERS) as MonstersSystem
+		var me := me_host(h)
+		var at := deep_cell(h, 0.4)
+		if at == Vector2.INF:
+			return
+		# room for its body where it starts (a cheat for the picture): from there it digs its own
+		for x in range(floori(at.x) - 4, floori(at.x) + 5):
+			for y in range(floori(at.y), floori(at.y) + 8):
+				if Burrow.natural(h.world.get_fg(x, y)):
+					h.world.set_fg(x, y, TileDefs.AIR)
+		var e := ms.spawn("purple-worm", at, {"home": at})
+		if e == null:
+			return
+		var b := e.brain as MonsterBrain
+		b.burrow.cap = 2000             # a picture can't wait out its minutes
+		b._wander_to = at + Vector2(-60.0, -8.0)
+		b._wander_at = 1.0e9
+		b._enter(MonsterBrain.State.WANDER)
+		b.hostility = "neutral"
+		info["worm"] = e.id
+		info["worm_at"] = at
+		h.world.set_fg(floori(at.x) + 10, floori(at.y) + 1, TileDefs.id("torch"))
+		h.teleport(me, at + Vector2(14.0, 2.0))
+		TileCollision.depenetrate(h.world, me.body))
+	if info.has("worm"):
+		pres.rig.zoom = 1.6
+		await wait(25.0)
+		await host(func(h: WorldHost) -> void:
+			var e := h.entity(int(info["worm"]))
+			var me := me_host(h)
+			if e != null:
+				print("TOUR below: the worm dug %d tiles, at %s" % [(e.brain as MonsterBrain).burrow.dug, e.body.pos])
+				# torches down its tunnel, to see it by
+				var a: Vector2 = info["worm_at"]
+				for x in range(floori(minf(a.x, e.body.pos.x)), floori(maxf(a.x, e.body.pos.x)) + 1, 7):
+					for y in range(floori(minf(a.y, e.body.pos.y)) - 4, floori(maxf(a.y, e.body.pos.y)) + 8):
+						if h.world.get_fg(x, y) == TileDefs.AIR and h.world.is_solid(x, y - 1):
+							if h.world.get_fg(x, y + 3) == TileDefs.AIR:
+								h.world.set_fg(x, y + 3, TileDefs.id("torch"))
+							break
+				h.teleport(me, (e.body.pos + Vector2(info["worm_at"])) * 0.5 + Vector2(0.0, 1.0))
+				TileCollision.depenetrate(h.world, me.body))
+		await wait(3.0)
+		await shot("48_purple_worm_tunnel")
 
 ## A cheat for pictures: a deep settlement taken over by another people, its town rebuilt in their
 ## style and shown again.

@@ -111,6 +111,7 @@ static func observe(sim: WorldSim, years: int) -> Dictionary:
 				survived += 1
 	h["deep"] = {"start": deep0.size(), "end": deep_count(sim), "survived": survived,
 		"min": deep_min if deep_min < (1 << 30) else deep0.size(), "cultures": deep_cult}
+	h["below"] = below(sim)
 	var kinds: PackedStringArray = []
 	for e in sim.chronicle:
 		if SimChronicle.WEIGHT.get(e.kind, 0) >= 5:
@@ -171,6 +172,25 @@ static func _sample(sim: WorldSim, biomes: Dictionary) -> void:
 			row.short += 1
 		elif sec >= 1.0 and s.wealth >= p * RICH_COIN:
 			row.rich += 1
+
+## Raids from below (SimBelow): sent, ambushes on surface roads and won, goods and coin taken and
+## carried home, how many came home, watches posted at ways and their fights, bounties a raided
+## town's patron would offer (an ambush from below on one of its caravans while the raiders' city
+## stands), and raids by culture.
+static func below(sim: WorldSim) -> Dictionary:
+	var st := sim.stats
+	var out := {"sent": int(st.get("raids_below", 0)), "ambushes": int(st.get("below_ambushes", 0)),
+		"wins": int(st.get("below_wins", 0)), "taken": int(st.get("below_taken", 0)), "coin_taken": int(st.get("below_coin_taken", 0)),
+		"home": int(st.get("below_home", 0)), "goods_home": int(st.get("below_goods_home", 0)), "coin_home": int(st.get("below_coin_home", 0)),
+		"watches": int(st.get("way_watches", 0)), "watch_fights": int(st.get("watch_fights", 0)), "watch_wins": int(st.get("watch_wins", 0)),
+		"recovered": int(st.get("watch_recovered", 0)), "bounties": 0, "by": {}}
+	for e: Dictionary in sim.chronicle:
+		if String(e.get("kind", "")) != "ambush" or not bool(e.get("below", false)):
+			continue
+		out.by[str(e.get("raiders", "?"))] = int(out.by.get(str(e.get("raiders", "?")), 0)) + 1
+		if sim.site_by_id.has(int(e.get("vhome", -1))) and SimData.band_family(sim.site_by_id[int(e.get("vhome", -1))].band) == "surface":
+			out.bounties += 1
+	return out
 
 ## Settlements below the surface.
 static func deep_count(sim: WorldSim) -> int:
