@@ -318,9 +318,11 @@ func _draw_land(c: Control, meta: Dictionary) -> void:
 			shown.append(box)
 			_label(c, name_, Vector2(at.x, y), size, col)
 
+## Text centred on at, kept inside the map.
 func _label(c: Control, s: String, at: Vector2, size: int, col: Color) -> void:
 	var w := UiTheme.text_width(s, size)
-	UiTheme.text(c, at - Vector2(w * 0.5, 0), s, size, col, false, HORIZONTAL_ALIGNMENT_LEFT, -1, 0)
+	var x := clampf(at.x - w * 0.5, 6.0, maxf(6.0, c.size.x - w - 6.0))
+	UiTheme.text(c, Vector2(x, at.y), s, size, col, false, HORIZONTAL_ALIGNMENT_LEFT, -1, 0)
 
 # --- the card -----------------------------------------------------------------------------------------
 
