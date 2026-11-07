@@ -37,6 +37,17 @@ func _initialize() -> void:
 			var kind := "air" if v == 0 else ("buried" if v <= 8 else ("surface" if cy == (world.height / 2 - 1) / K.CHUNK else "caves"))
 			by_kind[kind].append(ms)
 	all.sort()
+	var soft_us := 0
+	var soft_verts := 0
+	for cy in world.chunks_y:
+		for cx in world.chunks_x:
+			var snap := ChunkMesher.snapshot(world, cx, cy, true)
+			var t0 := Time.get_ticks_usec()
+			var arr := ChunkMesher.build_arrays(snap)
+			ChunkMesher.material_bytes(snap)
+			soft_us += Time.get_ticks_usec() - t0
+			soft_verts += 0 if arr.is_empty() else (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	print("soft: avg %.2f ms a chunk with its material map, avg verts %d" % [soft_us / 1000.0 / n, soft_verts / n])
 	print("chunk mesh build, %d chunks of %dx%d, single thread:" % [n, K.CHUNK, K.CHUNK])
 	print("  avg %.2f ms  median %.2f  p95 %.2f  max %.2f   avg verts %d   snapshot avg %.3f ms" %
 		[_avg(all), all[n / 2], all[int(n * 0.95)], all[n - 1], verts / n, snap_us / 1000.0 / n])

@@ -5,6 +5,7 @@
 ##     [dy=4: the camera over the feet] [zoom=1] [nohero]
 ##     [cache=DIR: load the world from DIR, or generate and save it there]
 ##     [spawn=1: the spawn town] [open=1: walk east to where no place is in view] [hard=1: the old block look]
+##     [nodress=1: none of the world's dressing, to weigh it]
 ##     [bench=300: pan for that many frames first and print the frame times] [seam=1: x at a seam]
 extends SceneTree
 
@@ -54,7 +55,7 @@ func _initialize() -> void:
 	view.set_focus(focus)
 	env.background_color = WorldView.sky_color(sun)
 	var recs := _records(world, focus) if not o.has("sheet") else _sheet(int(o["sheet"]), Vector2i(x, int(y)))
-	dressing.set_objects(recs)
+	dressing.set_objects(recs if not o.has("nodress") else [])
 	if not o.has("nohero"):
 		view.add_actor(1, {"player": "fighter", "name": "Ash", "kind": "hero", "color": Color(0.85, 0.3, 0.25)})
 		view.move_actor(1, Vector2(x + 0.5, y), 1, "idle")

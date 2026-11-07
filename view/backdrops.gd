@@ -31,6 +31,8 @@ const T := K.TILE_M
 const SKY_Z := 2600.0
 ## Tiles past the world's ends the ribbons run, so no end shows.
 const MARGIN := 1600
+## Columns in one piece of a ribbon.
+const RIBBON_COLS := 64
 ## Rows of ground over the camera before the foreground has fully gone.
 const FORE_FADE_ROWS := 14.0
 
@@ -223,7 +225,9 @@ func _add_ribbon(l: Dictionary) -> void:
 	var uv2 := PackedVector2Array()
 	var idx := PackedInt32Array()
 	var x := -MARGIN
+	var from := x
 	var n := 0
+	var mat := _material(l, false)
 	while x <= world.width + MARGIN:
 		var cx := clampi(x, 0, world.width - 1)
 		var ab := biomes_at(float(cx))
@@ -257,6 +261,22 @@ func _add_ribbon(l: Dictionary) -> void:
 				idx.append_array([v - 4 + b, v + b, v - 3 + b, v - 3 + b, v + b, v + 1 + b])
 		n += 1
 		x += step
+		# A stretch at a time, so what is out of view is culled; the next starts on this column.
+		if n > RIBBON_COLS or x > world.width + MARGIN:
+			_ribbon_piece(layer, mat, verts, cols, uv2, idx, from, x - step, z)
+			var last := verts.size() - 4
+			verts = verts.slice(last)
+			cols = cols.slice(last)
+			uv2 = uv2.slice(last)
+			idx = PackedInt32Array()
+			from = x - step
+			n = 1
+	counts["ribbons"] += 1
+
+func _ribbon_piece(layer: String, mat: Material, verts: PackedVector3Array, cols: PackedColorArray, uv2: PackedVector2Array,
+		idx: PackedInt32Array, x0: int, x1: int, z: float) -> void:
+	if idx.is_empty():
+		return
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
@@ -266,19 +286,13 @@ func _add_ribbon(l: Dictionary) -> void:
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var mi := MeshInstance3D.new()
-	mi.name = "ribbon_" + layer
+	mi.name = "ribbon_%s_%d" % [layer, x0]
 	mi.mesh = mesh
-	mi.material_override = _material(l, false)
+	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.custom_aabb = _whole_aabb(z)
+	# the shader moves it by the anchor: cull on a box as tall as the world and more
+	mi.custom_aabb = AABB(Vector3(x0 * T, -1000.0, z - 40.0), Vector3((x1 - x0) * T, world.height * T + 2000.0, 80.0))
 	add_child(mi)
-	counts["ribbons"] += 1
-
-## The shader moves things by the anchor, so cull on a box as tall as the world and more.
-func _whole_aabb(z: float) -> AABB:
-	var w := (world.width + MARGIN * 2) * T
-	var h := world.height * T + 2000.0
-	return AABB(Vector3(-MARGIN * T, -1000.0, z - 40.0), Vector3(w, h, 80.0))
 
 func _material(l: Dictionary, instanced: bool, tex: Texture2D = null) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
@@ -326,9 +340,11 @@ func update(focus: Vector2) -> void:
 		_sky.position = Vector3(focus.x * T, focus.y * T, -SKY_Z)
 		_sky_mat.set_shader_parameter("scroll", Vector2(focus.x * 0.0009, 0.0))
 	var under := _ground[cx] - focus.y          # rows of ground over the camera
-	fore_fade = clampf(1.0 - (under - 2.0) / FORE_FADE_ROWS, 0.0, 1.0)
-	for m in _fore_mats:
-		m.set_shader_parameter("fade", fore_fade)
+	var fade := clampf(1.0 - (under - 2.0) / FORE_FADE_ROWS, 0.0, 1.0)
+	if fade != fore_fade:
+		fore_fade = fade
+		for m in _fore_mats:
+			m.set_shader_parameter("fade", fade)
 	var d := data()
 	var near: Dictionary = d.get("near", {})
 	var fore: Dictionary = d.get("fore", {})
@@ -376,6 +392,7 @@ func _model(model: String, use: String) -> Dictionary:
 					var m := ShaderMaterial.new()
 					m.shader = FORE_SHADER
 					m.set_shader_parameter("has_mask", tex != null)
+					m.set_shader_parameter("fade", fore_fade)
 					if tex != null:
 						m.set_shader_parameter("mask", tex)
 					_fore_mats.append(m)

@@ -85,13 +85,10 @@ func setup(w: TileWorld, l: LightEngine) -> void:
 	light.light_changed.connect(_on_light_changed)
 	RenderingServer.global_shader_parameter_set("gs_tile_m", T)
 	_backdrop = MeshInstance3D.new()
-	var quad := QuadMesh.new()
-	var margin := 200.0
-	quad.size = Vector2(world.width + margin * 2, world.height + margin * 2) * T
-	_backdrop.mesh = quad
-	_backdrop.position = Vector3(world.width * 0.5 * T, world.height * 0.5 * T, BACKDROP_Z)
 	_backdrop.material_override = _backdrop_mat
 	_backdrop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_backdrop.position.z = BACKDROP_Z
+	_shape_backdrop()
 	_backdrop.sorting_offset = -1000.0
 	_backdrop_mat.render_priority = -10
 	add_child(_backdrop)
@@ -106,10 +103,42 @@ func setup(w: TileWorld, l: LightEngine) -> void:
 	keep_clear(1, Vector2.ZERO, 0.0)
 	_apply_sun()
 
+## The dark behind the caves only has work to do under the ground, so with the surface line
+## known it stops a little over it: the sky above costs no pixels. Without it, the whole world.
+func _shape_backdrop() -> void:
+	var margin := 200
+	var surf: Variant = world.meta.get("surface", null)
+	var v := PackedVector3Array()
+	var idx := PackedInt32Array()
+	var known: bool = (surf is Array or surf is PackedInt32Array) and surf.size() == world.width
+	var step := 16 if known else world.width
+	for i in range(0, world.width / step + 1):
+		var x := mini(i * step, world.width)
+		var top := world.height + margin
+		if known:
+			top = 0
+			for c in range(maxi(x - step, 0), mini(x + step, world.width)):
+				top = maxi(top, int(surf[c]))
+			top += 6
+		var x0 := (x if i > 0 else -margin) if x < world.width else world.width + margin
+		v.append(Vector3(x0 * T, top * T, 0.0))
+		v.append(Vector3(x0 * T, -margin * T, 0.0))
+		if i > 0:
+			var k := i * 2
+			idx.append_array([k - 2, k - 1, k, k, k - 1, k + 1])
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = v
+	arrays[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_backdrop.mesh = mesh
+
 ## The world's meta changed (a client's comes after its world): rebuild what reads it.
 func meta_changed() -> void:
 	if backdrops != null:
 		backdrops.rebuild()
+		_shape_backdrop()
 
 ## Keep the foreground off a spot on the play plane (tiles): 0 the player, 1 the target. radius 0
 ## lets it go; negative takes the data's.

@@ -27,22 +27,17 @@ void vertex() {
 	face_uv = UV;
 }
 
-// x: a broad shade (strata stretched along the ground); y: fine grain.
-vec2 ground_grain(vec2 tile) {
-	float strata = texture(gs_noise, tile * vec2(0.0035, 0.016)).b;
-	float blotch = texture(gs_noise, tile * 0.0065).r;
-	float grain = texture(gs_noise, tile * vec2(0.021, 0.029)).a;
-	return vec2(mix(strata, blotch, 0.45), grain);
-}
-
 // The sky's light on a face, reaching further into the ground than the light field does: the
 // field stops some rows in, and a hard black edge under the grass is the block-game look. Above
-// it, a share of the light a way up and to the sides carries the shade on down.
+// it, a share of the light a way up carries the shade on down. Only where the field has run out.
 vec3 ground_light(vec2 tile) {
 	vec3 L = gs_light_at(tile);
-	float s = gs_levels(tile + vec2(0.0, 7.0)).y * 0.45 + gs_levels(tile + vec2(0.0, 15.0)).y * 0.35
-		+ gs_levels(tile + vec2(0.0, 24.0)).y * 0.2;
-	return max(L, gs_sky_tint.rgb * gs_curve(min(s, 1.0) * gs_sun) * 0.62);
+	if (L.g > 0.3) {
+		return L;
+	}
+	float s = texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 9.0))).r * 0.55
+		+ texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 20.0))).r * 0.45;
+	return max(L, gs_sky_tint.rgb * gs_curve(min(s * (255.0 / GS_FULL), 1.0) * gs_sun) * 0.62);
 }
 
 void fragment() {
@@ -56,17 +51,19 @@ void fragment() {
 		ALBEDO = base * (0.7 + 0.6 * n) * (gs_light_at(tile) + vec3(0.004));
 	} else if (kind > 3.5) {
 		// A natural wall behind a cave: the wall's colour, shaded in the ground's own way.
-		vec2 g = ground_grain(tile + vec2(37.0, 11.0));
-		base *= 0.74 + 0.5 * g.x + 0.12 * g.y;
+		vec4 n = texture(gs_noise, tile * vec2(0.0035, 0.016) + vec2(0.37, 0.11));
+		base *= 0.74 + 0.5 * mix(n.b, n.r, 0.45);
 		ALBEDO = base * 1.35 * (gs_light_at(tile) + vec3(0.004));
 	} else if (kind > 2.5) {
-		vec2 warp = (texture(gs_noise, tile * 0.0042).rg - 0.5) * 3.2
-			+ (texture(gs_noise, tile * 0.019).gb - 0.5) * 1.2;
+		// Two looks at the noise pay for everything: broad strata and a fine grain, each also
+		// wandering the sampling point of the material map.
+		vec4 broad = texture(gs_noise, tile * vec2(0.0035, 0.016));
+		vec4 fine = texture(gs_noise, tile * vec2(0.021, 0.029));
+		vec2 warp = (broad.rg - 0.5) * 3.2 + (fine.gb - 0.5) * 1.2;
 		vec4 m = texture(gs_mat, (tile + warp) / GS_MAT_SIZE);
 		vec3 blended = m.a > 0.02 ? pow(m.rgb / m.a, vec3(2.2)) : base;
 		base = mix(base, blended, smoothstep(0.05, 0.4, m.a));
-		vec2 g = ground_grain(tile);
-		base *= 0.62 + 0.62 * g.x + 0.16 * (g.y - 0.5);
+		base *= 0.62 + 0.62 * mix(broad.b, broad.r, 0.45) + 0.16 * (fine.a - 0.5);
 		vec3 L = ground_light(tile + wnrm.xy * 0.5);
 		ALBEDO = base * (L * gs_face_shade(wnrm) + vec3(0.004));
 	} else {

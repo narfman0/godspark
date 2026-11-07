@@ -14,6 +14,8 @@ class_name DressingView
 extends Node3D
 
 const FILE := "res://data/dressing.json"
+## Tiles of width a MultiMesh covers, as a shift: a third or so of a screen.
+const STRETCH_SHIFT := 6
 
 static var _defs := {}
 ## id -> {parts: [{mesh, xform}], top: float (model height above its origin, m)} or {} if missing
@@ -39,7 +41,7 @@ static func model_parts(id: String) -> Dictionary:
 ## The same for any row with a model and textures: {parts, top}, or {} when its file is missing.
 static func parts_of(def: Dictionary) -> Dictionary:
 	var out := {}
-	var inst := GltfCache.instance(String(def.get("model", ""))) if not def.is_empty() else null
+	var inst := GltfCache.instance(String(def.get("model", "")), int(def.get("lod", 0))) if not def.is_empty() else null
 	if inst != null:
 		var parts: Array = []
 		var top := 0.0
@@ -98,19 +100,21 @@ func set_objects(recs: Array) -> void:
 	for c in get_children():
 		c.queue_free()
 	counts.clear()
+	# One MultiMesh per object and stretch of the width, so what is off screen is culled.
 	var by_id := {}
 	for r: Dictionary in recs:
-		var id := String(r.get("id", ""))
-		if not by_id.has(id):
-			by_id[id] = []
-		by_id[id].append(r)
-	for id: String in by_id:
+		var key := [String(r.get("id", "")), int(r["x"]) >> STRETCH_SHIFT]
+		if not by_id.has(key):
+			by_id[key] = []
+		by_id[key].append(r)
+	for key: Array in by_id:
+		var id: String = key[0]
 		var def: Dictionary = defs().get(id, {})
 		var m := model_parts(id)
 		if def.is_empty() or m.is_empty():
 			continue
 		var xforms: Array[Transform3D] = []
-		for r: Dictionary in by_id[id]:
+		for r: Dictionary in by_id[key]:
 			xforms.append(placement(def, m["top"], int(r["x"]), int(r["y"])))
 		for p: Dictionary in m["parts"]:
 			var mm := MultiMesh.new()
@@ -125,7 +129,7 @@ func set_objects(recs: Array) -> void:
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mmi.set_instance_shader_parameter("tint", Color.from_string(String(def.get("tint", "#ffffff")), Color.WHITE))
 			add_child(mmi)
-		counts[id] = xforms.size()
+		counts[id] = int(counts.get(id, 0)) + xforms.size()
 
 ## World transform of one placed object: fitted to fit_h tiles, centred on its footprint,
 ## on its plane z, squashed in depth, with a per-cell jitter in scale and yaw.

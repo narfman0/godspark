@@ -50,22 +50,25 @@ static func state(path: String) -> GLTFState:
 ## A new scene instance of the file, or null. generate_scene() runs once per file and the
 ## result is kept as a template that is duplicated: running it twice on one GLTFState renames
 ## the bones (Hips -> Hips_2), which breaks animation retargeting.
-static func instance(path: String) -> Node3D:
-	if not _templates.has(path):
+## lod: which of a Synty chain's meshes to keep, or the last it has below that. Dressing that
+## many instances draw asks for a cheap one.
+static func instance(path: String, lod := 0) -> Node3D:
+	var key := path if lod == 0 else "%s#%d" % [path, lod]
+	if not _templates.has(key):
 		var st := state(path)
 		var root: Node3D = null
 		if st != null:
 			root = GLTFDocument.new().generate_scene(st) as Node3D
 			if root != null:
-				_finish(root)
-		_templates[path] = root
-	var tpl: Node3D = _templates[path]
+				_finish(root, lod)
+		_templates[key] = root
+	var tpl: Node3D = _templates[key]
 	return tpl.duplicate() as Node3D if tpl != null else null
 
 ## generate_scene() can leave ImporterMeshInstance3D nodes (it does under the headless
 ## dummy renderer): swap them for MeshInstance3D. Synty LOD chains (<name>_LOD0.._LOD3 as
-## siblings) keep only LOD0.
-static func _finish(root: Node) -> void:
+## siblings) keep one mesh: LOD0 unless asked for another.
+static func _finish(root: Node, lod := 0) -> void:
 	for imi: ImporterMeshInstance3D in root.find_children("*", "ImporterMeshInstance3D", true, false):
 		var mi := MeshInstance3D.new()
 		mi.name = imi.name
@@ -86,9 +89,16 @@ static func _finish(root: Node) -> void:
 			mi.add_child(k)
 		mi.skeleton = imi.skeleton_path
 		imi.free()
-	for mi: MeshInstance3D in root.find_children("*_LOD?", "MeshInstance3D", true, false):
+	var chain: Array = root.find_children("*_LOD?", "MeshInstance3D", true, false)
+	var best := {}
+	for mi: MeshInstance3D in chain:
 		var n := String(mi.name)
-		if not n.ends_with("_LOD0"):
+		var at := int(n.right(1))
+		if at <= lod:
+			best[n.left(-1)] = maxi(int(best.get(n.left(-1), 0)), at)
+	for mi: MeshInstance3D in chain:
+		var n := String(mi.name)
+		if int(n.right(1)) != int(best.get(n.left(-1), 0)):
 			mi.get_parent().remove_child(mi)
 			mi.free()
 
