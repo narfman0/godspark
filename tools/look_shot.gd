@@ -8,7 +8,8 @@
 ##     [nodress=1: none of the world's dressing, to weigh it]
 ##     [cave=1: stand in the nearest cave at least 20 rows under the ground] [torches=3: torch tiles
 ##     on the floor around the hero] [torch=0: the hero carries no light] [monster=goblin-warrior: a
-##     creature four tiles right of the hero, facing it]
+##     creature four tiles right of the hero, facing it] [shaft=3: a hole that wide dug from the
+##     cave's ceiling up to the sky, six tiles right of the hero]
 ##     [bench=300: pan for that many frames first and print the frame times] [seam=1: x at a seam]
 extends SceneTree
 
@@ -34,6 +35,8 @@ func _initialize() -> void:
 		var c := _cave(world, x, int(y))
 		x = c.x
 		y = c.y
+	if o.has("shaft"):
+		_shaft(world, Vector2i(x + 6, int(y)), int(o["shaft"]))
 	if o.has("torches"):
 		_torches(world, Vector2i(x, int(y)), int(o["torches"]))
 	var sun := float(o.get("sun", 1.0))
@@ -198,6 +201,15 @@ static func _cave(world: TileWorld, x: int, surface: int) -> Vector2i:
 						and world.get_liquid(cx, cy) == 0:
 					return Vector2i(cx, cy)
 	return Vector2i(x, surface)
+
+## A hole w wide from the ceiling over at up through the ground to open air.
+static func _shaft(world: TileWorld, at: Vector2i, w: int) -> void:
+	for x in range(at.x, at.x + w):
+		var top := _ground(world, x)
+		for y in range(at.y, top + 1):
+			if world.get_fg(x, y) != TileDefs.AIR:
+				world.set_fg(x, y, TileDefs.AIR, true)
+	print("TORCH shaft at %d, %d wide, %d rows" % [at.x, w, _ground(world, at.x) - at.y])
 
 ## n torch tiles on the floor around at, spread left and right: each the nearest free floor cell
 ## to its mark, at least 5 tiles from the others.

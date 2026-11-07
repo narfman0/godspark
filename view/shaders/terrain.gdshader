@@ -27,17 +27,19 @@ void vertex() {
 	face_uv = UV;
 }
 
-// The sky's light on a face, reaching further into the ground than the light field does: the
-// field stops some rows in, and a hard black edge under the grass is the block-game look. Above
-// it, a share of the light a way up carries the shade on down. Only where the field has run out.
-vec3 ground_light(vec2 tile) {
+// The sky's light on the ground's front face (the cut-away), reaching a little further down than
+// the light field does: the field stops at the first tile of rock, and a hard black line under the
+// grass is the block-game look. A share of the light a few rows up carries the shade down some
+// rows, on front faces only, and only where the field has run out: a cave's own faces and walls
+// take the field alone, so a cave stays dark.
+vec3 ground_light(vec2 tile, bool front) {
 	vec3 L = gs_light_at(tile);
-	if (L.g > 0.3) {
+	if (!front || L.g > 0.3) {
 		return L;
 	}
-	float s = texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 9.0))).r * 0.55
-		+ texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 20.0))).r * 0.45;
-	return max(L, gs_sky_tint.rgb * gs_curve(min(s * (255.0 / GS_FULL), 1.0) * gs_sun) * 0.62);
+	float s = texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 3.0))).r * 0.6
+		+ texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 7.0))).r * 0.4;
+	return max(L, gs_sky_tint.rgb * gs_curve(min(s * (255.0 / GS_FULL), 1.0) * gs_sun) * 0.5);
 }
 
 void fragment() {
@@ -65,7 +67,7 @@ void fragment() {
 		vec3 blended = m.a > 0.02 ? pow(m.rgb / m.a, vec3(2.2)) : base;
 		base = mix(base, blended, smoothstep(0.05, 0.4, m.a));
 		base *= 0.62 + 0.62 * mix(broad.b, broad.r, 0.45) + 0.16 * (fine.a - 0.5);
-		vec3 L = ground_light(tile + wnrm.xy * 0.5);
+		vec3 L = ground_light(tile + wnrm.xy * 0.5, wnrm.z > 0.5);
 		ALBEDO = base * (L * gs_face_shade(wnrm) + vec3(0.004)) + gs_dark_sight(base, L, tile);
 	} else {
 		vec2 cell = floor(tile - wnrm.xy * 0.02);

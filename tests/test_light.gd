@@ -6,6 +6,7 @@ func run(t: TestLog) -> void:
 	_torch_anchor(t)
 	_walls_and_corners(t)
 	_sun_and_caves(t)
+	_sky_shaft(t)
 	_incremental(t)
 	_carried(t)
 	_region_bytes_check(t)
@@ -67,8 +68,10 @@ func _sun_and_caves(t: TestLog) -> void:
 	t.eq(light.category_at(mid + 12, g - 5), Cat.BRIGHT, "sun falls to the bottom of the pit")
 	t.eq(light.level_at(10, g - 20), 0, "deep rock is dark")
 	t.eq(light.category_at(mid + 3, g - 10), Cat.BRIGHT, "the cave pocket is lit by its torch")
-	t.eq(light.level_at(mid, g - 3), LightEngine.SUN - LightEngine.STEP - 2 * LightEngine.SOLID_STEP,
+	t.eq(light.level_at(mid, g - 1), LightEngine.SUN - LightEngine.STEP, "the first tile of rock under the sun takes its glow")
+	t.eq(light.level_at(mid, g - 2), maxi(0, LightEngine.SUN - LightEngine.STEP - LightEngine.SOLID_STEP),
 		"sunlight seeps into rock at SOLID_STEP per tile")
+	t.eq(light.level_at(mid, g - 2), 0, "and SOLID_STEP stops it there: rock takes one tile of glow")
 	light.sun = 0.0
 	t.eq(light.category_at(10, g), Cat.DARK, "night: the open sky is dark")
 	t.eq(light.category_at(mid - 2, g - 13), Cat.BRIGHT, "night: the cave torch still burns")
@@ -199,3 +202,40 @@ func _own_light(t: TestLog) -> void:
 	items.equipment.worn.erase("off_hand")
 	t.check(LightSources.of_items(items, ["light"]).size() > 0, "items: the Light effect on, a light")
 	t.check(LightSources.of_items(null, []).is_empty(), "no items mirror, no light")
+
+## Sunlight is a shaft: full down the open column, falling off fast sideways under cover.
+func _sky_shaft(t: TestLog) -> void:
+	var cov := LightEngine.sky_covered_step()
+	t.check(cov >= 2 * LightEngine.STEP, "covered sky falls off faster than open light (%d)" % cov)
+	var w := TileWorld.new(96, 64)
+	var stone := TileDefs.id("stone")
+	for x in 96:
+		w.set_fg(x, 0, stone, true)            # a floor
+	for x in range(10, 90):
+		if x != 50:
+			w.set_fg(x, 20, stone, true)       # a roof with one hole at x = 50
+	var l := LightEngine.new(w)
+	t.eq(l.level_at(5, 10), LightEngine.SUN, "open air beside the roof is full sun")
+	t.eq(l.level_at(50, 1), LightEngine.SUN, "down the hole's open column, full sun to the floor")
+	t.eq(l.level_at(50, 19), LightEngine.SUN, "and just under the roof")
+	t.eq(l.level_at(51, 1), LightEngine.SUN - LightEngine.STEP, "one tile beside the shaft: the first step costs STEP")
+	t.eq(l.level_at(52, 1), LightEngine.SUN - LightEngine.STEP - cov, "two tiles: then sky_covered_step a tile")
+	t.eq(l.level_at(49, 1), l.level_at(51, 1), "the same both sides")
+	t.eq(l.category_at(53, 1), Cat.BRIGHT, "three tiles beside it is still Bright")
+	t.eq(l.category_at(57, 1), Cat.DARK, "seven tiles beside it is Darkness (a torch would still reach)")
+	t.eq(l.category_at(11, 10), Cat.BRIGHT, "a tile in under the roof's edge is Bright")
+	t.eq(l.category_at(17, 10), Cat.DARK, "seven tiles in, Darkness")
+	t.eq(l.level_at(30, 10), 0, "deep under the roof, nothing")
+	# A torch under the same roof keeps its SRD reach: the covered falloff is the sky's alone.
+	w.set_fg(30, 1, TileDefs.id("torch"), true)
+	var l2 := LightEngine.new(w)
+	t.eq(l2.category_at(38, 1), Cat.BRIGHT, "a torch under cover: bright at 8 tiles")
+	t.eq(l2.category_at(46, 1), Cat.DIM, "dim at 16")
+	t.eq(l2.category_at(30, 17), Cat.DIM, "dim at 16 up")
+	# Edits keep the shaft exact: close the hole, open another, compare with a fresh engine.
+	l2.ensure_region(Rect2i(0, 0, 96, 64))
+	w.set_fg(50, 20, stone)
+	w.set_fg(70, 20, TileDefs.AIR)
+	t.eq(l2.level_at(70, 1), LightEngine.SUN, "a new hole: its shaft")
+	t.eq(l2.level_at(50, 1), 0, "the closed hole goes dark")
+	t.eq(_diff(l2, Rect2i(0, 0, 96, 64), w), 0, "covered sky: incremental edits equal a fresh recompute")

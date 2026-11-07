@@ -7,7 +7,11 @@
 ##
 ## Two fields, one byte per tile each:
 ##   sky:   sunlight. Falls straight down every column until the first opaque tile (cells at
-##          or above `sky_top(x)` hold SUN), then spreads sideways and down with falloff.
+##          or above `sky_top(x)` hold SUN: the open column), then spreads sideways and down
+##          under cover: the first step out of the open column costs STEP, every step after it
+##          `sky_covered_step()` (data/lighting.json, about 3 STEP), so sunlight is a shaft: a
+##          cave mouth or a roof's edge is lit a few tiles in, a hole above lights the floor
+##          under it, and nothing floods a cave.
 ##   block: emissive tiles (TileDefs.emit) and carried lights.
 ## level = max(block, sky * sun). Changing `sun` recomputes nothing.
 ##
@@ -15,12 +19,12 @@
 ## diagonal step DIAG (STEP * 1.4, so distances are octile, close to Euclidean). A
 ## diagonal step needs both orthogonal cells it squeezes between to be clear. Opaque tiles
 ## receive light and pass it on only to other opaque tiles, orthogonally, at SOLID_STEP per
-## tile: never back out into open cells. So light never crosses a wall, but the view can show
-## the first few tiles of rock under a lit surface or around a lit cave.
+## tile: never back out into open cells. SOLID_STEP is MAX, so rock takes one tile of glow
+## from the cell beside it and passes none on: a wall is a hard edge.
 ##
 ## Levels: a torch is DIM_MIN + 16 * STEP = 85. It reads BRIGHT (>= 45) within 8 tiles,
 ## DIM (>= 5) out to 16 tiles, DARK beyond. That is the SRD torch: 20 ft bright, 20 ft more
-## dim, at 2.5 ft per tile. Sunlight uses the same scale, so cave mouths fade out over 16 tiles.
+## dim, at 2.5 ft per tile. Sunlight uses the same scale; under cover it falls off faster (sky_covered_step).
 ##
 ## Background walls do not affect light: a cell is sunlit when nothing opaque is above it
 ## (wall or not), and a covered cell gets only what spreads to it.
@@ -36,8 +40,8 @@ enum Category { DARK, DIM, BRIGHT }
 
 const STEP := 5
 const DIAG := 7
-## Level lost per tile inside opaque tiles.
-const SOLID_STEP := 22
+## Level lost per tile inside opaque tiles: all of it, so only the first tile of rock is lit.
+const SOLID_STEP := 125
 const MAX := 125
 const DIM_MIN := 5
 const BRIGHT_MIN := 45
@@ -60,6 +64,15 @@ var sun := 1.0:
 		if value != sun:
 			sun = value
 			light_changed.emit(Rect2i(0, 0, _w, _h))
+
+## Level sunlight loses per tile under cover (data/lighting.json field.sky_covered_step).
+static var _covered := -1
+static func sky_covered_step() -> int:
+	if _covered < 0:
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/lighting.json"))
+		var f: Dictionary = d.get("field", {}) if d is Dictionary else {}
+		_covered = maxi(STEP, int(f.get("sky_covered_step", STEP * 3)))
+	return _covered
 
 ## Bytes per field in a page.
 const PAGE := K.CHUNK * K.CHUNK
@@ -413,6 +426,12 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 	op.resize(n)
 	var lv := PackedByteArray()
 	lv.resize(n)
+	# Sky only: 1 where a cell is in its open column (its steps cost STEP), 0 under cover.
+	var sunlit := PackedByteArray()
+	if sky:
+		sunlit.resize(n)
+	var cov := sky_covered_step()
+	var cov_d := roundi(cov * 1.4)
 	var buckets: Array = []
 	buckets.resize(MAX + 1)
 	for l in MAX + 1:
@@ -435,6 +454,7 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 			if y >= _h:
 				if sky:
 					src = SUN
+					sunlit[i] = 1
 			else:
 				var id := world.light_fg(x, y)
 				var e := emit[id]
@@ -445,6 +465,7 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 					op[i] = 1
 				if sky and op[i] == 0 and y >= sky_top(x):
 					src = SUN
+					sunlit[i] = 1
 				if j == 1 or k == 1 or j == gh - 2 or k == gw - 2:
 					src = maxi(src, _cell(x, y, off))
 			if src > 0:
@@ -465,15 +486,28 @@ func _flood(box: Rect2i, sky: bool) -> PackedByteArray:
 		var b: Array = buckets[l]
 		if b.is_empty():
 			continue
-		var o := l - STEP
-		var d := l - DIAG
 		var so := l - SOLID_STEP
-		var ob: Array = buckets[o] if o > 0 else []
-		var db: Array = buckets[d] if d > 0 else []
 		var sb: Array = buckets[so] if so > 0 else []
+		var o_open := l - STEP
+		var d_open := l - DIAG
+		var ob_open: Array = buckets[o_open] if o_open > 0 else []
+		var db_open: Array = buckets[d_open] if d_open > 0 else []
+		var o_cov := l - cov
+		var d_cov := l - cov_d
+		var ob_cov: Array = buckets[o_cov] if sky and o_cov > 0 else []
+		var db_cov: Array = buckets[d_cov] if sky and d_cov > 0 else []
 		for i: int in b:
 			if lv[i] != l:
 				continue
+			var o := o_open
+			var d := d_open
+			var ob := ob_open
+			var db := db_open
+			if sky and sunlit[i] == 0:
+				o = o_cov
+				d = d_cov
+				ob = ob_cov
+				db = db_cov
 			if op[i] != 0:
 				# Inside rock: only on to other rock, slowly.
 				if so <= 0:
