@@ -993,3 +993,22 @@ CombatSystem.legendary(e, foe) (addon MonsterActions legendary_*), holds_any(e),
 Burrow (core/monsters/burrow.gd): a burrower's movement, natural tiles only (brains.json
   burrow.natural), through TileWorld.set_fg, rubble owed as Items.tile_drop, cap_per_min per creature
 ```
+
+### Deep biomes and the descent (as built: [tracks/deep.md](tracks/deep.md))
+
+- `meta.biomes` is the surface strip (rows with no `band`, first, as before) then the underground
+  regions `{biome, band, x0, x1, y0, y1, name}` of `fungal`, `crystal`, `deep_lake`, `magma` and the
+  `underdark` between, each band tiled end to end (worlds 2048 wide and more, not `only_biome`).
+  `BiomeIds.strip`, `regions`, `region_at`, `region_index`. Deep sites take the region under them.
+- `meta.descent`: the deep lake (water that is liquid, swum; its shore path crossing and a well to
+  the deep road), the lava tubes (pools, bridges), the sinkholes (a deck a road walks as a
+  crossing, a rope down), the cave mouths, the ways in from the surface and the nadir floor; the
+  passages stage joins their ends like sites. META carries `Protocol.descent_short`.
+- Tiles 34-46 (region rock, floors, lights), 120 lava (`burn`: 2d6 fire a round through
+  `CombatSystem`, a wall to every body's nav: `MonsterNav.HAZARD`), 121 lava bridge; walls 18-21;
+  `TileDefs.shape` for lights that stand in a cell. A nav profile with no swim speed treats water
+  over half its height as a wall (`NavProfile.swimmer`). Protocol 13.
+- The spawn director hunts by region (`biome_at(h, x, band, y)`), water packs in the lake,
+  `spawning.json portal_wild`. Deals' atlas keeps the regions a player has stood in
+  (`seen_regions`); the world map draws only those.
+- `tools/crossing.gd ... descent` walks the spawn to the nadir floor and back (`DescentBot`).
