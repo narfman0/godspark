@@ -23,7 +23,7 @@ const IDLE_LEGS := 6
 const RETRIES := 6
 ## Times a walk may go back to where it last stood having gained ground, after a fall into a
 ## place the planner has no way out of (it reports them).
-const REWINDS := 6
+const REWINDS := 10
 ## Expansions a local plan may make.
 const LOCAL_CAP := 60000
 ## Expansions the whole-world search may make.
@@ -145,6 +145,10 @@ static func walk(world: TileWorld, st: MoveStats, b: Body, f: NavFollow, goal: V
 						edges.append(Vector4i(a.x, a.y, z.x, z.y))
 			var key: Variant = edges[0] if not edges.is_empty() else MonsterNav.node_of(prof, b.pos)
 			failed_at[key] = int(failed_at.get(key, 0)) + 1
+			var near := Vector2i(floori(b.pos.x / 8.0), floori(b.pos.y / 8.0))     # and where it failed
+			failed_at[near] = int(failed_at.get(near, 0)) + 1
+			if int(failed_at[near]) > int(failed_at[key]):
+				failed_at[key] = failed_at[near]
 			var again: NavPath = null
 			if int(failed_at[key]) >= 2 and not edges.is_empty():
 				for e: Vector4i in edges:
@@ -155,14 +159,15 @@ static func walk(world: TileWorld, st: MoveStats, b: Body, f: NavFollow, goal: V
 				if again == null:
 					for e: Vector4i in edges:
 						banned.erase(e)
-			if again == null and int(failed_at[key]) >= 2:
-				_restore(b, good)
+			if again == null and int(failed_at[key]) < 2:
+				again = _whole(world, prof, b.pos, goal, banned).result()
+			if again == null:
+				_restore(b, good)         # no way on from where it fell: back to where it gained ground
 				b.vel = Vector2.ZERO
 				leg["rewinds"] = int(leg.get("rewinds", 0)) + 1
 				if int(leg["rewinds"]) > REWINDS:
 					leg["why"] = "%s, rewound too often" % why
 					break
-			if again == null:
 				again = _whole(world, prof, b.pos, goal, banned).result()
 			if again == null:
 				leg["why"] = "%s, and no way from %s" % [why, b.pos]
@@ -209,7 +214,7 @@ static func _whole(world: TileWorld, prof: NavProfile, from: Vector2, goal: Vect
 ## A local plan from the body (or a hair beside it, where the body's own node is not one a
 ## search starts from) to a node of the whole way.
 static func _local(world: TileWorld, prof: NavProfile, b: Body, n: Vector2i, banned: Dictionary) -> NavPath:
-	for o: Vector2 in [Vector2.ZERO, Vector2(0.45, 0.0), Vector2(-0.45, 0.0), Vector2(0.0, 1.0), Vector2(1.0, 0.0), Vector2(-1.0, 0.0)]:
+	for o: Vector2 in [Vector2.ZERO, Vector2(0.45, 0.0), Vector2(-0.45, 0.0)]:
 		var s := MonsterNav.start(world, prof, b.pos + o, MonsterNav.node_pos(prof, n), Vector2i(1, 1), false, LOCAL_CAP, Vector2i(96, 96))
 		s.banned = banned
 		while not s.step(100000):
