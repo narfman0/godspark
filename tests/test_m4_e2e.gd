@@ -738,9 +738,19 @@ func cell_near(pos: Vector2) -> int:
 	return best
 
 ## Scene: raiders on the road ahead of a party (a raid out to waylay the road's traffic).
-func waylay(at_frac: float, n := 5) -> SimParty:
-	var s := town(3) if sim().settlements.has(3) else town(N)
+## The raiders' town is Ashby (3). foreign: unless the sim has made Ashby one with the players'
+## town (killing them there would be killing Kestimarch's own before its guards); then another
+## surface town of another faction.
+func waylay(at_frac: float, n := 5, foreign := false) -> SimParty:
 	var home := 3 if sim().settlements.has(3) else N
+	var ours := [town(T).faction, town(N).faction]
+	if foreign and town(home).faction in ours:
+		for sid: int in WorldSim._sorted_keys(sim().settlements):
+			var o: SimSettlement = sim().settlements[sid]
+			if o.band == "surface" and not o.faction in ours:
+				home = sid
+				break
+	var s := town(home)
 	var c := SimData.culture(s.culture)
 	var r := sim().new_party("raid", s.faction, s.culture, home, SimData.allocate(c.raiders, n))
 	r.plan = {"mode": "route", "motive": "plunder", "leg": "out"}
@@ -913,7 +923,7 @@ func _defend() -> void:
 func _recover() -> void:
 	next_day()
 	var s := town(T)
-	var raid := waylay(0.25, 4)
+	var raid := waylay(0.25, 4, true)
 	raid.cargo = {"tools": 12}
 	raid.plan["motive"] = "plunder"
 	sim().log_event("ambush", {"raiders": SimConflict._adj(raid.culture), "rfaction": sim().faction_name(raid.faction), "rfrom": SimConflict._home_name(sim(), raid),
