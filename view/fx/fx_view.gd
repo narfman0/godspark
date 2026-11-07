@@ -130,6 +130,9 @@ func _contact_at(src: int, dst: int) -> Vector2:
 	var half := (actor_box(dst)[1] as Vector2) * 0.5
 	return Vector2(clampf(from.x, c.x - half.x, c.x + half.x), c.y)
 
+func _size(key: String) -> int:
+	return int(SwingFx.feel().get("number_size", {}).get(key, 22))
+
 func _mark(src: int, dst: int, kind: int) -> void:
 	var at := _contact_at(src, dst)
 	if at != Vector2.INF:
@@ -166,7 +169,7 @@ func combat_event(ev: Dictionary) -> void:
 			_crit.erase(dst)
 			var p := _head(dst)
 			if p != Vector2.INF:
-				numbers.spawn(dst, p, str(int(ev.get("amount", 0))), SwingFx.color("crit") if crit else (UiTheme.VERMILION.lightened(0.15) if mine else UiTheme.TEXT_LIGHT), 32 if crit else 24)
+				numbers.spawn(dst, p, str(int(ev.get("amount", 0))), SwingFx.color("crit") if crit else (UiTheme.VERMILION.lightened(0.15) if mine else UiTheme.TEXT_LIGHT), _size("crit" if crit else "hit"))
 			_flash_on(dst, crit)
 		CombatCodec.Ev.HIT:
 			swings.result(src, SwingFx.color("hit"))
@@ -179,18 +182,18 @@ func combat_event(ev: Dictionary) -> void:
 			_hit_stop(CombatCodec.Ev.CRIT, src, dst)
 			var p2 := _head(dst)
 			if p2 != Vector2.INF:
-				numbers.spawn(dst, p2 + Vector2(0, 1.4), "Crit!", SwingFx.color("crit"), 30)
+				numbers.spawn(dst, p2 + Vector2(0, float(SwingFx.feel().get("crit_label_rise", 1.4))), "Crit!", SwingFx.color("crit"), _size("crit_label"))
 		CombatCodec.Ev.MISS:
 			swings.result(src, SwingFx.color("miss"), 0.25)
 			_mark(src, dst, SwingFx.Mark.MISS)
 			var p3 := _head(dst)
 			if p3 != Vector2.INF:
-				numbers.spawn(dst, p3, "miss", SwingFx.color("miss"), 22)
+				numbers.spawn(dst, p3, "miss", SwingFx.color("miss"), _size("miss"))
 		CombatCodec.Ev.WHIFF:
 			swings.result(src, SwingFx.color("miss"), 0.2)
 			var p6 := _head(dst) if dst != 0 else Vector2.INF
 			if p6 != Vector2.INF:
-				numbers.spawn(dst, p6, "dodged", SwingFx.color("slash"), 22)
+				numbers.spawn(dst, p6, "dodged", SwingFx.color("slash"), _size("dodged"))
 		CombatCodec.Ev.HEAL:
 			var p4 := _head(dst)
 			if p4 != Vector2.INF and int(ev.get("amount", 0)) > 0:
@@ -236,7 +239,7 @@ func _swing(ev: Dictionary) -> void:
 	var area := spell_area(String(ev.get("what", ""))) if mode in [CombatCodec.Mode.AREA, CombatCodec.Mode.CAST] else {}
 	var d := Telegraphs.for_swing(ev, b[0], b[1], area)
 	var col := Telegraphs.SWING_COLOR if mine else (Telegraphs.ALLY_COLOR if player else Telegraphs.MONSTER_COLOR)
-	telegraphs.show_shape(d, maxf(windup - SwingPlan.HEAD_START, 0.35 if windup <= 0.0 else 0.0), col, src, mine and mode == CombatCodec.Mode.MELEE)
+	telegraphs.show_shape(d, windup - SwingPlan.HEAD_START if windup > 0.0 else 0.35, col, src, mine and mode == CombatCodec.Mode.MELEE)
 
 ## A melee swing's sweeps, one for each contact, each the other way across the arc.
 func _slashes(ev: Dictionary, box: Vector2, player: bool, mine: bool) -> void:
@@ -381,7 +384,7 @@ func _highlight(delta: float) -> void:
 		if k > 1.0:
 			windups.erase(id)
 			continue
-		burn.a = clampf((k - from) / maxf(1.0 - from, 0.01), 0.35, 1.0)
+		burn.a = clampf((k - from) / maxf(1.0 - from, 0.01), float(SwingFx.feel().get("windup_rim_min", 0.35)), 1.0)
 		want[id] = burn
 	for id: int in _rimmed.keys():
 		if not want.has(id):

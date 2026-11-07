@@ -28,6 +28,7 @@ var aabb := AABB()          ## LOD0 rest-pose AABB, model space (metres)
 var current_clip := ""
 var _loop_clip := "idle"
 var layer: SwingLayer
+var weapon := ""
 var _weapon_node: Node3D
 ## "monster/clip" -> seconds of its blow (the fastest moment of its fastest bone)
 static var _contacts := {}
@@ -227,6 +228,9 @@ func step(delta: float, moving: bool) -> void:
 
 ## A weapon on the grip bone: an SRD slug, "" for none.
 func set_weapon(slug: String) -> void:
+	if slug == weapon:
+		return
+	weapon = slug
 	if _weapon_node != null:
 		_weapon_node.get_parent().remove_child(_weapon_node)
 		_weapon_node.queue_free()

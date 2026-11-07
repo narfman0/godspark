@@ -44,6 +44,8 @@ var _fight_hooked := false
 ## Seconds between the rolls of a fighting bot.
 const ROLL_EVERY := 2.5
 var _roll_wait := ROLL_EVERY
+var _rolled := false
+var _rolls := 0
 
 var session: NetSession
 var input := PlayerInput.new()
@@ -266,6 +268,10 @@ func _fight_step(delta: float) -> void:
 	if _roll_wait <= 0.0:
 		_roll_wait = ROLL_EVERY
 		input.roll = true
+	var rolling := cw().body.roll_t >= 0.0
+	if rolling and not _rolled:
+		_rolls += 1
+	_rolled = rolling
 	var lc := cw().system(HostSystem.LIFE)
 	var live := cw().remotes.values().any(func(r: ClientWorld.RemoteEntity) -> bool:
 		return r.kind != HostEntity.Kind.PLAYER and r.max_hp > 0 and r.hp > 0 \
@@ -280,7 +286,7 @@ func _fight_step(delta: float) -> void:
 		if ic != null:
 			for k in Inventory.SIZE:
 				held += Items.count(ic.item(k)) if not ic.item(k).is_empty() else 0
-		_say("fight killed=%d attacks=%d hits=%d hp=%d/%d level=%d xp=%d items=%d coin=%d %s" % [_kills, cc.sent, dmg.size(),
+		_say("fight killed=%d attacks=%d rolls=%d hits=%d hp=%d/%d level=%d xp=%d items=%d coin=%d %s" % [_kills, cc.sent, _rolls, dmg.size(),
 			cw().hp, cw().max_hp, rc.level() if rc != null else -1, int(rc.sheet.get("xp", -1)) if rc != null else -1,
 			held, ic.coin() if ic != null else -1, "done" if not live else "timeout"])
 		if live and not (fight_soft and _kills > 0):

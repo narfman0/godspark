@@ -146,7 +146,7 @@ func _result(name: String, kind: int, ac: int) -> void:
 		cc.attack(_aim())
 		for i in 90:
 			await get_tree().process_frame
-			if _events.any(func(ev: Dictionary) -> bool: return int(ev["kind"]) == kind):
+			if _events.any(func(ev: Dictionary) -> bool: return int(ev["kind"]) == kind and (int(ev["src"]) == cw.my_id or kind == CombatCodec.Ev.DAMAGE and int(ev["dst"]) == foe_id)):
 				var av := pres.view.get_actor(cw.my_id)
 				print("TOUR %s layer t %.3f" % [name, (av.visual as CharacterVisual).layer.t if av.kind == "synty" else -1.0])
 				await frames(1)
@@ -154,7 +154,7 @@ func _result(name: String, kind: int, ac: int) -> void:
 				print("TOUR %s after %d swings: %s" % [name, tries + 1, _events.map(func(ev: Dictionary) -> String: return CombatCodec.describe(ev))])
 				Engine.time_scale = 1.0
 				return
-			if _events.any(func(ev: Dictionary) -> bool: return int(ev["kind"]) in [CombatCodec.Ev.HIT, CombatCodec.Ev.MISS, CombatCodec.Ev.CRIT]):
+			if _events.any(func(ev: Dictionary) -> bool: return int(ev["kind"]) in [CombatCodec.Ev.HIT, CombatCodec.Ev.MISS, CombatCodec.Ev.CRIT] and int(ev["src"]) == cw.my_id):
 				break
 	print("TOUR %s: no such event" % name)
 	Engine.time_scale = 1.0
@@ -162,6 +162,7 @@ func _result(name: String, kind: int, ac: int) -> void:
 func _roll() -> void:
 	await _stage(4.0, 1)
 	await _wait_free()
+	pres.fx.aim_override = _aim()
 	Engine.time_scale = SLOW
 	await frames(1)     # a key pressed here counts as pressed in this very frame
 	Input.action_press("dodge")
@@ -180,6 +181,7 @@ func _telegraph() -> void:
 	await wait(1.0)
 	await _stage(2.6, 1)
 	await _wait_free()
+	pres.fx.aim_override = _aim()
 	Engine.time_scale = SLOW
 	_events.clear()
 	var hero := cw.my_id
@@ -228,6 +230,7 @@ func _running() -> void:
 	Input.action_press("move_right")
 	await wait(0.45)
 	Engine.time_scale = SLOW
+	pres.fx.aim_override = _aim()
 	cc.attack(_aim())
 	var a := pres.view.get_actor(cw.my_id)
 	for i in 200:

@@ -104,7 +104,7 @@ func show_shape(d: Dictionary, dur: float, color: Color, src := 0, follow := fal
 		if float(l["t"]) > bt:
 			bt = float(l["t"])
 			best = i
-	live[best] = {"t": 0.0, "dur": maxf(0.25, dur), "src": src, "follow": follow}
+	live[best] = {"t": 0.0, "dur": maxf(0.1, dur), "src": src, "follow": follow}
 	_apply(quads[best], d, color, 0.0)
 
 func set_preview(d: Dictionary) -> void:

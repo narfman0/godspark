@@ -459,17 +459,19 @@ As built ([tracks/combat.md](tracks/combat.md)). `CombatSystem` (HostSystem.COMB
 `CombatClient`; byte layouts in `CombatCodec`.
 
 ```
-Intents, client -> host (SYS kinds 1-3; no USE: items and features are not wired yet):
+Intents, client -> host (SYS kinds 1-4; no USE: items and features are not wired yet):
   ATTACK {aim: Vector2, clock, throw}     CAST {slug, level, aim, clock}     CANCEL
+  ROLL {clock}   the own body started a dodge roll (predicted): see "The dodge roll" below
   clock = ClientWorld.clock: the host estimates the one-way delay from it and leads the
   attacker's body by vel * delay when it tests hit shapes
 Host -> client: EVENTS (to players near, one message per chunk per tick), STATUS and
   SPELLS (to the owner)
-CombatEvent {t: tick, kind, src, dst, ...}: SWING (mode, swings, windup, total, aim, what) |
+CombatEvent {t: tick, kind, src, dst, ...}: SWING (mode, swings, windup, total, gap, tempo,
+  reach_ft, aim, what) |
   HIT | MISS | CRIT (d20, total_roll, ac) | SAVE (dc, saved, what) | DAMAGE (amount, dtype, hp) |
   HEAL (amount, hp) | CONDITION (cond, on) | DOWNED | DEATH | XP (amount; reserved) |
   EFFECT (on, what) | PROJECTILE (pid, pkind, pos, vel, gravity) | IMPACT (pid, pos) |
-  PUSH (push) | CANCEL
+  PUSH (push) | CANCEL | ROLL (duration) | WHIFF (dst: who rolled under the blow, or 0)
 # brains (host thread)
 combat.can_act(e); combat.busy(e); combat.start_attack(e, action := -1, aim, throw := false) -> bool
 combat.targets_in_reach(e, action := -1) -> Array[HostEntity]; combat.nearest_foe(e, tiles)
@@ -481,6 +483,7 @@ combat.cast(e, slug, level, aim) -> String ("" ok); combat.cancel(e); combat.is_
 signal event(ev), cooldowns_changed(status), spells_changed(spells)
 cc.attack(aim, throw := false); cc.cast(slug, level, aim); cc.cancel(); cc.spell_slot(i)
 cc.filter_input(inp); cc.events_log; cc.status; cc.spells
+cc.target_at(aim) -> {id, reach}   # the creature the next swing or shot would land on
 Presenter.combat_event(ev)     # optional; LogPresenter prints it, ViewPresenter plays one-shots
 ```
 
@@ -492,6 +495,17 @@ Presenter.combat_event(ev)     # optional; LogPresenter prints it, ViewPresenter
 - Monster combatants are renamed `"<name> #<id>"` (the addon keys effects by name).
 - A player's position is moved by the host only through `WorldHost.teleport` (the fallback
   respawn); pushes on players are a PUSH event the owner applies to its own body.
+
+**The dodge roll** ([tracks/combat-feel.md](tracks/combat-feel.md)). `core/combat/dodge.gd`,
+`PlayerInput.roll`, `Body.roll_t`, `data/combat.json` `dodge`. The client predicts the move in
+`PlayerController` and sends ROLL with its clock; the host keeps the roll from the press
+(`now - lead`) and tests blows against `CombatSystem.hurt_box(e)`, the same `Dodge.hurt_rect`. A
+melee blow also has to reach the tuck's height (`Dodge.under_blow`), so a creature `too_big_tiles`
+tall still lands. No attack roll, AC, DC or die changes, and it is not a spark.
+
+**The view of a swing** is on the view's clock and never reaches a tick: `SwingPlan` (clips on
+the swing's clock, from `data/looks.json` `swings`), `SwingLayer` (over the movement), `SwingFx`,
+`HitStop`. Every tunable is in `data/combat.json` `feel`.
 
 ### Monsters (`core/monsters/`)
 

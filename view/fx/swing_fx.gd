@@ -74,7 +74,7 @@ func slash(src: int, wait: float, dir: Vector2, reach: float, half: float, box: 
 ## What the blow met recolours the sweep it belongs to.
 func result(src: int, tint: Color, width := -1.0) -> void:
 	var i := int(last.get(src, -1))
-	if i < 0 or float(live[i]["dur"]) < 0.0:
+	if i < 0 or float(live[i]["dur"]) < 0.0 or int(live[i]["src"]) != src:
 		return
 	var m := quads[i].material_override as ShaderMaterial
 	m.set_shader_parameter("color", tint)

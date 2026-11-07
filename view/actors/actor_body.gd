@@ -272,7 +272,8 @@ func roll(dur: float) -> void:
 	_face_s = 0.0
 	var done := false
 	if kind == "synty":
-		done = (visual as CharacterVisual).swing(SwingPlan.single("roll", dur), 0.03, 0.06)
+		var fade: Array = CombatTempo.section("feel").get("roll_fade_s", [0.03, 0.06])
+		done = (visual as CharacterVisual).swing(SwingPlan.single("roll", dur), float(fade[0]), float(fade[1]))
 	if not done:
 		_spin_len = dur
 		_spin = dur
