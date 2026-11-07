@@ -52,14 +52,16 @@ const ROOT2 := 1.4142135
 const NATURAL := ["dirt", "grass", "stone", "bedrock", "rubble", "copper_ore", "iron_ore", "silver_ore", "slate",
 	"forest_floor", "loam", "mossy_stone", "scree", "gravel", "granite", "snow", "sand", "hardpan", "sandstone",
 	"mire", "mud", "bog_stone", "forest_track", "pass_road", "desert_track", "causeway", "green_lane",
-	"river_bed", "ford_stones"]
+	"river_bed", "ford_stones", "spore_stone", "mycelium", "crystal_stone", "geode_floor", "lake_stone", "shore_sand",
+	"silt", "basalt", "ash", "obsidian"]
 ## Built tiles that take the map's colour and grain but keep their corners; roofs (the first two
 ## lines) are natural here too, for the cut: a stepped roof reads as a pitched one.
 const ROOFS := ["thatch", "shingles", "leaf_roof"]
 const SMOOTH := ["plaster", "timber", "logs", "planks", "elf_wood", "road", "dark_stone", "dressed_stone", "cobblestone", "canvas"]
 ## Walls with no courses to show: they take the ground's shading too.
 const NATURAL_WALLS := ["dirt_wall", "stone_wall", "slate_wall", "loam_wall", "mossy_wall", "gravel_wall", "granite_wall",
-	"hardpan_wall", "sandstone_wall", "mud_wall", "bog_wall", "plaster_wall", "wood_wall", "elf_wall", "canvas_wall"]
+	"hardpan_wall", "sandstone_wall", "mud_wall", "bog_wall", "plaster_wall", "wood_wall", "elf_wall", "canvas_wall",
+	"spore_wall", "crystal_wall", "lake_wall", "basalt_wall"]
 const STICK := Color("#6b4a2b")
 
 static var _soft := PackedByteArray()        ## per tile id: 1 natural
