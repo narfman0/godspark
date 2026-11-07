@@ -25,10 +25,14 @@
 			"promote": {"_doc": "the nadir has no SRD wild creature at CR 12-14: half its packs are deeps creatures of CR 5-11 as elites (max HP, an affix, xp x2) and champions (double, two affixes, xp x4)", "chance": 0.5, "from_band": "deeps", "cr": [5, 11], "ranks": {"elite": 65, "champion": 35}}}}
 	},
 	"biome_fallback": {
-		"_doc": "Which habitats (data/ecology/habitats.json) a biome reads as. A biome with no row reads as itself. Meadow still borrows until the spawning track tunes rosters; the mountain reads as hills and jungle as forest until they earn their own habitat rows.",
-		"meadow": ["meadow", "forest", "hills"],
-		"mountain": ["hills"],
+		"_doc": "Which habitats (data/ecology/habitats.json) a biome reads as. A biome with no row reads as itself, its own rows only: that is what makes a desert hunt unlike a swamp. Jungle borrows the forest's until it is generated and has rows of its own.",
 		"jungle": ["forest"]
+	},
+	"lair_kin": {
+		"_doc": "The sim picks a lair's creatures by depth alone. When a lair stands in a biome where one of them does not live, it comes out as its kin here, by biome: the sim keeps its own ledger of the creature it asked for, and only the body in the world changes.",
+		"desert": {"wolf": "hyena", "dire-wolf": "giant-hyena", "ogre": "gnoll-warrior", "owlbear": "giant-scorpion", "troll": "lamia", "hill-giant": "lamia", "manticore": "giant-scorpion", "wyvern": "lamia"},
+		"swamp": {"wolf": "giant-frog", "dire-wolf": "crocodile", "owlbear": "giant-constrictor-snake", "manticore": "giant-constrictor-snake", "hill-giant": "ogre", "wyvern": "giant-crocodile"},
+		"mountain": {"owlbear": "brown-bear"}
 	},
 	"band_biome": {"caves": "caves", "deeps": "underdark", "nadir": "underdark"},
 	"caps": {"per_player": 24, "global": 120},

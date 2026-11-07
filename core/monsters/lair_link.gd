@@ -99,11 +99,18 @@ func _spawn_one(h: WorldHost, lid: int, l: SimLair, site: Dictionary, slug: Stri
 	var rank := "standard"
 	if leader and (l.apex or Ecology.cr_of(h.srd, slug) >= 5.0):
 		rank = "boss"
-	var e := sys.spawn(slug, pos, {"rank": rank, "pack": rec["pack"], "slot": slot, "home": home, "lair": lid,
-		"leader": leader})
+	var e := sys.spawn(body_of(slug, String(site.get("biome", ""))), pos, {"rank": rank, "pack": rec["pack"], "slot": slot,
+		"home": home, "lair": lid, "leader": leader})
 	if e != null:
 		rec["ids"][e.id] = slug
 	return e
+
+## What comes out of a lair for a creature the sim asked for: the sim picks by depth, not ground,
+## so one that does not live in this biome comes as its kin (spawning.json lair_kin). rec["ids"]
+## keeps the sim's slug: its ledger never sees the swap.
+static func body_of(slug: String, biome: String) -> String:
+	var kin: Dictionary = Ecology.spawning().get("lair_kin", {}).get(biome, {})
+	return String(kin.get(slug, slug))
 
 ## Make the spawned creatures match the sim's counts again.
 func reconcile(h: WorldHost, lid: int) -> void:
@@ -148,10 +155,12 @@ func fold(h: WorldHost, lid: int) -> void:
 func killed(e: HostEntity, b: MonsterBrain) -> void:
 	var lid := int(b.rec["lair"])
 	var rec: Dictionary = active.get(lid, {})
+	var ledger := b.slug
 	if not rec.is_empty():
+		ledger = String((rec["ids"] as Dictionary).get(e.id, b.slug))
 		(rec["ids"] as Dictionary).erase(e.id)
 	var h := sys.host
-	if h.sim != null and h.sim.lair_killed(lid, b.slug):
+	if h.sim != null and h.sim.lair_killed(lid, ledger):
 		stats["kills"] += 1
 
 func removed(e: HostEntity, b: MonsterBrain) -> void:

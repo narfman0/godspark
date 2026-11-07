@@ -117,8 +117,8 @@ func _generated(t: TestLog) -> void:
 	t.eq(unknown_ids(w.meta["sites"]), [], "site biomes are canonical")
 	t.eq(unknown_ids({"biomes": w.meta["biomes"].map(func(s: Dictionary) -> String: return s["biome"])}), [], "strip is canonical")
 
-## Mountains read as hills: every generated surface biome has creatures to spawn, by day and
-## by night, and the mountain's are the hills'.
+## Every generated surface biome has creatures to spawn, by day and by night, and the mountain
+## has its own: what lives high, not all the hills have.
 func _mountain_habitat(t: TestLog) -> void:
 	var srd := WorldHost.shared_srd()
 	for id: String in BiomeIds.generated("surface"):
@@ -127,7 +127,9 @@ func _mountain_habitat(t: TestLog) -> void:
 			t.check(n > 0, "%s has a %s roster (%d kinds)" % [id, "night" if night else "day", n])
 	var hills := Ecology.roster(srd, "surface", "hills", true, 0.0, 30.0).map(func(r: Dictionary) -> String: return r["slug"])
 	var mountain := Ecology.roster(srd, "surface", "mountain", true, 0.0, 30.0).map(func(r: Dictionary) -> String: return r["slug"])
-	t.eq(mountain, hills, "the mountain reads as hills")
+	t.check(mountain != hills, "the mountain has its own roster (%d kinds, the hills %d)" % [mountain.size(), hills.size()])
+	for s: String in ["giant-goat", "griffon", "manticore", "wyvern", "ogre", "troll"]:
+		t.check(s in Ecology.roster(srd, "surface", "mountain", false, 0.0, 30.0).map(func(r: Dictionary) -> String: return r["slug"]), "%s lives on the mountain" % s)
 
 ## A site's biome is the ground it stands on, and the sim takes that same biome.
 func _sites(t: TestLog) -> void:
