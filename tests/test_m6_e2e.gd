@@ -310,6 +310,7 @@ func _the_shop() -> void:
 func _the_guards() -> void:
 	var c := town(city)
 	var soldiers0 := c.soldiers
+	var deaths0 := int(sim().stats.get("real_deaths", 0))
 	var bob := he(1)
 	var standing0 := life().standing(bob.id, str(c.faction))
 	var span := life().town_span(city)
@@ -339,7 +340,8 @@ func _the_guards() -> void:
 	idle()
 	t.check(took >= 0.0, "he cuts %s down in the street (%.0f s)" % [g.name, took])
 	rig.run(1.0)
-	t.eq(c.soldiers, soldiers0 - 1, "and the city's garrison is one fewer")
+	# (the sim's own hours move a garrison too: the kill is in its books as a death in real time)
+	t.check(c.soldiers < soldiers0 and int(sim().stats.get("real_deaths", 0)) > deaths0, "and the sim has the guard dead: the garrison %d -> %d" % [soldiers0, c.soldiers])
 	t.check(life().standing(bob.id, str(c.faction)) < standing0, "his standing with the city fell (%d -> %d)" % [standing0, life().standing(bob.id, str(c.faction))])
 
 func _role(e: HostEntity) -> String:

@@ -45,6 +45,9 @@ const SOLID_SLOP := 0.05
 ## Most time (us) one tick may spend catching the sim up with the clock. At least one sim
 ## hour is stepped per tick when behind, so the sim always makes progress.
 const SIM_BUDGET_US := 2000
+## Tests: sim hours stepped a tick while catching up, whatever the clock (0: SIM_BUDGET_US). With
+## the budget, a loaded machine catches up over more ticks and the world moves on between them.
+var sim_fixed_steps := 0
 ## Lines of history a joining player is sent.
 const CHRONICLE_ON_JOIN := 5
 
@@ -159,9 +162,11 @@ func _step_sim() -> void:
 	if sim.t >= target:
 		return
 	var t0 := Time.get_ticks_usec()
+	var n := 0
 	while sim.t < target:
 		sim.step(1)
-		if Time.get_ticks_usec() - t0 >= SIM_BUDGET_US:
+		n += 1
+		if (n >= sim_fixed_steps) if sim_fixed_steps > 0 else (Time.get_ticks_usec() - t0 >= SIM_BUDGET_US):
 			break
 	sim_usec.append(Time.get_ticks_usec() - t0)
 	if sim.chronicle.size() > chronicle_sent:
