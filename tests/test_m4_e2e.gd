@@ -1,6 +1,7 @@
-## M4 end to end: the living world as one thing. Two players over the loopback on a small
-## generated world (1024x512 seed 27, all meadow: two halfling towns joined by a road, a hold
-## in the deeps, lairs in the caves) with every system installed. They arrive in a town (arrival
+## M4 end to end: the living world as one thing. Two players over the loopback on a real
+## generated world (dev seed 4, all five biomes: a human meadow town at the game's spawn and
+## another across a ford, the road between them, holds in the deeps, lairs in the caves) with
+## every system installed. They arrive in a town (arrival
 ## notice, people at their posts), talk to a merchant, buy and sell (the town's books move by
 ## exactly what changed hands), hear a rumour whose place is on the mirrored map, then take
 ## each kind of work and complete it by doing it: a message walked along the road and back, a
@@ -46,10 +47,9 @@ func run(t_: TestLog) -> void:
 	var given := OS.get_environment("E2E_SEED")
 	_dice = int(given) if given != "" else randi()
 	print("  dice seed %d" % _dice)
-	# one biome on purpose: this scenario needs two rich towns side by side, and the climate
-	# journey's food caps rarely give it that; the real terrain is walked by LIFE and WORLD_LIFE
-	var w := WorldGen.generate(1024, 512, 27, {"only_biome": "meadow"})
+	var w := WorldGen.generate_named("dev", 4)
 	rig = Rig.new(w, 0.03)
+	rig.host.spawn = load("res://game/main.gd").spawn_for(w, rig.host.spawn)      # as the game does
 	Systems.install_host(rig.host)
 	_quiet_host()
 	_age(30)
@@ -57,6 +57,8 @@ func run(t_: TestLog) -> void:
 	t.check(T >= 0 and N >= 0 and road >= 0 and cells.size() > 20, "two towns joined by a road (%d, %d, route %d, %d cells)" % [T, N, road, cells.size()])
 	if T < 0 or N < 0 or road < 0:
 		return
+	t.eq((w.meta["biomes"] as Array).size(), 5, "a world of five biomes")
+	t.eq(sim().route_by_id[road].get("crossings", []), ["ford"], "and the road between the towns fords a river")
 	_famine(T)
 	_join()
 	if not _ready():
@@ -113,17 +115,19 @@ func _find_towns() -> void:
 		if s.band == "surface" and absf(s.x - rig.host.spawn.x) < bd:
 			bd = absf(s.x - rig.host.spawn.x)
 			T = sid
+	var most := 0
 	for r: Dictionary in sim.routes:
 		if String(r.get("kind", "")) != "road":
 			continue
 		var other := int(r.b) if int(r.a) == T else (int(r.a) if int(r.b) == T else -1)
-		if other >= 0 and sim.settlements.has(other):
+		if other >= 0 and sim.settlements.has(other) and (sim.settlements[other] as SimSettlement).pop() > most:
+			most = (sim.settlements[other] as SimSettlement).pop()
 			N = other
 			road = int(r.id)
-			cells = Places.route_path(rig.host.world, road)
-			if int(r.a) != T:
-				cells.reverse()             # from T's street end to N's
-			break
+	if road >= 0:
+		cells = Places.route_path(rig.host.world, road)
+		if int(sim.route_by_id[road].a) != T:
+			cells.reverse()                 # from T's street end to N's
 
 func _join() -> void:
 	for i in NAMES.size():
@@ -238,7 +242,8 @@ func _steer(i: int, path: Array, goal: int) -> PlayerInput:
 		return inp
 	var dx := aim.x + 0.5 - b.pos.x
 	inp.move_x = signf(dx) if absf(dx) > 0.2 else 0.0
-	if aim.y > b.pos.y + 0.5:          # y grows upward
+	var hall := TileDefs.ladder[rig.host.world.get_fg(floori(b.pos.x), floori(b.pos.y) + 1)] != 0
+	if aim.y > b.pos.y + 0.5 and not hall:          # y grows upward; a ladder in a hall is not the road
 		inp.up = true
 	elif aim.y < b.pos.y - 1.5 and absf(dx) < 2.0:
 		inp.down = true
