@@ -18,6 +18,10 @@ static var crossing_cost: Dictionary = {}
 static var biomes: Dictionary = {}
 static var cultures: Dictionary = {}
 static var culture_ids: Array[String] = []
+## culture -> {good: factor}: what a people's hands take more of from their land (makes) and keep
+## more of in store (wants). Goods they don't name are 1.
+static var makes: Dictionary = {}
+static var wants: Dictionary = {}
 static var lairs: Dictionary = {}          # band -> Array of lair defs
 static var names: Dictionary = {}
 ## slug -> {name, cr, xp, hp, ac, bonus, dmg, attacks, dmg1}
@@ -41,6 +45,8 @@ static func ensure() -> void:
 	cultures = _load("res://data/sim/cultures.json")
 	for c in cultures:
 		culture_ids.append(c)
+		makes[c] = cultures[c].get("makes", {})
+		wants[c] = cultures[c].get("wants", {})
 	lairs = _load("res://data/sim/lairs.json")
 	names = _load("res://data/sim/names.json")
 	_load_monsters()
@@ -123,6 +129,24 @@ static func biome(name: String, band: String) -> Dictionary:
 		return biomes[name]
 	var fb: Dictionary = biomes["_band_default"]
 	return biomes[fb.get(band, "meadow")]
+
+## How much more of a good a people's hands take from their land (cultures.json makes).
+static func make_f(culture_id: String, good: String) -> float:
+	return float((makes.get(culture_id, {}) as Dictionary).get(good, 1.0))
+
+## How much more of a good a people keeps in store (cultures.json wants).
+static func want_f(culture_id: String, good: String) -> float:
+	return float((wants.get(culture_id, {}) as Dictionary).get(good, 1.0))
+
+## A people of the Underdark (tag "deep").
+static func is_deep(culture_id: String) -> bool:
+	ensure()
+	return "deep" in (cultures.get(culture_id, {}).get("tags", []) as Array)
+
+## The SRD stat block a role of a people is built from ("" when the culture names none).
+static func role_slug(culture_id: String, role: String) -> String:
+	ensure()
+	return String((cultures.get(culture_id, {}).get("roles", {}) as Dictionary).get(role, ""))
 
 ## How much a culture likes a biome: its settlement weight, 0.4 where it doesn't say.
 static func fit(culture_id: String, biome_id: String) -> float:

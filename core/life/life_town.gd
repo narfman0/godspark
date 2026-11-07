@@ -94,15 +94,13 @@ func fold(h: WorldHost, sid: int) -> void:
 ## A townsperson for a slot: role, stat block, name, all from a hash of (world seed, site,
 ## slot, generation); a death bumps the slot's generation, so the next is someone new.
 func folk_def(h: WorldHost, sid: int, s: SimSettlement, slot: int) -> Dictionary:
-	var cfg := Life.people_cfg()
 	var gen := life.generation("s%d:%d" % [sid, slot])
 	var r := Life.rng_for([h.world.world_seed, "folk", sid, slot, gen])
-	var firsts: Array = cfg["first_roles"].get(s.tier, [])
+	var firsts: Array = Life.first_roles(s.culture, s.tier)
 	var role := String(firsts[slot]) if slot < firsts.size() else "townsfolk"
-	var c := SimData.culture(s.culture)
-	var slug := String(cfg["role_slug"].get(role, ""))
-	if slug == "" or bool(c.get("monstrous", false)) or not h.srd.pack.has_row("monster", slug):
-		slug = String(c["people"])
+	var slug := Life.role_slug(s.culture, role)
+	if not h.srd.pack.has_row("monster", slug):
+		slug = String(SimData.culture(s.culture)["people"])
 	var given := SimNames.make(r, s.culture if SimData.names.has(s.culture) else "place", {})
 	var female := r.randf() < 0.5
 	return {"role": role, "slug": slug, "name": "%s the %s" % [given, role.capitalize()] if role != "townsfolk" else given,

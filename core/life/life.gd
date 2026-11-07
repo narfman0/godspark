@@ -43,6 +43,26 @@ static func faction_of(e: HostEntity) -> String:
 static func is_sim_faction(f: String) -> bool:
 	return f != "players" and f != "wild" and f.is_valid_int()
 
+## Who a settlement of a people shows first, by tier (the culture's own first_roles, else
+## data/life/people.json); the rest are townsfolk.
+static func first_roles(culture: String, tier: String) -> Array:
+	var own: Dictionary = SimData.cultures.get(culture, {}).get("first_roles", {})
+	if own.has(tier):
+		return own[tier]
+	return people_cfg()["first_roles"].get(tier, [])
+
+## The SRD stat block a role of a people is built from: the culture's roles table, else
+## data/life/people.json role_slug, else the culture's people block (monstrous peoples use it
+## for every role they don't name).
+static func role_slug(culture: String, role: String) -> String:
+	var c: Dictionary = SimData.cultures.get(culture, {})
+	var slug := SimData.role_slug(culture, role)
+	if slug == "" and not bool(c.get("monstrous", false)):
+		slug = String(people_cfg()["role_slug"].get(role, ""))
+	if slug == "":
+		slug = String(c.get("people", "commoner"))
+	return slug
+
 ## A generator seeded from a key, for sampling people and names: what a player looks at
 ## never advances the sim's own generator.
 static func rng_for(key: Array) -> RandomNumberGenerator:
@@ -60,6 +80,8 @@ static func people_key(culture: String, role: String, slug: String, female := fa
 	var base := species
 	if String(c.get("lineage", "")) != "":
 		base += ":" + String(c["lineage"])
+	elif "deep" in (c.get("tags", []) as Array):
+		base += ":deep"            # duergar, deep gnomes: the species drawn as of the deep
 	var lr: Dictionary = people_cfg().get("look_role", {})
 	var r := String(lr.get(role, lr.get(slug, SpawnDirector._people_role(slug))))
 	if culture == "bandit":

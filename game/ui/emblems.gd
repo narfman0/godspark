@@ -9,7 +9,7 @@ const FACTION_INKS := [Color("9b3b2a"), Color("2f6f8f"), Color("5d7d2c"), Color(
 const CULTURE := {"human": Color("b5523b"), "halfling": Color("6e9a3a"), "dwarf": Color("5f7fa6"), "elf": Color("2f9c7f"),
 	"drow": Color("7d4fa8"), "gnome": Color("c49a2c"), "dragonborn": Color("b8432c"), "tiefling": Color("8e2f4f"),
 	"goliath": Color("7d8790"), "orc": Color("5a6b2c"), "goblinoid": Color("7a7d2a"), "kobold": Color("a0602a"),
-	"gnoll": Color("8a6a3a"), "bandit": Color("6b4a3a")}
+	"gnoll": Color("8a6a3a"), "bandit": Color("6b4a3a"), "duergar": Color("6a6a7c"), "deep_gnome": Color("8a8aa4")}
 ## Mark colours over people.
 const MARKS := {"shop": UiTheme.GOLD, "smith": Color("9aa3ad"), "work": UiTheme.VERMILION, "turn_in": UiTheme.MOSS,
 	"patron": UiTheme.PLUM}

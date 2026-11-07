@@ -1,5 +1,5 @@
 {
-	"_doc": "Peoples of the strategic sim, built only from SRD 5.2.1 content. species/lineage name SRD species (drow is the Elf lineage). people: stat block for non-combatants. Recipes are [slug, weight] lists of SRD monster stat blocks; a party of n is allocated by largest remainder. mobility: route classes caravans and migrants use (road = surface road, deep = deep road, link = a route joining a deep site to the surface). raid_mobility: classes raiders and armies use. bands/biomes: where the culture settles, with weights; a biome left out weighs 0.4 and every generated biome is named for the surface peoples, so a misfit is a choice. farm/craft/luxury scale production. soldiers: garrison as a fraction of population. raid: base raiding drive. ",
+	"_doc": "Peoples of the strategic sim, built only from SRD 5.2.1 content. species/lineage name SRD species (drow is the Elf lineage). people: stat block for non-combatants. Recipes are [slug, weight] lists of SRD monster stat blocks; a party of n is allocated by largest remainder. mobility: route classes caravans and migrants use (road = surface road, deep = deep road, link = a route joining a deep site to the surface). raid_mobility: classes raiders and armies use. bands/biomes: where the culture settles, with weights; a biome left out weighs 0.4 and every generated biome is named for the surface peoples, so a misfit is a choice. farm/craft/luxury scale production. soldiers: garrison as a fraction of population. raid: base raiding drive. Optional (docs/tracks/peoples-below.md): tags ('deep': a people of the Underdark, drawn as species:deep, e.g. duergar are dwarves with the deep tag, since SRD 5.2.1 has no duergar or deep gnome lineage); makes: good -> how much more of it their land gives them (it scales the land's share, so the price and stockpile follow); wants: good -> how much more of it they keep in store (it scales the stock target, so they pay more for it); roles: the SRD stat block each role of their people is built from with make_npc (townsfolk, keeper, merchant, smith, priest, mage, guard, scout, raider); first_roles: who a settlement shows first, by tier, in place of data/life/people.json; estranged: relations lost with every other people; trade_floor: relations under which their caravans won't go to a people (default -20); stance: how they meet players, see data/life/standing.json and docs/tracks/peoples-below.md (abroad: hostile away from home until standing reaches spare_at; toll: what a player pays at the gate of their town; friendly_at: their own line for friendly). ",
 	"human": {
 		"name": "humans", "adj": "human", "species": "human", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 4,
@@ -16,7 +16,7 @@
 	"dwarf": {
 		"name": "dwarves", "adj": "dwarven", "species": "dwarf", "lineage": "", "monstrous": false,
 		"people": "commoner", "weight": 3,
-		"bands": ["surface", "caves", "deeps"], "biomes": {"hills": 3, "mountain": 6, "caves": 4, "underdark": 2, "crystal": 3, "magma": 2, "fungal": 1, "meadow": 0.1, "forest": 0.2, "swamp": 0.1, "desert": 0.2},
+		"bands": ["surface", "caves"], "biomes": {"hills": 3, "mountain": 6, "caves": 4, "underdark": 2, "crystal": 3, "magma": 2, "fungal": 1, "meadow": 0.1, "forest": 0.2, "swamp": 0.1, "desert": 0.2},
 		"mobility": ["road", "deep", "link"], "raid_mobility": ["road", "deep", "link"],
 		"temperament": {"trader": 3, "isolationist": 2, "expansionist": 1},
 		"farm": 0.8, "craft": 1.6, "luxury": 0.4, "soldiers": 0.07, "raid": 0.05, "takes_captives": false,
@@ -128,7 +128,16 @@
 		"escort": [["warrior-infantry", 3], ["scout", 3], ["giant-spider", 1]],
 		"raiders": [["scout", 4], ["bandit", 3], ["bandit-captain", 1], ["spy", 1.5], ["assassin", 0.25], ["mage", 0.25], ["priest", 0.3]],
 		"army": [["warrior-infantry", 6], ["warrior-veteran", 3], ["scout", 3], ["giant-spider", 2], ["priest", 1], ["mage", 0.8], ["assassin", 0.4]],
-		"faction_forms": ["House {n}", "the Web of {n}"]
+		"faction_forms": ["House {n}", "the Web of {n}"],
+		"tags": ["deep"], "estranged": 20, "trade_floor": -50,
+		"makes": {"reagents": 1.5, "crystal": 1.3}, "wants": {"food": 1.3, "timber": 1.8, "luxuries": 1.3},
+		"roles": {"townsfolk": "commoner", "keeper": "commoner", "merchant": "noble", "smith": "commoner", "priest": "priest", "mage": "mage",
+			"guard": "warrior-infantry", "scout": "scout", "raider": "spy"},
+		"first_roles": {"hamlet": ["keeper", "merchant"], "village": ["keeper", "smith", "merchant", "priest"],
+			"town": ["keeper", "smith", "merchant", "priest", "mage", "merchant"],
+			"city": ["keeper", "smith", "merchant", "priest", "mage", "merchant", "priest", "smith", "mage"]},
+		"stance": {"abroad": "hostile", "spare_at": 10,
+			"toll": {"coin": {"hamlet": 5, "village": 10, "town": 25, "city": 50}, "standing": 8, "free_at": 30, "days": 1}}
 	},
 	"goblinoid": {
 		"name": "goblins", "adj": "goblin", "species": "", "lineage": "", "monstrous": true,
@@ -141,12 +150,14 @@
 		"escort": [["goblin-warrior", 4], ["hobgoblin-warrior", 2], ["worg", 1]],
 		"raiders": [["goblin-warrior", 6], ["worg", 1.5], ["hobgoblin-warrior", 2], ["bugbear-warrior", 1], ["goblin-boss", 0.5], ["bugbear-stalker", 0.25]],
 		"army": [["goblin-warrior", 8], ["hobgoblin-warrior", 5], ["bugbear-warrior", 2], ["worg", 2], ["hobgoblin-captain", 0.7], ["bugbear-stalker", 0.4], ["goblin-boss", 0.6]],
-		"faction_forms": ["the {n} Tribe", "the Warband of {n}"]
+		"faction_forms": ["the {n} Tribe", "the Warband of {n}"],
+		"roles": {"townsfolk": "goblin-minion", "keeper": "goblin-minion", "merchant": "goblin-minion", "smith": "goblin-minion", "priest": "goblin-minion",
+			"mage": "goblin-boss", "guard": "goblin-warrior", "scout": "goblin-warrior", "raider": "goblin-warrior"}
 	},
 	"kobold": {
 		"name": "kobolds", "adj": "kobold", "species": "", "lineage": "", "monstrous": true,
 		"people": "kobold-warrior", "weight": 1.5,
-		"bands": ["caves", "deeps"], "biomes": {"caves": 4, "underdark": 2, "crystal": 2, "magma": 2},
+		"bands": ["caves", "deeps"], "biomes": {"caves": 4, "underdark": 2, "crystal": 2, "magma": 4},
 		"mobility": ["deep", "link", "road"], "raid_mobility": ["deep", "link", "road"],
 		"temperament": {"raider": 2, "isolationist": 2, "trader": 1},
 		"farm": 0.6, "craft": 0.8, "luxury": 0.0, "soldiers": 0.15, "raid": 0.3, "takes_captives": false,
@@ -154,7 +165,10 @@
 		"escort": [["kobold-warrior", 6]],
 		"raiders": [["kobold-warrior", 10], ["giant-centipede", 1]],
 		"army": [["kobold-warrior", 12], ["giant-centipede", 1], ["giant-weasel", 1]],
-		"faction_forms": ["the {n} Brood", "the Scales of {n}"]
+		"faction_forms": ["the {n} Brood", "the Scales of {n}"],
+		"tags": ["deep"], "makes": {"ore": 1.25}, "wants": {"food": 1.2, "tools": 1.4},
+		"roles": {"townsfolk": "kobold-warrior", "keeper": "kobold-warrior", "merchant": "kobold-warrior", "smith": "kobold-warrior", "priest": "kobold-warrior",
+			"mage": "kobold-warrior", "guard": "kobold-warrior", "scout": "kobold-warrior", "raider": "kobold-warrior"}
 	},
 	"gnoll": {
 		"name": "gnolls", "adj": "gnoll", "species": "", "lineage": "", "monstrous": true,
@@ -181,5 +195,39 @@
 		"raiders": [["bandit", 6], ["tough", 2], ["scout", 1.5], ["bandit-captain", 0.6], ["tough-boss", 0.2]],
 		"army": [["bandit", 8], ["tough", 4], ["bandit-captain", 1], ["tough-boss", 0.4]],
 		"faction_forms": ["the {n} Brotherhood", "the {n} Gang"]
+	},
+	"duergar": {
+		"name": "duergar", "adj": "duergar", "species": "dwarf", "lineage": "", "tags": ["deep"], "monstrous": false,
+		"people": "commoner", "weight": 2.5,
+		"bands": ["deeps", "caves"], "biomes": {"crystal": 5, "magma": 5, "underdark": 2.5, "caves": 2, "fungal": 1, "deep_lake": 0.5},
+		"mobility": ["deep", "link"], "raid_mobility": ["deep", "link"],
+		"temperament": {"isolationist": 3, "trader": 2, "expansionist": 2, "raider": 1},
+		"farm": 0.7, "craft": 1.6, "luxury": 0.3, "soldiers": 0.09, "raid": 0.12, "takes_captives": false,
+		"guards": [["warrior-infantry", 5], ["warrior-veteran", 2.5], ["priest", 0.4]],
+		"escort": [["warrior-infantry", 4], ["warrior-veteran", 2]],
+		"raiders": [["warrior-infantry", 4], ["warrior-veteran", 2], ["tough", 1]],
+		"army": [["warrior-infantry", 8], ["warrior-veteran", 4], ["knight", 0.8], ["priest", 1], ["mage", 0.3]],
+		"faction_forms": ["the {n} Deephold", "the Forge-clan of {n}", "the Iron Oath of {n}"],
+		"makes": {"ore": 1.35, "stone": 1.4}, "wants": {"food": 1.3, "reagents": 1.4, "timber": 1.4},
+		"roles": {"townsfolk": "commoner", "keeper": "commoner", "merchant": "commoner", "smith": "warrior-infantry", "priest": "priest", "mage": "mage",
+			"guard": "warrior-infantry", "scout": "scout", "raider": "warrior-veteran"},
+		"stance": {"friendly_at": 50}
+	},
+	"deep_gnome": {
+		"name": "deep gnomes", "adj": "deep gnome", "species": "gnome", "lineage": "", "tags": ["deep"], "monstrous": false,
+		"people": "commoner", "weight": 1.8,
+		"bands": ["deeps", "caves"], "biomes": {"crystal": 5, "caves": 5, "underdark": 1.5, "fungal": 1, "deep_lake": 1, "magma": 0.3},
+		"mobility": ["deep", "link"], "raid_mobility": ["deep"],
+		"temperament": {"isolationist": 4, "trader": 3},
+		"farm": 0.8, "craft": 1.5, "luxury": 1.0, "soldiers": 0.05, "raid": 0.02, "takes_captives": false,
+		"guards": [["guard", 5], ["scout", 3], ["mage", 0.4]],
+		"escort": [["guard", 4], ["scout", 2]],
+		"raiders": [["scout", 4], ["guard", 2]],
+		"army": [["guard", 8], ["scout", 4], ["mage", 0.8], ["priest", 0.4]],
+		"faction_forms": ["the {n} Delve", "the Stonewardens of {n}"],
+		"makes": {"crystal": 1.6, "ore": 1.15}, "wants": {"food": 1.2, "luxuries": 1.2, "salt": 1.3},
+		"roles": {"townsfolk": "commoner", "keeper": "commoner", "merchant": "noble", "smith": "commoner", "priest": "priest-acolyte", "mage": "mage",
+			"guard": "guard", "scout": "scout", "raider": "scout"},
+		"stance": {"friendly_at": 45}
 	}
 }

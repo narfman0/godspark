@@ -1,5 +1,5 @@
 {
- "_comment": "One table from a creature look to a body (view/actors/looks.gd). Resolution: a monster-forge GLB when assets/monsters/<slug> is synced; else the row for the slug / people key / player key (keys fall back by dropping their last ':' part, so people:elf:drow:raider -> people:elf:drow -> people:elf); else by_type (creature type from data/looks_creatures.json), then default. A row names a model; when its files are not fetched the actor is a tinted primitive with a nameplate, sized by by_size. Rows: model (a key of models), size_name (the box size when the look has no slug: people:goblin is small), tint (hex, multiplies colours), height_m (overrides the model's height), scale (multiplies it), nameplate (true: show the name), color (primitive colour). models: path (res:// literal, so tools/fetch_assets.sh fetches it), show (mesh node names to keep in a multi-character file), set (masc | femn: which locomotion clips; omitted = not a humanoid, no retargeting), height_m (the model is scaled to this height; people are scaled to their box otherwise), clip (static models: play the file's own animation). Synty supplies looks only: every key is an SRD slug, an SRD species/role, or a class.",
+ "_comment": "One table from a creature look to a body (view/actors/looks.gd). Resolution: a monster-forge GLB when assets/monsters/<slug> is synced; else the row for the slug / people key / player key (keys fall back by dropping their last ':' part, so people:elf:drow:raider -> people:elf:drow -> people:elf; peoples of the deep without a lineage are species:deep, people:dwarf:deep:guard for a duergar guard); else by_type (creature type from data/looks_creatures.json), then default. A row names a model; when its files are not fetched the actor is a tinted primitive with a nameplate, sized by by_size. Rows: model (a key of models), size_name (the box size when the look has no slug: people:goblin is small), tint (hex, multiplies colours), height_m (overrides the model's height), scale (multiplies it), nameplate (true: show the name), color (primitive colour). models: path (res:// literal, so tools/fetch_assets.sh fetches it), show (mesh node names to keep in a multi-character file), set (masc | femn: which locomotion clips; omitted = not a humanoid, no retargeting), height_m (the model is scaled to this height; people are scaled to their box otherwise), clip (static models: play the file's own animation). Synty supplies looks only: every key is an SRD slug, an SRD species/role, or a class.",
  "clips": {
   "ref": "res://assets/meshes/ANIMATION_Base_Locomotion_SourceFiles_v3/SourceFiles/Character/PolygonSyntyCharacter.glb",
   "masc": {
@@ -451,6 +451,11 @@
   "people:dwarf": {"model": "dwarf"},
   "people:dwarf:guard": {"model": "dwarf"},
   "people:dwarf:commoner": {"model": "viking", "height_m": 1.4, "tint": "#e8d0b8"},
+  "people:dwarf:deep": {"model": "dwarf", "tint": "#9a96a4"},
+  "people:dwarf:deep:guard": {"model": "dwarf", "tint": "#7c7a88"},
+  "people:dwarf:deep:commoner": {"model": "viking", "height_m": 1.4, "tint": "#a8a4b0"},
+  "people:dwarf:deep:priest": {"model": "priest", "height_m": 1.4, "tint": "#8c8898"},
+  "people:dwarf:deep:mage": {"model": "wizard", "height_m": 1.4, "tint": "#8c8898"},
   "people:elf": {"model": "elf_commoner"},
   "people:elf:guard": {"model": "elf_soldier"},
   "people:elf:scout": {"model": "elf_soldier_f"},
@@ -466,6 +471,10 @@
   "people:halfling": {"size_name": "small", "model": "peasant_m", "height_m": 0.95},
   "people:halfling:f": {"size_name": "small", "model": "peasant_f", "height_m": 0.95},
   "people:gnome": {"size_name": "small", "model": "wizard", "height_m": 0.95},
+  "people:gnome:deep": {"size_name": "small", "model": "wizard", "height_m": 0.95, "tint": "#b0aab8"},
+  "people:gnome:deep:guard": {"size_name": "small", "model": "soldier", "height_m": 0.95, "tint": "#a09cac"},
+  "people:gnome:deep:scout": {"size_name": "small", "model": "rogue", "height_m": 0.95, "tint": "#a09cac"},
+  "people:gnome:deep:commoner": {"size_name": "small", "model": "peasant_m", "height_m": 0.95, "tint": "#b8b2c0"},
   "people:orc": {"model": "orc"},
   "people:tiefling": {"model": "mystic", "tint": "#e0a0a0"},
   "people:goblin": {"size_name": "small", "model": "goblin"},

@@ -737,6 +737,26 @@
 			}
 		},
 		{
+			"id": "bond-people-duergar",
+			"kind": "bond",
+			"key": "people:duergar",
+			"name": "Bond with the duergar",
+			"text": "Better prices and a warmer welcome in the duergar holds.",
+			"deeds": {
+				"trade:duergar": 3
+			}
+		},
+		{
+			"id": "bond-people-deep_gnome",
+			"kind": "bond",
+			"key": "people:deep_gnome",
+			"name": "Bond with the deep gnomes",
+			"text": "Better prices and a warmer welcome in the deep gnome warrens.",
+			"deeds": {
+				"trade:deep_gnome": 3
+			}
+		},
+		{
 			"id": "bond-people-goblinoid",
 			"kind": "bond",
 			"key": "people:goblinoid",

@@ -42,7 +42,9 @@
 		"goblinoid": ["Shiny? You got shiny?", "Boss says be nice. I'm being nice."],
 		"kobold": ["Not a trap. Probably.", "Dragons are great. Ask anyone."],
 		"gnoll": ["Hungry. Always hungry."],
-		"bandit": ["Coin first, questions never.", "You didn't see me. Nobody does."]
+		"bandit": ["Coin first, questions never.", "You didn't see me. Nobody does."],
+		"duergar": ["Work, then talk. Then more work.", "The forge does not care who is watching.", "Down here a debt is never forgotten."],
+		"deep_gnome": ["Quiet feet live longest.", "Listen to the stone; it hums before it falls.", "We were never here. Remember that."]
 	},
 	"knows": {
 		"guard": ["raid", "raid_repelled", "ambush", "patrol_clash", "lair_attack", "monster_raid", "lair_new", "lair_cleared", "lair_cleared_players", "expedition_failed", "army", "siege", "siege_broken", "siege_lifted", "outlaws", "war", "peace", "apex_wrath", "slain_by_players"],

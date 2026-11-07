@@ -1,5 +1,5 @@
 {
- "_doc": "Names of the land, drawn per world by core/world/region_names.gd. Invented or plain English, SRD-safe: no Forgotten Realms place. region: per biome, an adjective and a noun, 'the Sallow Fen'. range: the same, 'the Cloven Teeth'. river: a stem and an ending, 'the River Marlow'.",
+ "_doc": "Names of the land, drawn per world by core/world/region_names.gd. Invented or plain English, SRD-safe: no Forgotten Realms place. region: per biome, an adjective and a noun, 'the Sallow Fen'. range: the same, 'the Cloven Teeth'. river: a stem and an ending, 'the River Marlow'. deep: the underground style of each people's settlements (core/sim/sim_names.gd SimNames.title): kind is what they call one, forms how a map or a guard names it ({n} the settlement's own name, from data/sim/names.json), picked by a hash of the name, never a generator's draw.",
  "region": {
   "forest": {"adj": ["Hollow", "Greying", "Whispering", "Mossback", "Elder", "Sunken", "Bracken", "Fallow", "Hushed", "Rookery", "Ashwood", "Lichen"], "noun": ["Wood", "Weald", "Holt", "Shaw", "Boughs", "Thicket", "Wald", "Timberlands"]},
   "swamp": {"adj": ["Drowned", "Sallow", "Reeking", "Black", "Sodden", "Leech", "Murk", "Rotting", "Heron", "Widow's", "Dim", "Lost"], "noun": ["Fen", "Mire", "Bog", "Slough", "Morass", "Sedge", "Carr", "Flats"]},
@@ -12,5 +12,14 @@
   "jungle": {"adj": ["Green", "Steaming", "Vine"], "noun": ["Tangle", "Canopy", "Thicket"]}
  },
  "range": {"adj": ["Anvil", "Cloven", "Widow's", "Ember", "Giant's", "Old King's", "Storm", "Whetstone", "Sawtooth", "Thunder", "Raven", "Wolf"], "noun": ["Teeth", "Horns", "Wall", "Crown", "Ridge", "Stair", "Peaks", "Range"]},
- "river": {"stem": ["Ald", "Bren", "Cald", "Dor", "Elm", "Fenn", "Harr", "Lor", "Marl", "Nar", "Oss", "Ren", "Sel", "Tam", "Ulm", "Wend", "Yar", "Thorn"], "end": ["ow", "ey", "wyn", "ash", "ind", "ure", "esk", "ath", "en", "brook", "water"]}
+ "river": {"stem": ["Ald", "Bren", "Cald", "Dor", "Elm", "Fenn", "Harr", "Lor", "Marl", "Nar", "Oss", "Ren", "Sel", "Tam", "Ulm", "Wend", "Yar", "Thorn"], "end": ["ow", "ey", "wyn", "ash", "ind", "ure", "esk", "ath", "en", "brook", "water"]},
+ "deep": {
+  "drow": {"kind": "city", "forms": ["the city of {n}", "{n} of the Webs", "the spired city of {n}", "{n}, city of lamps"]},
+  "duergar": {"kind": "hold", "forms": ["the hold of {n}", "{n} Deephold", "the forge-hold of {n}"]},
+  "deep_gnome": {"kind": "warren", "forms": ["the warren of {n}", "{n} Delve", "the hidden delve of {n}"]},
+  "kobold": {"kind": "warren", "forms": ["the warren of {n}", "{n} Diggings", "the tunnels of {n}"]},
+  "goblinoid": {"kind": "warren", "forms": ["the warren of {n}", "{n} Hole", "the war-warren of {n}"]},
+  "dwarf": {"kind": "hold", "forms": ["the hold of {n}", "{n} Halls"]},
+  "_": {"kind": "settlement", "forms": ["{n}"]}
+ }
 }

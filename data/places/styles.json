@@ -5,7 +5,7 @@
 		"halfling": "halfling", "gnome": "halfling",
 		"dwarf": "dwarf", "goliath": "dwarf",
 		"elf": "elf",
-		"drow": "drow",
+		"drow": "drow", "duergar": "dwarf", "deep_gnome": "dwarf",
 		"goblinoid": "raider", "kobold": "raider", "gnoll": "raider", "bandit": "raider", "orc": "raider"
 	},
 	"default": "human",

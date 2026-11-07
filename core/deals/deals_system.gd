@@ -276,7 +276,7 @@ func roles_at(sid: int) -> Array:
 	var s: SimSettlement = host.sim.settlements.get(sid)
 	if s == null:
 		return []
-	var out: Array = (Life.people_cfg()["first_roles"].get(s.tier, []) as Array).duplicate()
+	var out: Array = Life.first_roles(s.culture, s.tier).duplicate()
 	if s.soldiers > 0:
 		out.append("guard")
 	out.append("townsfolk")

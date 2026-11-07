@@ -419,8 +419,9 @@ func _base_relation(a: SimFaction, b: SimFaction) -> float:
 		r += 25.0
 	if bool(ca.monstrous) != bool(cb.monstrous):
 		r -= 20.0
-	if (a.culture == "drow") != (b.culture == "drow"):
-		r -= 20.0
+	# a people apart (the drow) is estranged from every other
+	if a.culture != b.culture:
+		r -= maxf(float(ca.get("estranged", 0.0)), float(cb.get("estranged", 0.0)))
 	if a.temperament == "raider" or b.temperament == "raider":
 		r -= 10.0
 	return r
@@ -450,6 +451,13 @@ func _derive_settlement(s: SimSettlement) -> void:
 	var b := SimData.biome(site.biome, site.band)
 	var c := SimData.culture(s.culture)
 	var sf := _size_factor(site)
+	# What a people makes, its land gives it more of (cultures.json makes): the share, so the
+	# yield, the local price and the stockpile all follow.
+	var mk: Dictionary = SimData.makes.get(s.culture, {})
+	if not mk.is_empty():
+		b = b.duplicate()
+		for g: String in mk:
+			b[g] = float(b.get(g, 0.0)) * float(mk[g])
 	s.land = b
 	s.cap = {"food": float(b.food) * sf * SimEconomy.FOOD_CAP * float(c.farm)}
 	for g in SimData.goods:

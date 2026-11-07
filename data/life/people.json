@@ -1,5 +1,5 @@
 {
-	"_doc": "Life: what materializes (docs/tracks/life.md). near/keep: a settlement or party appears when a player is within near_tiles (x and y) and folds back past keep_tiles. caps: most actors shown per settlement (guards) and per party. townsfolk: how many people of a settlement are shown, by tier (never more than its civilians). first_roles: the roles of the first shown people by tier; the rest are townsfolk. role_slug: the SRD stat block of a role ('' = the culture's people block); monstrous cultures use their people block for every role. look_role: the look.people role key per role or stat block. hours: the daily round (work from..to, then the square at dusk, home at night). break: the fraction of its starting strength a side may lose before it gives up a real-time fight (the sim's own numbers). stall_s: a raid handed to real time with no blows for this long goes back to the sim's rules.",
+	"_doc": "Life: what materializes (docs/tracks/life.md). near/keep: a settlement or party appears when a player is within near_tiles (x and y) and folds back past keep_tiles. caps: most actors shown per settlement (guards) and per party. townsfolk: how many people of a settlement are shown, by tier (never more than its civilians). first_roles: the roles of the first shown people by tier; the rest are townsfolk. role_slug: the SRD stat block of a role ('' = the culture's people block); a culture's own roles table (data/sim/cultures.json) comes first; monstrous cultures use their people block for every role their table doesn't name. A culture's first_roles replace these by tier. look_role: the look.people role key per role or stat block. hours: the daily round (work from..to, then the square at dusk, home at night). break: the fraction of its starting strength a side may lose before it gives up a real-time fight (the sim's own numbers). stall_s: a raid handed to real time with no blows for this long goes back to the sim's rules.",
 	"near_tiles": 80.0,
 	"keep_tiles": 112.0,
 	"scan_s": 1.0,
@@ -11,9 +11,10 @@
 		"town": ["keeper", "smith", "merchant", "priest", "merchant", "keeper"],
 		"city": ["keeper", "smith", "merchant", "priest", "merchant", "keeper", "smith", "merchant", "priest"]
 	},
-	"role_slug": {"townsfolk": "", "keeper": "", "smith": "", "merchant": "", "priest": "priest-acolyte", "drover": "", "migrant": ""},
+	"role_slug": {"townsfolk": "", "keeper": "", "smith": "", "merchant": "", "priest": "priest-acolyte", "drover": "", "migrant": "",
+		"mage": "mage", "scout": "scout", "guard": "guard", "raider": "bandit"},
 	"look_role": {"guard": "guard", "townsfolk": "commoner", "keeper": "commoner", "smith": "commoner", "merchant": "noble",
-		"priest": "priest", "drover": "commoner", "migrant": "commoner", "escort": "guard", "soldier": "guard"},
+		"priest": "priest", "mage": "mage", "scout": "scout", "drover": "commoner", "migrant": "commoner", "escort": "guard", "soldier": "guard"},
 	"monstrous_look": {"goblinoid": "goblin", "kobold": "kobold", "gnoll": "gnoll"},
 	"hours": {"work": [6.0, 18.0], "dusk": [18.0, 21.0]},
 	"wagon": "draft-horse",

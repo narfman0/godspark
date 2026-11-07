@@ -466,6 +466,92 @@
 		],
 		"mid_chance": 0.0
 	},
+	"duergar": {
+		"start": [
+			"Grim",
+			"Drak",
+			"Mord",
+			"Thrag",
+			"Varn",
+			"Gor",
+			"Skald",
+			"Bruk",
+			"Hrum",
+			"Dvar",
+			"Kol",
+			"Zhur",
+			"Brag",
+			"Ost"
+		],
+		"mid": [
+			"a",
+			"u",
+			"o",
+			"ak",
+			"um",
+			"ar"
+		],
+		"end": [
+			"dhul",
+			"grav",
+			"mok",
+			"thrum",
+			"dun",
+			"kar",
+			"zul",
+			"hald",
+			"vek",
+			"grond",
+			"mar",
+			"stag",
+			"mund",
+			"dras"
+		],
+		"mid_chance": 0.3
+	},
+	"deep_gnome": {
+		"start": [
+			"Brin",
+			"Glim",
+			"Kel",
+			"Nim",
+			"Quar",
+			"Sel",
+			"Tink",
+			"Fel",
+			"Dorn",
+			"Wim",
+			"Zen",
+			"Pell",
+			"Ober",
+			"Rill"
+		],
+		"mid": [
+			"a",
+			"i",
+			"o",
+			"en",
+			"el",
+			"ib"
+		],
+		"end": [
+			"dell",
+			"hollow",
+			"geode",
+			"shard",
+			"delve",
+			"nook",
+			"vein",
+			"glint",
+			"spar",
+			"cleft",
+			"lode",
+			"dim",
+			"quarry",
+			"wick"
+		],
+		"mid_chance": 0.35
+	},
 	"place": {
 		"start": [
 			"Amber",

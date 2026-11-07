@@ -57,9 +57,11 @@ const DEATH_UNTENDED := 1.2
 ## Stone stock under this share of target: walls in disrepair, a step worse (SimConflict.wall_ac).
 const STONE_LOW := 0.25
 
+## A good's stock target: what a year's need asks to keep, times what the people want of it
+## (cultures.json wants).
 static func target(s: SimSettlement, g: String) -> float:
 	var d: Dictionary = SimData.goods[g]
-	return s.pop() * float(d.need) * float(d.target_years)
+	return s.pop() * float(d.need) * float(d.target_years) * SimData.want_f(s.culture, g)
 
 ## A good's price: its base, moved by what the land here gives and by the stock against target.
 static func price(s: SimSettlement, g: String) -> float:
@@ -140,17 +142,17 @@ static func _tick_settlement(sim: WorldSim, s: SimSettlement, days: int) -> void
 	var raw_l := craft_l * 0.75
 	var raw_cap := 0.0
 	for g in SimData.raw_goods:
-		raw_cap += float(s.cap[g]) + 0.01
+		raw_cap += float(s.cap.get(g, 0.0)) + 0.01
 	var raw_day := {}
 	for g in SimData.raw_goods:
-		var cg: float = float(s.cap[g]) + 0.01
+		var cg: float = float(s.cap.get(g, 0.0)) + 0.01
 		var l := raw_l * cg / raw_cap
 		# Full woodpiles and ore heaps send hands back to the fields.
 		var want := clampf(2.0 - s.stock[g] / maxf(stock_cap(s, g), 1.0), 0.0, 1.0)
 		farm_l += l * (1.0 - want)
 		var d: Dictionary = SimData.goods[g]
 		var skill: float = float(c.craft) if d.get("craft", false) else 1.0
-		raw_day[g] = float(s.cap[g]) * (1.0 - exp(-l * want * float(d.labour) * skill * toolf / cg))
+		raw_day[g] = float(s.cap.get(g, 0.0)) * (1.0 - exp(-l * want * float(d.labour) * skill * toolf / cg))
 	# Wells give what they give, up to twice what a town keeps.
 	s.stock.water = minf(s.stock.water + s.cap.water * days, maxf(s.stock.water, stock_cap(s, "water") * 2.0))
 	var water_ok := clampf(s.stock.water / maxf(target(s, "water") * 0.5, 1.0), 0.0, 1.0)
@@ -171,8 +173,13 @@ static func _tick_settlement(sim: WorldSim, s: SimSettlement, days: int) -> void
 	stock.ore -= tools_made
 	stock.timber -= tools_made
 	stock.tools += tools_made
-	var lux_made := minf(make_l * 0.3 * 0.012 * float(c.luxury) * days, stock.ore * 2.0)
-	stock.ore -= lux_made * 0.5
+	# Fine goods are cut from crystal first, then worked from ore.
+	var crystal: float = stock.get("crystal", 0.0)
+	var lux_made := minf(make_l * 0.3 * 0.012 * float(c.luxury) * days, stock.ore * 2.0 + crystal * 2.0)
+	var from_crystal := minf(lux_made * 0.5, crystal)
+	if stock.has("crystal"):
+		stock.crystal = crystal - from_crystal
+	stock.ore = maxf(stock.ore - (lux_made * 0.5 - from_crystal), 0.0)
 	stock.luxuries += lux_made
 	# Eating.
 	var need := pop * EAT * days
@@ -428,7 +435,7 @@ static func _plan_caravan(sim: WorldSim, s: SimSettlement) -> void:
 		if d.besieged_by >= 0:
 			continue
 		if d.faction != s.faction:
-			if me.at_war(d.faction) or me.rel(d.faction) < -20.0:
+			if me.at_war(d.faction) or me.rel(d.faction) < float(c.get("trade_floor", -20.0)):
 				continue
 		var row: PackedFloat64Array = sim.market.get(sid, PackedFloat64Array())
 		if row.is_empty():
