@@ -182,8 +182,8 @@ func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float, ba
 	_seed_world()
 
 ## Ways between the surface and the deeps that worldgen knows of besides its own ascent route
-## (meta.ways: [{kind, top: [x, y], bottom: [x, y]}], a cave mouth, sinkhole or buried ruin; the
-## descent track fills it): each joins the deep settlement nearest its bottom to the surface
+## (meta.ways: [{kind, top: [x, y], bottom: [x, y], path?: [[x, y]] top to bottom}], a cave mouth,
+## sinkhole or buried ruin; the descent track fills it with its sinkholes): each joins the deep settlement nearest its bottom to the surface
 ## settlement nearest its top, unless a route already does, as a link (`way` names its kind).
 ## Its length is the walk: across at each end, and the climb. Caravans use it when it pays.
 func _add_ways(ways: Array) -> void:
@@ -206,8 +206,11 @@ func _add_ways(ways: Array) -> void:
 		if joined:
 			continue
 		var length := absf(top.x - float(up.x)) + absf(bottom.x - float(down.x)) + absf(top.y - bottom.y) * 1.5 + absf(top.x - bottom.x)
-		routes.append({"id": next_id, "a": int(down.id), "b": int(up.id), "kind": "deep_road", "length": length,
-			"name": "", "cls": 0, "way": str(w.get("kind", "way")), "top": [top.x, top.y], "bottom": [bottom.x, bottom.y]})
+		var link := {"id": next_id, "a": int(down.id), "b": int(up.id), "kind": "deep_road", "length": length,
+			"name": "", "cls": 0, "way": str(w.get("kind", "way")), "top": [top.x, top.y], "bottom": [bottom.x, bottom.y]}
+		if w.get("path") is Array:
+			link["path"] = (w.path as Array).duplicate(true)     # top to bottom (a sinkhole's rope: M6 deep)
+		routes.append(link)
 		next_id += 1
 
 func _nearest_settlement_site(p: Vector2, surface: bool) -> Dictionary:
@@ -1111,6 +1114,8 @@ static func from_dict(d: Dictionary) -> WorldSim:
 		for k: String in ["top", "bottom"]:
 			if r.has(k):
 				rr[k] = [float(r[k][0]), float(r[k][1])]
+		if r.has("path"):
+			rr["path"] = (r.path as Array).duplicate(true)
 		rr["crossings"] = Array(r.get("crossings", []))
 		sim.routes.append(rr)
 	sim.world_x0 = float(d.world_x0)

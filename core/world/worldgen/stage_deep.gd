@@ -910,6 +910,20 @@ static func targets(c: GenContext) -> Array:
 		out.append(["nadir floor", c.nadir_floor])
 	return out
 
+## meta.ways (the sim's ways between the surface and the deeps besides the ascent, WorldSim._add_ways):
+## each sinkhole, {kind, top: [x, y], bottom: [x, y], path: [[x, y]]}, the path the feet cells down its
+## rope from the deck to the chamber floor. Written only with opts {"ways": true} until M6's
+## integration: a link route per sinkhole moves the sim on every world (docs/tracks/deep.md).
+static func ways(c: GenContext) -> Array:
+	var out: Array = []
+	for s: Dictionary in c.sinkholes:
+		var x := int(s["rope"]) - 1
+		var path: Array = []
+		for y in range(int(s["top"]), int(s["bottom"]) - 1, -1):
+			path.append([x, y])
+		out.append({"kind": "sinkhole", "top": [x, int(s["top"])], "bottom": [x, int(s["bottom"])], "path": path})
+	return out
+
 static func _cells(path: Array) -> Array:
 	var out: Array = []
 	for p: Vector2i in path:

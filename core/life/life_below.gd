@@ -49,7 +49,14 @@ func way_cells(h: WorldHost, rid: int) -> Array:
 			var top := Vector2i(int(r.top[0]), int(r.top[1]))
 			var bottom := Vector2i(int(r.bottom[0]), int(r.bottom[1]))
 			var surface_a := SimData.band_family(h.sim.site_by_id[int(r.a)].band) == "surface"
-			var pts: Array = [a, top, bottom, b] if surface_a else [a, bottom, top, b]
+			var way: Array = []                     # the way's own cells, top to bottom (a sinkhole's rope)
+			for q: Variant in r.get("path", []):
+				way.append(Vector2i(int(q[0]), int(q[1])))
+			if way.is_empty():
+				way = [top, bottom]
+			if not surface_a:
+				way.reverse()
+			var pts: Array = [a] + way + [b]
 			for i in pts.size() - 1:
 				_line(out, pts[i], pts[i + 1])
 	_cells[rid] = out

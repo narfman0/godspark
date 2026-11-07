@@ -30,6 +30,41 @@ func run(t: TestLog) -> void:
 	t.check(not seen.is_empty(), "the lake's water has packs (%s)" % [seen.keys()])
 	for s: String in seen:
 		t.eq(String(Ecology.row(s).get("medium", "")), "water", "%s lives in water" % s)
+	t.eq(int(lk.get("lair", -1)), -1, "no lake lair site, nor meta.ways, until M6 integration turns them on")
+	t.eq(w.meta.get("ways", []), [], "nor meta.ways")
+	# with them on (opts lake_lair, ways): the lake's lair site in the deep lake's region, its water
+	# near enough for a creature of the water (the aboleth) to come out in it (LairLink.water_near:
+	# 60 x 30 tiles), and a way per sinkhole with its rope as its path
+	w = WorldGen.generate_named("dev", 2, {"lake_lair": true, "ways": true})
+	host = WorldHost.new(w)
+	lk = w.meta["descent"]["lake"]
+	var lair := int(lk.get("lair", -1))
+	t.check(lair >= 0, "the lake has a lair site")
+	if lair >= 0:
+		var site: Dictionary = (w.meta["sites"] as Array).filter(func(x: Dictionary) -> bool: return int(x["id"]) == lair)[0]
+		t.eq([site["kind"], site["biome"]], ["lair", "deep_lake"], "a lair in the deep lake")
+		var wet := LairLink.water_near(host, Vector2(float(site["x"]) + 0.5, float(site["y"])))
+		t.check(wet != Vector2.INF, "with deep water within 60 x 30 tiles (%s)" % wet)
+	# meta.ways: each sinkhole, with its rope as its path, and a link route that keeps it
+	var ways: Array = w.meta.get("ways", [])
+	t.eq(ways.size(), (w.meta["descent"]["sinkholes"] as Array).size(), "a way in meta.ways per sinkhole")
+	for wy: Dictionary in ways:
+		var path: Array = wy.get("path", [])
+		t.check(path.size() > 20 and path[0] == wy["top"] and path[-1] == wy["bottom"], "%s's path runs from its top to its bottom (%d cells)" % [wy["kind"], path.size()])
+	var linked := 0
+	for r: Dictionary in host.sim.routes:
+		if String(r.get("way", "")) == "sinkhole":
+			linked += 1
+			t.check((r.get("path", []) as Array).size() > 20, "the sim's link route %d keeps the sinkhole's path" % r["id"])
+	t.check(linked > 0, "the sim links a sinkhole (%d)" % linked)
+	w = WorldGen.generate_named("dev", 2)
+	host = WorldHost.new(w)
+	ms = MonstersSystem.new()
+	ms.director_enabled = 0
+	ms.lairs_enabled = false
+	host.add_system(ms)
+	dir = ms.director
+	dir.rng.seed = 7
 	# each region's packs are its own creatures
 	for b: String in ["fungal", "crystal", "deep_lake"]:
 		var own := {}
