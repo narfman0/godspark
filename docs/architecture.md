@@ -798,7 +798,8 @@ GameUi: deals_ui (DealsUi), marks (PeopleMarks), number_keys_taken(); screens sh
 ## M5 contracts (biomes and the shape of the overworld)
 
 As built so far: vocabulary and climate ([tracks/biomes.md](tracks/biomes.md)), barriers
-([tracks/barriers.md](tracks/barriers.md)). The later M5 tracks build on these.
+([tracks/barriers.md](tracks/barriers.md)), biomes in the sim
+([tracks/sim-biomes.md](tracks/sim-biomes.md)). The later M5 tracks build on these.
 
 ### One vocabulary (`data/biomes.json`, `core/world/biome_ids.gd`, exists)
 
@@ -878,3 +879,28 @@ Protocol 9 (the new tiles).
 - Water is a tile (117), neither solid nor one-way, drawn as a sheet behind actors: bodies walk
   through it. The liquid channel and swimming are unused here. A river's banks slope a row a
   column, so nobody needs a ladder or a swim out. Protocol 10.
+
+### Biomes in the sim (`data/sim/biomes.json`, `data/sim/goods.json`, `core/sim/`, exists)
+
+- A biome's row gives a share of each good's cap: `food water timber game ore stone salt
+  reagents`, and `seasonal`. A good with `cap` in `goods.json` is land's; with `labour` too, workers
+  take it out (`SimData.raw_goods`), and water comes up by itself. `use` is what a person consumes
+  a year (`SimData.used_goods`). `s.cap` holds a town's capacities, `s.land` its biome's row (both
+  derived on load).
+- `SimEconomy.price(s, g)` = base x `land_price(s, g)` x scarcity. `land_price` runs 1.3 (the land
+  gives none) to 0.7 (a full share), and is 1 for goods no land gives. `stock_cap(s, g)` is where a
+  town stops putting hands on a good. Deals and the shops read `price` as before.
+- Goods are `food timber ore tools luxuries stone salt reagents game water`. A new good needs a
+  row in `goods.json`, a share in `biomes.json` if land gives it, and a `trade:<good>` row in
+  `data/items/base.json`, which `Items.make` and `LifeSystem.good_item` read.
+- `WorldSim.from_meta` reads `meta.barriers`. Every route has `crossings`, a sorted list of kinds
+  (`pass`, `ford`, `bridge`), empty underground. Roads hold their cost already; trails add
+  `crossing_length(kinds)`, and a trail goes to the nearest site on foot, not by column.
+  `stage_places.gd` must pass the same barriers: a trail changes the RNG draw of the route names
+  and with it who settles where.
+- `route_value`: route id -> {faction id: coin of cargo sent along it}, decaying as `route_traffic`
+  does, saved. `SimConflict.route_targets(sim, s, hungry, mask, dist, reach)` weighs routes for a
+  raid: coin a trip x the chance one passes in `AMBUSH_DAYS` x `PINCH` x distance.
+- `ledger_on` turns on `ledger` and `flows`, not saved. `SimHealth.observe(sim, years)` runs any
+  sim and adds `biomes` and `routes`; `SimHealth.route_shares(sim)` splits roads into pass, river and
+  flat.

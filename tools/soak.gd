@@ -3,7 +3,9 @@
 ## walking at run speed, talking, trading and taking work at random, hitting what comes near.
 ## Real ticks, no clients (their bodies are moved along the route cells by the script), at
 ## K.TICK_HZ of host time: a game day is K.DAY_SECONDS of host time.
-##   godot --headless -s res://tools/soak.gd -- [days=3] [seed=3] [size=2048x1024] [age=60]
+##   godot --headless -s res://tools/soak.gd -- [days=3] [seed=3] [size=2048x1024] [age=60] [wall=270]
+## wall: seconds of real time after which it stops and reports on the ticks it ran, for a run
+## longer than the machine allows.
 ## age: game days the world lives before anyone arrives (news, parties). Every six game hours a
 ## raid or a caravan is scheduled at the town a player last stood in.
 ## Reports script errors, tick times (and what the worst was doing), memory growth, entities
@@ -76,6 +78,8 @@ func _initialize() -> void:
 	var hourly := int(K.DAY_SECONDS * K.TICK_HZ / 6.0)
 	var quiet := true
 	var stir := int(K.DAY_SECONDS * K.TICK_HZ / 4.0)
+	var wall := float(o.get("wall", 0))
+	var wall0 := Time.get_ticks_msec()
 	print("SOAK %d ticks (%.1f game days)" % [ticks, days])
 	for t in ticks:
 		_script_step()
@@ -93,6 +97,11 @@ func _initialize() -> void:
 			_report(t)
 		if t % 3000 == 0:
 			quiet = _books() and quiet
+			if wall > 0.0 and Time.get_ticks_msec() - wall0 > wall * 1000.0:
+				print("SOAK stopped by wall= after %d ticks (%.2f game days)" % [t + 1, float(t + 1) / (K.DAY_SECONDS * K.TICK_HZ)])
+				ticks = t + 1
+				us.resize(ticks)
+				break
 	us.sort()
 	var sum := 0
 	for x: int in us:

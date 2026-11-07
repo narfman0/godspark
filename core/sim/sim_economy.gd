@@ -510,7 +510,6 @@ static func _mark_traffic(sim: WorldSim, p: SimParty, prices: Dictionary) -> voi
 		var rid := sim.route_id(p.path[i], p.path[i + 1])
 		if not sim.route_traffic.has(rid):
 			sim.route_traffic[rid] = {}
-			sim.route_value[rid] = {}
 		var tr: Dictionary = sim.route_traffic[rid]
 		tr[p.faction] = float(tr.get(p.faction, 0.0)) + 1.0
 		var rv: Dictionary = sim.route_value.get(rid, {})
