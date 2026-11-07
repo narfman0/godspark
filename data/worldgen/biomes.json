@@ -35,7 +35,7 @@
 				"shape": {"kind": "angular", "freq": 0.03, "cut": 0.42, "rim": 0.18},
 				"ores": {"times": 3.0, "tiles": ["copper_ore", "iron_ore", "silver_ore"]}},
 			"deep_lake": {"rock": "lake_stone", "floor": "shore_sand", "wall": "lake_wall", "map_color": "#3f7fd0",
-				"glow": {"tile": "lumen_moss", "every": 5},
+				"glow": {"tile": "lumen_moss", "every": 3},
 				"shape": {"kind": "lake", "bed": "silt", "depth": [10, 26], "air": [12, 22], "beach": [8, 14], "islands_per": 140, "island_w": [12, 26]}},
 			"magma": {"rock": "basalt", "floor": "ash", "wall": "basalt_wall", "map_color": "#e0602a",
 				"shape": {"kind": "tube", "h": [7, 26], "pool": [3, 16], "deep": 3, "bridge_over": 5, "every": [40, 90], "rim": "obsidian"}}

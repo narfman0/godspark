@@ -44,7 +44,7 @@
 		{"id": 43, "name": "basalt", "solid": true, "opaque": true, "hardness": 1.6, "color": "#3a3438"},
 		{"id": 44, "name": "ash", "solid": true, "opaque": true, "hardness": 0.4, "color": "#5f5753"},
 		{"id": 45, "name": "obsidian", "solid": true, "opaque": true, "hardness": 2.5, "color": "#1f1826"},
-		{"id": 46, "name": "lumen_moss", "solid": false, "opaque": false, "hardness": 0.05, "emit": 6, "shape": "moss", "color": "#7dffb8"},
+		{"id": 46, "name": "lumen_moss", "solid": false, "opaque": false, "hardness": 0.05, "emit": 10, "shape": "moss", "color": "#7dffb8"},
 		{"id": 64, "name": "campfire", "solid": false, "opaque": false, "hardness": 0.3, "emit": 15, "color": "#ff9a3c"},
 		{"id": 65, "name": "bed", "solid": false, "opaque": false, "hardness": 0.3, "color": "#a8423f"},
 		{"id": 66, "name": "shrine", "solid": false, "opaque": false, "hardness": 2.0, "color": "#d9c8ff"},
