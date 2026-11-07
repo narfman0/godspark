@@ -1,7 +1,7 @@
 # Track: deep (M6, deep biomes and the descent)
 
-Branch `ws/deep`, cut from main bd0e4e4 and rebased onto main 2b03fb9 (after Peoples below and
-the lighting track). Items 1 and 2 of "What this milestone delivers" in [m6.md](../m6.md): the
+Branch `ws/deep`, cut from main bd0e4e4 and rebased onto main b6ca6ca (after the lighting track,
+Peoples below and Raids below; addon at 15df7eb). Items 1 and 2 of "What this milestone delivers" in [m6.md](../m6.md): the
 underground biomes in worldgen, the deep lake and the lava, the descent as a journey, the sim and
 spawning reading the regions, and their names on the map. Peoples, raids, lairs and the look below
 are later tracks.
@@ -201,8 +201,10 @@ the Red Pits; seed 3 the Drowned Pool and the Scorched Pits. On dev seed 2 (the 
 
 ### Suite, smokes, end to end (on the rebased head)
 
-- Suite: see the summary at the end of this file.
-- Smokes, one at a time, each NET SMOKE PASS: plain 14 s, `SPAWNS=1 SEE= WORLD='gen=dev seed=3'`
+- Suite on the final rebased head: 10432 checks in 80 files, ALL PASS, 410 s. `SPAWNS=1 SEE=
+  WORLD='gen=dev seed=3'` smoke on it: NET SMOKE PASS, 13 s.
+- Smokes (on main 2b03fb9 plus the branch, before Raids below), one at a time, each NET SMOKE
+  PASS: plain 14 s, `SPAWNS=1 SEE= WORLD='gen=dev seed=3'`
   13 s, `ALL=1` 64 s, `LIFE=1` 17 s, `WORLD_LIFE=1` 51 s.
 - `tests/test_m4_e2e.gd` twice unseeded (dice 1351507408, 2340289738): 146 checks, ALL PASS both.
   `tests/test_m5_e2e.gd` twice (1029129523, 2931356767): 64 checks, ALL PASS both.
@@ -215,8 +217,9 @@ the Red Pits; seed 3 the Drowned Pool and the Scorched Pits. On dev seed 2 (the 
 - `test_deep_hazards.gd`: the swim across the lake, nav in deep and shallow water for a walker and a
   swimmer, lava as a wall (and a bridge, and a jump over a narrow pool), burning and fire immunity.
 - `test_descent.gd`: the descent on dev seed 2, ways per biome, three kinds, the sinkholes' ropes.
-- `test_deep_life.gd`: the director's biome by region, water packs, packs of a region's own, the
-  magma's fire creatures, no spawn in lava.
+- `test_deep_spawns.gd` (it was `test_deep_life.gd` until Raids below brought a test of that name):
+  the director's biome by region, water packs, packs of a region's own, the magma's fire creatures,
+  no spawn in lava, and, with the opts below on, the lake's lair and `meta.ways`.
 - `test_deep_map.gd`: names, labels, META, and seen regions through Deals, the save and the client.
 
 ## Pictures
@@ -245,6 +248,26 @@ lights; the hero carries none (`torch=0`). Primitive fallbacks; no fetched art i
   ferns and pines, the rope going down through it, the bell widening under the ground, the shaft
   going on down, sunlight falling along the rope, a ledge and a passages ladder lower down.
 
+## For the raids track (Raids below, merged before this branch)
+
+- **The aboleth and the lake.** `lairs.json` puts the aboleth only on a `deep_lake` lair site, and
+  worldgen makes lair sites only in the caves band, so on generated worlds the aboleth has had no
+  place. Stage sites can now place a lair on the lake's middle island (else its west beach): in the
+  deep lake's region, with deep water within `LairLink.water_near`'s 60 x 30 tiles (tested on dev
+  seed 2). On dev seeds 1-5 the sim put a roper, oozes, cloakers and otyughs there, no aboleth (its
+  weight 0.6 among the deeps' rows). **It is off** (`opts lake_lair`): see below.
+- **`meta.ways` with paths.** `stage_deep.ways` writes one way per sinkhole, `{kind: sinkhole, top,
+  bottom, path}`, the path the feet cells down its rope; `WorldSim._add_ways` keeps the path in the
+  link route through a save, and `LifeBelow.way_cells` walks it (deep site, the way's cells, surface
+  site) in place of a straight line. Cave mouths are not written: their worm's cells are not kept and
+  their bottoms are in the caves band. **It is off** (`opts ways`).
+- **Why off:** each moves the sim on every world 2048 wide (a site more, or a link route per
+  sinkhole), and either one fails seed-dependent checks in `test_peoples_below` (dev 27's drow and
+  duergar towns) and `test_raids_below` (dev 4's ambush on screen). Turning them on is one line each
+  for M6's integration, with those seeds moved.
+- **Dressing ids:** this track added none (its lights are tiles), so the 12 Peoples below appended
+  stay as they are.
+
 ## Changes not asked for
 
 - **Shared code the walks found wrong** (each a fix, not a tuning):
@@ -272,7 +295,8 @@ lights; the hero carries none (`torch=0`). Primitive fallbacks; no fetched art i
 - `test_roads`: "every cell has a floor" counts a ladder's head as a floor, as the controller, Passer,
   the nav and `StageRoads.walk` all do: a sinkhole's rope comes up through its deck under the road.
 - `nav_maps.gd` (helper): `L` is lava.
-- **Seed moved:** `test_peoples_below` `_town` and `_stance`, dev 4 to dev 27. With the regions, dev
+- **Seed moved:** `test_peoples_below` `_town` and `_stance`, dev 4 to dev 27 (still green on the
+  final head with Raids below merged). With the regions, dev
   4's second deep town stands in a fungal region and the sim settles kobolds there, not duergar. Dev 18
   has both peoples too, but one town had 2 of 16 people outside the lamplight (a margin of the
   peoples' own lamps), so 27. Nothing else in that test changed.
