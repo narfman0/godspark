@@ -5,7 +5,7 @@
 # 2.5 GB of free memory and held under a timeout. Logs go to $GATE_LOGS (default
 # /tmp/godspark-gate).
 #   tools/gate.sh            about 8 minutes with JOBS=8
-#   E2E=test_m4_e2e,test_m5_e2e,test_m6_e2e tools/gate.sh    which end-to-end tests to repeat
+#   E2E=test_m4_e2e tools/gate.sh    which end-to-end tests to repeat (default all three)
 cd "$(dirname "$0")/.." || exit 2
 turn() {
 	until [ "$(awk '/MemAvailable/ {print $2}' /proc/meminfo)" -ge 2500000 ]; do
@@ -13,7 +13,7 @@ turn() {
 	done
 }
 L=${GATE_LOGS:-/tmp/godspark-gate}
-E2E=${E2E:-test_m4_e2e,test_m5_e2e}
+E2E=${E2E:-test_m4_e2e,test_m5_e2e,test_m6_e2e}
 mkdir -p "$L"
 echo "head $(git rev-parse --short HEAD), dirty: $(git status --short | wc -l)"
 turn
@@ -35,7 +35,7 @@ for v in "" "FIGHT=1 SPAWN=goblin-warrior:2" "RULES=1" "SPAWNS=1 SEE= WORLD='gen
 done
 for i in 1 2 3; do
 	turn
-	timeout 200 godot --headless -s res://tools/run_tests.gd -- only="$E2E" > "$L/e2e$i.log" 2>&1
+	timeout 400 godot --headless -s res://tools/run_tests.gd -- only="$E2E" > "$L/e2e$i.log" 2>&1
 	echo "e2e unseeded $i exit $?: $(grep -aE '^[0-9]+ checks, ' "$L/e2e$i.log" | tail -1) $(grep -aiE 'seed' "$L/e2e$i.log" | head -1 | cut -c1-80)"
 done
 echo "== done"
