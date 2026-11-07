@@ -185,5 +185,84 @@ Changed:
 
 ## Verified
 
-The suite and smokes results are below, from the rebased head.
+On the rebased head, on top of main f8d1d71:
 
+- **Suite:** 8166 checks, ALL PASS, 66 files. New: `test_dodge` (timing, cooldown, hurt box, the
+  same roll on client and host at 50 ms, contacts in and outside the tuck, too big to miss, shots
+  and areas, wind-up cancelled, committed swings, refusals, input bytes) and `test_swings`
+  (every tempo class's contact on its wind-up, on the real clip when art is there; combos; forge
+  clips; the fresh-checkout primitive; the telegraph's shape; the hit-stop; `target_at` against the
+  creature the host rolled against).
+- **The hit-stop test** runs one seeded fight twice, the second with every blow held as `FxView`
+  holds it: ticks, the event stream and body positions come out identical.
+- **Arena, unchanged** against a clean checkout of 22308c9, every line of output compared:
+  `fighter:5 vs goblin-warrior:6` seeds 1-20; `rogue:3 vs wolf:3`, shortbow, kite, seeds 1-10;
+  `wizard:5 vs goblin-warrior:3`, fire-bolt, seeds 1-10; `fighter:5 vs dummy`, greatsword, 30 s,
+  seeds 1-5.
+- **Smokes, each NET SMOKE PASS:** plain, `FIGHT=1 SPAWN=goblin-warrior:2`, `ALL=1`, `RULES=1`.
+  The bots roll in them: `rolls=2` in FIGHT, `rolls=15` each in ALL, with `corrections=0`, so the
+  host took every state of a real roll over real sockets.
+
+## Pictures
+
+In `/tmp/claude-1000/-home-narfman0-workspace/7cf54a79-3f3e-43af-87e7-ba72c23eb7f8/scratchpad/combat/pictures/`,
+made with `combat_tour=` (`shot_after=` cannot catch a 60 ms moment on a software renderer, so the
+tour slows the game with `host_thread=0` and takes each picture on its event). All looked at:
+
+- `swing_at_contact.png`: the knight's arm reaches forward, the longsword in his hand toward the
+  goblin, the gold arc over him, the crescent's head arriving at the goblin.
+- `target_highlight.png`: a gold outline round the goblin, its plate up, the faint arc from the hero.
+- `hit_flash_number.png`: the goblin solid white, its "7", the crescent turned orange.
+- `miss.png`: no flash, a broken grey ring and "miss" at the goblin, a thin grey crescent.
+- `crit.png`: the goblin solid gold, "15" large in gold, "Crit!" over it, a wide gold crescent.
+- `roll_middle.png`: the knight upside down in a tumble, feet in the air, hurt box 0.9 by 0.8.
+- `telegraph_half_second_out.png`: 41 ms into the goblin's wind-up the whole arc stands, the hero
+  inside it, the goblin's outline already burning. `telegraph_late.png`: 0.42 s in, the fill near
+  the edge, the goblin in full vermilion, its attack clip wound back.
+- `swing_running.png`: legs mid-stride under a raised sword.
+- `longbow_draw.png`: an archer's stance, the bow in the left hand. `bandit_telegraph.png`: a Synty
+  body with a sword, outlined, on a wind-up. `greataxe_contact.png`: the axe brought down and forward onto the goblin, the crescent at it.
+
+## Open issues
+
+- **Feel is not judged.** I cannot play it. Please try:
+  - Does the 60 ms hit-stop feel like weight or like a hitch? `hit_stop_s`.
+  - Rolling through a blow: is the tuck (0.08 to 0.32 s) wide enough to learn? `hurt_from_s`,
+    `hurt_to_s`.
+  - From a run a roll keeps the run's speed: 13 tiles a second carries it about five tiles, not
+    two. A slower roll would be a brake. `keep_run_speed: false` makes it two tiles always.
+  - No press buffer: V pressed in a swing's recovery does nothing. If that feels dead, a short
+    buffer in `LocalInput` is the fix.
+  - Is the own arc too loud at every swing? `SWING_COLOR` in `telegraphs.gd`, `aim_arc_alpha`.
+  - The moves per class are a first pass; `tools/clip_sheet.gd` shows what else is there.
+- **Not pictured:** an Extra Attack combo. Its clips and contacts are tested, not looked at. Nor a
+  thrown weapon, nor a monster's breath, nor anything at night or in a cave.
+- **Cast:** the raised-arms emote is the only cast clip and reads weakly (`10_cast` in the ranger
+  run looked like a person reaching forward).
+- Other players and Synty-bodied NPCs show a weapon only from their first swing: gear is not on
+  the wire. The forge's `wields` shows at once.
+- The first swing of a clip on a new rig retargets it, a hitch not measured. The own class's clips
+  could load ahead with `SwingPlan.clips_of`; nothing calls that yet except a test.
+- `ForgeMonster.contact_of` is the fastest bone: for the harpy that is 17% into its clip, early.
+  No monster but the goblin was looked at.
+- A roll's client-side refusal races a tick: `windup_s` starts when the SWING arrives, so a roll in
+  the last 30-50 ms of a wind-up can be predicted and refused as "swing committed". The body rolls
+  and the toast shows, and the hurt box stays whole.
+- Goblins' forge shields float when their `hit` clip plays. It is in the clip; not looked into.
+- No cooldown shown for the roll.
+- The roll needs footing: no roll in mid-air, on a ladder or in water.
+
+## Hard limits
+
+None broken: one Godot at a time behind the gate, every run under `timeout`, ComfyUI never
+started, no art committed, nothing pushed. Two tours ran into their own 280 s timeout (the bow run:
+arrows are slow in slow motion; a greataxe run while the machine was busy); their first pictures
+were kept. A careless `pkill -f` of mine
+ended my own shell once; nothing else was touched, and it is not a Godot limit.
+
+## Seams for later tracks
+
+- **Gear on the wire:** `ActorBody.set_weapon` is ready for it.
+- **Armour and shields:** `grip`'s bind-space math works for `Hand_L`.
+- **Items:** a weapon row can name its own move list by adding a per-weapon key beside `tempo`.
+- **A spell's look:** `cast` is one move; `SwingPlan.chain` is the place to branch on school.
