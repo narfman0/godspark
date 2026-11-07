@@ -3,7 +3,9 @@
 ## tiles from the chunks' emitter lists, carried lights). The field still decides where light
 ## may fall (view/shaders/lit.gdshaderinc); these give it direction and shadow. Tunables in
 ## data/lighting.json "view": fill, toon, wrap, shine, sun, moon, lamps, max_lights,
-## shadow_quality (off | low | high) and its table.
+## shadow_quality (off | low | high) and its table. Atmosphere too: dust in sunlit shafts (a sheet
+## that follows the camera, view/shaders/dust.gdshader) and bloom on the bright (the environment's
+## glow), each with an off switch.
 ##
 ##   var lights := WorldLights.new(); view.add_child(lights); lights.setup(view)
 ##   WorldLights.sun_dir(14.0)          # toward the sun at 14:00 (the moon at night)
@@ -12,6 +14,7 @@ class_name WorldLights
 extends Node3D
 
 const T := K.TILE_M
+const DUST_SHADER := preload("res://view/shaders/dust.gdshader")
 
 var view: WorldView
 var sun: DirectionalLight3D
@@ -22,6 +25,7 @@ var _pool: Array[OmniLight3D] = []
 var _keys: Array[String] = []        ## pool index -> source key ("" free)
 var _env_id := 0
 var _time := 0.0
+var _dust: MeshInstance3D
 ## The sources lit last frame, nearest first: [{key, pos, color, radius, level}] (for tests, tools).
 var lit: Array = []
 
@@ -40,6 +44,22 @@ func setup(v: WorldView) -> void:
 	var lit_v := Vector4(float(d.get("fill", 0.5)), float(d.get("toon", 0.6)), float(d.get("wrap", 0.3)), float(d.get("shine", 0.35)))
 	RenderingServer.global_shader_parameter_set("gs_lit", lit_v)
 	_apply_quality()
+	var dd: Dictionary = d.get("dust", {})
+	if bool(dd.get("on", true)):
+		_dust = MeshInstance3D.new()
+		_dust.name = "dust"
+		var q := QuadMesh.new()
+		q.size = Vector2.ONE
+		_dust.mesh = q
+		var m := ShaderMaterial.new()
+		m.shader = DUST_SHADER
+		m.set_shader_parameter("strength", float(dd.get("strength", 0.3)))
+		m.set_shader_parameter("rays", float(dd.get("rays", 1.0)))
+		m.set_shader_parameter("motes", float(dd.get("motes", 1.0)))
+		m.set_shader_parameter("width", float(dd.get("width_tiles", 5.0)))
+		_dust.material_override = m
+		_dust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_dust)
 
 ## off | low | high (data/lighting.json shadow_quality and shadows): sun and lamp shadows.
 func set_quality(q: String) -> void:
@@ -115,6 +135,11 @@ func _process(delta: float) -> void:
 	_env()
 	_sun()
 	_lamps()
+	if _dust != null:
+		var half := view.view_half + Vector2(4, 4)
+		var z := float(LightSources.setting("dust", {}).get("z_tiles", -0.3))
+		_dust.position = Vector3(view.focus.x * T, view.focus.y * T, z * T)
+		_dust.scale = Vector3(half.x * 2.0 * T, half.y * 2.0 * T, 1.0)
 
 ## Light comes only from the sun, the lamps and the field's fill: no ambient, no sky reflections,
 ## so nothing glows in a cave. Glow (bloom) from data. Once per environment.
@@ -128,6 +153,17 @@ func _env() -> void:
 	env.ambient_light_color = Color.BLACK
 	env.ambient_light_energy = 0.0
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	var b: Dictionary = LightSources.setting("bloom", {})
+	env.glow_enabled = bool(b.get("on", true))
+	if env.glow_enabled:
+		env.glow_intensity = float(b.get("intensity", 0.6))
+		env.glow_strength = float(b.get("strength", 1.0))
+		env.glow_bloom = float(b.get("bloom", 0.0))
+		env.glow_hdr_threshold = float(b.get("threshold", 1.0))
+		env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
+		var levels: Array = b.get("levels", [2, 3, 4, 5])
+		for i in 7:
+			env.set_glow_level(i, 1.0 if (i + 1) in levels else 0.0)
 
 func _sun() -> void:
 	var dir := sun_dir(view.hour)
