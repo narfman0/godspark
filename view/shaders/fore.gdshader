@@ -6,6 +6,9 @@ render_mode unshaded, cull_disabled, depth_draw_opaque;
 
 #include "res://view/shaders/light.gdshaderinc"
 
+// The sun factor for scenery: by night no less than data/lighting.json night_far.
+global uniform float gs_far_sun;
+
 global uniform vec4 gs_keep_a;
 global uniform vec4 gs_keep_b;
 
@@ -38,5 +41,5 @@ void fragment() {
 	if (gs_hash(floor(FRAGCOORD.xy * 0.5)) >= a) {
 		discard;
 	}
-	ALBEDO = col * gs_sky_tint.rgb * gs_curve(gs_sun);
+	ALBEDO = col * gs_sky_tint.rgb * gs_curve(gs_far_sun);
 }

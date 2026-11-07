@@ -298,3 +298,6 @@ func _view_lights(t: TestLog) -> void:
 	t.check((lnight["color"] as Color).b > (lnight["color"] as Color).r, "and blue")
 	t.check((WorldLights.sun_light(7.0)["color"] as Color).b < (lnoon["color"] as Color).b, "the low sun is warmer than noon")
 	t.check(float(WorldLights.sun_light(18.5)["energy"]) < 0.01, "at the hand-over nothing shines, so no shadow jumps")
+	t.check(midnight.y < noon.y - 0.2, "the moon rides lower than the noon sun: long shadows")
+	t.check(WorldView.night_visual() <= 0.12 and WorldView.night_visual() > WorldClock.MOON,
+		"night draws the sky field near the rules' moon, a little over it (%.2f)" % WorldView.night_visual())

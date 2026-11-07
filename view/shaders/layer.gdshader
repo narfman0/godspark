@@ -7,6 +7,9 @@ render_mode unshaded, cull_disabled, world_vertex_coords, depth_draw_opaque;
 
 #include "res://view/shaders/light.gdshaderinc"
 
+// The sun factor for scenery: by night no less than data/lighting.json night_far.
+global uniform float gs_far_sun;
+
 global uniform float gs_anchor;
 global uniform vec4 gs_haze;
 
@@ -31,6 +34,6 @@ void fragment() {
 	if (has_mask && texture(mask, muv).a < 0.5) {
 		discard;
 	}
-	vec3 lit = col.rgb * gs_sky_tint.rgb * gs_curve(gs_sun);
+	vec3 lit = col.rgb * gs_sky_tint.rgb * gs_curve(gs_far_sun);
 	ALBEDO = mix(lit, gs_haze.rgb, clamp(layer_haze + (1.0 - layer_haze) * col.a, 0.0, 1.0));
 }

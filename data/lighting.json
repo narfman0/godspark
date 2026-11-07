@@ -5,7 +5,7 @@
   "sky_covered_step": 15
  },
  "view": {
-  "_comment": "darkvision_tiles: how far the own Darkvision draws the dark in grey (the rules' range is the species', this is the picture's); darkvision_grey: how bright. fill: the share of the light field drawn flat (unshadowed), under the sun's and lamps' real light. toon: 0 a smooth Lambert, 1 two hard bands. wrap: how far round a surface light reaches. shine: lamp and sun highlights on models (by roughness). sun: energy, color (high), low_color (near the horizon), height (how high it climbs: the up part of its direction at noon, front fixed), front (its lean toward the camera, so the faces seen take it), least_up, shadow_reach_m (shadow distance past the camera's), shadow biases. moon: the same by night, fainter and blue. lamps: energy, attenuation (Godot's omni decay), range_k (lamp reach against the light's radius), z_tiles (how far in front of the play plane a lamp hangs, so it lights the faces seen and throws shadows on the walls behind), flicker (by tile name or carried). max_lights: lamps at once, nearest the camera. shadow_quality: off | low | high, a row of shadows: sun (on/off), sun_size (its map), lamps (the nearest this many lamps cast shadows), atlas (their map), soft, cube (cube maps, else dual paraboloid). dust: dust in sunlit shafts under cover (view/shaders/dust.gdshader): on, strength, rays, motes (each a share), width_tiles (how far each side must be dark for a cell to be a shaft), z_tiles (the sheet's depth: in front of the walls, behind the actors). bloom: a soft glow on what is brighter than threshold (flames, lamps): on, intensity, strength, bloom, threshold, levels (Godot's glow levels 1-7 that blur).",
+  "_comment": "darkvision_tiles: how far the own Darkvision draws the dark in grey (the rules' range is the species', this is the picture's); darkvision_grey: how bright. fill: the share of the light field drawn flat (unshadowed), under the sun's and lamps' real light. toon: 0 a smooth Lambert, 1 two hard bands. wrap: how far round a surface light reaches. shine: lamp and sun highlights on models (by roughness). sun: energy, color (high), low_color (near the horizon), height (how high it climbs: the up part of its direction at noon, front fixed), front (its lean toward the camera, so the faces seen take it), least_up, shadow_reach_m (shadow distance past the camera's), shadow biases. moon: the same by night, fainter and blue. lamps: energy, attenuation (Godot's omni decay), range_k (lamp reach against the light's radius), z_tiles (how far in front of the play plane a lamp hangs, so it lights the faces seen and throws shadows on the walls behind), flicker (by tile name or carried). max_lights: lamps at once, nearest the camera. shadow_quality: off | low | high, a row of shadows: sun (on/off), sun_size (its map), lamps (the nearest this many lamps cast shadows), atlas (their map), soft, cube (cube maps, else dual paraboloid). dust: dust in sunlit shafts under cover (view/shaders/dust.gdshader): on, strength, rays, motes (each a share), width_tiles (how far each side must be dark for a cell to be a shaft), z_tiles (the sheet's depth: in front of the walls, behind the actors). bloom: a soft glow on what is brighter than threshold (flames, lamps): on, intensity, strength, bloom, threshold, levels (Godot's glow levels 1-7 that blur). night_visual: the least the light field's sky is drawn at by night (the rules' moon is 0.04, Darkness; the look track drew 0.25). night_far: the same for the backdrops and the foreground, which are scenery, not light. moon: as sun; height lower, so its shadows are long.",
   "darkvision_tiles": 10,
   "darkvision_grey": 0.3,
   "fill": 0.5,
@@ -25,7 +25,10 @@
   },
   "moon": {
    "energy": 0.18,
-   "color": "#8aa4ff"
+   "color": "#8aa4ff",
+   "height": 0.5,
+   "front": 0.55,
+   "least_up": 0.1
   },
   "lamps": {
    "energy": 1.6,
@@ -89,6 +92,8 @@
     4,
     5
    ]
-  }
+  },
+  "night_visual": 0.1,
+  "night_far": 0.25
  }
 }

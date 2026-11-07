@@ -89,7 +89,7 @@ static func _sun_d() -> Dictionary:
 ## (+x) at its rise to the west at its set, highest halfway, always a little in front of the play
 ## plane (+z) so the faces the camera sees take it.
 static func sun_dir(hour: float) -> Vector3:
-	var s := _sun_d()
+	var s := _sun_d() if is_day(hour) else (_sun_d().merged(LightSources.setting("moon", {}), true))
 	var a := arc(hour)
 	var up := maxf(sin(a) * float(s.get("height", 1.6)), float(s.get("least_up", 0.12)))
 	return Vector3(cos(a), up, float(s.get("front", 0.55))).normalized()
