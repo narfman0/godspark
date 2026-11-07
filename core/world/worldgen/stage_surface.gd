@@ -46,7 +46,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 
 	# Barriers draw from an RNG of their own, so they never reshuffle the ground around them.
 	var brng := WorldGen.rng_for(c.world_seed, "barrier_plan")
-	var held_spans: Array = Barriers.plan_ranges(c, brng, raw, BLEND)
+	Barriers.plan_ranges(c, brng, raw, BLEND)
 	# Flat stretches, one per slot across the width.
 	var n := maxi(2, c.w / 340)
 	var slot := c.w / n
@@ -76,6 +76,7 @@ static func run(c: GenContext, rng: RandomNumberGenerator) -> void:
 				raw[x] = lerpf(level, raw[x], smoothstep(0.0, 1.0, d / BLEND))
 		c.flats.append({"x0": x0, "x1": x1, "y": int(level)})
 
+	var held_spans: Array = Barriers.plan_shelves(c, raw, BLEND)
 	held_spans.append_array(Barriers.plan_rivers(c, brng, raw, BLEND))
 	for x in c.w:
 		c.ground[x] = clampi(roundi(raw[x]), int(bottom), int(top))

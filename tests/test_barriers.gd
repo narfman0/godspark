@@ -6,7 +6,6 @@ extends RefCounted
 const Barriers := preload("res://core/world/worldgen/stage_barriers.gd")
 const SP := preload("res://core/world/worldgen/stage_passages.gd")
 const GC := preload("res://core/world/worldgen/gen_context.gd")
-const TestRoads := preload("test_roads.gd")
 const SEEDS := [1, 2, 3, 4]
 
 func run(t: TestLog) -> void:
@@ -85,6 +84,13 @@ static func check_world(world: TileWorld) -> Array:
 				if g != deck and not TileDefs.solid[g]:
 					out.append("%s: a gap in the deck at %d" % [name, x])
 					break
+	for r: Dictionary in world.meta["routes"]:
+		if r["kind"] == "road":
+			var path := Places.route_path(world, int(r["id"]))
+			for i in range(1, path.size()):
+				if absi(path[i].y - path[i - 1].y) > 1:
+					out.append("road %d: a step from %s to %s" % [r["id"], path[i - 1], path[i]])
+					break
 	return out
 
 ## A way: a cell a column, a row at most between neighbours, room for a body, and the real
@@ -102,12 +108,29 @@ static func _way(world: TileWorld, st: MoveStats, path: Array, name: String, out
 			if world.is_solid(p.x, p.y + k):
 				out.append("%s: rock in the way at %s" % [name, p])
 				return
-	if not TestRoads._follow(world, st, path):
+	if not _walk(world, st, path):
 		out.append("%s: a walker does not get from %s to %s" % [name, path[0], path[-1]])
 	var back := path.duplicate()
 	back.reverse()
-	if not TestRoads._follow(world, st, back):
+	if not _walk(world, st, back):
 		out.append("%s: a walker does not get back from %s to %s" % [name, path[-1], path[0]])
+
+## The real controller along a path, a leg every 30 cells. The planner may leap down a slope and
+## land past a leg's end, which counts as stopping short: it gets one more go from there.
+static func _walk(world: TileWorld, st: MoveStats, path: Array) -> bool:
+	var pos := Vector2(path[0].x + 0.5, path[0].y)
+	var i := 0
+	while i < path.size() - 1:
+		i = mini(i + 30, path.size() - 1)
+		var goal := Vector2(path[i].x + 0.5, path[i].y)
+		var r := NavMaps.run({"world": world, "start": pos, "goal": goal}, st, 900)
+		if not r["reached"] and r["planned"] and String(r["why"]) == "":
+			r = NavMaps.run({"world": world, "start": r["pos"], "goal": goal}, st, 900)
+		if not r["reached"]:
+			print("    leg to %s failed at %s: %s" % [goal, r["pos"], r["why"]])
+			return false
+		pos = r["pos"]
+	return true
 
 static func _cells(path: Array) -> Array:
 	var out: Array = []

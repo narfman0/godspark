@@ -66,14 +66,12 @@ static func reserved_in(c: GenContext, x0: int, x1: int) -> bool:
 
 # --- planned by stage "surface" -----------------------------------------------------------
 
-## raw (the heights so far) is held level on a shelf at each mouth of an under-route: the road
-## passes there, and a road cut into a ridge would leave a mouth hanging. Returns the columns
-## to hold, [x0, x1] pairs.
-static func plan_ranges(c: GenContext, rng: RandomNumberGenerator, raw: PackedFloat32Array, blend: float) -> Array:
+## A crest in each inland mountain stretch, and where its under-route comes up. raw: the heights
+## so far.
+static func plan_ranges(c: GenContext, rng: RandomNumberGenerator, raw: PackedFloat32Array, blend: float) -> void:
 	c.ranges = []
-	var held: Array = []
 	if not enabled(c):
-		return held
+		return
 	var d: Dictionary = data()["range"]
 	var u: Dictionary = data()["under"]
 	var shelf := int(u["shelf"])
@@ -94,23 +92,37 @@ static func plan_ranges(c: GenContext, rng: RandomNumberGenerator, raw: PackedFl
 			c.ranges.append(rg)
 			reserve(c, x0 - int(d["margin"]), int(rg["x1"]) + int(d["margin"]))
 			for m: int in rg["mouths"]:
-				_hold(raw, m - shelf, m + shelf, blend)
-				held.append([m - shelf, m + shelf])
 				reserve(c, m - shelf - int(blend), m + shelf + int(blend))
+
+## raw is held level on a shelf at each mouth of an under-route: the road passes there, and a
+## road cut into a ridge would leave a mouth hanging. Returns the columns to hold, [x0, x1]
+## pairs. Call after the flats are placed.
+static func plan_shelves(c: GenContext, raw: PackedFloat32Array, blend: float) -> Array:
+	var held: Array = []
+	var shelf := int(data()["under"]["shelf"]) if enabled(c) else 0
+	for rg: Dictionary in c.ranges:
+		for m: int in rg["mouths"]:
+			var level := 0.0
+			for x in range(m - shelf, m + shelf + 1):
+				level += raw[x]
+			_hold(raw, m - shelf, m + shelf, blend, _near_town(c, roundf(level / (2 * shelf + 1)), m - shelf, m + shelf))
+			held.append([m - shelf, m + shelf])
 	return held
 
-## Hold raw level over x0..x1 and ease it back to the ground over blend columns. Returns the level.
-static func _hold(raw: PackedFloat32Array, x0: int, x1: int, blend: float, want := INF) -> float:
-	var level := want
-	if want == INF:
-		level = 0.0
-		for x in range(x0, x1 + 1):
-			level += raw[x]
-		level = roundf(level / (x1 - x0 + 1))
+## This level, or the nearest to it that a road from a town can reach at a walk: two held
+## stretches closer than their heights differ would leave a cliff between them.
+static func _near_town(c: GenContext, level: float, x0: int, x1: int) -> float:
+	for f: Dictionary in c.flats:
+		var gap := maxi(int(f["x0"]) - x1, x0 - int(f["x1"]))
+		if gap < 240:
+			level = clampf(level, float(f["y"]) - gap / 2, float(f["y"]) + gap / 2)
+	return level
+
+## Hold raw level over x0..x1 and ease it back to the ground over blend columns.
+static func _hold(raw: PackedFloat32Array, x0: int, x1: int, blend: float, level: float) -> void:
 	for x in range(maxi(0, x0 - int(blend)), mini(raw.size() - 1, x1 + int(blend)) + 1):
 		var e := maxf(x0 - x, x - x1)
 		raw[x] = level if e <= 0 else lerpf(level, raw[x], smoothstep(0.0, 1.0, e / blend))
-	return level
 
 ## The mouth of an under-route, searching from start away from the crest (dir): the nearest
 ## column where the ground does not fall away into the way the tunnel goes.
@@ -189,11 +201,7 @@ static func _lay_river(c: GenContext, rng: RandomNumberGenerator, raw: PackedFlo
 		var level := 0.0
 		for x in range(x0 - margin, x1 + margin + 1):
 			level += raw[x]
-		level = roundf(level / (x1 - x0 + 1 + 2 * margin))
-		for f: Dictionary in c.flats:         # a road reaches the bank from the town at a walk
-			var gap := maxi(int(f["x0"]) - (x1 + margin), (x0 - margin) - int(f["x1"]))
-			if gap < 200:
-				level = clampf(level, float(f["y"]) - gap / 2, float(f["y"]) + gap / 2)
+		level = _near_town(c, roundf(level / (x1 - x0 + 1 + 2 * margin)), x0 - margin, x1 + margin)
 		_hold(raw, x0 - margin, x1 + margin, blend, level)
 		var rv := {"id": 0, "x0": x0, "x1": x1, "biome": seg["biome"], "kind": "ford" if ford else "bridge"}
 		if ford:
@@ -313,6 +321,16 @@ static func _under(c: GenContext, rg: Dictionary, wander: FastNoiseLite) -> void
 	Deeps._carve_path(c, path, GenContext.RAMP_H)
 	_floor(c, path)
 	rg["under"] = {"path": path}
+	var shelf := int(d["shelf"])
+	rg["shelves"] = [_shelf(c, west - shelf, west), _shelf(c, east, east + shelf)]
+
+## A shelf's outer half, paved: a road comes in on it, so it arrives at the mouth's own height.
+static func _shelf(c: GenContext, x0: int, x1: int) -> Array:
+	var cells: Array = []
+	for x in range(x0, x1 + 1):
+		c.fg[x + c.ground[x] * c.w] = c.col_road[x]
+		cells.append(Vector2i(x, c.ground[x] + 1))
+	return cells
 
 ## Where a tunnel crosses a cave its floor is open air: a tread where it climbs (one-way, so
 ## the cave under it is not walled off), a plank where it is level.
@@ -366,13 +384,17 @@ static func _river(c: GenContext, rv: Dictionary) -> void:
 
 # --- what a road crosses --------------------------------------------------------------------
 
-## The crossings between columns xa < xb, west to east: {kind, id, x0, x1, cells} (feet cells
-## one column apart, walked instead of graded).
+## What a walk between columns xa < xb crosses, west to east: {kind, id, x0, x1, cells} (feet
+## cells one column apart, walked instead of graded). kind: pass, bridge, ford, or shelf, the
+## level ground at an under-route's mouth, which only holds the road to its height.
 static func crossings(c: GenContext, xa: int, xb: int) -> Array:
 	var out: Array = []
 	for rg: Dictionary in c.ranges:
 		if xa < int(rg["x0"]) and xb > int(rg["x1"]):
 			out.append({"kind": "pass", "id": rg["id"], "x0": rg["x0"], "x1": rg["x1"], "cells": rg["pass"]["path"]})
+		for cells: Array in rg["shelves"]:
+			if xa < (cells[0] as Vector2i).x and xb > (cells[-1] as Vector2i).x:
+				out.append({"kind": "shelf", "id": rg["id"], "x0": (cells[0] as Vector2i).x, "x1": (cells[-1] as Vector2i).x, "cells": cells})
 	for rv: Dictionary in c.rivers:
 		if xa < int(rv["x0"]) - 2 and xb > int(rv["x1"]) + 2:
 			out.append({"kind": rv["kind"], "id": rv["id"], "x0": rv["x0"], "x1": rv["x1"], "cells": rv["crossing"]["cells"]})
@@ -384,7 +406,7 @@ static func cost(c: GenContext, cross: Array) -> int:
 	var d: Dictionary = data()["cost"]
 	var n := 0.0
 	for x: Dictionary in cross:
-		n += float(d[x["kind"]])
+		n += float(d.get(x["kind"], 0.0))
 	return roundi(n * c.w)
 
 ## The height a road meets the ground at in column x: the pass where there is one.

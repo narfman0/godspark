@@ -36,7 +36,7 @@ static func ruins(c: GenContext, rng: RandomNumberGenerator) -> void:
 		# broken walls and a pillar or two
 		for k in rng.randi_range(2, 4):
 			var px := rng.randi_range(x + 2, x + rw - 3)
-			var ph := rng.randi_range(1, rh - 2)
+			var ph := mini(rng.randi_range(1, rh - 2), 2)    # a stump: a tall one under this low a roof cuts the room in two
 			c.fill_rect(px, y, px, y + ph - 1, c.COBBLE)
 		c.fill_rect(x - 1, y, x - 1, y + rng.randi_range(2, rh), c.COBBLE)
 		c.fill_rect(x + rw, y, x + rw, y + rng.randi_range(2, rh), c.COBBLE)

@@ -783,8 +783,8 @@ GameUi: deals_ui (DealsUi), marks (PeopleMarks), number_keys_taken(); screens sh
 
 ## M5 contracts (biomes and the shape of the overworld)
 
-As built so far: vocabulary and climate ([tracks/biomes.md](tracks/biomes.md)). The later M5
-tracks build on these.
+As built so far: vocabulary and climate ([tracks/biomes.md](tracks/biomes.md)), barriers
+([tracks/barriers.md](tracks/barriers.md)). The later M5 tracks build on these.
 
 ### One vocabulary (`data/biomes.json`, `core/world/biome_ids.gd`, exists)
 
@@ -836,3 +836,31 @@ host generates on a thread behind `LoadingScreen`, which reads `WorldGen.stage_i
 the window sets `WorldGen.cancel`, and the run stops at the next stage and returns null.
 Headless hosts generate in place. Tests and smokes keep naming their own small worlds.
 Protocol 9 (the new tiles).
+
+### Barriers (`data/worldgen/barriers.json`, `stage_barriers.gd`, exists)
+
+- A world 2048 wide or more, not `only_biome`, gets one range per inland mountain stretch and
+  one river per `river.count` tiles of width in the wet biomes. Smaller worlds have neither.
+  Barriers draw from RNG key `barrier_plan`, not `surface`, so the ground around them is the
+  ground a world without them has.
+- `surface` plans them: `plan_ranges` (crest, walls, under-route mouths), `plan_shelves`,
+  `plan_rivers`, then `raise` stands the walls and cuts the channels. `c.reserved[x]` marks the
+  columns: no flats, streets, ramps, the surface ruin, cave entrances or ascent mouths. Stage
+  `barriers`, after `portal`, builds the pass, the under-route and the river.
+- `c.pass_y[x]` is the pass's feet row in a crest column, else -1. `Barriers.rock_top(c, x)` is the
+  top of the rock caves may run under: the pass where there is one, so walls stay solid. Use it,
+  not `c.ground`, for what is walkable: a wall's `c.ground` is its cliff.
+- The passages stage does not join what stands over a pass (`Passer._on_a_peak`): the walls are
+  not climbed. River tiles 117-119 are in the range it never cuts. `Barriers.ends(c)` are added
+  to its must-reach targets.
+- `Barriers.crossings(c, xa, xb)`: what a walk from column xa to xb crosses, west to east,
+  `{kind, id, x0, x1, cells}`, kind `pass`, `bridge` or `ford`, `cells` the feet cells.
+  `StageRoads.way` grades up to each and then walks it. `Barriers.cost(c, crossings)` is what a
+  route's length grows by (`cost` in the data, a fraction of the world's width); the sim reads
+  length, so its hours and its wagons on screen both slow.
+- `meta.barriers`: `{ranges: [{id, x0, x1, peak, walls, pass: {path, top, galleries}, under: {path}}],
+  rivers: [{id, x0, x1, biome, kind, drop, wet, bank, bed, water, crossing: {kind, cells}}]}`,
+  plain arrays, paths `[[x, y]]` of feet cells. Additive; older saves lack it.
+- Water is a tile (117), neither solid nor one-way, drawn as a sheet behind actors: bodies walk
+  through it. The liquid channel and swimming are unused here. A river's banks slope a row a
+  column, so nobody needs a ladder or a swim out. Protocol 10.
