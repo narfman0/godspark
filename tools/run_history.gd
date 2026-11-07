@@ -205,7 +205,8 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 	var agg := {}
 	var sigs := {}
 	var biomes := {}
-	var routes := {"pass": {}, "river": {}, "flat": {}}
+	var routes := {"pass": {}, "river": {}, "flat": {}, "deep": {}, "link": {}}
+	var deep := {"start": 0, "end": 0, "survived": 0, "min": 0, "worlds": 0, "cultures": {}}
 	var lines: PackedStringArray = []
 	var n := 0
 	var lo0 := 1 << 40
@@ -223,6 +224,13 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 			for k in h.routes[kind]:
 				routes[kind][k] = float(routes[kind].get(k, 0.0)) + float(h.routes[kind][k])
 		sigs[h.sig] = true
+		var hd: Dictionary = h.get("deep", {})
+		if int(hd.get("start", 0)) > 0:
+			deep.worlds += 1
+		for k in ["start", "end", "survived", "min"]:
+			deep[k] += int(hd.get(k, 0))
+		for c in hd.get("cultures", {}):
+			deep.cultures[c] = int(deep.cultures.get(c, 0)) + int(hd.cultures[c])
 		lines.append("seed %3d: pop %5d -> %5d (min %5d, max %5d)  settl %2d -> %2d  fell %2d  founded %2d  caravans %4d  ambush %3d  raids %3d  wars %2d  conq %d sack %d  famine %3d  lairs cleared %2d  bad %d" % [
 			seed, h.pop0, h.pop1, h.pop_min, h.pop_max, h.settl0, h.settl1, h.fell, h.founded, h.caravans, h.ambushes,
 			h.raids, h.wars, h.conquests, h.sacks, h.famines, h.lairs_cleared, h.bad])
@@ -255,6 +263,11 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 		agg.get("trade_value", 0.0) / n, agg.famines / n, agg.pop0 / n, lo0, hi0, agg.pop1 / n])
 	print("  distinct chronicle signatures: %d / %d" % [sigs.size(), n])
 	_print_biomes(biomes, n)
+	var dc: Array = deep.cultures.keys()
+	dc.sort_custom(func(p, q): return deep.cultures[p] > deep.cultures[q])
+	print("  deep settlements: %d worlds with any; a world %.1f at the start, %.1f at the end, the fewest %.1f; %d of %d of the first still stand; at the end: %s" % [
+		deep.worlds, deep.start / float(n), deep.end / float(n), deep.min / float(n), deep.survived, deep.start,
+		", ".join(dc.map(func(c): return "%s %d" % [c, deep.cultures[c]]))])
 	for kind in routes:
 		var r: Dictionary = routes[kind]
 		var nr := maxf(r.get("routes", 0.0), 1.0)

@@ -84,7 +84,7 @@ var _base_rel := {}           # cache for base_relation()
 static func from_meta(meta: Dictionary, world_seed: int) -> WorldSim:
 	var sim := WorldSim.new()
 	sim._setup(meta.get("sites", []), meta.get("routes", []), world_seed,
-		float(meta.get("surface", []).size()), meta.get("barriers", {}))
+		float(meta.get("surface", []).size()), meta.get("barriers", {}), meta.get("ways", []))
 	return sim
 
 ## Biomes of the stand-alone layout (canonical ids, data/biomes.json).
@@ -148,7 +148,7 @@ static func synthetic(n_sites: int, world_seed: int) -> WorldSim:
 	sim._setup(sites_out, routes_out, world_seed, width)
 	return sim
 
-func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float, barriers := {}) -> void:
+func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float, barriers := {}, ways := []) -> void:
 	SimData.ensure()
 	seed = world_seed
 	rng.seed = hash([world_seed, "worldsim"])
@@ -166,6 +166,7 @@ func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float, ba
 		routes.append({"id": int(r.id), "a": int(r.a), "b": int(r.b), "kind": str(r.kind),
 			"length": float(r.get("length", 0.0)), "name": "", "cls": 0})
 	_index_sites()
+	_add_ways(ways)
 	var barrier_rows := _barrier_rows(barriers)
 	_add_trails(barrier_rows)
 	for r in routes:
@@ -176,6 +177,47 @@ func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float, ba
 	for r in routes:
 		r.name = SimNames.make(rng, "place", taken_names)
 	_seed_world()
+
+## Ways between the surface and the deeps that worldgen knows of besides its own ascent route
+## (meta.ways: [{kind, top: [x, y], bottom: [x, y]}], a cave mouth, sinkhole or buried ruin; the
+## descent track fills it): each joins the deep settlement nearest its bottom to the surface
+## settlement nearest its top, unless a route already does, as a link (`way` names its kind).
+## Its length is the walk: across at each end, and the climb. Caravans use it when it pays.
+func _add_ways(ways: Array) -> void:
+	var next_id := 0
+	for r in routes:
+		next_id = maxi(next_id, int(r.id) + 1)
+	for w: Variant in ways:
+		if not w is Dictionary or not (w as Dictionary).has("top") or not (w as Dictionary).has("bottom"):
+			continue
+		var top := Vector2(float(w.top[0]), float(w.top[1]))
+		var bottom := Vector2(float(w.bottom[0]), float(w.bottom[1]))
+		var up := _nearest_settlement_site(top, true)
+		var down := _nearest_settlement_site(bottom, false)
+		if up.is_empty() or down.is_empty():
+			continue
+		var joined := false
+		for r in routes:
+			if (int(r.a) == int(up.id) and int(r.b) == int(down.id)) or (int(r.a) == int(down.id) and int(r.b) == int(up.id)):
+				joined = true
+		if joined:
+			continue
+		var length := absf(top.x - float(up.x)) + absf(bottom.x - float(down.x)) + absf(top.y - bottom.y) * 1.5 + absf(top.x - bottom.x)
+		routes.append({"id": next_id, "a": int(down.id), "b": int(up.id), "kind": "deep_road", "length": length,
+			"name": "", "cls": 0, "way": str(w.get("kind", "way"))})
+		next_id += 1
+
+func _nearest_settlement_site(p: Vector2, surface: bool) -> Dictionary:
+	var best: Dictionary = {}
+	var bd := INF
+	for s in sites:
+		if s.kind != "settlement" or (SimData.band_family(s.band) == "surface") != surface:
+			continue
+		var d := absf(float(s.x) - p.x) + absf(float(s.y) - p.y) * 0.5
+		if d < bd:
+			bd = d
+			best = s
+	return best
 
 ## World meta's barriers as flat rows: {kind, x0, x1}, the columns a surface walk must clear.
 ## The same rule as Barriers.crossings: a river's banks count for two columns each side.
@@ -1006,6 +1048,8 @@ static func from_dict(d: Dictionary) -> WorldSim:
 			"length": float(r.length), "name": str(r.name), "cls": int(r.cls)}
 		if r.has("trail"):
 			rr["trail"] = bool(r.trail)
+		if r.has("way"):
+			rr["way"] = str(r.way)
 		rr["crossings"] = Array(r.get("crossings", []))
 		sim.routes.append(rr)
 	sim.world_x0 = float(d.world_x0)

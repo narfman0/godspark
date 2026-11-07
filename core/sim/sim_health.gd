@@ -34,6 +34,11 @@ static func observe(sim: WorldSim, years: int) -> Dictionary:
 	var declined := false
 	var bad := 0
 	var biomes := {}
+	var deep0 := {}
+	var deep_min := 1 << 30
+	for sid in sim.settlements:
+		if sim.settlements[sid].band != "surface":
+			deep0[sid] = true
 	for sid in sim.settlements:
 		first[sid] = sim.settlements[sid].pop()
 		peak[sid] = first[sid]
@@ -50,6 +55,7 @@ static func observe(sim: WorldSim, years: int) -> Dictionary:
 		pop_min = mini(pop_min, p)
 		pop_max = maxi(pop_max, p)
 		bad += sim.audit().size()
+		deep_min = mini(deep_min, deep_count(sim))
 		for sid in sim.settlements:
 			var sp: int = sim.settlements[sid].pop()
 			if not first.has(sid):
@@ -95,6 +101,16 @@ static func observe(sim: WorldSim, years: int) -> Dictionary:
 	h["bad_any"] = bad > 0
 	h["biomes"] = biomes
 	h["routes"] = route_shares(sim)
+	var deep_cult := {}
+	var survived := 0
+	for sid in sim.settlements:
+		var s: SimSettlement = sim.settlements[sid]
+		if s.band != "surface":
+			deep_cult[s.culture] = int(deep_cult.get(s.culture, 0)) + 1
+			if deep0.has(sid):
+				survived += 1
+	h["deep"] = {"start": deep0.size(), "end": deep_count(sim), "survived": survived,
+		"min": deep_min if deep_min < (1 << 30) else deep0.size(), "cultures": deep_cult}
 	var kinds: PackedStringArray = []
 	for e in sim.chronicle:
 		if SimChronicle.WEIGHT.get(e.kind, 0) >= 5:
@@ -104,13 +120,22 @@ static func observe(sim: WorldSim, years: int) -> Dictionary:
 
 ## Trade over surface roads by what they cross, from the sim's ledger: "pass", "river" (a road
 ## with a ford or bridge and no pass) and "flat", each {routes, value, trips, ambushes, taken,
-## beasts}, plus "barrier", pass and river together.
+## beasts}, plus "barrier", pass and river together; and below: "deep" (roads between underground
+## sites) and "link" (a deep site to the surface, by a way up).
 static func route_shares(sim: WorldSim) -> Dictionary:
 	var out := {}
-	for kind in ["pass", "river", "flat", "barrier"]:
+	for kind in ["pass", "river", "flat", "barrier", "deep", "link"]:
 		out[kind] = {"routes": 0, "value": 0.0, "trips": 0, "ambushes": 0, "taken": 0, "beasts": 0}
 	for r in sim.routes:
-		if r.cls != WorldSim.ROAD or r.has("trail"):
+		if r.has("trail"):
+			continue
+		if r.cls != WorldSim.ROAD:
+			# deep roads between underground sites, and links between a deep site and the surface
+			var row: Dictionary = out["deep" if r.cls == WorldSim.DEEP else "link"]
+			var l: Dictionary = sim.ledger.get(r.id, {})
+			row.routes += 1
+			for k in ["value", "trips", "ambushes", "taken", "beasts"]:
+				row[k] += l.get(k, 0)
 			continue
 		var kind := "flat"
 		if "pass" in r.crossings:
@@ -146,3 +171,11 @@ static func _sample(sim: WorldSim, biomes: Dictionary) -> void:
 			row.short += 1
 		elif sec >= 1.0 and s.wealth >= p * RICH_COIN:
 			row.rich += 1
+
+## Settlements below the surface.
+static func deep_count(sim: WorldSim) -> int:
+	var n := 0
+	for sid in sim.settlements:
+		if sim.settlements[sid].band != "surface":
+			n += 1
+	return n

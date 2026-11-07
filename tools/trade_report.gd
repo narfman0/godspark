@@ -2,8 +2,9 @@
 ## the line "caravans carry scarce goods across barriers and get raided for them" can be checked
 ## by reading this.
 ##   godot --headless -s res://tools/trade_report.gd -- gen=medium seed=N [days=3600] [cache=/dir]
-## Prints every surface and deep route west to east, the flows of goods between biomes, and how
-## barrier roads compare with flat ones. cache as in tools/run_history.gd.
+## Prints every surface and deep route west to east (kind: road, deep road, or link between a deep
+## site and the surface), the flows of goods between biomes, how barrier roads compare with flat
+## ones, and the deep roads and links up. cache as in tools/run_history.gd.
 extends SceneTree
 
 var _args := {}
@@ -60,15 +61,19 @@ func _raiders(row: Dictionary) -> String:
 
 func _routes(sim: WorldSim) -> void:
 	print("\n== Routes, west to east (goods carried by value of a unit at base price; crossings used)")
-	print("  %4s %-6s %-6s %6s %5s %-12s %6s %9s %5s %5s %8s %5s  %s" % ["id", "from", "to", "length", "hours", "crossings", "trips", "value", "ambus", "taken", "lost", "beast", "goods / raiders"])
+	print("  %4s %-4s %-6s %-6s %6s %5s %-12s %6s %9s %5s %5s %8s %5s  %s" % ["id", "kind", "from", "to", "length", "hours", "crossings", "trips", "value", "ambus", "taken", "lost", "beast", "goods / raiders"])
 	var rows: Array = sim.routes.duplicate()
 	rows.sort_custom(func(a, b): return _west(sim, a) < _west(sim, b) or (_west(sim, a) == _west(sim, b) and a.id < b.id))
 	for r in rows:
 		if r.has("trail") and not sim.ledger.has(r.id):
 			continue
 		var row: Dictionary = sim.ledger.get(r.id, {})
-		print("  %4d %-6s %-6s %6d %5d %-12s %6d %9d %5d %5d %8d %5d  %s  %s" % [r.id, _biome(sim, r.a), _biome(sim, r.b), int(r.length), int(sim.route_hours[r.id]),
+		print("  %4d %-4s %-6s %-6s %6d %5d %-12s %6d %9d %5d %5d %8d %5d  %s  %s" % [r.id, _cls(r), _biome(sim, r.a), _biome(sim, r.b), int(r.length), int(sim.route_hours[r.id]),
 			_cross(r), row.get("trips", 0), int(row.get("value", 0.0)), row.get("ambushes", 0), row.get("taken", 0), int(row.get("lost", 0.0)), row.get("beasts", 0), _goods(row), _raiders(row)])
+
+## road (surface), deep (between underground sites), link (a deep site and the surface).
+func _cls(r: Dictionary) -> String:
+	return "road" if r.cls == WorldSim.ROAD else ("deep" if r.cls == WorldSim.DEEP else "link")
 
 func _west(sim: WorldSim, r: Dictionary) -> float:
 	return minf(sim.site_by_id[r.a].x, sim.site_by_id[r.b].x)
@@ -97,8 +102,8 @@ func _compare(sim: WorldSim, days: int) -> void:
 		if p[1] != p[2]:
 			unlike += float(f[1])
 	var shares := SimHealth.route_shares(sim)
-	print("\n== Barrier roads against flat roads")
-	for kind in ["pass", "river", "flat"]:
+	print("\n== Barrier roads against flat roads; deep roads and the links up")
+	for kind in ["pass", "river", "flat", "deep", "link"]:
 		var r: Dictionary = shares[kind]
 		var nr := maxf(r.routes, 1.0)
 		print("  %-6s %2d roads: each %9d coin in %5d trips (%4d coin a trip), %5.1f ambushes, %5.1f lost, %4.1f lair attacks" % [kind, r.routes, int(r.value / nr), int(r.trips / nr),

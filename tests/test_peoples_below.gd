@@ -8,7 +8,7 @@ const ROLES := ["townsfolk", "guard", "merchant", "smith", "priest", "mage", "ra
 const TEMPERS := ["trader", "expansionist", "raider", "isolationist"]
 
 func run(t: TestLog) -> void:
-	for f: String in ["_cultures", "_homes", "_roles", "_names", "_economy", "_kits", "_town"]:
+	for f: String in ["_cultures", "_homes", "_roles", "_names", "_economy", "_kits", "_town", "_deep_trade", "_ways"]:
 		if not has_method(f):
 			continue
 		var t0 := Time.get_ticks_msec()
@@ -391,3 +391,160 @@ func _town(t: TestLog) -> void:
 		for i in 5:
 			host.tick()
 	t.check(seen.has("drow") and seen.has("duergar"), "dev 4 holds a drow and a duergar town (%s)" % [seen.keys()])
+
+# --- 3. deep roads as trade ---------------------------------------------------------------------
+
+## A drow city and a duergar hold on one deep road, the drow linked up to a human town: who sends
+## what where, and the books of one caravan.
+static func deep_world(seed: int) -> Dictionary:
+	var sites := [
+		{"id": 0, "kind": "settlement", "x": 300, "y": 700, "biome": "meadow", "band": "surface", "size": 3},
+		{"id": 1, "kind": "settlement", "x": 600, "y": 150, "biome": "underdark", "band": "deeps", "size": 3},
+		{"id": 2, "kind": "settlement", "x": 1100, "y": 150, "biome": "underdark", "band": "deeps", "size": 3}]
+	var routes := [{"id": 0, "a": 1, "b": 2, "kind": "deep_road", "length": 600},
+		{"id": 1, "a": 1, "b": 0, "kind": "deep_road", "length": 700}]
+	var sim := WorldSim.new()
+	sim._setup(sites, routes, seed, 1600.0)
+	sim.settlements.clear()
+	sim.factions.clear()
+	var fh := sim._new_faction("human")
+	var fd := sim._new_faction("drow")
+	var fg := sim._new_faction("duergar")
+	fh.temperament = "trader"
+	fd.temperament = "trader"
+	fg.temperament = "trader"
+	var town := sim._new_settlement(0, "human", fh.id, 900)
+	var city := sim._new_settlement(1, "drow", fd.id, 900)
+	var hold := sim._new_settlement(2, "duergar", fg.id, 900)
+	for f: SimFaction in [fh, fd, fg]:
+		f.capital = {fh: 0, fd: 1, fg: 2}[f]
+		for g: SimFaction in [fh, fd, fg]:
+			if f != g:
+				f.relations[g.id] = sim._base_relation(f, g)
+	return {"sim": sim, "town": town, "city": city, "hold": hold}
+
+func _deep_trade(t: TestLog) -> void:
+	var d := deep_world(11)
+	var sim: WorldSim = d["sim"]
+	var city: SimSettlement = d["city"]
+	var hold: SimSettlement = d["hold"]
+	t.eq(int(sim.route_by_id[0].cls), WorldSim.DEEP, "the road between the deep towns is a deep road")
+	t.eq(int(sim.route_by_id[1].cls), WorldSim.LINK, "the way up is a link")
+	t.check(sim.factions[city.faction].rel(hold.faction) < -15.0, "drow and duergar have no love for each other (%.0f)" % sim.factions[city.faction].rel(hold.faction))
+	# one caravan, every unit and coin accounted for (once the city has something to spare)
+	sim.step(WorldSim.YEAR_H)
+	var p: SimParty = null
+	var stock0: Dictionary = {}
+	for tries in 40:
+		var had := {}
+		for pid in sim.parties:
+			had[pid] = true
+		SimEconomy.build_market(sim)
+		stock0 = city.stock.duplicate()
+		SimEconomy._plan_caravan(sim, city)
+		for pid in sim.parties:
+			if not had.has(pid) and sim.parties[pid].kind == "caravan" and sim.parties[pid].home == city.id:
+				p = sim.parties[pid]
+		if p != null:
+			break
+		sim.step(WorldSim.ECON_H)
+	t.check(p != null, "the drow send a caravan")
+	if p != null:
+		var good := String(p.plan["good"])
+		print("  a drow caravan: %s %d to %s" % [good, int(p.cargo[good]), sim.settlements[p.dest].name])
+		t.check(is_equal_approx(float(stock0[good]) - float(city.stock[good]), float(p.cargo[good])), "what it carries left the city's stores")
+		var dst: SimSettlement = sim.settlements[p.dest]
+		var dstock: Dictionary = dst.stock.duplicate()
+		var dwealth := dst.wealth
+		var cargo0: Dictionary = p.cargo.duplicate()
+		var coin0 := p.coin
+		p.path = [city.id, dst.id] as Array[int]
+		p.leg = 0
+		SimEconomy.caravan_arrive(sim, p)
+		var ok := true
+		for g: String in SimData.good_names:
+			var moved := (float(dst.stock[g]) - float(dstock[g])) + (float(p.cargo.get(g, 0)) - float(cargo0.get(g, 0)))
+			if absf(moved) > 0.001:
+				ok = false
+				print("  %s: %.3f unaccounted" % [g, moved])
+		t.check(ok, "at market every unit sold or bought is in one store or the other")
+		t.check(absf((dwealth - dst.wealth) - (p.coin - coin0)) < 0.01, "and every coin (%.1f paid, %.1f taken)" % [dwealth - dst.wealth, p.coin - coin0])
+		t.check(p.coin > coin0, "the caravan sold its load")
+		var back: Dictionary = p.cargo.duplicate()
+		var cstock: Dictionary = city.stock.duplicate()
+		var cwealth := city.wealth
+		var coin1 := p.coin
+		p.path = [dst.id, city.id] as Array[int]
+		p.leg = 0
+		p.plan["leg"] = "home"
+		SimEconomy.return_home(sim, p)
+		var home_ok := true
+		for g: String in back:
+			home_ok = home_ok and is_equal_approx(float(city.stock[g]) - float(cstock[g]), float(back[g]))
+		t.check(home_ok, "home again, the return load is in the city's stores (%s)" % [back])
+		t.check(is_equal_approx(city.wealth - cwealth, coin1), "and the takings in its treasury")
+	t.eq(sim.audit(), [] as Array[String], "the books balance")
+	# ten years: the deep road and the way up carry what each side makes to who wants it
+	d = deep_world(5)
+	sim = d["sim"]
+	sim.ledger_on = true
+	sim.step(10 * WorldSim.YEAR_H)
+	var deep_row: Dictionary = sim.ledger.get(0, {})
+	var link_row: Dictionary = sim.ledger.get(1, {})
+	print("  deep road: %d trips, %d coin, %s" % [int(deep_row.get("trips", 0)), int(deep_row.get("value", 0.0)), deep_row.get("goods", {})])
+	print("  link: %d trips, %d coin, %s" % [int(link_row.get("trips", 0)), int(link_row.get("value", 0.0)), link_row.get("goods", {})])
+	t.check(int(deep_row.get("trips", 0)) >= 5, "caravans go along the deep road (%d trips)" % int(deep_row.get("trips", 0)))
+	t.check(int(link_row.get("trips", 0)) >= 5, "and up the way to the surface (%d trips)" % int(link_row.get("trips", 0)))
+	var up := 0
+	var down := 0
+	var below := 0
+	for k: String in sim.flows:
+		var part := k.split("|")
+		var units := int(sim.flows[k][0])
+		if part[1] == "underdark" and part[2] == "meadow" and part[0] in ["ore", "reagents", "crystal", "stone"]:
+			up += units
+		if part[1] == "meadow" and part[2] == "underdark" and part[0] in ["food", "timber"]:
+			down += units
+		if part[1] == "underdark" and part[2] == "underdark" and part[0] in ["ore", "reagents", "crystal", "stone", "food", "timber", "tools", "luxuries"]:
+			below += units
+	t.check(up > 0, "the surface gets ore, reagents or crystal from below (%d units)" % up)
+	t.check(down > 0, "and the deep peoples grain or timber from above (%d units)" % down)
+	t.check(below > 0, "and the deep towns trade with each other (%d units)" % below)
+	t.eq(sim.audit(), [] as Array[String], "ten years on the books still balance")
+	var shares := SimHealth.route_shares(sim)
+	t.eq(int(shares.deep.routes), 1, "the sweep counts the deep road")
+	t.eq(int(shares.link.routes), 1, "and the link")
+	t.eq(int(shares.deep.trips), int(deep_row.get("trips", 0)), "with its trips")
+
+## A way down worldgen knows of (meta.ways, the descent track's seam) is a link the sim's
+## caravans can use; one that joins towns a route already joins adds nothing.
+func _ways(t: TestLog) -> void:
+	var sites := [
+		{"id": 0, "kind": "settlement", "x": 300, "y": 700, "biome": "meadow", "band": "surface", "size": 2},
+		{"id": 1, "kind": "settlement", "x": 1500, "y": 700, "biome": "forest", "band": "surface", "size": 2},
+		{"id": 2, "kind": "settlement", "x": 600, "y": 150, "biome": "underdark", "band": "deeps", "size": 2},
+		{"id": 3, "kind": "settlement", "x": 1400, "y": 150, "biome": "fungal", "band": "deeps", "size": 2}]
+	var routes := [{"id": 0, "a": 0, "b": 1, "kind": "road", "length": 1300}, {"id": 1, "a": 2, "b": 3, "kind": "deep_road", "length": 900},
+		{"id": 2, "a": 2, "b": 0, "kind": "deep_road", "length": 700}]
+	var surface: Array = []
+	surface.resize(2000)
+	var meta := {"sites": sites, "routes": routes, "surface": surface,
+		"ways": [{"kind": "sinkhole", "top": [1450, 690], "bottom": [1420, 160]}, {"kind": "cave", "top": [320, 690], "bottom": [580, 160]}]}
+	var sim := WorldSim.from_meta(meta, 3)
+	var links := 0
+	var way: Dictionary = {}
+	for r: Dictionary in sim.routes:
+		if int(r.cls) == WorldSim.LINK:
+			links += 1
+		if r.has("way"):
+			way = r
+	t.eq(links, 2, "the ascent and the sinkhole: two links (%d)" % links)
+	t.eq(String(way.get("way", "")), "sinkhole", "the new one names its way")
+	t.check([int(way.get("a", -1)), int(way.get("b", -1))].has(3) and [int(way.get("a", -1)), int(way.get("b", -1))].has(1), "and joins the towns at its ends")
+	var back := WorldSim.from_dict(JSON.parse_string(JSON.stringify(sim.to_dict())))
+	var kept := false
+	for r: Dictionary in back.routes:
+		kept = kept or String(r.get("way", "")) == "sinkhole"
+	t.check(kept, "a save keeps it")
+	var none := WorldSim.from_meta({"sites": sites, "routes": routes, "surface": surface}, 3)
+	t.eq(none.routes.size(), sim.routes.size() - 1, "without ways the world is as before")
