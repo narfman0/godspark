@@ -1,13 +1,14 @@
 {
-	"_comment": "Settlement styles (core/world/place_styles.gd). cultures: sim culture id (data/sim/cultures.json) -> style; anything missing uses 'default'. A style: palette (tile names: wall, floor, masonry, roof, base = foundation under buildings, street = the street surface, lamp, awning, walk; walls (background): back), roof {shape: gable | flat | tent, step: columns per row of rise, overhang}, tall: chance a town or city lot gets a two-storey template, kit (the skin: kit name in data/places/kits.json), plan (what each tier has; see 'plans'). Plans: centre: the middle lot's template by the lowest tier it shows at; lots: [kind or template, tier] in order outward from the centre, alternating right and left; 'home?' is a hamlet home only some hamlets have (3-5 homes); a|b picks one of two per settlement, and a later 'other' lot takes the one not picked; gates: [left tier, right tier] for the gate lots at the two ends (null: never).",
+	"_comment": "Settlement styles (core/world/place_styles.gd). cultures: sim culture id (data/sim/cultures.json) -> style; anything missing uses 'default'. deep: a culture's style for its settlements below the surface, where it differs (goblin and kobold warrens; core/world/place_styles.gd style_for). Every style of a people of the deep has an emissive lamp tile, so its town shows in the dark, and street_lamps: a lamp hangs in the gap left of each building, over the street. A style: palette (tile names: wall, floor, masonry, roof, base = foundation under buildings, street = the street surface, lamp, awning, walk; walls (background): back), roof {shape: gable | flat | tent, step: columns per row of rise, overhang}, tall: chance a town or city lot gets a two-storey template, kit (the skin: kit name in data/places/kits.json), plan (what each tier has; see 'plans'). Plans: centre: the middle lot's template by the lowest tier it shows at; lots: [kind or template, tier] in order outward from the centre, alternating right and left; 'home?' is a hamlet home only some hamlets have (3-5 homes); a|b picks one of two per settlement, and a later 'other' lot takes the one not picked; gates: [left tier, right tier] for the gate lots at the two ends (null: never).",
 	"cultures": {
 		"human": "human", "dragonborn": "human", "tiefling": "human",
 		"halfling": "halfling", "gnome": "halfling",
 		"dwarf": "dwarf", "goliath": "dwarf",
 		"elf": "elf",
-		"drow": "drow", "duergar": "dwarf", "deep_gnome": "dwarf",
+		"drow": "drow", "duergar": "duergar", "deep_gnome": "deep_gnome",
 		"goblinoid": "raider", "kobold": "raider", "gnoll": "raider", "bandit": "raider", "orc": "raider"
 	},
+	"deep": {"goblinoid": "goblin_warren", "kobold": "kobold_warren"},
 	"default": "human",
 	"styles": {
 		"human": {
@@ -38,13 +39,37 @@
 			"palette": {"wall": "dark_stone", "floor": "dark_stone", "masonry": "dark_stone", "roof": "dark_stone", "base": "dark_stone",
 				"street": "cobblestone", "lamp": "fae_lamp", "awning": "awning", "walk": "platform", "back": "dark_wall"},
 			"roof": {"shape": "flat", "step": 0, "overhang": 0},
-			"tall": 0.7, "kit": "drow", "plan": "town"
+			"tall": 0.7, "kit": "drow", "plan": "town", "street_lamps": true
 		},
 		"raider": {
 			"palette": {"wall": "canvas", "floor": "logs", "masonry": "logs", "roof": "canvas", "base": "dirt",
 				"street": "road", "lamp": "torch", "awning": "awning", "walk": "platform", "back": "canvas_wall"},
 			"roof": {"shape": "tent", "step": 1, "overhang": 0},
 			"tall": 0.0, "kit": "raider", "plan": "camp"
+		},
+		"duergar": {
+			"palette": {"wall": "granite", "floor": "slate", "masonry": "granite", "roof": "slate", "base": "granite",
+				"street": "cobblestone", "lamp": "torch", "awning": "awning", "walk": "platform", "back": "slate_wall"},
+			"roof": {"shape": "flat", "step": 0, "overhang": 0},
+			"tall": 0.6, "kit": "duergar", "plan": "town", "street_lamps": true
+		},
+		"deep_gnome": {
+			"palette": {"wall": "mossy_stone", "floor": "planks", "masonry": "dressed_stone", "roof": "stone", "base": "stone",
+				"street": "gravel", "lamp": "lamp", "awning": "awning", "walk": "platform", "back": "stone_wall"},
+			"roof": {"shape": "flat", "step": 0, "overhang": 0},
+			"tall": 0.3, "kit": "deep_gnome", "plan": "town", "street_lamps": true
+		},
+		"goblin_warren": {
+			"palette": {"wall": "logs", "floor": "logs", "masonry": "stone", "roof": "canvas", "base": "dirt",
+				"street": "gravel", "lamp": "torch", "awning": "awning", "walk": "platform", "back": "dirt_wall"},
+			"roof": {"shape": "tent", "step": 1, "overhang": 0},
+			"tall": 0.0, "kit": "goblin", "plan": "camp", "street_lamps": true
+		},
+		"kobold_warren": {
+			"palette": {"wall": "stone", "floor": "planks", "masonry": "stone", "roof": "stone", "base": "dirt",
+				"street": "gravel", "lamp": "torch", "awning": "awning", "walk": "platform", "back": "stone_wall"},
+			"roof": {"shape": "flat", "step": 0, "overhang": 0},
+			"tall": 0.0, "kit": "kobold", "plan": "camp", "street_lamps": true
 		}
 	},
 	"plans": {

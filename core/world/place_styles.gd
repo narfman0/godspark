@@ -3,6 +3,7 @@
 ## plan, and the parsed templates. Read-only after ensure(); see docs/tracks/places.md.
 ##
 ##   PlaceStyles.style_name("gnome")   # "halfling"
+##   PlaceStyles.style_for("kobold", "deeps")   # "kobold_warren"
 ##   PlaceStyles.style("dwarf")        # {palette ids, roof, tall, kit, plan}
 ##   PlaceStyles.template("home")      # {name, kind, w, h, cells, roof, pieces}
 class_name PlaceStyles
@@ -14,6 +15,7 @@ const TIERS := ["hamlet", "village", "town", "city"]
 static var _loaded := false
 static var _styles := {}       ## name -> style (palette resolved to ids)
 static var _cultures := {}
+static var _deep := {}         ## culture -> style for its settlements below the surface
 static var _default := "human"
 static var _templates := {}    ## name -> parsed template
 static var _by_kind := {}      ## kind -> [template names]
@@ -28,6 +30,7 @@ static func ensure() -> void:
 	TileDefs.ensure()
 	var s: Dictionary = _json("styles.json")
 	_cultures = s.get("cultures", {})
+	_deep = s.get("deep", {})
 	_default = String(s.get("default", "human"))
 	_plans = s.get("plans", {})
 	var g: Array = s.get("gap", [3, 5])
@@ -91,6 +94,14 @@ const ROLES := {"s": "smith", "m": "merchant", "k": "keeper", "p": "priest", "g"
 static func style_name(culture: String) -> String:
 	ensure()
 	return String(_cultures.get(culture, _default))
+
+## The style a culture builds in at a site's band: its own deep style below the surface (the
+## warrens of goblins and kobolds), else its style.
+static func style_for(culture: String, band: String) -> String:
+	ensure()
+	if not band in ["surface", "sky", ""] and _deep.has(culture):
+		return String(_deep[culture])
+	return style_name(culture)
 
 static func style(culture_or_style: String) -> Dictionary:
 	ensure()

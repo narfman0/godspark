@@ -20,7 +20,7 @@ const KEEP := -1
 ## columns). Every lot of the plan is listed; tier decides which are built.
 static func plan(site: Dictionary, culture: String, world_seed: int, lo: int, hi: int) -> Dictionary:
 	PlaceStyles.ensure()
-	var st := PlaceStyles.style(culture)
+	var st := PlaceStyles.style(PlaceStyles.style_for(culture, String(site.get("band", "surface"))))
 	var pl := PlaceStyles.plan(String(st.get("plan", "town")))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([world_seed, "place", int(site["id"])])
@@ -216,6 +216,10 @@ static func lot_writes(place: Dictionary, i: int, state: String, world_seed := 0
 		for k in rng.randi_range(1, 2):
 			if w >= 11:
 				_put(cells, x0 + rng.randi_range(5, w - 5), y0, pal["masonry"], KEEP)
+	# A street lamp in the gap left of each building, for towns in the dark (style street_lamps):
+	# the lamps inside light their rooms, this one the street between them. Gone with a ruin.
+	if bool(st.get("street_lamps", false)) and building and tpl_name != "gate":
+		_put(cells, x0 - 2, y0 + 3, TileDefs.AIR if ruin else int(pal["lamp"]), KEEP)
 	# Roof.
 	if t.get("roof", true):
 		var r: Dictionary = st["roof"]

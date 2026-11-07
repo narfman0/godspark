@@ -8,7 +8,7 @@ const ROLES := ["townsfolk", "guard", "merchant", "smith", "priest", "mage", "ra
 const TEMPERS := ["trader", "expansionist", "raider", "isolationist"]
 
 func run(t: TestLog) -> void:
-	for f: String in ["_cultures", "_homes", "_roles", "_names", "_economy"]:
+	for f: String in ["_cultures", "_homes", "_roles", "_names", "_economy", "_kits", "_town"]:
 		if not has_method(f):
 			continue
 		var t0 := Time.get_ticks_msec()
@@ -225,3 +225,169 @@ func _economy(t: TestLog) -> void:
 	var fg := sim._new_faction("deep_gnome")
 	var fh := sim._new_faction("human")
 	t.eq(sim._base_relation(fg, fh), -10.0 if "raider" in [fg.temperament, fh.temperament] else 0.0, "deep gnomes and humans start even")
+
+# --- 2. deep settlements are real towns ---------------------------------------------------------
+
+## A cave: solid rock with a cavern 16 rows high over a floor at y0 - 1, open from x 4 to w - 4.
+static func cave_world(w: int, h: int, y0: int) -> TileWorld:
+	var world := TileWorld.new(w, h, 1)
+	var stone := TileDefs.id("stone")
+	var wall := TileDefs.wall_id("stone_wall")
+	for x in w:
+		for y in h:
+			var open := x >= 4 and x < w - 4 and y >= y0 and y < y0 + 16
+			world.set_fg(x, y, TileDefs.AIR if open else stone, true)
+			world.set_bg(x, y, wall, true)
+	return world
+
+static func apply_writes(world: TileWorld, wr: Dictionary) -> void:
+	var cells: PackedInt32Array = wr["cells"]
+	for i in range(0, cells.size(), 4):
+		if not world.in_bounds(cells[i], cells[i + 1]):
+			continue
+		if cells[i + 2] >= 0:
+			world.set_fg(cells[i], cells[i + 1], cells[i + 2], true)
+		if cells[i + 3] >= 0:
+			world.set_bg(cells[i], cells[i + 1], cells[i + 3], true)
+
+## Each people's town below, built from its kit in a dark cave: its own style, an emissive lamp,
+## its pieces from the dungeon packs, and its street lit by its lamps alone.
+func _kits(t: TestLog) -> void:
+	PlaceStyles.ensure()
+	Dressing.ensure()
+	var styles := {}
+	for cid: String in DEEP:
+		var sn := PlaceStyles.style_for(cid, "deeps")
+		styles[sn] = true
+		var st := PlaceStyles.style(sn)
+		var lamp := int(st["ids"]["lamp"])
+		t.check(TileDefs.emit[lamp] > 0, "%s (%s) lights its town with an emissive tile (%s)" % [cid, sn, st["palette"]["lamp"]])
+		var kit := String(st["kit"])
+		t.check(PlaceStyles.kit(kit).size() > 0, "%s builds with kit %s" % [cid, kit])
+		var world := cave_world(448, 64, 20)
+		var site := {"id": 1, "x": 210, "y": 20, "band": "deeps", "kind": "settlement"}
+		var place := PlaceBuilder.plan(site, cid, 9, 6, 441)
+		t.eq(String(place.get("style", "")), sn, "%s's place is in its style" % cid)
+		place["tier"] = "town"
+		var pieces := 0
+		for i in (place["lots"] as Array).size():
+			if PlaceBuilder.lot_wanted(place["lots"][i], "town"):
+				var wr := PlaceBuilder.set_lot(place, i, "built", 9)
+				apply_writes(world, wr)
+				for o: Array in wr["objects"]:
+					pieces += 1
+					t.check(Dressing.id(Dressing.name_of(int(o[0]))) == int(o[0]), "a %s piece is a dressing id" % cid)
+		PlaceBuilder.refresh_buildings(place)
+		t.check(pieces >= 4, "%s's town is furnished from its kit (%d pieces)" % [cid, pieces])
+		var light := LightEngine.new(world)
+		light.sun = 1.0
+		var st_row: Array = place["street"]
+		var lit := 0
+		var n := 0
+		# the built town: its buildings and the street beside them (lots of a higher tier are
+		# still empty ground, dark as any cave)
+		var cols := {}
+		for lot: Dictionary in place["lots"]:
+			if String(lot["state"]) == "built":
+				for x in range(int(lot["x"]) - 2, int(lot["x"]) + int(lot["w"]) + 2):
+					cols[x] = true
+		for x: int in cols:
+			n += 1
+			if light.category_at(x, int(st_row[2]) + 1) != LightEngine.Category.DARK:
+				lit += 1
+		var sky := 0
+		for x in range(int(st_row[0]), int(st_row[1]) + 1):
+			sky = maxi(sky, light.sky_at(x, int(st_row[2]) + 1))
+		t.eq(sky, 0, "no sun reaches the %s town" % cid)
+		print("  %s town: %d of %d street columns of the built town lit by its lamps, %d pieces" % [cid, lit, n, pieces])
+		t.check(lit * 20 >= n * 19, "%s: its street is lit by its own lamps (%d of %d columns)" % [cid, lit, n])
+		var dark_world := cave_world(448, 64, 20)
+		var dl := LightEngine.new(dark_world)
+		t.eq(dl.category_at(210, 21), LightEngine.Category.DARK, "the same cave unbuilt is dark")
+	t.check(styles.size() == DEEP.size(), "every deep people builds in its own style (%s)" % [styles.keys()])
+	t.eq(PlaceStyles.style_for("goblinoid", "surface"), "raider", "goblins on the surface still camp in tents")
+
+## A generated world's drow city and duergar hold: people at their posts on the real place, lit,
+## a shop with the people's goods, a smith, work, and lines of their own.
+func _town(t: TestLog) -> void:
+	var w := WorldGen.generate_named("dev", 4)
+	var host := WorldHost.new(w)
+	Dice.rng = host.rng
+	host.add_system(CombatSystem.new())
+	var ms := MonstersSystem.new()
+	ms.director_enabled = 0
+	ms.lairs_enabled = false
+	ms.nav_fixed_slices = 8
+	host.add_system(ms)
+	var life := LifeSystem.new()
+	host.add_system(life)
+	var seen := {}
+	for sid: int in WorldSim._sorted_keys(host.sim.settlements):
+		var s: SimSettlement = host.sim.settlements[sid]
+		if s.band == "surface" or Places.place(w, sid).is_empty():
+			continue
+		seen[s.culture] = true
+		var place := Places.place(w, sid)
+		t.eq(String(place["style"]), PlaceStyles.style_for(s.culture, "deeps"), "%s's town %s is built in its style" % [s.culture, s.name])
+		var p := host.add_player("visitor%d" % sid, sid + 2, {"class": "fighter"})
+		p.body.pos = LifeTown.site_pos(host, sid) + Vector2(0, 2)
+		TileCollision.depenetrate(host.world, p.body)
+		for i in 70:
+			host.tick()
+		t.check(life.town.active.has(sid) and s.watched, "%s %s materializes" % [s.culture, s.name])
+		var people := life.actors_at(sid)
+		var roles := {}
+		for e: HostEntity in people:
+			roles[String(e.get_meta("sim")["role"])] = true
+		t.check(roles.has("keeper") and roles.has("merchant") and roles.has("guard"), "%s %s has a keeper, a merchant and guards (%s)" % [s.culture, s.name, roles.keys()])
+		var light := LightEngine.new(w)
+		var x0 := int(place["street"][0])
+		var x1 := int(place["street"][1])
+		var dark := 0
+		var outside := 0
+		var stuck := 0
+		for e: HostEntity in people:
+			var c := Vector2i(floori(e.body.pos.x), floori(e.body.pos.y) + 1)
+			if light.category_at(c.x, c.y) == LightEngine.Category.DARK:
+				dark += 1
+			if c.x < x0 - 2 or c.x > x1 + 2:
+				outside += 1
+			if w.is_solid(c.x, c.y):
+				stuck += 1
+		t.eq(stuck, 0, "nobody in %s stands in a wall" % s.name)
+		t.eq(outside, 0, "everyone in %s is on its street" % s.name)
+		t.check(dark * 10 <= people.size(), "the people of %s stand in lamplight (%d of %d in the dark)" % [s.name, dark, people.size()])
+		var look_ok := true
+		for e: HostEntity in people:
+			if not SimData.culture(s.culture).monstrous and String(e.look.get("people", "")) == "":
+				look_ok = false
+		t.check(look_ok, "%s's people are drawn as their people" % s.culture)
+		t.check(DealsShop.has_store(w, sid) or DealsShop.has_smithy(w, sid), "%s has a store or a smithy (a village has one, a town both)" % s.name)
+		var made := ""
+		var best := 0.0
+		for g: String in SimData.makes.get(s.culture, {}):
+			if float(SimData.makes[s.culture][g]) > best:
+				best = float(SimData.makes[s.culture][g])
+				made = g
+		var shelf_goods := {}
+		for l: Dictionary in DealsShop.shelves(host.sim, sid):
+			if int(l["n"]) > 0:
+				shelf_goods[String(l["good"])] = true
+		t.check(shelf_goods.has(made), "%s's store sells what they make, %s (%s)" % [s.name, made, shelf_goods.keys()])
+		var rack := DealsShop.rack(host.sim, w.world_seed, sid, 0, {})
+		t.check(rack.size() > 0, "and its smith has a rack (%d)" % rack.size())
+		var offers := DealsQuests.offers(host.sim, w.world_seed, sid, 0)
+		t.check(offers.size() > 0, "and work on offer (%d)" % offers.size())
+		var own: Array = Deals.lines()["culture"].get(s.culture, [])
+		var said := false
+		for hr in 24:
+			for d in 6:
+				var ln := DealsTalk.line(host.sim, w.world_seed + d, {"id": "x%d" % d, "role": "keeper", "name": "K", "culture": s.culture}, sid, float(hr))
+				for o: String in own:
+					if ln.contains(o):
+						said = true
+		t.check(said, "%s talk with lines of their own" % s.culture)
+		host.remove_entity(p.id)
+		for i in 5:
+			host.tick()
+	t.check(seen.has("drow") and seen.has("duergar"), "dev 4 holds a drow and a duergar town (%s)" % [seen.keys()])

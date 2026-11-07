@@ -54,7 +54,8 @@ func apply(host: WorldHost, sid: int, tier: String, culture := "") -> int:
 		return 0
 	if culture != "" and culture != place.get("culture", ""):
 		place["culture"] = culture
-		place["style"] = PlaceStyles.style_name(culture)
+		var site: Dictionary = host.sim.site_by_id.get(sid, {}) if host.sim != null else {}
+		place["style"] = PlaceStyles.style_for(culture, String(site.get("band", "surface")))
 	place["tier"] = tier
 	var changes := PlaceBuilder.changes_for(place, tier)
 	for ch: Array in changes:
