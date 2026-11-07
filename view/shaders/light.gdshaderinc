@@ -7,6 +7,11 @@ global uniform vec4 gs_light_rect;
 global uniform float gs_sun;
 global uniform vec4 gs_sky_tint;
 global uniform float gs_tile_m;
+// What colours the block light (view/below_look.gd): premultiplied colour and how much of the light
+// a tinted tile's, over the light rectangle; the own carried light (x, y, radius tiles, on), near
+// which it keeps its own colour.
+global uniform sampler2D gs_below_tint : filter_linear, repeat_disable;
+global uniform vec4 gs_own_lamp;
 // The own Darkvision: (x, y) tiles, radius tiles (0: none), grey strength.
 global uniform vec4 gs_darkvision;
 
@@ -30,10 +35,20 @@ vec2 gs_levels(vec2 tile) {
 	return vec2(texture(gs_light_block, uv).r, texture(gs_light_sky, uv).r) * (255.0 / GS_FULL);
 }
 
+// The block light's colour at a point: torchlight, unless a tinted tile lights it.
+vec3 gs_block_tint(vec2 tile) {
+	vec4 t = texture(gs_below_tint, gs_light_uv(tile));
+	float a = smoothstep(0.0, 0.08, t.a);
+	if (gs_own_lamp.z > 0.0) {
+		a *= smoothstep(0.3, 0.9, distance(tile, gs_own_lamp.xy) / gs_own_lamp.z);
+	}
+	return mix(GS_TORCH_TINT, t.rgb / max(t.a, 0.01), a);
+}
+
 // Light colour at a point in tile units.
 vec3 gs_light_at(vec2 tile) {
 	vec2 l = gs_levels(tile);
-	vec3 lb = GS_TORCH_TINT * gs_curve(l.x) * 1.4;
+	vec3 lb = gs_block_tint(tile) * gs_curve(l.x) * 1.4;
 	vec3 ls = gs_sky_tint.rgb * gs_curve(l.y * gs_sun);
 	return max(lb, ls) + 0.35 * min(lb, ls);
 }

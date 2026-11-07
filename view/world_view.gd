@@ -70,6 +70,8 @@ var emitters := {}
 var hour := 12.0
 ## The sun and the lamp pool (view/world_lights.gd).
 var lights: WorldLights
+## The regions' light colours, fog and the lake (view/below_look.gd).
+var below: BelowLook
 var _light_rect := Rect2i()
 var _light_dirty := true
 var _frame_us := 0
@@ -115,6 +117,9 @@ func setup(w: TileWorld, l: LightEngine) -> void:
 	lights = WorldLights.new()
 	add_child(lights)
 	lights.setup(self)
+	below = BelowLook.new()
+	add_child(below)
+	below.setup(self)
 	_apply_sun()
 
 ## The dark behind the caves only has work to do under the ground, so with the surface line
@@ -153,6 +158,7 @@ func meta_changed() -> void:
 	if backdrops != null:
 		backdrops.rebuild()
 		_shape_backdrop()
+		below.meta_changed()
 
 ## Keep the foreground off a spot on the play plane (tiles): 0 the player, 1 the target. radius 0
 ## lets it go; negative takes the data's.
@@ -196,7 +202,8 @@ func set_focus(pos: Vector2) -> void:
 			if mi != null:
 				mi.queue_free()
 			_chunks.erase(key)
-			emitters.erase(key)
+			if emitters.erase(key):
+				below.emitters_changed()
 	# Light texture: recentre when the visible area leaves the inner part of the rectangle.
 	var need := Rect2i(Vector2i((pos - view_half).floor()) - Vector2i(4, 4),
 		Vector2i((view_half * 2).ceil()) + Vector2i(8, 8))
@@ -389,9 +396,11 @@ func _collect() -> void:
 		_write_mat(key, out.get("mat", PackedByteArray()))
 		var em: Array = out.get("emit", [])
 		if em.is_empty():
-			emitters.erase(key)
+			if emitters.erase(key):
+				below.emitters_changed()
 		else:
 			emitters[key] = em
+			below.emitters_changed()
 		var t0 := Time.get_ticks_usec()
 		var arrays: Array = out.get("arrays", [])
 		var mi: MeshInstance3D = _chunks.get(key)
@@ -517,6 +526,7 @@ func _refill_light() -> void:
 		_tex_sky.update(_img_sky)
 	RenderingServer.global_shader_parameter_set("gs_light_rect",
 		Vector4(_light_rect.position.x, _light_rect.position.y, size.x, size.y))
+	below.rect_changed(_light_rect)
 	stats["light"].append(Time.get_ticks_usec() - t0)
 
 func _apply_sun() -> void:

@@ -12,6 +12,9 @@ render_mode cull_back;
 
 global uniform sampler2D gs_noise : filter_linear_mipmap, repeat_enable;
 global uniform sampler2D gs_mat : filter_linear, repeat_enable;
+// The deep lake (view/below_look.gd): x0, x1, surface and bed rows, and the colour of its light.
+global uniform vec4 gs_lake;
+global uniform vec4 gs_lake_glow : source_color;
 
 // The material map's size in tiles: it wraps, so a tile's texel is its coordinate modulo this.
 const vec2 GS_MAT_SIZE = vec2(512.0, 256.0);
@@ -47,6 +50,49 @@ vec3 ground_light(vec2 tile, bool front, out float sun) {
 	return max(L, gs_sky_tint.rgb * gs_curve(s * gs_sun) * 0.62);
 }
 
+// The lake's water gives a faint light of its own: nothing on the shore reaches it. Brightest at
+// the surface, where a line of it shimmers, thinning toward the bed, with slow drifting sparks.
+vec3 lake_light(vec2 tile) {
+	if (tile.x < gs_lake.x || tile.x > gs_lake.y + 1.0 || tile.y > gs_lake.z + 2.0) {
+		return vec3(0.0);
+	}
+	float d = max(gs_lake.z + 1.0 - tile.y, 0.0);
+	float sway = texture(gs_noise, tile * vec2(0.03, 0.05) + TIME * vec2(0.008, -0.004)).r;
+	float veil = texture(gs_noise, tile * vec2(0.012, 0.07) - TIME * vec2(0.005, 0.0)).g;
+	float glow = (0.012 + 0.13 * exp(-d / 3.5)) * (0.4 + 1.2 * sway) + 0.05 * smoothstep(0.55, 0.8, veil) * exp(-d / 9.0);
+	glow += 0.8 * exp(-d * 1.6) * (0.55 + 0.9 * sway);
+	vec2 mp = tile * 0.8 + vec2(TIME * 0.04, sin(TIME * 0.2 + tile.x * 0.13) * 0.4);
+	vec2 c = floor(mp);
+	vec2 q = fract(mp) - (vec2(gs_hash(c), gs_hash(c + 7.1)) * 0.6 + 0.2);
+	glow += smoothstep(0.07, 0.0, length(q)) * step(0.93, gs_hash(c + 3.3)) * (0.5 + 0.5 * sin(TIME * 1.6 + gs_hash(c) * 40.0));
+	return gs_lake_glow.rgb * glow;
+}
+
+// Drow masonry (tile dark_stone, id 101; wall dark_wall, id 43): a spider's web cut into the stone
+// every few tiles, a thread of the fae lamps' light in each cut, so a city reads from across a cavern
+// by nothing but its own lines. The web's radial lines and rings, 0..1.
+float drow_web(vec2 tile) {
+	vec2 cell = floor(tile / 9.0);
+	vec2 p = tile - (cell + 0.5) * 9.0 - (vec2(gs_hash(cell), gs_hash(cell + 3.1)) - 0.5) * 1.5;
+	float r = length(p);
+	float a = (atan(p.y, p.x) + 3.14159) / 6.28318;
+	float spoke = abs(fract(a * 8.0) - 0.5) / 8.0 * 6.28318 * r;
+	float ring = abs(fract(r * 0.62) - 0.5) / 0.62;
+	float lines = max(1.0 - smoothstep(0.015, 0.075, spoke), (1.0 - smoothstep(0.02, 0.07, ring)) * step(0.6, r));
+	return lines * (1.0 - smoothstep(3.1, 4.2, r));
+}
+
+// Lava (tile id 120, ids are stable): a slow flow of heat under dark plates of crust.
+vec3 lava_light(vec2 tile) {
+	vec2 p = tile * vec2(0.045, 0.1);
+	float a = texture(gs_noise, p + TIME * vec2(0.011, 0.003)).r;
+	float b = texture(gs_noise, p * 2.6 - TIME * vec2(0.012, -0.005)).g;
+	float heat = smoothstep(0.32, 0.72, a * 0.6 + b * 0.4);
+	vec3 c = mix(vec3(0.5, 0.045, 0.008), vec3(1.6, 0.38, 0.03), heat);
+	c = mix(c, vec3(2.6, 1.35, 0.3), smoothstep(0.7, 0.95, heat));
+	return c;
+}
+
 void fragment() {
 	vec2 tile = wpos.xy / gs_tile_m;
 	float kind = info.y;
@@ -57,6 +103,7 @@ void fragment() {
 	float shade = 1.0;
 	bool glow = false;
 	float cut_sun = 0.0;
+	vec3 own = vec3(0.0);
 	if (kind > 4.5) {
 		// Water: no tiles, a slow shimmer.
 		float n = texture(gs_noise, tile * 0.012 + TIME * vec2(0.006, 0.002)).r
@@ -64,6 +111,7 @@ void fragment() {
 		base *= 0.7 + 0.6 * n;
 		cell = tile;
 		L = gs_light_at(tile);
+		own = lake_light(tile);
 	} else if (kind > 3.5) {
 		// A natural wall behind a cave: the wall's colour, shaded in the ground's own way.
 		vec4 n = texture(gs_noise, tile * vec2(0.0035, 0.016) + vec2(0.37, 0.11));
@@ -97,9 +145,15 @@ void fragment() {
 			base *= 1.35;
 			cell = tile;
 			L = gs_light_at(tile);
+			if (abs(info.x - 43.0) < 0.5) {
+				own = vec3(0.3, 0.13, 0.62) * drow_web(tile) * (0.42 + 0.14 * sin(TIME * 0.7 + tile.x * 0.11));
+			}
 		} else {
 			L = gs_light_at(cell);
 			shade = gs_face_shade(wnrm);
+			if (abs(info.x - 101.0) < 0.5 && wnrm.z > 0.9) {
+				own = vec3(0.3, 0.13, 0.62) * drow_web(tile) * 0.5;
+			}
 			if (wnrm.z > 0.9) {
 				// Grout between tiles on front faces, so single blocks read inside merged faces.
 				vec2 f = abs(fract(tile) - 0.5);
@@ -111,13 +165,13 @@ void fragment() {
 	ROUGHNESS = 0.9;
 	if (glow) {
 		ALBEDO = vec3(0.0);
-		EMISSION = base * 2.2;
+		EMISSION = abs(info.x - 120.0) < 0.5 ? lava_light(tile) : base * 2.2;
 		gs_m_sun = 0.0;
 		gs_m_lamp = 0.0;
 	} else {
 		ALBEDO = base;
 		GS_MASKS(cell);
 		gs_m_sun = max(gs_m_sun, cut_sun);
-		EMISSION = gs_fill(base, L * shade) + gs_dark_sight(base, L, tile);
+		EMISSION = gs_fill(base, L * shade) + gs_dark_sight(base, L, tile) + own;
 	}
 }

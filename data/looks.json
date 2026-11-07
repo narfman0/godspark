@@ -589,8 +589,13 @@
   "gargantuan": {"size": [7.0, 7.0], "height_m": 5.0}
  },
  "lights": {
-  "_comment": "What a body carries for light (view/light_sources.gd): the picture only, the host's sight rules are not read from here. Keys: an item slug (held in the hotbar's selected slot, or worn: the off hand among it), effect:<what> (an EFFECT event's what, concentration: dropped), torch (look.light of townsfolk, guards and raiders at night), tag:light (the glow of the light tag, a Lantern spark or glowing gear, when nothing else is held: level plus per_point per point; with a held light each point widens it one tile). level: LightEngine strength, 5 + 5 per tile of reach (a torch 85: 20 ft bright, 20 ft dim; a lantern 125: 30 and 30). color: the lamp's colour. radius: tiles the view's lamp reaches (default: the level's reach).",
+  "_comment": "What a body carries for light (view/light_sources.gd): the picture only, the host's sight rules are not read from here. Keys: an item slug (held in the hotbar's selected slot, or worn: the off hand among it), effect:<what> (an EFFECT event's what, concentration: dropped), torch (look.light of townsfolk, guards and raiders at night), tag:light (the glow of the light tag, a Lantern spark or glowing gear, when nothing else is held: level plus per_point per point; with a held light each point widens it one tile). level: LightEngine strength, 5 + 5 per tile of reach (a torch 85: 20 ft bright, 20 ft dim; a lantern 125: 30 and 30). color: the lamp's colour. radius: tiles the view's lamp reaches (default: the level's reach). A tile: row names the colour of a light-giving tile (WorldLights' lamp); tint: its colour also colours the tile light field around it (view/below_look.gd), which is otherwise drawn as torchlight.",
   "tile:torch": {"level": 85, "color": "#ffa458", "radius": 16},
+  "tile:glow_cap": {"color": "#46f0c0", "tint": true},
+  "tile:crystal_cluster": {"color": "#78b8ff", "tint": true},
+  "tile:lumen_moss": {"color": "#6dffb0", "tint": true},
+  "tile:lava": {"color": "#ff5a1a", "tint": true},
+  "tile:fae_lamp": {"color": "#a868ff", "tint": true},
   "torch": {"level": 85, "color": "#ffa458", "radius": 16},
   "lantern": {"level": 125, "color": "#ffc070", "radius": 24},
   "lantern-of-revealing": {"level": 125, "color": "#ffd890", "radius": 24},

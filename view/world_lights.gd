@@ -195,7 +195,8 @@ func sky_in_view() -> bool:
 		x += 2
 	return false
 
-## Every source near the view: the emissive tiles of the meshed chunks and the carried lights.
+## Every source near the view: the emissive tiles of the meshed chunks, the glowing props and the
+## carried lights.
 func candidates() -> Array:
 	var out: Array = []
 	var lamps: Dictionary = LightSources.setting("lamps", {})
@@ -215,6 +216,9 @@ func candidates() -> Array:
 			var col: Color = r["color"] if not r.is_empty() else TileDefs.colors[e.z].lerp(Color(1.0, 0.7, 0.4), 0.35)
 			out.append({"key": "t%d,%d" % [e.x, e.y], "pos": p, "color": col, "level": level,
 				"radius": LightSources.reach(level), "flicker": float(flick.get(name, 0.0))})
+	for p: Dictionary in view.below.lit_props() if view.below != null else []:
+		out.append({"key": p["key"], "pos": p["pos"], "color": p["color"], "level": p["level"],
+			"radius": p["radius"], "flicker": 0.0})
 	for id: int in view.carried:
 		var c: Dictionary = view.carried[id]
 		out.append({"key": "c%d" % id, "pos": c["pos"], "color": c["color"], "level": c["level"],

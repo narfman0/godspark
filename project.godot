@@ -193,6 +193,26 @@ gs_light_sky={
 "type": "sampler2D",
 "value": ""
 }
+gs_below_tint={
+"type": "sampler2D",
+"value": ""
+}
+gs_below_fog={
+"type": "sampler2D",
+"value": ""
+}
+gs_own_lamp={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+gs_lake={
+"type": "vec4",
+"value": Vector4(0, -1, 0, 0)
+}
+gs_lake_glow={
+"type": "color",
+"value": Color(0.12, 0.56, 0.5, 1)
+}
 gs_light_rect={
 "type": "vec4",
 "value": Vector4(0, 0, 1, 1)
