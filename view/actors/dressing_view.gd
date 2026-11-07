@@ -126,7 +126,7 @@ func set_objects(recs: Array) -> void:
 			var mmi := MultiMeshInstance3D.new()
 			mmi.name = id
 			mmi.multimesh = mm
-			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			mmi.set_instance_shader_parameter("tint", Color.from_string(String(def.get("tint", "#ffffff")), Color.WHITE))
 			add_child(mmi)
 		counts[id] = int(counts.get(id, 0)) + xforms.size()

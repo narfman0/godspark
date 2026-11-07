@@ -154,6 +154,23 @@ static func build_arrays(snap: Dictionary) -> Array:
 	_posts(buf, ids, sol, not cut.is_empty())
 	return buf.arrays()
 
+## The chunk's light-giving tiles (TileDefs.emit), for the view's lamps: Vector3i(world x,
+## world y, tile id) each. Safe on a worker: it reads only the snapshot and TileDefs.
+static func emitters(snap: Dictionary) -> Array[Vector3i]:
+	var out: Array[Vector3i] = []
+	var own: Variant = (snap["fgs"] as Array)[4]
+	if not (own is PackedByteArray):
+		return out
+	var fg := own as PackedByteArray
+	var emit := TileDefs.emit
+	var ox: int = int(snap["cx"]) * N
+	var oy: int = int(snap["cy"]) * N
+	for i in N * N:
+		var id := fg.decode_u16(i * 2)
+		if id < emit.size() and emit[id] > 0:
+			out.append(Vector3i(ox + (i % N), oy + i / N, id))
+	return out
+
 ## The chunk's material map, row by row: RGBA8, a natural tile's colour with alpha 255, all else
 ## zero, so filtering blends ground with ground and a shader can tell how near it is to the edge.
 ## Safe on a worker: it reads only the snapshot and TileDefs. Empty for a chunk with no tiles.

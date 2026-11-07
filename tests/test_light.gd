@@ -11,6 +11,7 @@ func run(t: TestLog) -> void:
 	_carried(t)
 	_region_bytes_check(t)
 	_own_light(t)
+	_view_lights(t)
 
 ## SRD torch: bright to 20 ft (8 tiles), dim another 20 ft (to 16 tiles), dark beyond.
 func _torch_anchor(t: TestLog) -> void:
@@ -239,3 +240,61 @@ func _sky_shaft(t: TestLog) -> void:
 	t.eq(l2.level_at(70, 1), LightEngine.SUN, "a new hole: its shaft")
 	t.eq(l2.level_at(50, 1), 0, "the closed hole goes dark")
 	t.eq(_diff(l2, Rect2i(0, 0, 96, 64), w), 0, "covered sky: incremental edits equal a fresh recompute")
+
+## The view's lights: the lamp pool takes the nearest sources, the sun follows the clock.
+func _view_lights(t: TestLog) -> void:
+	var cands := [{"key": "a", "pos": Vector2(10, 0)}, {"key": "b", "pos": Vector2(2, 0)},
+		{"key": "c", "pos": Vector2(-5, 0)}, {"key": "d", "pos": Vector2(0, 30)}]
+	var p := WorldLights.pick(cands, Vector2.ZERO, 2)
+	t.eq(p.size(), 2, "pick: n of them")
+	t.eq(String(p[0]["key"]) + String(p[1]["key"]), "bc", "pick: the nearest, nearest first")
+	t.eq(String(WorldLights.pick(cands, Vector2(0, 28), 1)[0]["key"]), "d", "pick: nearest to where the camera is")
+	t.eq(WorldLights.pick(cands, Vector2.ZERO, 24).size(), 4, "pick: fewer sources than lamps, all of them")
+	# Emitters from a chunk's mesh build, carried lights from the presenter, into the pool.
+	var world := TileWorld.new(96, 64)
+	var torch := TileDefs.id("torch")
+	for x: int in [4, 20, 40, 60, 90]:
+		world.set_fg(x, 10, torch, true)
+	var em := ChunkMesher.emitters(ChunkMesher.snapshot(world, 0, 0))
+	t.eq(em.size(), 2, "a chunk lists its light-giving tiles")
+	t.eq(em[0], Vector3i(4, 10, torch), "with their world tile and id")
+	var view := WorldView.new()
+	for cx in 3:
+		view.emitters[Vector2i(cx, 0)] = ChunkMesher.emitters(ChunkMesher.snapshot(world, cx, 0))
+	view.focus = Vector2(45, 10)
+	view.view_half = Vector2(40, 24)
+	view.carry(7, Vector2(47, 11), LightSources.row("tile:torch"))
+	var lights := WorldLights.new()
+	view.add_child(lights)
+	lights.setup(view)
+	lights.max_lights = 3
+	lights._lamps()
+	var keys: Array = lights.lit.map(func(c: Dictionary) -> String: return String(c["key"]))
+	t.eq(keys, ["c7", "t40,10", "t60,10"], "the pool lights the nearest three: the carried torch, then the tiles")
+	var shown := 0
+	for o: OmniLight3D in lights._pool:
+		shown += 1 if o.visible else 0
+	t.eq(shown, 3, "three lamps on")
+	view.focus = Vector2(5, 10)
+	lights._lamps()
+	t.eq(String(lights.lit[0]["key"]), "t4,10", "the camera moves: the pool follows it")
+	t.eq(lights._pool.size(), 3, "and reuses its lamps")
+	view.carry(7, Vector2.ZERO, {})
+	t.check(not view.carried.has(7), "a light put out leaves the view")
+	view.free()
+	# The sun's angle and colour follow the clock.
+	var noon := WorldLights.sun_dir(12.25)
+	var morning := WorldLights.sun_dir(8.0)
+	var evening := WorldLights.sun_dir(16.5)
+	t.check(noon.y > morning.y and noon.y > evening.y, "the sun is highest at noon")
+	t.check(morning.x > 0.3 and evening.x < -0.3, "it rises on one side and sets on the other")
+	t.check(noon.z > 0.2 and morning.z > 0.2 and evening.z > 0.2, "always a little in front of the play plane")
+	t.check(WorldLights.is_day(12.0) and not WorldLights.is_day(23.0), "day is the sun, night the moon")
+	var midnight := WorldLights.sun_dir(0.25)
+	t.check(midnight.y > WorldLights.sun_dir(21.0).y, "the moon climbs through the night too")
+	var lnoon := WorldLights.sun_light(12.25)
+	var lnight := WorldLights.sun_light(0.25)
+	t.check(float(lnoon["energy"]) > 3.0 * float(lnight["energy"]) and float(lnight["energy"]) > 0.0, "moonlight is faint, not none")
+	t.check((lnight["color"] as Color).b > (lnight["color"] as Color).r, "and blue")
+	t.check((WorldLights.sun_light(7.0)["color"] as Color).b < (lnoon["color"] as Color).b, "the low sun is warmer than noon")
+	t.check(float(WorldLights.sun_light(18.5)["energy"]) < 0.01, "at the hand-over nothing shines, so no shadow jumps")

@@ -62,6 +62,12 @@ var _tasks := {}       ## Vector2i -> {"task": int, "out": Dictionary}
 var _actors := {}      ## id -> Node3D
 ## Carried lights the presenter reports: id -> {pos: Vector2 tiles, level, color, radius}.
 var carried := {}
+## Light-giving tiles of each meshed chunk (ChunkMesher.emitters): Vector2i -> [Vector3i(x, y, id)].
+var emitters := {}
+## The hour of the day (the sun's angle and colour follow it); the presenter sets it from the clock.
+var hour := 12.0
+## The sun and the lamp pool (view/world_lights.gd).
+var lights: WorldLights
 var _light_rect := Rect2i()
 var _light_dirty := true
 var _img_block: Image
@@ -103,6 +109,9 @@ func setup(w: TileWorld, l: LightEngine) -> void:
 	backdrops.setup(world)
 	keep_clear(0, Vector2.ZERO, 0.0)
 	keep_clear(1, Vector2.ZERO, 0.0)
+	lights = WorldLights.new()
+	add_child(lights)
+	lights.setup(self)
 	_apply_sun()
 
 ## The dark behind the caves only has work to do under the ground, so with the surface line
@@ -184,6 +193,7 @@ func set_focus(pos: Vector2) -> void:
 			if mi != null:
 				mi.queue_free()
 			_chunks.erase(key)
+			emitters.erase(key)
 	# Light texture: recentre when the visible area leaves the inner part of the rectangle.
 	var need := Rect2i(Vector2i((pos - view_half).floor()) - Vector2i(4, 4),
 		Vector2i((view_half * 2).ceil()) + Vector2i(8, 8))
@@ -216,8 +226,9 @@ func _add_cart(root: Node3D) -> void:
 	cart.name = "cart"
 	root.add_child(cart)
 	root.set_meta("cart", cart)
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.45, 0.3, 0.18)
+	var wood_src := StandardMaterial3D.new()
+	wood_src.albedo_color = Color(0.45, 0.3, 0.18)
+	var wood := LitMaterials.lit_for(wood_src)
 	var bed := MeshInstance3D.new()
 	var box := BoxMesh.new()
 	box.size = Vector3(2.6 * T, 1.1 * T, 1.4 * T)
@@ -233,7 +244,7 @@ func _add_cart(root: Node3D) -> void:
 	cover.mesh = cyl
 	var cloth := StandardMaterial3D.new()
 	cloth.albedo_color = Color(0.85, 0.8, 0.68)
-	cover.material_override = cloth
+	cover.material_override = LitMaterials.lit_for(cloth)
 	cover.rotation = Vector3(0.0, 0.0, PI / 2.0)
 	cover.position = Vector3(-2.4 * T, 1.7 * T, 0.0)
 	cart.add_child(cover)
@@ -306,6 +317,10 @@ func tile_at_screen(screen_pos: Vector2) -> Vector2i:
 	var hit := o + d * t
 	return Vector2i(floori(hit.x / T), floori(hit.y / T))
 
+## The biome's light colour under the focus (data/backdrops.json light), for the sun's colour.
+func biome_light() -> Color:
+	return backdrops.tint_at(focus.x)["light"] if backdrops != null else Color.WHITE
+
 ## Sky colour for a sun value, for the environment background.
 static func sky_color(sun: float) -> Color:
 	var night := Color(0.012, 0.016, 0.04)
@@ -368,6 +383,11 @@ func _collect() -> void:
 		if not _wanted.has(key) or _dirty.has(key):
 			continue  # gone out of view, or edited again since: the next build wins
 		_write_mat(key, out.get("mat", PackedByteArray()))
+		var em: Array = out.get("emit", [])
+		if em.is_empty():
+			emitters.erase(key)
+		else:
+			emitters[key] = em
 		var t0 := Time.get_ticks_usec()
 		var arrays: Array = out.get("arrays", [])
 		var mi: MeshInstance3D = _chunks.get(key)
@@ -379,7 +399,7 @@ func _collect() -> void:
 		if mi == null:
 			mi = MeshInstance3D.new()
 			mi.material_override = _terrain_mat
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			mi.position = Vector3(key.x * K.CHUNK * T, key.y * K.CHUNK * T, 0)
 			mi.name = "chunk_%d_%d" % [key.x, key.y]
 			add_child(mi)
@@ -409,6 +429,7 @@ func _launch() -> void:
 			if old != null:
 				old.queue_free()
 			_chunks[key] = null
+			emitters.erase(key)
 			continue
 		var t0 := Time.get_ticks_usec()
 		var snap := ChunkMesher.snapshot(world, key.x, key.y, soft)
@@ -417,6 +438,7 @@ func _launch() -> void:
 		var task := WorkerThreadPool.add_task(func() -> void:
 			var s := Time.get_ticks_usec()
 			out["arrays"] = ChunkMesher.build_arrays(snap)
+			out["emit"] = ChunkMesher.emitters(snap)
 			if snap["soft"]:
 				out["mat"] = ChunkMesher.material_bytes(snap)
 			out["usec"] = Time.get_ticks_usec() - s, false, "chunk mesh")

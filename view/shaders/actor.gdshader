@@ -1,8 +1,7 @@
-// Placeholder actors: a tint, simple face shading, lit by the per-tile light textures.
+// Placeholder actors: a tint, lit by the sun and lamps through the tile light field.
 shader_type spatial;
-render_mode unshaded;
 
-#include "res://view/shaders/light.gdshaderinc"
+#include "res://view/shaders/lit.gdshaderinc"
 
 instance uniform vec4 tint : source_color = vec4(0.8, 0.8, 0.8, 1.0);
 
@@ -15,6 +14,10 @@ void vertex() {
 }
 
 void fragment() {
-	vec3 L = gs_light_at(wpos.xy / gs_tile_m);
-	ALBEDO = tint.rgb * (L * gs_face_shade(wnrm) + vec3(0.004)) + gs_dark_sight(tint.rgb, L, wpos.xy / gs_tile_m);
+	vec2 tile = wpos.xy / gs_tile_m;
+	vec3 L = gs_light_at(tile);
+	ALBEDO = tint.rgb;
+	ROUGHNESS = 0.8;
+	GS_MASKS(tile);
+	EMISSION = gs_fill(tint.rgb, L * gs_face_shade(wnrm)) + gs_dark_sight(tint.rgb, L, tile);
 }

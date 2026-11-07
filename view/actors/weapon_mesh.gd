@@ -29,8 +29,8 @@ static func _bar(row: Dictionary, k: float) -> Node3D:
 	mi.position.y = len_m * 0.45
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color.from_string(String(p.get("color", "#8d8f96")), Color.GRAY)
-	mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.material_override = LitMaterials.lit_for(mat)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	var root := Node3D.new()
 	root.add_child(mi)
 	return root

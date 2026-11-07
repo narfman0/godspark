@@ -273,6 +273,7 @@ func frame(delta: float) -> void:
 		light.sun = s
 	_own_light()
 	_darkvision()
+	view.hour = fposmod(cw.hours(), 24.0)
 	view.view_half = rig.visible_half_extent()
 	view.set_focus(rig.pos)
 	view.keep_clear(0, cw.view_pos() + Vector2(0, cw.body.size.y * 0.5))

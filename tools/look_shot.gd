@@ -2,7 +2,7 @@
 ## backdrops, an idle hero on the ground. Runs under tools/soft_godot.sh (CPU Vulkan).
 ##   tools/soft_godot.sh -s res://tools/look_shot.gd -- out=/tmp/x.png gen=medium seed=1
 ##     [biome=forest | x=1234] [at=0.5: how far along the biome strip] [y=2100] [sun=1.0 | hour=22]
-##     [dy=4: the camera over the feet] [zoom=1] [nohero]
+##     [dy=4: the camera over the feet] [shadows=off|low|high] [zoom=1] [nohero]
 ##     [cache=DIR: load the world from DIR, or generate and save it there]
 ##     [spawn=1: the spawn town] [open=1: walk east to where no place is in view] [hard=1: the old block look]
 ##     [nodress=1: none of the world's dressing, to weigh it]
@@ -39,7 +39,7 @@ func _initialize() -> void:
 		_shaft(world, Vector2i(x + 6, int(y)), int(o["shaft"]))
 	if o.has("torches"):
 		_torches(world, Vector2i(x, int(y)), int(o["torches"]))
-	var sun := float(o.get("sun", 1.0))
+	var sun := float(o.get("sun", 1.0)) if not o.has("hour") else WorldClock.sun_at(float(o["hour"]))
 	var light := LightEngine.new(world)
 	light.sun = sun
 	var env := Environment.new()
@@ -52,6 +52,9 @@ func _initialize() -> void:
 	root.add_child(view)
 	var t0 := Time.get_ticks_usec()
 	view.setup(world, light)
+	view.hour = float(o.get("hour", 13.0 if sun > 0.5 else 22.0))
+	if o.has("shadows"):
+		view.lights.set_quality(String(o["shadows"]))
 	print("BENCH setup %.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
 	view.soft = not o.has("hard")
 	var dressing := DressingView.new()

@@ -5,8 +5,68 @@
   "sky_covered_step": 15
  },
  "view": {
-  "_comment": "darkvision_tiles: how far the own Darkvision draws the dark in grey (the rules' range is the species', this is the picture's). darkvision_grey: how bright that grey is.",
+  "_comment": "darkvision_tiles: how far the own Darkvision draws the dark in grey (the rules' range is the species', this is the picture's); darkvision_grey: how bright. fill: the share of the light field drawn flat (unshadowed), under the sun's and lamps' real light. toon: 0 a smooth Lambert, 1 two hard bands. wrap: how far round a surface light reaches. shine: lamp and sun highlights on models (by roughness). sun: energy, color (high), low_color (near the horizon), height (how high it climbs: the up part of its direction at noon, front fixed), front (its lean toward the camera, so the faces seen take it), least_up, shadow_reach_m (shadow distance past the camera's), shadow biases. moon: the same by night, fainter and blue. lamps: energy, attenuation (Godot's omni decay), range_k (lamp reach against the light's radius), z_tiles (how far in front of the play plane a lamp hangs, so it lights the faces seen and throws shadows on the walls behind), flicker (by tile name or carried). max_lights: lamps at once, nearest the camera. shadow_quality: off | low | high, a row of shadows: sun (on/off), sun_size (its map), lamps (the nearest this many lamps cast shadows), atlas (their map), soft, cube (cube maps, else dual paraboloid).",
   "darkvision_tiles": 10,
-  "darkvision_grey": 0.3
+  "darkvision_grey": 0.3,
+  "fill": 0.5,
+  "toon": 0.6,
+  "wrap": 0.3,
+  "shine": 0.35,
+  "sun": {
+   "energy": 0.7,
+   "color": "#fff6ea",
+   "low_color": "#ffa070",
+   "height": 1.6,
+   "front": 0.55,
+   "least_up": 0.12,
+   "shadow_reach_m": 30.0,
+   "shadow_bias": 0.05,
+   "shadow_normal_bias": 1.0
+  },
+  "moon": {
+   "energy": 0.18,
+   "color": "#8aa4ff"
+  },
+  "lamps": {
+   "energy": 1.6,
+   "attenuation": 0.7,
+   "range_k": 1.0,
+   "z_tiles": 1.2,
+   "shadow_bias": 0.08,
+   "shadow_normal_bias": 1.0,
+   "flicker": {
+    "torch": 0.08,
+    "campfire": 0.12,
+    "carried": 0.08
+   }
+  },
+  "max_lights": 24,
+  "shadow_quality": "low",
+  "shadows": {
+   "off": {
+    "sun": false,
+    "sun_size": 1024,
+    "lamps": 0,
+    "atlas": 1024,
+    "soft": false,
+    "cube": false
+   },
+   "low": {
+    "sun": true,
+    "sun_size": 2048,
+    "lamps": 4,
+    "atlas": 2048,
+    "soft": false,
+    "cube": false
+   },
+   "high": {
+    "sun": true,
+    "sun_size": 4096,
+    "lamps": 12,
+    "atlas": 4096,
+    "soft": true,
+    "cube": true
+   }
+  }
  }
 }

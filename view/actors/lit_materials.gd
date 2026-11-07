@@ -1,20 +1,22 @@
-## Swaps the PBR materials of a loaded model (Synty, monster-forge) for unshaded ones that
-## read this game's tile light, so a model is dark in an unlit cave and warm by a torch, like
-## the terrain. Albedo texture and colour, vertex colour, alpha scissor (foliage) and double
-## sided surfaces carry over; normal maps, roughness, metal and emission are dropped (the
-## only light is LightEngine's). Skinning is unaffected: Godot skins before vertex().
+## Swaps the PBR materials of a loaded model (Synty, monster-forge) for lit ones that read this
+## game's tile light (view/shaders/lit.gdshaderinc): the sun and lamps shade and shadow a model
+## only where the light field reaches, so it is black in an unlit cave and warm by a torch, like
+## the terrain. Albedo texture and colour, vertex colour, alpha scissor (foliage), double sided
+## surfaces, normal maps and roughness carry over (a stylised highlight follows the roughness);
+## metal and emission are dropped. Skinning is unaffected: Godot skins before vertex().
 ##
 ##   LitMaterials.apply(model_root, Color.WHITE)   # every MeshInstance3D under it
 ##
 ## Converted materials are cached per source material, so instances of one file share them.
-## The tint is an instance uniform, so it costs nothing per actor.
+## The tint is an instance uniform, so it costs nothing per actor. Models cast shadows.
 class_name LitMaterials
 extends RefCounted
 
 const CODE := """
 shader_type spatial;
-render_mode unshaded, %s, depth_draw_opaque;
-#include "res://view/shaders/light.gdshaderinc"
+render_mode %s, depth_draw_opaque;
+#define GS_SHINE
+#include "res://view/shaders/lit.gdshaderinc"
 %s
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec4 albedo : source_color = vec4(1.0);
@@ -22,6 +24,13 @@ uniform bool has_tex = false;
 uniform bool use_vcol = false;
 uniform float alpha_cut = 0.5;
 uniform vec4 uv_scale_offset = vec4(1.0, 1.0, 0.0, 0.0);
+uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform bool has_normal = false;
+uniform float normal_scale = 1.0;
+uniform float roughness = 0.85;
+uniform sampler2D roughness_tex : hint_roughness_r, filter_linear_mipmap, repeat_enable;
+uniform bool has_rough = false;
+uniform vec4 rough_channel = vec4(1.0, 0.0, 0.0, 0.0);
 instance uniform vec4 tint : source_color = vec4(1.0);
 
 varying vec3 wpos;
@@ -33,16 +42,30 @@ void vertex() {
 }
 
 void fragment() {
+	vec2 uv = UV * uv_scale_offset.xy + uv_scale_offset.zw;
 	vec4 c = albedo;
 	if (has_tex) {
-		c *= texture(albedo_tex, UV * uv_scale_offset.xy + uv_scale_offset.zw);
+		c *= texture(albedo_tex, uv);
 	}
 	if (use_vcol) {
 		c *= COLOR;
 	}
+	vec3 a = c.rgb * tint.rgb;
+	ALBEDO = a;
+	if (has_normal) {
+		NORMAL_MAP = texture(normal_tex, uv).rgb;
+		NORMAL_MAP_DEPTH = normal_scale;
+	}
+	float r = roughness;
+	if (has_rough) {
+		r *= dot(texture(roughness_tex, uv), rough_channel);
+	}
+	ROUGHNESS = clamp(r, 0.05, 1.0);
+	vec2 tile = wpos.xy / gs_tile_m;
+	vec3 L = gs_light_at(tile);
+	GS_MASKS(tile);
 	vec3 n = FRONT_FACING ? wnrm : -wnrm;
-	vec3 L = gs_light_at(wpos.xy / gs_tile_m);
-	ALBEDO = c.rgb * tint.rgb * (L * gs_face_shade(n) + vec3(0.004)) + gs_dark_sight(c.rgb * tint.rgb, L, wpos.xy / gs_tile_m);
+	EMISSION = gs_fill(a, L * gs_face_shade(n)) + gs_dark_sight(a, L, tile);
 #ifdef GS_SCISSOR
 	ALPHA = c.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_cut;
@@ -84,6 +107,18 @@ static func lit_for(src: Material) -> ShaderMaterial:
 		mat.set_shader_parameter("use_vcol", base.vertex_color_use_as_albedo)
 		mat.set_shader_parameter("alpha_cut", base.alpha_scissor_threshold if base.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR else 0.5)
 		mat.set_shader_parameter("uv_scale_offset", Vector4(base.uv1_scale.x, base.uv1_scale.y, base.uv1_offset.x, base.uv1_offset.y))
+		var nt := _mipmapped(base.normal_texture) if base.normal_enabled else null
+		mat.set_shader_parameter("has_normal", nt != null)
+		if nt != null:
+			mat.set_shader_parameter("normal_tex", nt)
+			mat.set_shader_parameter("normal_scale", base.normal_scale)
+		mat.set_shader_parameter("roughness", base.roughness)
+		var rt := _mipmapped(base.roughness_texture)
+		mat.set_shader_parameter("has_rough", rt != null)
+		if rt != null:
+			mat.set_shader_parameter("roughness_tex", rt)
+			var ch := [Vector4(1, 0, 0, 0), Vector4(0, 1, 0, 0), Vector4(0, 0, 1, 0), Vector4(0, 0, 0, 1), Vector4(0.333, 0.333, 0.333, 0)]
+			mat.set_shader_parameter("rough_channel", ch[clampi(base.roughness_texture_channel, 0, 4)])
 	else:
 		mat.shader = shader(false, false)
 		mat.set_shader_parameter("albedo", Color(0.7, 0.7, 0.7))
@@ -104,7 +139,7 @@ static func apply(root: Node, tint := Color.WHITE) -> void:
 			if src == null:
 				src = mi.mesh.surface_get_material(s)
 			mi.set_surface_override_material(s, lit_for(src))
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		set_tint(mi, tint)
 
 static func set_tint(root: Node, tint: Color) -> void:
