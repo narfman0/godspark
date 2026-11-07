@@ -86,7 +86,7 @@ func _quiet_host() -> void:
 	var ms: MonstersSystem = sys(HostSystem.MONSTERS)
 	ms.director_enabled = 0               # no random packs: the story sets its own fights
 	ms.nav_fixed_slices = 8               # planning independent of machine load
-	rig.host.sim_fixed_steps = 6          # and the sim's catching up after a sleep or a jump
+	rig.host.sim_fixed_steps = 1          # and the sim's catching up after a sleep or a jump
 	rig.host.rng.seed = _dice             # printed at the start: E2E_SEED=n replays a story
 	ms.lairs_enabled = true               # the sim's lairs appear when someone is near
 	(sys(HostSystem.RULES) as RulesSystem).cheats = true
