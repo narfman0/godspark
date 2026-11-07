@@ -752,15 +752,24 @@ func _run_scheduled(h: WorldHost) -> void:
 				if d < bd:
 					bd = d
 					to = sid
+		# The nearest neighbour of another faction by road, then by any way, then anyone: a town's
+		# own faction's raiders meet no guard and fall on the players alone, and a drow city
+		# straight below is nearest by x but its raiders are no smoke-test party.
 		var from := -1
-		var fd := INF
-		for sid: int in WorldSim._sorted_keys(sim.settlements):
-			if sid == to or sim.path_between(sid, to, WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK).is_empty():
-				continue
-			var d := absf(sim.settlements[sid].x - sim.settlements[to].x)
-			if d < fd:
-				fd = d
-				from = sid
+		var any := WorldSim.ROAD | WorldSim.DEEP | WorldSim.LINK
+		var to_f: int = sim.settlements[to].faction
+		for pass_: Array in [[WorldSim.ROAD, true], [any, true], [any, false]]:
+			var fd := INF
+			for sid: int in WorldSim._sorted_keys(sim.settlements):
+				if sid == to or (bool(pass_[1]) and sim.settlements[sid].faction == to_f) \
+						or sim.path_between(sid, to, int(pass_[0])).is_empty():
+					continue
+				var d := absf(sim.settlements[sid].x - sim.settlements[to].x)
+				if d < fd:
+					fd = d
+					from = sid
+			if from >= 0:
+				break
 		var pid := cheat_party(String(job["kind"]), from, to, 1.0)
 		if pid > 0:
 			var p: SimParty = sim.parties[pid]

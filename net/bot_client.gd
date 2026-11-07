@@ -53,6 +53,7 @@ var errors := PackedStringArray()
 var dug := 0
 var placed := 0
 var refused := 0
+var _saw_people := false     ## any of the host's people seen so far (towns fold while nobody is near)
 var phase := "wait"
 var _t := 0.0
 var _target := Vector2i(-1, -1)
@@ -154,6 +155,8 @@ func _process(delta: float) -> void:
 		return
 	_t += delta
 	input.jump_pressed = false
+	if not _saw_people and session != null and _people_seen() > 0:
+		_saw_people = true
 	match phase:
 		"wait":
 			if _t >= delay:
@@ -231,6 +234,10 @@ func _process(delta: float) -> void:
 					_fail("check %s mismatch" % _check_tag)
 					return
 				if phase == "check_final":
+					# After a rejoin the host's people take a moment to appear (a town folds while
+					# nobody is near): the last vitals should list them, so give them a few seconds.
+					if _saw_people and _t < 4.0 and _people_seen() == 0:
+						return
 					_say_vitals()
 					_finish()
 				elif rejoin:
@@ -372,6 +379,18 @@ func _place_step() -> void:
 
 ## One line: own hit points and every remote entity with its hit points, e.g.
 ## "BOT bot1 vitals me=12/12 sees 2: 1 Goblin Warrior monster 10/10, 3 bot2 player 12/12".
+## How many of the host's people (townsfolk, guards, a party's members) this bot sees.
+func _people_seen() -> int:
+	var c := cw()
+	var lc: Variant = c.system(HostSystem.LIFE) if c != null else null
+	if lc == null:
+		return 0
+	var n := 0
+	for r: ClientWorld.RemoteEntity in c.remotes.values():
+		if bool(lc.call("is_person", r.id)):
+			n += 1
+	return n
+
 func _say_vitals() -> void:
 	var c := cw()
 	if c == null:
