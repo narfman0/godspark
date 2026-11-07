@@ -45,6 +45,8 @@ var last_note := {}
 var sites := {}
 var routes: Array = []
 var seen := {}
+## Underground regions this player has been in (M6): index in meta.biomes -> true.
+var seen_regions := {}
 var sim_t := 0
 var clock_h := 0.0
 
@@ -135,6 +137,8 @@ func handle(kind: int, data: PackedByteArray) -> void:
 				if not seen.has(int(sid)):
 					seen[int(sid)] = true
 					fresh.append(int(sid))
+			for ri: Variant in d.get("regions", []):
+				seen_regions[int(ri)] = true
 			atlas_changed.emit(fresh if not bool(d.get("all", false)) else [])
 		DealsCodec.Msg.NOTE:
 			var op := int(d.get("op", 0))

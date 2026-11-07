@@ -918,7 +918,8 @@ static func _cells(path: Array) -> Array:
 
 ## world.meta.descent: the lake, the lava, the sinkholes, the ways in from the surface and the nadir
 ## floor, as plain arrays.
-##   {lake: {x0, x1, water, bed, ceil, beach, islands, region, crossing: {kind, cells}},
+##   {lake: {x0, x1, water, bed, ceil, beach, islands, region (its row in meta.biomes), well,
+##          crossing: {kind, cells}},
 ##    lava: [{x0, x1, region, pools: [{x0, x1, y, bridge}], bridges: [{x0, x1, y, cells}]}],
 ##    sinkholes: [{x0, x1, rope, top, bottom, biome, rows, chamber}], entrances: [[x, y]],
 ##    nadir: [x, y] (or []), ways: [{kind, x0, x1, y0, y1}]}
@@ -928,14 +929,14 @@ static func meta(c: GenContext) -> Dictionary:
 	var lk := {}
 	if not c.lake.is_empty():
 		lk = c.lake.duplicate(true)
-		lk["region"] = c.regions.find(c.lake["region"])
+		lk["region"] = c.biomes.size() + c.regions.find(c.lake["region"])     # its row in meta.biomes
 		lk["crossing"] = {"kind": "shore_path", "cells": _cells(c.lake["crossing"]["cells"])}
 	var lv: Array = []
 	for t: Dictionary in c.lava:
 		var bridges: Array = []
 		for b: Dictionary in t["bridges"]:
 			bridges.append({"x0": b["x0"], "x1": b["x1"], "y": b["y"], "cells": _cells(b["cells"])})
-		lv.append({"x0": t["x0"], "x1": t["x1"], "region": c.regions.find(t["region"]), "pools": (t["pools"] as Array).duplicate(true), "bridges": bridges})
+		lv.append({"x0": t["x0"], "x1": t["x1"], "region": c.biomes.size() + c.regions.find(t["region"]), "pools": (t["pools"] as Array).duplicate(true), "bridges": bridges})
 	var ents: Array = []
 	var ways: Array = []
 	for e: Vector2i in c.entrances:

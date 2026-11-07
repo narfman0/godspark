@@ -53,3 +53,13 @@ static func region_at(meta: Dictionary, x: float, y: float) -> Dictionary:
 				and y >= float(s["y0"]) and y < float(s["y1"]) + 1.0:
 			return s
 	return {}
+
+## The index in meta.biomes of the underground region at a cell, or -1.
+static func region_index(meta: Dictionary, x: float, y: float) -> int:
+	var rows: Array = meta.get("biomes", [])
+	for i in rows.size():
+		var s: Variant = rows[i]
+		if s is Dictionary and (s as Dictionary).has("band") and x >= float(s["x0"]) and x < float(s["x1"]) + 1.0 \
+				and y >= float(s["y0"]) and y < float(s["y1"]) + 1.0:
+			return i
+	return -1

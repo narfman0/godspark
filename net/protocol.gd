@@ -304,6 +304,8 @@ static func meta(m: Dictionary) -> PackedByteArray:
 	for k: String in META_KEYS:
 		if m.has(k):
 			d[k] = m[k]
+	if m.has("descent"):
+		d["descent"] = descent_short(m["descent"])
 	var surf: Array = m.get("surface", [])
 	var deltas := PackedInt32Array()
 	deltas.resize(surf.size())
@@ -317,6 +319,30 @@ static func meta(m: Dictionary) -> PackedByteArray:
 	w.u32(raw.size())
 	w.b.append_array(raw.compress(FileAccess.COMPRESSION_ZSTD))
 	return w.b
+
+## The underground's features as a client's map draws them (M6): the lake's span and rows, the
+## lava pools, the sinkholes' shafts and the nadir floor; not the cells of every way.
+static func descent_short(dd: Dictionary) -> Dictionary:
+	var out := {}
+	var lk: Dictionary = dd.get("lake", {})
+	if not lk.is_empty():
+		var cells: Array = lk.get("crossing", {}).get("cells", [])
+		out["lake"] = {"x0": lk["x0"], "x1": lk["x1"], "water": lk["water"], "bed": lk["bed"], "ceil": lk["ceil"],
+			"region": lk.get("region", -1), "islands": lk.get("islands", []),
+			"ends": [cells[0], cells[-1]] if cells.size() >= 2 else []}
+	var lv: Array = []
+	for t: Dictionary in dd.get("lava", []):
+		var pools: Array = []
+		for p: Dictionary in t.get("pools", []):
+			pools.append([p["x0"], p["x1"], p["y"], p["bridge"]])
+		lv.append({"x0": t["x0"], "x1": t["x1"], "region": t.get("region", -1), "pools": pools})
+	out["lava"] = lv
+	var sk: Array = []
+	for k: Dictionary in dd.get("sinkholes", []):
+		sk.append({"x0": k["x0"], "x1": k["x1"], "rope": k["rope"], "top": k["top"], "bottom": k["bottom"]})
+	out["sinkholes"] = sk
+	out["nadir"] = dd.get("nadir", [])
+	return out
 
 static func _decode_meta(r: Reader) -> Variant:
 	var n := r.u32()
@@ -333,6 +359,8 @@ static func _decode_meta(r: Reader) -> Variant:
 	for k: String in META_KEYS:
 		if d.has(k):
 			out[k] = d[k]
+	if d.get("descent") is Dictionary:
+		out["descent"] = d["descent"]
 	var deltas: PackedInt32Array = d["surface"]
 	var surf: Array = []
 	surf.resize(deltas.size())

@@ -39,11 +39,6 @@ static func land_labels(meta: Dictionary) -> Array:
 				"x0": int(r["x0"]), "x1": int(r["x1"])})
 	return out
 
-## The key a seen underground region has among a player's seen places (Deals' ATLAS seen ids):
-## below zero, so it never meets a site id. i: its index in meta.biomes.
-static func region_key(i: int) -> int:
-	return -1 - i
-
 ## The left edge of a label `w` wide that wants to be centred at x, kept inside a map `width` wide.
 static func fit_x(x: float, w: float, width: float) -> float:
 	return clampf(x - w * 0.5, 6.0, maxf(6.0, width - w - 6.0))

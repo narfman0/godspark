@@ -51,6 +51,8 @@ var sold := {}
 var names := {}
 ## player id -> {site id: true}: sites the player has stood at (saved; the map's discovery)
 var seen := {}
+## Underground regions each player has been in (M6): player id -> {index in meta.biomes: true}.
+var seen_regions := {}
 ## The last ATLAS site list sent (a digest), to send it again only on change.
 var _atlas_digest := ""
 var stats := {"talks": 0, "refused": 0, "bought": 0, "sold": 0, "coin_in": 0, "coin_out": 0, "accepted": 0,
@@ -84,7 +86,8 @@ func _seed() -> int:
 
 func save_player(e: HostEntity) -> Dictionary:
 	return {"known": (known.get(e.id, []) as Array).duplicate(true), "log": (logs.get(e.id, {}) as Dictionary).duplicate(true),
-		"gifts": (gifts.get(e.id, {}) as Dictionary).duplicate(), "seen": (seen.get(e.id, {}) as Dictionary).keys()}
+		"gifts": (gifts.get(e.id, {}) as Dictionary).duplicate(), "seen": (seen.get(e.id, {}) as Dictionary).keys(),
+		"regions": (seen_regions.get(e.id, {}) as Dictionary).keys()}
 
 func load_player(e: HostEntity, d: Dictionary) -> void:
 	var k: Array = []
@@ -108,6 +111,10 @@ func load_player(e: HostEntity, d: Dictionary) -> void:
 	for sid: Variant in d.get("seen", []):
 		sn[int(sid)] = true
 	seen[e.id] = sn
+	var rg := {}
+	for i: Variant in d.get("regions", []):
+		rg[int(i)] = true
+	seen_regions[e.id] = rg
 
 static func _rumour_clean(r: Dictionary) -> Dictionary:
 	var out := r.duplicate()
@@ -165,12 +172,14 @@ func entity_added(h: WorldHost, e: HostEntity) -> void:
 		gifts[e.id] = {}
 	if not seen.has(e.id):
 		seen[e.id] = {}
+	if not seen_regions.has(e.id):
+		seen_regions[e.id] = {}
 	_send(e.id, DealsCodec.Msg.RUMOUR, {"rumours": known[e.id], "all": true})
 	_send_quests(e)
 	_patron_sent.erase(e.id)
 	if h.sim != null:
 		_send(e.id, DealsCodec.Msg.ATLAS, {"t": h.sim.t, "sites": atlas_sites(), "routes": atlas_routes(),
-			"seen": (seen[e.id] as Dictionary).keys(), "all": true})
+			"seen": (seen[e.id] as Dictionary).keys(), "regions": (seen_regions[e.id] as Dictionary).keys(), "all": true})
 
 func entity_removed(_h: WorldHost, e: HostEntity) -> void:
 	talks.erase(e.id)
@@ -1189,8 +1198,19 @@ func _atlas_tick(h: WorldHost) -> void:
 			if not sn.has(sid) and Deals.at_site(h.world, h.sim, sid, e.body.pos, 8.0 if String(s["kind"]) == "settlement" else 4.0):
 				sn[sid] = true
 				fresh.append(sid)
-		if not fresh.is_empty():
-			_send(e.id, DealsCodec.Msg.ATLAS, {"t": h.sim.t, "seen": fresh})
+		# the underground region it stands in, the first time (the map names it from then on)
+		var rs: Dictionary = seen_regions.get(e.id, {})
+		seen_regions[e.id] = rs
+		var ri := BiomeIds.region_index(h.world.meta, e.body.pos.x, e.body.pos.y)
+		var fresh_r: Array = []
+		if ri >= 0 and not rs.has(ri):
+			rs[ri] = true
+			fresh_r.append(ri)
+		if not fresh.is_empty() or not fresh_r.is_empty():
+			var msg := {"t": h.sim.t, "seen": fresh}
+			if not fresh_r.is_empty():
+				msg["regions"] = fresh_r
+			_send(e.id, DealsCodec.Msg.ATLAS, msg)
 	if h.tick_count % 150 != 19:
 		return
 	var sites := atlas_sites()

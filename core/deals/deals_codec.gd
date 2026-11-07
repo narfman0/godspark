@@ -11,7 +11,7 @@
 ##   RUMOUR (4):  {rumours: [rumour], all: bool}                newly heard (all: the full list)
 ##   PATRON (5):  {patrons: {faction: {tier, standing, given, suspended, name}}}
 ##   NOTE (6):    {op, ok, word}                                the answer to a request
-##   ATLAS (7):   {t, sites?: [site], routes?: [route], seen?: [site id], all?}   what the map
+##   ATLAS (7):   {t, sites?: [site], routes?: [route], seen?: [site id], regions?: [index in meta.biomes], all?}   what the map
 ##                and place banners show (Interface): on join everything (all: true), then
 ##                sites when their names, tiers, states or work change, seen when the player
 ##                first stands at a site. site: {id, kind, name, culture?, tier?, pop?,

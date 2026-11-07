@@ -20,6 +20,7 @@ const ROUTE_STYLE := {"road": [Color("8a5a2b"), 3.0], "deep_road": [Color("6a4a8
 const BIOME_TINT := {"meadow": Color("8cc152"), "forest": Color("2f7d3a"), "mountain": Color("9a9aa2"), "desert": Color("e5c77f"),
 	"swamp": Color("5a6b3a")}
 const RIVER := Color("3f7fb0")
+const LAVA := Color("e8571c")
 ## Underground regions, drawn once seen (M6).
 const REGION_TINT := {"underdark": Color("55556a"), "fungal": Color("a070d8"), "crystal": Color("8fd0ff"), "deep_lake": Color("3f7fd0"),
 	"magma": Color("e0602a")}
@@ -299,9 +300,9 @@ func _place_boxes(meta: Dictionary, kn: Dictionary) -> Array[Rect2]:
 ## and the names, which take the size of what they name. taken: the boxes they keep off.
 func _draw_land(c: Control, meta: Dictionary, taken: Array[Rect2]) -> void:
 	var surf: Array = meta.get("surface", [])
-	var kn := known()
+	var been: Dictionary = dc.seen_regions if dc != null else {}
 	var labels := MapLogic.land_labels(meta).filter(func(l: Dictionary) -> bool:
-		return not l.has("band") or kn.get(MapLogic.region_key(int(l["i"])), "") == "seen")
+		return not l.has("band") or been.has(int(l["i"])))
 	for l: Dictionary in labels:
 		if l.has("band"):
 			# an underground region the player has been in: its span tinted at its depth
@@ -322,6 +323,7 @@ func _draw_land(c: Control, meta: Dictionary, taken: Array[Rect2]) -> void:
 			var a := _p(Vector2(float(l["x0"]), float(l["y"])))
 			var b := _p(Vector2(float(l["x1"]), float(l["y"])))
 			c.draw_line(a, b, RIVER, maxf(3.0, 8.0 * zoom))
+	_draw_deep(c, meta, been)
 	for x: Dictionary in MapLogic.crossings(meta):
 		var p := _p(Vector2(float(x["x"]), float(x["y"])))
 		match String(x["kind"]):
@@ -358,6 +360,32 @@ func _draw_land(c: Control, meta: Dictionary, taken: Array[Rect2]) -> void:
 				continue
 			shown.append(Rect2(box.position + Vector2(0.0, dy), box.size))
 			_label(c, name_, Vector2(at.x, y + dy), size, col)
+
+## The underground's features (META descent, M6): the deep lake's water and the magma's lava
+## pools once the player has been in their region, and every sinkhole's shaft (it opens on the
+## land, which is common knowledge).
+func _draw_deep(c: Control, meta: Dictionary, been: Dictionary) -> void:
+	var d: Dictionary = meta.get("descent", {})
+	var lk: Dictionary = d.get("lake", {})
+	if not lk.is_empty() and been.has(int(lk.get("region", -1))):
+		var a := _p(Vector2(float(lk["x0"]), float(lk["water"]) + 1.0))
+		var b := _p(Vector2(float(lk["x1"]) + 1.0, float(lk["bed"])))
+		c.draw_rect(Rect2(a, b - a), Color(RIVER, 0.85))
+		for isl: Dictionary in lk.get("islands", []):
+			var ip := _p(Vector2(float(isl["x"]), float(isl["top"])))
+			c.draw_circle(ip, maxf(2.0, float(isl["w"]) * 0.5 * zoom), Color("8a7f62"))
+	for t: Dictionary in d.get("lava", []):
+		if not been.has(int(t.get("region", -1))):
+			continue
+		for p: Array in t.get("pools", []):
+			var a := _p(Vector2(float(p[0]), float(p[2])))
+			var b := _p(Vector2(float(p[1]) + 1.0, float(p[2]) - 3.0))
+			c.draw_rect(Rect2(Vector2(a.x, a.y), Vector2(maxf(2.0, b.x - a.x), maxf(2.0, b.y - a.y))), LAVA)
+	for k: Dictionary in d.get("sinkholes", []):
+		var top := _p(Vector2(float(k["rope"]), float(k["top"])))
+		var bot := _p(Vector2(float(k["rope"]), float(k["bottom"])))
+		c.draw_line(top, bot, Color(UiTheme.INK, 0.7), 2.0)
+		c.draw_polyline(PackedVector2Array([top + Vector2(-5, -4), top, top + Vector2(5, -4)]), UiTheme.INK, 2.0, true)
 
 ## Text centred on at, kept inside the map.
 func _label(c: Control, s: String, at: Vector2, size: int, col: Color) -> void:
