@@ -23,7 +23,12 @@
 		{"base": "trade:timber", "good": "timber", "units": 1.0, "max": 100, "tiers": ["hamlet", "village", "town", "city"]},
 		{"base": "trade:ore", "good": "ore", "units": 1.0, "max": 60, "tiers": ["village", "town", "city"]},
 		{"base": "trade:tools", "good": "tools", "units": 1.0, "max": 30, "tiers": ["village", "town", "city"]},
-		{"base": "trade:luxuries", "good": "luxuries", "units": 1.0, "max": 20, "tiers": ["town", "city"]}
+		{"base": "trade:luxuries", "good": "luxuries", "units": 1.0, "max": 20, "tiers": ["town", "city"]},
+		{"base": "trade:salt", "good": "salt", "units": 1.0, "max": 60, "tiers": ["hamlet", "village", "town", "city"]},
+		{"base": "trade:stone", "good": "stone", "units": 1.0, "max": 60, "tiers": ["village", "town", "city"]},
+		{"base": "trade:reagents", "good": "reagents", "units": 1.0, "max": 20, "tiers": ["village", "town", "city"]},
+		{"base": "trade:game", "good": "game", "units": 1.0, "max": 60, "tiers": ["hamlet", "village", "town", "city"]},
+		{"base": "trade:water", "good": "water", "units": 1.0, "max": 100, "tiers": ["hamlet", "village", "town", "city"]}
 	],
 	"smith": {
 		"_doc": "The rack: pieces by tier, scaled by ore (stock over its target, 0.25..1.25) and tools (0.5..1.1); no ore at all, at most one crude piece. quality: weights by tier, shifted one step up when the town is rich (wealth per person >= rich) and down when poor (< poor). materials: weights by tier; silver needs ore stock >= silver_ore, mithral only in the cultures listed. level: the level_hint ItemGen gets for affixes by tier; common pieces carry none. ore_per_piece: ore units a sold piece takes out of the stock. kinds: per culture, weighted bases ('_' for any culture not listed); armour share by culture.",

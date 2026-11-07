@@ -65,11 +65,31 @@ func display_frac(h: WorldHost, p: SimParty, route_frac: float) -> float:
 	var ahead := clampf(h.clock.hours() - float(h.sim_origin + h.sim.t), 0.0, 1.0)
 	if ahead <= 0.0:
 		return route_frac
+	var f := _shown_frac(h, p, ahead)
+	return f if int(h.sim.route_by_id[p.route].a) == p.path[p.leg] else 1.0 - f
+
+## How far along its leg a travelling party is drawn, `ahead` game hours past the sim.
+func _shown_frac(h: WorldHost, p: SimParty, ahead: float) -> float:
 	var stop := 1.0
 	if p.route == p.target and String(p.plan.get("mode", "")) == "route" and String(p.plan.get("leg", "out")) == "out":
 		stop = 0.5
-	var f := minf(p.frac + ahead / maxf(h.sim.leg_hours(p.kind, p.route), 0.01), maxf(stop, p.frac))
-	return f if int(h.sim.route_by_id[p.route].a) == p.path[p.leg] else 1.0 - f
+	return minf(p.frac + ahead / maxf(h.sim.leg_hours(p.kind, p.route), 0.01), maxf(stop, p.frac))
+
+## A party stopped by a fight stays where the screen had it: the sim's own fraction can be up to
+## a game hour's walk behind, and its people would turn and go back there.
+func _hold_where_shown(h: WorldHost, p: SimParty) -> void:
+	if p.state != "travel" or p.frozen or not h.sim.route_by_id.has(p.route):
+		return
+	var ahead := clampf(h.clock.hours() - float(h.sim_origin + h.sim.t), 0.0, 1.0)
+	if ahead > 0.0:
+		p.frac = _shown_frac(h, p, ahead)
+
+## And it walks on from there: drawn ahead of the sim again, its fraction takes that back.
+func _let_go(h: WorldHost, p: SimParty) -> void:
+	if p.frozen and p.state == "travel" and h.sim.route_by_id.has(p.route):
+		var ahead := clampf(h.clock.hours() - float(h.sim_origin + h.sim.t), 0.0, 1.0)
+		p.frac = maxf(0.0, p.frac - ahead / maxf(h.sim.leg_hours(p.kind, p.route), 0.01))
+	p.frozen = false
 
 ## The party's point on the ground (the first floor below, or out of rock). A member's place
 ## beside the point can be inside a building by the road: lifted out of that it would stand on
@@ -447,10 +467,11 @@ func _resolve(h: WorldHost) -> void:
 							if fo != null:
 								foes.append("%s(%s) vs %s(%s)" % [e.name, Life.faction_of(e), fo.name, Life.faction_of(fo)])
 					print("LIFE hold party %d (%s) fighting=%s %s" % [pid, p.kind, fighting, foes])
+				_hold_where_shown(h, p)
 			p.frozen = true
 			rec["hold"] = true
 		elif bool(rec["hold"]) and not bool(rec["arrival"]):
-			p.frozen = false
+			_let_go(h, p)
 			rec["hold"] = false
 		var point := ground(h, party_pos(h, p))
 		if point != Vector2.INF:
@@ -474,8 +495,8 @@ func _resolve(h: WorldHost) -> void:
 		for pid: int in [ra.id, v.id]:
 			if active.has(pid):
 				active[pid]["hold"] = false
-		ra.frozen = false
-		v.frozen = false
+		_let_go(h, ra)
+		_let_go(h, v)
 		if v.kind in ["caravan", "migrants", "settlers"]:
 			SimConflict.ambush_outcome(sim, ra, v, int(c["rid"]), [], won == 1, lost_r, lost_v)
 		else:
@@ -490,7 +511,7 @@ func _end_clash(h: WorldHost, k: String) -> void:
 	var c: Dictionary = clashes[k]
 	clashes.erase(k)
 	for p: SimParty in [c["ra_obj"], c["v_obj"]]:
-		p.frozen = false
+		_let_go(h, p)
 		if p.size() == 0:
 			SimConflict._after_fight(h.sim, p)
 
