@@ -784,7 +784,7 @@ static func _built_in(c: GenContext, x0: int, y0: int, x1: int, y1: int) -> bool
 static func _dig_sinkhole(c: GenContext, rng: RandomNumberGenerator, sx: int, top: int, bottom: int, biome: String) -> void:
 	var rope := TileDefs.id("rope")
 	var boards := TileDefs.id("planks")      # a solid deck (a body steps up onto it), never cut
-	var plank := TileDefs.id("platform")     # beside the rope: a climber's box passes it going down
+	var plank := TileDefs.id("platform")     # either side of the rope: a climber's box passes it
 	var rc := sx + SINK_W / 2
 	var rows := top - 1 - bottom
 	# level the span: the ground's top row at top - 1 (its own top tile, soil under a fill)
@@ -831,7 +831,7 @@ static func _dig_sinkhole(c: GenContext, rng: RandomNumberGenerator, sx: int, to
 		c.fg[rc + yy * c.w] = rope
 	for x in range(sx, sx + SINK_W):
 		if x != rc:
-			c.fg[x + (top - 1) * c.w] = boards if x != rc - 1 else plank
+			c.fg[x + (top - 1) * c.w] = boards if absi(x - rc) > 1 else plank
 	c.sinkholes.append({"x0": sx, "x1": sx + SINK_W - 1, "rope": rc, "top": top, "bottom": bottom, "biome": biome,
 		"rows": rows, "chamber": [cx0, cx0 + CHAMBER_W - 1], "cells": cells})
 
@@ -922,8 +922,8 @@ static func _cells(path: Array) -> Array:
 ##    lava: [{x0, x1, region, pools: [{x0, x1, y, bridge}], bridges: [{x0, x1, y, cells}]}],
 ##    sinkholes: [{x0, x1, rope, top, bottom, biome, rows, chamber}], entrances: [[x, y]],
 ##    nadir: [x, y] (or []), ways: [{kind, x0, x1, y0, y1}]}
-## ways: where a walker goes in from the surface: cave_mouth, sinkhole, under (a range's
-## under-route), ramp (the ascent).
+## ways: where a walker goes in from the surface, boxes under the ground at each: cave_mouth,
+## sinkhole, under (a range's under-route), ramp (the ascent). A body in one has gone in there.
 static func meta(c: GenContext) -> Dictionary:
 	var lk := {}
 	if not c.lake.is_empty():
@@ -940,20 +940,20 @@ static func meta(c: GenContext) -> Dictionary:
 	var ways: Array = []
 	for e: Vector2i in c.entrances:
 		ents.append([e.x, e.y])
-		ways.append({"kind": "cave_mouth", "x0": e.x - 8, "x1": e.x + 8, "y0": e.y - 24, "y1": e.y + 4})
+		ways.append({"kind": "cave_mouth", "x0": e.x - 10, "x1": e.x + 10, "y0": e.y - 40, "y1": e.y - 4})
 	for s: Dictionary in c.sinkholes:
-		ways.append({"kind": "sinkhole", "x0": int(s["x0"]) - 1, "x1": int(s["x1"]) + 1, "y0": int(s["bottom"]), "y1": int(s["top"]) + 2})
+		ways.append({"kind": "sinkhole", "x0": int(s["x0"]) - 4, "x1": int(s["x1"]) + 4, "y0": int(s["bottom"]), "y1": int(s["top"]) - 4})
 	for rg: Dictionary in c.ranges:
 		var up: Array = rg.get("under", {}).get("path", [])
 		for end: int in [0, up.size() - 1]:
 			if up.is_empty():
 				break
 			var p: Vector2i = up[end]
-			ways.append({"kind": "under", "x0": p.x - 6, "x1": p.x + 6, "y0": p.y - 30, "y1": p.y + 4})
+			ways.append({"kind": "under", "x0": p.x - 30, "x1": p.x + 30, "y0": p.y - 40, "y1": p.y - 4})
 	if not c.ascent.is_empty():
 		var ax := int(c.ascent["x1"])
 		var ay := int(c.ascent["y1"])
-		ways.append({"kind": "ramp", "x0": ax - 30, "x1": ax + 30, "y0": ay - 30, "y1": ay + 4})
+		ways.append({"kind": "ramp", "x0": ax - 30, "x1": ax + 30, "y0": ay - 30, "y1": ay - 4})
 	var sinks: Array = []
 	for s: Dictionary in c.sinkholes:
 		var row := s.duplicate(true)

@@ -220,8 +220,14 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 				_best = INF
 		E.LADDER:
 			# the node's middle has the ladder in its centre column and keeps a wide box clear
-			# of the rock beside a ladder in a narrow shaft
-			inp.move_x = _steer(tp.x - b.pos.x, 4.0 if not b.climbing else 2.0)
+			# of the rock beside a ladder in a narrow shaft. An even box's middle is the ladder
+			# column's west edge, so aim a little inside it: a body a hair west of that edge (in
+			# the steering's dead zone) has the column beside the ladder as its centre and never
+			# takes hold (a rope in the open, a descent walk on dev seed 2).
+			var lx := tp.x
+			if prof.cw % 2 == 0:
+				lx += minf(0.2, (prof.cw - prof.w) * 0.5 - 0.02)
+			inp.move_x = _steer(lx - b.pos.x, 4.0 if not b.climbing else 2.0)
 			inp.up = tgt.y > floori(b.pos.y + 0.05) or (b.climbing and tp.y > b.pos.y + 0.002)
 			inp.down = not inp.up and (tgt.y < floori(b.pos.y + 0.05) or tgt.y < b.pos.y - 0.2
 				or (b.climbing and tp.y < b.pos.y - 0.01))

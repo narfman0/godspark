@@ -31,6 +31,10 @@ var max_expand := 6000
 ## people use MonsterNav.SAFE_FALL: they never plan a fall that would hurt them.
 var max_drop := MonsterNav.MAX_FALL
 var expanded := 0
+## Nodes (Vector2i) this search must not enter, and edges (Vector4i: from node, to node) it must
+## not take: a caller that saw a body fail one asks for a way round it (tests/descent_bot.gd).
+## Empty for everyone else.
+var banned := {}
 var done := false
 ## Microseconds spent in step() so far.
 var usec := 0
@@ -528,6 +532,8 @@ func _h(L: int, y: int) -> float:
 func _relax(from: int, L: int, y: int, g: float, edge: int, extra: int) -> void:
 	var k := _key(L, y)
 	if k < 0 or _closed[k] != 0 or g >= _g[k]:
+		return
+	if not banned.is_empty() and (banned.has(Vector2i(L, y)) or banned.has(Vector4i(x0 + from % W, y0 + from / W, L, y))):
 		return
 	_g[k] = g
 	_came[k] = from

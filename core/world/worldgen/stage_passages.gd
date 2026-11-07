@@ -1203,7 +1203,16 @@ class Passer extends RefCounted:
 			for yy in range(f, f + TALL):
 				if _built(xx, yy):
 					return true
+			if _harm(xx, f - 1):
+				return true      # its floor would be lava or deep water
 		return false
+
+	## Lava, or water a body would swim in, at a cell (a join never stands on either).
+	func _harm(x: int, y: int) -> bool:
+		if x < 0 or y < 0 or x >= w or y >= h:
+			return false
+		var i := x + y * w
+		return TileDefs.burn[c.fg[i]] != 0 or (not c.liquid.is_empty() and c.liquid[i] >= 8)
 
 	## Bedrock, or a paved floor (cobble with open space over it: the deep road, the ramps,
 	## a ruin's floor). Ruin walls and pillars may be cut.
@@ -1373,6 +1382,10 @@ class Passer extends RefCounted:
 		var i := x + fy * w
 		keep[i] = 1          # a later join must not cut this floor away
 		var air := c.fg[i] == c.AIR
+		if climb[c.fg[i]] != 0:
+			return false         # a ladder or rope the way crosses keeps its rung (a tread there stops a climber)
+		if c.fg[i] >= PLACE_TILES:
+			return false         # a road, a bridge, water, lava: as it is
 		if rising and built and not air and c.fg[i] != c.BEDROCK and c.fg[i] != c.COBBLE:
 			c.fg[i] = stairs_r if dir > 0 else stairs_l     # a built flight over rock (deeps)
 			return false
@@ -1416,8 +1429,8 @@ class Passer extends RefCounted:
 		for yy in range(y1, y1 + TALL):
 			if lx >= 1 and lx < w - 1 and yy < h - 1 and c.fg[lx + yy * w] == platform:
 				c.fg[lx + yy * w] = c.AIR
-		if xs >= 1 and c.fg[xs + (y1 - 1) * w] == c.AIR:
-			c.fg[xs + (y1 - 1) * w] = platform
+		if xs >= 1 and c.fg[xs + (y1 - 1) * w] == c.AIR and climb[c.fg[lx + y1 * w]] == 0:
+			c.fg[xs + (y1 - 1) * w] = platform     # not where the climb runs on up: a plank there holds a climber
 		# Where the ground of a hillside meets the shaft's open side (it cut into a slope near
 		# the surface), a landing plank over the free column: nobody walking by falls in, and
 		# a climber passes it (it is not in the climber's middle column).
