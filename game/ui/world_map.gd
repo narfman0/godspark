@@ -325,19 +325,22 @@ func _draw_land(c: Control, meta: Dictionary, taken: Array[Rect2]) -> void:
 	for x: Dictionary in MapLogic.crossings(meta):
 		if zoom >= _fit * 1.6 and String(x["kind"]) in ["pass", "bridge", "ford"]:
 			var p := _p(Vector2(float(x["x"]), float(x["y"])))
-			_label(c, String(x["kind"]).capitalize(), p + Vector2(0, -8), UiTheme.TINY, UiTheme.INK_SOFT)
+			if p.x >= 0.0 and p.x <= c.size.x:
+				_label(c, String(x["kind"]).capitalize(), p + Vector2(0, -8), UiTheme.TINY, UiTheme.INK_SOFT)
 	var shown: Array = taken.duplicate()
 	for kind: String in ["region", "range", "river"]:
 		for l: Dictionary in labels:
 			if l["kind"] != kind:
 				continue
 			var name_ := String(l["name"]).trim_prefix("the ")
+			if _p(Vector2(float(l["x1"]), 0.0)).x < 0.0 or _p(Vector2(float(l["x0"]), 0.0)).x > c.size.x:
+				continue                 # none of it is on the map at this zoom
 			var at := _p(Vector2(float(l["x"]), float(l["y"])))
 			var size := UiTheme.BODY if kind != "river" else UiTheme.SMALL
 			var col: Color = UiTheme.INK if kind == "region" else (UiTheme.INK_SOFT if kind == "range" else RIVER.darkened(0.35))
 			var y := at.y - (34.0 if kind == "region" else (12.0 if kind == "range" else -18.0))
 			var w := UiTheme.text_width(name_, size)
-			var box := Rect2(at.x - w * 0.5, y - 14.0, w, 16.0)
+			var box := Rect2(MapLogic.fit_x(at.x, w, c.size.x), y - 14.0, w, 16.0)
 			var dy := MapLogic.free_row(box, shown, LABEL_STEPS[kind])
 			if is_nan(dy):
 				continue
@@ -346,8 +349,7 @@ func _draw_land(c: Control, meta: Dictionary, taken: Array[Rect2]) -> void:
 
 ## Text centred on at, kept inside the map.
 func _label(c: Control, s: String, at: Vector2, size: int, col: Color) -> void:
-	var w := UiTheme.text_width(s, size)
-	var x := clampf(at.x - w * 0.5, 6.0, maxf(6.0, c.size.x - w - 6.0))
+	var x := MapLogic.fit_x(at.x, UiTheme.text_width(s, size), c.size.x)
 	UiTheme.text(c, Vector2(x, at.y), s, size, col, false, HORIZONTAL_ALIGNMENT_LEFT, -1, 0)
 
 # --- the card -----------------------------------------------------------------------------------------

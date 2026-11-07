@@ -90,6 +90,8 @@ func _labels(t: TestLog) -> void:
 	t.eq(MapLogic.free_row(Rect2(0, 0, 40, 16), [town], [0.0, 16.0]), 0.0, "a label in the clear stays")
 	t.eq(MapLogic.free_row(Rect2(110, 38, 40, 16), [town], [0.0, 16.0, 32.0]), 16.0, "a label on a town's moves off it")
 	t.check(is_nan(MapLogic.free_row(Rect2(110, 38, 40, 16), [Rect2(0, 0, 400, 400)], [0.0, 16.0])), "and is dropped when nothing clears")
+	t.eq(MapLogic.fit_x(-200.0, 60.0, 800.0), 6.0, "a label past the map's edge is held inside it")
+	t.eq(MapLogic.fit_x(400.0, 60.0, 800.0), 370.0, "and one on the map stays centred")
 
 ## Water in the swamp on real worlds, a road through it at wading depth, and its path on the bed.
 func _water(t: TestLog) -> void:

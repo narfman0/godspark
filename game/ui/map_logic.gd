@@ -30,6 +30,10 @@ static func land_labels(meta: Dictionary) -> Array:
 				"x0": int(r["x0"]), "x1": int(r["x1"])})
 	return out
 
+## The left edge of a label `w` wide that wants to be centred at x, kept inside a map `width` wide.
+static func fit_x(x: float, w: float, width: float) -> float:
+	return clampf(x - w * 0.5, 6.0, maxf(6.0, width - w - 6.0))
+
 ## How far (px, down) a label's box must move from where it wants to be to touch none of `taken`:
 ## the first of `steps` that clears them all, NAN when none does and it should not be drawn.
 static func free_row(box: Rect2, taken: Array, steps: Array) -> float:

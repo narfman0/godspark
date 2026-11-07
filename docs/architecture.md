@@ -956,3 +956,21 @@ are as they were.
   there (`LairLink.body_of`). The sim keeps its own slug in its ledger: it picks lairs by depth.
 - `spawn_for`: a surface town on a settled place, a meadow one when any stands, nearest the
   world's middle.
+
+### Integration (M5, as built: docs/tracks/m5-integration.md)
+
+- Protocol 12. ENT_ADD gains `str wield`, in `compact_look`: what a body holds, in a SWING's `what`
+  form (`CombatSystem.shown_wield(e)`, filled in by `HostEndpoint._look_of`). It goes out once, so
+  a change of weapon shows at the holder's next swing.
+- `LifeRoad`: a party held by a fight stays where the screen had it (`_hold_where_shown`) and walks
+  on from there (`_let_go`). Set `frozen` to false through `_let_go`.
+- `SimLair.biome` is derived from the site. A row in `data/sim/lairs.json` may carry `in: {biome:
+  name}`, the lair's name where `lair_kin` changes its body; `SimConflict._lair_what` reads it. A new
+  `lair_kin` row for a lair's leading creature needs an `in` row (`test_m5_seams`).
+- `DealsShop.sell_for(sim, sid, item, mods)` is what a town pays: a trade good stops at `back_margin`
+  of what the town would ask for it, so no standing makes a coin press.
+- Stage `dressing`: `_wades` puts level road in the swamp under a row of water and lowers the route's
+  path cells and objects with it (`ponds.road` in `data/dressing.json`).
+- `MapLogic.free_row(box, taken, steps)`: where a land label goes clear of places and of other labels.
+- `CrossingBot` (`tests/crossing_bot.gd`): one body walking a world's surface end to end,
+  for `tools/crossing.gd` and `tests/test_m5_crossing.gd`.
