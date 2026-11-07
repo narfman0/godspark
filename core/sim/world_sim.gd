@@ -514,6 +514,8 @@ func _derive_settlement(s: SimSettlement) -> void:
 
 func _spawn_lair(site_id: int, fam: String, log_it: bool) -> SimLair:
 	var table: Array = SimData.lairs.get(fam, SimData.lairs["surface"])
+	var site: Dictionary = site_by_id[site_id]
+	# The draw as it has always been, on the sim's generator: a row by weight, then its members.
 	var total := 0.0
 	for e in table:
 		total += float(e.w)
@@ -524,6 +526,19 @@ func _spawn_lair(site_id: int, fam: String, log_it: bool) -> SimLair:
 		if roll <= 0.0:
 			def = e
 			break
+	var members := _lair_members(def, rng)
+	# Where that row may not stand (its biomes or bands), or the ground favours some row (biome_w),
+	# the lair is drawn again by those rules on its own generator, never the sim's: a world with
+	# none of this draws its lairs, and everything after them, as before.
+	var own := RandomNumberGenerator.new()
+	own.seed = hash([seed, "lair", site_id, t])
+	if lair_weight(def, site) <= 0.0 or _favoured(table, site):
+		def = _pick_lair(table, site, own)
+		members = _lair_members(def, own)
+	for m: Variant in def.get("charmed", []):
+		var n := own.randi_range(int(m[1]), int(m[2]))
+		if n > 0:
+			members[str(m[0])] = int(members.get(str(m[0]), 0)) + n
 	var where := _site_label(site_id)
 	var l := SimLair.new()
 	l.id = site_id
@@ -533,10 +548,7 @@ func _spawn_lair(site_id: int, fam: String, log_it: bool) -> SimLair:
 	l.grow = str(def.get("grow", ""))
 	l.max_n = int(def.max)
 	l.hunger_rate = float(def.hunger)
-	for m in def.members:
-		var n := rng.randi_range(int(m[1]), int(m[2]))
-		if n > 0:
-			l.monsters[str(m[0])] = n
+	l.monsters = members
 	var words: Array = def.words
 	l.name = SimNames.make(rng, "place", taken_names) + " " + str(words[rng.randi_range(0, words.size() - 1)])
 	l.hunger = rng.randf_range(0.1, 0.5)
@@ -546,6 +558,49 @@ func _spawn_lair(site_id: int, fam: String, log_it: bool) -> SimLair:
 	if log_it:
 		log_event("lair_new", {"lair": l.name, "what": SimConflict._lair_what(l), "site": where, "n": l.count()})
 	return l
+
+static func _lair_members(def: Dictionary, r: RandomNumberGenerator) -> Dictionary:
+	var out := {}
+	for m in def.members:
+		var n := r.randi_range(int(m[1]), int(m[2]))
+		if n > 0:
+			out[str(m[0])] = n
+	return out
+
+## Does some row of the table favour this site's biome (biome_w)?
+static func _favoured(table: Array, site: Dictionary) -> bool:
+	var biome := str(site.get("biome", ""))
+	for e: Dictionary in table:
+		if (e.get("biome_w", {}) as Dictionary).has(biome):
+			return true
+	return false
+
+## A row by lair_weight at a site (the last allowed one when every weight is 0).
+static func _pick_lair(table: Array, site: Dictionary, r: RandomNumberGenerator) -> Dictionary:
+	var total := 0.0
+	for e in table:
+		total += lair_weight(e, site)
+	var roll := r.randf() * total
+	var def: Dictionary = table[table.size() - 1]
+	for e in table:
+		var w := lair_weight(e, site)
+		if w <= 0.0:
+			continue
+		def = e
+		roll -= w
+		if roll <= 0.0:
+			break
+	return def
+
+## A lairs.json row's weight at a site: 0 where its `biomes` or `bands` leave the site out, times
+## its `biome_w` for the site's biome.
+static func lair_weight(e: Dictionary, site: Dictionary) -> float:
+	var biome := str(site.get("biome", ""))
+	if e.has("biomes") and not biome in (e.biomes as Array):
+		return 0.0
+	if e.has("bands") and not str(site.get("band", "")) in (e.bands as Array):
+		return 0.0
+	return float(e.w) * float((e.get("biome_w", {}) as Dictionary).get(biome, 1.0))
 
 # ── Stepping ─────────────────────────────────────────────────────────────────
 

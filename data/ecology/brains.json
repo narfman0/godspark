@@ -1,5 +1,5 @@
 {
-	"_doc": "Monster brain tunables (core/monsters/brains/monster_brain.gd). Tiles and seconds. keep: distance band an archer or caster holds. trigger: how close a lurker or ambusher lets prey come. backoff: seconds of retreat after an attack. speed: move_x scale while chasing.",
+	"_doc": "Monster brain tunables (core/monsters/brains/monster_brain.gd). Tiles and seconds. keep: distance band an archer or caster holds. trigger: how close a lurker or ambusher lets prey come. backoff: seconds of retreat after an attack. speed: move_x scale while chasing. dark_ambush: creatures that wait hidden (Invisible) while lurking in the light field's DARK, seen again reveal_s after they spring (docs/tracks/raids-below.md). burrow: burrowers that dig as they move (core/monsters/burrow.gd): natural tile id ranges they may dig, cap_per_min tiles a minute (per creature), pile: tiles dug per pile of rubble left behind, rate_per_tile_s: hardness-seconds dug per tile a second of burrow speed.",
 	"sight_tiles": 30.0,
 	"hear_tiles": 20.0,
 	"pack_alert_tiles": 28.0,
@@ -21,6 +21,8 @@
 	"corner_s": 2.5,
 	"corner_tiles": 2.5,
 	"spacing_tiles": 1.6,
+	"dark_ambush": ["roper", "cloaker"],
+	"reveal_s": 1.5,
 	"archetypes": {
 		"bruiser":    {"backoff": 0.4, "speed": 1.0},
 		"skirmisher": {"backoff": 1.2, "speed": 1.0},

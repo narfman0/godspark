@@ -41,6 +41,20 @@ func category_at(p: Vector2) -> int:
 	light_usec += Time.get_ticks_usec() - t1
 	return cat
 
+## The light field's own category at a point (sun and glowing tiles, no carried torches): where a
+## lurker can wait unseen (MonsterBrain, data/ecology/brains.json dark_ambush).
+func field_category(p: Vector2) -> int:
+	var x := floori(p.x)
+	var y := floori(p.y)
+	if not host.world.in_bounds(x, y):
+		return LightEngine.Category.BRIGHT
+	if light == null:
+		var t0 := Time.get_ticks_usec()
+		light = LightEngine.new(host.world)
+		light_usec += Time.get_ticks_usec() - t0
+	light.sun = WorldClock.sun_at(host.clock.hours())
+	return light.category_at(x, y)
+
 ## Light from the torches players carry (analytic, with line of sight).
 func _torch_category(p: Vector2) -> int:
 	var cat: int = LightEngine.Category.DARK

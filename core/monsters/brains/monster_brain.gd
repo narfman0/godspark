@@ -64,6 +64,8 @@ var _calm_next := 0.0
 var _line_at := -1.0
 var _line_goal := Vector2.INF
 var _line_ok := false
+var _reveal_at := -1.0
+var _dark := -1
 
 static func cfg() -> Dictionary:
 	if _cfg.is_empty():
@@ -110,6 +112,8 @@ func think(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 		if _t < _calm_next:
 			return combat.filter_input(e, _hold(_last))
 		_calm_next = _t + 0.1
+	if dark_ambusher():
+		_dark_ambush(combat, e)
 	var near := _nearest_player_dist(host, e)
 	if near > _num("far_tiles", 56.0) and state != State.RETURN and state != State.FLEE:
 		_think_at = _t + _num("far_think_s", 0.5)
@@ -214,6 +218,10 @@ func _fight(host: WorldHost, combat: CombatSystem, e: HostEntity, foe: HostEntit
 			e.body.facing = 1 if dx >= 0.0 else -1
 			return inp
 	if _reaches(host, e, foe, acts, _first_attack(acts), dist) and combat.start_attack(e, -1, aim):
+		attacks += 1
+		return inp
+	# between its own actions, a Legendary Action (the aboleth's Lash, Psychic Drain)
+	if combat.legendary(e, foe):
 		attacks += 1
 		return inp
 	# close in: spread around the target; flankers take the far side
@@ -361,6 +369,27 @@ func _rng(e: HostEntity) -> RandomNumberGenerator:
 	var r := RandomNumberGenerator.new()
 	r.seed = hash([e.id, int(_t * 10.0)])
 	return r
+
+# --- waiting in the dark ---------------------------------------------------------------------------
+
+## One of the creatures that wait unseen in the dark (brains.json dark_ambush: ropers, cloakers).
+func dark_ambusher() -> bool:
+	if _dark < 0:
+		_dark = 1 if slug in (cfg().get("dark_ambush", []) as Array) else 0
+	return _dark == 1
+
+## While it waits (LURK) in the light field's DARK it is hidden (CombatSystem.set_hidden: the SRD's
+## Invisible, ending when it makes an attack roll); lit, it is seen. Once it springs it is seen again
+## after reveal_s, time for its first blow to land unseen.
+func _dark_ambush(combat: CombatSystem, e: HostEntity) -> void:
+	if state == State.LURK:
+		combat.set_hidden(e, combat.sight.field_category(e.body.rect().get_center()) == LightEngine.Category.DARK)
+		_reveal_at = -1.0
+	elif combat.is_hidden(e):
+		if _reveal_at < 0.0:
+			_reveal_at = _t + _num("reveal_s", 1.5)
+		elif _t >= _reveal_at:
+			combat.set_hidden(e, false)
 
 # --- senses -----------------------------------------------------------------------------------
 

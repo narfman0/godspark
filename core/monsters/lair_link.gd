@@ -1,11 +1,16 @@
 ## Lairs are real: when a player's interest area reaches a sim lair's site, exactly the
 ## creatures the sim says live there (SimLair.monsters, slug -> count) are spawned at the site
-## as one pack (the largest leads; an apex lair's or a CR 5+ leader is a boss), with the site as
+## as one pack (the largest leads; an apex lair's or a CR 5+ leader is a boss, in its lair: its
+## Legendary Actions take the lair's count), with the site as
 ## their home. Kills are written back at once (WorldSim.lair_killed: the sim's own cleared-lair
 ## logic and chronicle line apply when it empties). While materialized the sim stays the truth:
 ## every second the spawned creatures are reconciled with its counts (a hunting pack left,
 ## the lair bred, another lair moved in). When no player is near, survivors fold back: they are
 ## simply removed, since the sim still counts them. Nothing extra is saved.
+## Where each stands (docs/tracks/raids-below.md): a creature of the water (ecology medium water,
+## the aboleth) in the nearest deep water; one that waits in the dark (brains.json dark_ambush) in the
+## nearest spot of the light field's DARK; the rest at the site. A row's `charmed` members come out
+## as people (make_npc, a species of the row's by a hash) Charmed by the leader and fighting for it.
 class_name LairLink
 extends RefCounted
 
@@ -93,17 +98,94 @@ func _spawn_one(h: WorldHost, lid: int, l: SimLair, site: Dictionary, slug: Stri
 	var rec: Dictionary = active[lid]
 	var home := site_pos(site)
 	var off := Vector2(((slot % 7) - 3) * 1.8, 0.0)
-	var pos := sys.director._stand_near(h, home + off + Vector2(0, 2), slug)
+	var body := body_of(slug, String(site.get("biome", "")))
+	var pos := Vector2.INF
+	if String(Ecology.row(body).get("medium", "")) == "water":
+		pos = water_near(h, home)
+	elif body in (MonsterBrain.cfg().get("dark_ambush", []) as Array):
+		pos = dark_near(h, home + off, body)
+	var placed := pos != Vector2.INF          # its own spot is its home: the water, the dark
+	if pos == Vector2.INF:
+		pos = sys.director._stand_near(h, home + off + Vector2(0, 2), body)
 	if pos == Vector2.INF:
 		pos = home
 	var rank := "standard"
 	if leader and (l.apex or Ecology.cr_of(h.srd, slug) >= 5.0):
 		rank = "boss"
-	var e := sys.spawn(body_of(slug, String(site.get("biome", ""))), pos, {"rank": rank, "pack": rec["pack"], "slot": slot,
-		"home": home, "lair": lid, "leader": leader})
+	var opts := {"rank": rank, "pack": rec["pack"], "slot": slot, "home": pos if placed else home, "lair": lid, "leader": leader}
+	var def := lair_def(l)
+	var thrall := false
+	for m: Variant in def.get("charmed", []):
+		thrall = thrall or str(m[0]) == slug
+	if thrall:
+		var species: Array = def.get("species", ["human"])
+		var sp := String(species[absi(hash([lid, slot, slug])) % species.size()])
+		var npc: Variant = h.srd.call("make_npc", slug, sp, "") if h.srd.has_method("make_npc") else null
+		if npc != null:
+			opts["combatant"] = npc
+		var culture := sp if SimData.cultures.has(sp) else ""
+		if culture != "":
+			opts["people"] = Life.people_key(culture, "guard", slug, hash([lid, slot]) % 2 == 0)
+		var r := Life.rng_for([h.world.world_seed, "thrall", lid, slot])
+		opts["name"] = "%s, thrall of %s" % [SimNames.make(r, culture if SimData.names.has(culture) else "place", {}), l.name]
+	var e := sys.spawn(body, pos, opts)
 	if e != null:
 		rec["ids"][e.id] = slug
+		if rank == "boss":
+			e.set_meta("in_lair", true)          # its Legendary Actions take the lair's count
+			rec["boss"] = e.id
+		if thrall:
+			rec["thralls"] = int(rec.get("thralls", 0)) + 1
+			_charm(h, lid, e)
 	return e
+
+## A thrall is Charmed by the lair's leader (an effect with the leader as its source, so the leader
+## knows it holds someone: CombatSystem.holds_any), and fights for it: one of its pack.
+func _charm(h: WorldHost, lid: int, e: HostEntity) -> void:
+	var boss := h.entity(int((active.get(lid, {}) as Dictionary).get("boss", 0)))
+	if e.combatant == null:
+		return
+	var src := boss.combatant.name if boss != null and boss.combatant != null else "the lair"
+	e.combatant.effects.add({"id": "thrall", "type": "condition", "condition": "charmed", "source": src, "of": e.combatant.name})
+	e.set_meta("thrall", true)
+
+## The lairs.json row of a lair, {} if gone from the table.
+static func lair_def(l: SimLair) -> Dictionary:
+	for d: Dictionary in SimData.lairs.get(l.family, []):
+		if String(d.get("id", "")) == l.kind:
+			return d
+	return {}
+
+## The bottom of the nearest deep water (two tiles or more) to p within 60 x 30 tiles: where a
+## creature of the water waits. INF without any.
+static func water_near(h: WorldHost, p: Vector2) -> Vector2:
+	var water := TileDefs.id("water")
+	var best := Vector2.INF
+	var bd := INF
+	var x0 := floori(p.x)
+	var y0 := floori(p.y)
+	for dx in range(-60, 61):
+		var x := x0 + dx
+		for y in range(maxi(y0 - 30, 1), y0 + 31):
+			if h.world.get_fg(x, y) != water or h.world.get_fg(x, y + 1) != water or h.world.get_fg(x, y - 1) == water:
+				continue
+			var d := Vector2(x, y).distance_to(p)
+			if d < bd:
+				bd = d
+				best = Vector2(x + 0.5, y)
+	return best
+
+## The nearest spot near p where the slug's body stands in the light field's DARK, INF without one.
+func dark_near(h: WorldHost, p: Vector2, slug: String) -> Vector2:
+	var combat := h.system(HostSystem.COMBAT) as CombatSystem
+	if combat == null:
+		return Vector2.INF
+	for k in 13:
+		var dx := float((k + 1) / 2) * 3.0 * (1.0 if k % 2 == 1 else -1.0)
+		var at := sys.director._stand_near(h, p + Vector2(dx, 2.0), slug)
+		if at != Vector2.INF and combat.sight.field_category(at + Vector2(0, 1)) == LightEngine.Category.DARK:
+			return at
+	return Vector2.INF
 
 ## What comes out of a lair for a creature the sim asked for: the sim picks by depth, not ground,
 ## so one that does not live in this biome comes as its kin (spawning.json lair_kin). rec["ids"]

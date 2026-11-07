@@ -1,5 +1,5 @@
 {
-	"_doc": "Monster lairs by depth band, all SRD 5.2.1 stat blocks. in: what the lair is called in a biome where its creatures come out as their kin (spawning.json lair_kin). members: [slug, min, max]. grow: slug that breeds when the lair is fed; max: lair head-count cap. hunger: how fast it gets hungry (1 = normal). apex: demands tribute from nearby settlements. words: name endings for the lair.",
+	"_doc": "Monster lairs by depth band, all SRD 5.2.1 stat blocks. in: what the lair is called in a biome where its creatures come out as their kin (spawning.json lair_kin). members: [slug, min, max]. grow: slug that breeds when the lair is fed; max: lair head-count cap. hunger: how fast it gets hungry (1 = normal). apex: demands tribute from nearby settlements. words: name endings for the lair. Optional (docs/tracks/raids-below.md): biomes: only at sites of these biomes (the aboleth's deep lake); bands: only at sites of these bands (the purple worm, CR 15, in the nadir); biome_w: weight multiplier by site biome (oozes in the wet and fungal deeps); charmed: [slug, min, max] people Charmed by the lair's leader and fighting for it, counted among its members (make_npc with one of species, picked by a hash of the lair and the slot). The sim draws a lair as it always has (w, members, on its generator); where the row may not stand, or the site's biome is one some row favours, the lair is drawn again on its own generator (hash of seed, site, hour) with these rules, so worlds with none of this are drawn as before.",
 	"surface": [
 		{"id": "wolves",   "name": "wolf pack", "in": {"desert": "hyena pack", "swamp": "giant frog brood"},      "w": 4, "members": [["wolf", 4, 8], ["dire-wolf", 0, 1]], "grow": "wolf", "max": 14, "hunger": 1.0, "words": ["Den", "Hollow", "Run"]},
 		{"id": "ogres",    "name": "ogre clan", "in": {"desert": "gnoll warband"},      "w": 3, "members": [["ogre", 2, 3]], "grow": "ogre", "max": 5, "hunger": 1.2, "words": ["Hold", "Barrow", "Rocks"]},
@@ -16,7 +16,7 @@
 		{"id": "spiders",    "name": "spider nest",    "w": 4, "members": [["giant-spider", 3, 6], ["ettercap", 0, 1]], "grow": "giant-spider", "max": 10, "hunger": 1.0, "words": ["Webs", "Nest"]},
 		{"id": "gricks",     "name": "grick nest",     "w": 3, "members": [["grick", 2, 4]], "grow": "grick", "max": 6, "hunger": 1.0, "words": ["Pit", "Burrow"]},
 		{"id": "darkmantles","name": "darkmantle roost","w": 3, "members": [["darkmantle", 4, 8]], "grow": "darkmantle", "max": 12, "hunger": 1.0, "words": ["Vault", "Ceiling"]},
-		{"id": "oozes",      "name": "ooze pit",       "w": 2, "members": [["ochre-jelly", 1, 2], ["grayooze", 1, 3], ["gelatinous-cube", 0, 1]], "grow": "grayooze", "max": 6, "hunger": 0.7, "words": ["Seep", "Sink"]},
+		{"id": "oozes",      "name": "ooze pit",       "w": 2, "biome_w": {"fungal": 3, "deep_lake": 2.5}, "members": [["ochre-jelly", 1, 2], ["grayooze", 1, 3], ["gelatinous-cube", 0, 1]], "grow": "grayooze", "max": 6, "hunger": 0.7, "words": ["Seep", "Sink"]},
 		{"id": "rust",       "name": "rust monster warren", "w": 1.5, "members": [["rust-monster", 2, 4]], "grow": "rust-monster", "max": 6, "hunger": 0.8, "words": ["Warren", "Gallery"]},
 		{"id": "ghouls",     "name": "ghoul warren",   "w": 1.5, "members": [["ghoul", 3, 6], ["ghast", 0, 1]], "grow": "ghoul", "max": 10, "hunger": 1.2, "words": ["Crypt", "Warren"]},
 		{"id": "trolls_c",   "name": "cave troll lair","w": 1, "members": [["troll", 1, 2]], "grow": "troll", "max": 3, "hunger": 1.3, "words": ["Grotto", "Hole"]},
@@ -26,11 +26,12 @@
 		{"id": "ropers",     "name": "roper gallery",  "w": 3, "members": [["roper", 1, 3]], "grow": "roper", "max": 4, "hunger": 0.9, "words": ["Gallery", "Teeth"]},
 		{"id": "cloakers",   "name": "cloaker roost",  "w": 2, "members": [["cloaker", 1, 2], ["darkmantle", 2, 4]], "grow": "darkmantle", "max": 7, "hunger": 1.0, "words": ["Shroud", "Dark"]},
 		{"id": "driders",    "name": "drider web",     "w": 2, "members": [["drider", 1, 2], ["giant-spider", 2, 4]], "grow": "giant-spider", "max": 8, "hunger": 1.0, "words": ["Web", "Snare"]},
-		{"id": "puddings",   "name": "pudding sump",   "w": 2, "members": [["black-pudding", 1, 2], ["ochre-jelly", 0, 2]], "grow": "ochre-jelly", "max": 5, "hunger": 0.7, "words": ["Sump", "Drain"]},
+		{"id": "puddings",   "name": "pudding sump",   "w": 2, "biome_w": {"fungal": 3, "deep_lake": 2.5}, "members": [["black-pudding", 1, 2], ["ochre-jelly", 0, 2]], "grow": "ochre-jelly", "max": 5, "hunger": 0.7, "words": ["Sump", "Drain"]},
 		{"id": "otyughs",    "name": "otyugh midden",  "w": 1.5, "members": [["otyugh", 1, 2], ["gibbering-mouther", 0, 1]], "grow": "otyugh", "max": 3, "hunger": 0.8, "words": ["Midden", "Pool"]},
 		{"id": "chuuls",     "name": "chuul pool",     "w": 1.5, "members": [["chuul", 2, 3]], "grow": "chuul", "max": 4, "hunger": 1.0, "words": ["Pool", "Shallows"]},
-		{"id": "purple_worm","name": "purple worm tunnels", "w": 0.6, "apex": true, "members": [["purple-worm", 1, 1]], "grow": "", "max": 1, "hunger": 1.0, "words": ["Bore", "Tunnels"]},
-		{"id": "aboleth",    "name": "aboleth sea",    "w": 0.6, "apex": true, "members": [["aboleth", 1, 1], ["chuul", 1, 3]], "grow": "chuul", "max": 4, "hunger": 0.8, "words": ["Sea", "Deep"]}
+		{"id": "purple_worm","name": "purple worm tunnels", "w": 0.6, "apex": true, "bands": ["nadir"], "members": [["purple-worm", 1, 1]], "grow": "", "max": 1, "hunger": 1.0, "words": ["Bore", "Tunnels"]},
+		{"id": "aboleth",    "name": "aboleth sea",    "w": 0.6, "apex": true, "biomes": ["deep_lake"], "members": [["aboleth", 1, 1], ["chuul", 1, 3]],
+			"charmed": [["warrior-infantry", 1, 2], ["scout", 1, 2]], "species": ["human", "dwarf", "elf", "halfling", "gnome"], "grow": "chuul", "max": 4, "hunger": 0.8, "words": ["Sea", "Deep"]}
 	],
 	"portal": [
 		{"id": "fiends",     "name": "fiendish breach", "w": 1, "members": [["lemure", 3, 6], ["imp", 1, 2], ["dretch", 2, 4]], "grow": "lemure", "max": 12, "hunger": 0.9, "words": ["Breach", "Rift"]}

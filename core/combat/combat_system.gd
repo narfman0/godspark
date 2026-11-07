@@ -67,6 +67,8 @@ class Actor:
 	## may start. Never set for creatures that do not roll.
 	var roll_t0 := -1000.0
 	var roll_ready := 0.0
+	## Host seconds until its next Legendary Action may be taken (legendary()).
+	var legendary_ready := 0.0
 
 ## The host, held weakly (the host holds its systems: a strong reference both ways would
 ## never be freed).
@@ -632,6 +634,78 @@ func start_attack(e: HostEntity, action := -1, aim := Vector2.INF, throw := fals
 		"gap": float(cs[1]) - float(cs[0]) if cs.size() > 1 else 0.0, "tempo": tempo_name, "reach_ft": reach_ft,
 		"aim": aim, "what": what})
 	return true
+
+## Legendary Actions (the addon's MonsterActions, from the stat block): between its own actions a
+## creature with uses left takes one at a time, at most one every legendary.gap_s (data/combat.json),
+## out of its action economy: an attack option swings that action at the foe (the aboleth's Lash: one
+## Tentacle), an action option uses it (Psychic Drain: Consume Memories, and it heals). Uses come back
+## at the start of its round (MonsterActions.start_turn in _round); a lair creature (meta in_lair) has
+## its lair's count. Psychic Drain is taken first while hurt. True when one was taken.
+func legendary(e: HostEntity, foe: HostEntity) -> bool:
+	var a := actor(e)
+	var c := e.combatant
+	if a == null or c == null or c.legendary.is_empty() or not a.seq.is_empty() or not can_act(e) or foe == null:
+		return false
+	if now < a.legendary_ready - 1e-6 or now >= a.action_ready - 1e-6:
+		return false        # its own action is ready: that comes first
+	var in_lair := bool(e.get_meta("in_lair", false))
+	var ctx := {"charmed_or_grappled": holds_any(e)}
+	var opts: Array = (c.legendary.get("options", []) as Array).duplicate()
+	if c.current_hp < c.stats.max_hp:
+		opts.sort_custom(func(x: Dictionary, y: Dictionary) -> bool: return String(x.get("heal", "")) != "" and String(y.get("heal", "")) == "")
+	var acts: Array = a.moves.get("actions", [])
+	var aim := foe.body.rect().get_center()
+	for opt: Dictionary in opts:
+		if not MonsterActions.legendary_available(c, opt, in_lair, ctx):
+			continue
+		var idx := -1
+		for i in acts.size():
+			if String(acts[i]["name"]) == String(opt.get("action", "")):
+				idx = i
+		if idx < 0 or not foe in targets_in_reach(e, idx):
+			continue
+		var saved := a.action_ready
+		a.action_ready = now
+		var ok := start_attack(e, idx, aim)
+		a.action_ready = saved
+		if not ok:
+			continue
+		var ev := MonsterActions.use_legendary(c, opt, in_lair, ctx)
+		if int(ev.get("heal", 0)) > 0:
+			_emit(Ev.HEAL, e.id, e.id, {"amount": int(ev["heal"]), "hp": c.current_hp})
+		a.legendary_ready = now + float(CombatTempo.section("legendary").get("gap_s", 2.0))
+		counts["legendary"] = int(counts.get("legendary", 0)) + 1
+		return true
+	return false
+
+## Does e hold anyone: a creature Charmed or Grappled with e as the source of the condition?
+func holds_any(e: HostEntity) -> bool:
+	if e.combatant == null:
+		return false
+	var me := e.combatant.name
+	for b: Actor in actors.values():
+		if b.e == e or b.e.combatant == null or b.dead_at >= 0.0:
+			continue
+		for eff: Dictionary in b.e.combatant.effects.of_type("condition"):
+			if String(eff.get("source", "")) == me and String(eff.get("condition", "")) in ["charmed", "grappled"]:
+				return true
+	return false
+
+## Hidden (the SRD's Hide: the Invisible condition, which ends when it makes an attack roll): a
+## lurker waiting in the dark. Clients hear it as a CONDITION event.
+func set_hidden(e: HostEntity, on: bool) -> void:
+	var c := e.combatant
+	if c == null or c.effects.has_id("hidden") == on:
+		return
+	if on:
+		c.effects.add({"id": "hidden", "type": "condition", "condition": "invisible", "source": c.name, "of": c.name,
+			"ends_on_attack": true})
+	else:
+		c.effects.remove_id("hidden")
+	_touched[e.id] = true
+
+func is_hidden(e: HostEntity) -> bool:
+	return e.combatant != null and e.combatant.effects.has_id("hidden")
 
 ## Faster (pace > 1) or slower actions: the wind-up (the readable telegraph) is kept, what
 ## comes after it (follow-up contacts, recovery) is divided by pace. Used by the Monsters
