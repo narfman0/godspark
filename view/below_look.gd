@@ -94,8 +94,7 @@ static func tint_bytes(sources: Array, rect: Rect2i, cell: int) -> PackedByteArr
 	var seeds := {}
 	for s: Dictionary in sources:
 		any = any or bool(s.get("tint", true))
-		var c := Vector2i((int(s["x"]) - rect.position.x) >> 2, (int(s["y"]) - rect.position.y) >> 2) if cell == 4 \
-			else Vector2i(floori(float(int(s["x"]) - rect.position.x) / cell), floori(float(int(s["y"]) - rect.position.y) / cell))
+		var c := Vector2i(floori(float(int(s["x"]) - rect.position.x) / cell), floori(float(int(s["y"]) - rect.position.y) / cell))
 		if c.x < -8 or c.y < -8 or c.x >= w + 8 or c.y >= h + 8:
 			continue
 		var was: Dictionary = seeds.get(c, {})

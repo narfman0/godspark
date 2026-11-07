@@ -86,6 +86,7 @@ func world_ready(world: TileWorld, id: int) -> void:
 
 func _clear() -> void:
 	_actors.clear()
+	_invisible.clear()
 	fx = null
 	dressing = null
 	region = null
