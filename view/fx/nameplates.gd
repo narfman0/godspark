@@ -64,6 +64,8 @@ func step(cam: Camera3D, hovered: int, engaged := 0) -> void:
 	var cand: Array = []
 	var lc := cw.system(HostSystem.LIFE) as LifeClient
 	for r: ClientWorld.RemoteEntity in cw.remotes.values():
+		if fx.unseen.has(r.id):
+			continue
 		var player := r.kind == HostEntity.Kind.PLAYER
 		if not player:
 			if r.max_hp <= 0 or r.hp <= 0:

@@ -25,6 +25,8 @@ var swings: SwingFx
 var srd: SRDContent
 ## What the next swing would land on: {id, reach} from CombatClient.target_at.
 var target := {}
+## Actors this client cannot see (UnseenRule GONE): no plate, no target ring. id -> true.
+var unseen := {}
 ## Where the aim is, when a script holds it (Vector2.INF: the mouse).
 var aim_override := Vector2.INF
 ## Monsters winding up: id -> [seconds in, seconds of wind-up].
@@ -372,6 +374,8 @@ func _highlight(delta: float) -> void:
 	var cc := cw.system(HostSystem.COMBAT) as CombatClient
 	var aim := aim_point()
 	target = cc.target_at(aim) if cc != null else {}
+	if unseen.has(int(target.get("id", 0))):
+		target = {}
 	var want := {}
 	if not target.is_empty():
 		want[int(target["id"])] = SwingFx.color("target" if bool(target["reach"]) else "near")

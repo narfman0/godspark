@@ -28,8 +28,12 @@ var fx: FxView
 var _own := {}
 ## Effects on the own player (EFFECT events' what, while on): the Light spell lights.
 var _effects := {}
+## Who combat marks Invisible (CONDITION events): id -> true. See UnseenRule.
+var _invisible := {}
 var _facing := 1
 var dressing: DressingView
+## The underground regions' own dressing, read off the tiles.
+var region: RegionDressing
 ## Seconds between dressing rebuilds while chunks or objects keep changing.
 const DRESS_EVERY := 0.3
 var _dress_dirty := false
@@ -59,6 +63,7 @@ func world_ready(world: TileWorld, id: int) -> void:
 	view.setup(world, light)
 	dressing = DressingView.new()
 	view.add_child(dressing)
+	region = RegionDressing.new(world)
 	world.objects_changed.connect(func(_cx: int, _cy: int) -> void: _dress_dirty = true)
 	_dress_dirty = true
 	if rig == null:
@@ -83,6 +88,7 @@ func _clear() -> void:
 	_actors.clear()
 	fx = null
 	dressing = null
+	region = null
 	if view != null:
 		view.queue_free()
 		view = null
@@ -113,6 +119,7 @@ func actor_added(id: int, look: Dictionary) -> void:
 			items.equipment_changed.connect(_on_equipment)
 	if fx != null:
 		fx.actor_added(id, look)
+	_show(id)
 	if id == my_id:
 		_own = {}
 		_effects.clear()
@@ -152,12 +159,17 @@ func chunk_arrived(_cx: int, _cy: int) -> void:
 func chunk_dropped(_cx: int, _cy: int) -> void:
 	_dress_dirty = true
 
+func tile_changed(_x: int, y: int, layer: int, _old: int, _now: int) -> void:
+	if layer == TileWorld.Layer.FG and region != null and region.covers(y):
+		_dress_dirty = true
+
 ## Every dressing record in the chunks held, for DressingView ({id: name, x, y}).
 func _dress() -> void:
 	var recs: Array = []
 	for c: Vector2i in cw.loaded:
 		for r: Dictionary in Dressing.records_in(cw.world, c.x, c.y):
 			recs.append({"id": Dressing.name_of(int(r["id"])), "x": r["x"], "y": r["y"]})
+		recs.append_array(region.records_in(c.x, c.y))
 	dressing.set_objects(recs)
 
 ## The own roll shows from its first step: the body is predicted, the look with it.
@@ -182,6 +194,9 @@ func meta_arrived(_meta: Dictionary) -> void:
 		light.reset()     # anything lit before the sky line was known
 	if view != null:
 		view.meta_changed()
+	if region != null:
+		region.meta_changed()
+		_dress_dirty = true
 
 ## Combat events drive the actors: swings, rolls and flinches lie over the movement (ActorBody),
 ## the death clip holds as a state until the actor is back on its feet.
@@ -223,6 +238,28 @@ func combat_event(ev: Dictionary) -> void:
 					_effects[String(ev.get("what", ""))] = true
 				else:
 					_effects.erase(String(ev.get("what", "")))
+				for id: int in _invisible:
+					_show(id)
+		CombatCodec.Ev.CONDITION:
+			if int(ev.get("cond", -1)) == SRD.Condition.INVISIBLE:
+				if bool(ev.get("on", false)):
+					_invisible[int(ev["dst"])] = true
+				else:
+					_invisible.erase(int(ev["dst"]))
+				_show(int(ev["dst"]))
+
+## Draw an actor as UnseenRule says, and keep plates and the target off what is gone.
+func _show(id: int) -> void:
+	var a := view.get_actor(id) if view != null else null
+	var player := id == my_id or (cw != null and cw.remotes.has(id) and (cw.remotes[id] as ClientWorld.RemoteEntity).kind == HostEntity.Kind.PLAYER)
+	var s := UnseenRule.show(_invisible.has(id), id == my_id, player, UnseenRule.sees_invisible(_effects.keys()))
+	if a != null:
+		a.set_shown(s)
+	if fx != null:
+		if s == UnseenRule.Show.GONE:
+			fx.unseen[id] = true
+		else:
+			fx.unseen.erase(id)
 
 ## What a remote creature holds, from ENT_ADD's wield or a SWING: the first name that is a weapon
 ## this table knows. A change of weapon shows at its next swing: ENT_ADD goes out once.
@@ -250,6 +287,9 @@ func actor_vitals(id: int, hp: int, max_hp: int) -> void:
 
 func actor_removed(id: int) -> void:
 	_oneshot.erase(id)
+	_invisible.erase(id)
+	if fx != null:
+		fx.unseen.erase(id)
 	if bool(_carried.get(id, false)):
 		_carry(CARRIED_LIGHT + id, Vector2.ZERO, {})
 	_carried.erase(id)

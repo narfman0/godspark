@@ -317,12 +317,26 @@ func set_weapon(what: String) -> void:
 
 var _geos: Array = []
 var _geos_dirty := true
+var _shown := UnseenRule.Show.SEEN
 
 func _surfaces() -> Array:
 	if _geos_dirty:
 		_geos_dirty = false
 		_geos = find_children("*", "GeometryInstance3D", true, false).filter(func(g: Node) -> bool: return not g is Label3D)
+	elif not _geos.all(func(g: Variant) -> bool: return is_instance_valid(g)):
+		_geos = _geos.filter(func(g: Variant) -> bool: return is_instance_valid(g))
 	return _geos
+
+## How UnseenRule says this body is drawn: gone, faint, or itself.
+func set_shown(s: UnseenRule.Show) -> void:
+	if s == _shown:
+		return
+	_shown = s
+	visible = s != UnseenRule.Show.GONE
+	var t := UnseenRule.FAINT_ALPHA if s == UnseenRule.Show.FAINT else 0.0
+	for g: GeometryInstance3D in _surfaces():
+		if is_instance_valid(g):
+			g.transparency = t
 
 ## Outline this actor (alpha 0: none). One colour at a time.
 func set_rim(c: Color) -> void:

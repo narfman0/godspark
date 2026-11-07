@@ -382,6 +382,9 @@ func _snapshot(p: PeerState) -> void:
 			p.visible[e.id] = true
 			_send(p.id, Protocol.ent_add(e.id, e.kind, e.body.size, e.body.pos, e.flags, e.name, maxi(0, hv.x), maxi(0, hv.y), _look_of(e)))
 			p.vitals[e.id] = hv
+			var cs: HostSystem = host.system(HostSystem.COMBAT)
+			if cs != null:
+				cs.call("tell_unseen", e, p.entity_id)
 		elif d > radius + 1:
 			p.visible.erase(e.id)
 			p.vitals.erase(e.id)

@@ -734,6 +734,13 @@ func set_hidden(e: HostEntity, on: bool) -> void:
 func is_hidden(e: HostEntity) -> bool:
 	return e.combatant != null and e.combatant.effects.has_id("hidden")
 
+## A client that has just begun to see e hears at once if it is Invisible: CONDITION events go only
+## to who watched it change (HostEndpoint, with ENT_ADD).
+func tell_unseen(e: HostEntity, to: int) -> void:
+	if e.combatant != null and e.combatant.conditions.has(SRD.Condition.INVISIBLE):
+		var ev := {"kind": Ev.CONDITION, "src": 0, "dst": e.id, "cond": SRD.Condition.INVISIBLE, "on": true}
+		host.send_sys(sys_id(), CombatCodec.Msg.EVENTS, CombatCodec.events(host.tick_count, [ev]), to)
+
 ## Faster (pace > 1) or slower actions: the wind-up (the readable telegraph) is kept, what
 ## comes after it (follow-up contacts, recovery) is divided by pace. Used by the Monsters
 ## track's Frenzied affix through set_pace.
