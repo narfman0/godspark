@@ -52,6 +52,7 @@ var chronicle: Array = []     # [{t, kind, ...}]
 var stats := {}               # counters, ints
 var route_threat := {}        # route id -> float, decays
 var route_traffic := {}       # route id -> {faction id: float}, decays
+var route_value := {}         # route id -> {faction id: coin of cargo sent along it}, decays
 var region_weather := {}      # region index -> float, this year
 var taken_names := {}
 var next_party := 1
@@ -68,6 +69,12 @@ var route_travel_h := {}      # route id -> game hours for a wagon at 1.5 tiles 
 var route_lair_sites := {}    # route id -> [site ids a lair there would hunt from]
 var edge := {}                # "a:b" -> route id
 var market := {}              # SimEconomy.build_market, per econ tick
+## Trade ledger for reports and sweeps, not saved. On only when a tool asks: `ledger_on` true fills
+## `ledger`, route id -> {goods: {good: units}, value, trips, ambushes, taken, lost, beasts,
+## raiders: {culture: n}} and `flows`, "good|from biome|to biome|crossings" -> [units, value].
+var ledger_on := false
+var ledger := {}
+var flows := {}
 var _paths := {}              # cache: src * 8 + mask -> [dist, prev, ids]
 var _within := {}             # cache for within()
 var _base_rel := {}           # cache for base_relation()
@@ -77,7 +84,7 @@ var _base_rel := {}           # cache for base_relation()
 static func from_meta(meta: Dictionary, world_seed: int) -> WorldSim:
 	var sim := WorldSim.new()
 	sim._setup(meta.get("sites", []), meta.get("routes", []), world_seed,
-		float(meta.get("surface", []).size()))
+		float(meta.get("surface", []).size()), meta.get("barriers", {}))
 	return sim
 
 ## Biomes of the stand-alone layout (canonical ids, data/biomes.json).
@@ -141,7 +148,7 @@ static func synthetic(n_sites: int, world_seed: int) -> WorldSim:
 	sim._setup(sites_out, routes_out, world_seed, width)
 	return sim
 
-func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float) -> void:
+func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float, barriers := {}) -> void:
 	SimData.ensure()
 	seed = world_seed
 	rng.seed = hash([world_seed, "worldsim"])
@@ -159,15 +166,52 @@ func _setup(in_sites: Array, in_routes: Array, world_seed: int, width: float) ->
 		routes.append({"id": int(r.id), "a": int(r.a), "b": int(r.b), "kind": str(r.kind),
 			"length": float(r.get("length", 0.0)), "name": "", "cls": 0})
 	_index_sites()
-	_add_trails()
+	var barrier_rows := _barrier_rows(barriers)
+	_add_trails(barrier_rows)
+	for r in routes:
+		var a: Dictionary = site_by_id[r.a]
+		var b: Dictionary = site_by_id[r.b]
+		r["crossings"] = _crossed(barrier_rows, a, b)
 	_index_routes()
 	for r in routes:
 		r.name = SimNames.make(rng, "place", taken_names)
 	_seed_world()
 
+## World meta's barriers as flat rows: {kind, x0, x1}, the columns a surface walk must clear.
+## The same rule as Barriers.crossings: a river's banks count for two columns each side.
+static func _barrier_rows(barriers: Dictionary) -> Array:
+	var out: Array = []
+	for rg in barriers.get("ranges", []):
+		out.append({"kind": "pass", "x0": float(rg.x0), "x1": float(rg.x1)})
+	for rv in barriers.get("rivers", []):
+		out.append({"kind": str(rv.kind), "x0": float(rv.x0) - 2.0, "x1": float(rv.x1) + 2.0})
+	return out
+
+## What a surface walk between two sites crosses, as kinds. Nothing underground crosses: the
+## caves run under a range and a river's bed.
+static func _crossed(rows: Array, a: Dictionary, b: Dictionary) -> Array:
+	var out: Array = []
+	if SimData.band_family(a.band) != "surface" or SimData.band_family(b.band) != "surface":
+		return out
+	var lo := minf(a.x, b.x)
+	var hi := maxf(a.x, b.x)
+	for row in rows:
+		if lo < row.x0 and hi > row.x1:
+			out.append(row.kind)
+	out.sort()
+	return out
+
+## What a list of crossings adds to a route's length.
+func crossing_length(kinds: Array) -> float:
+	var n := 0.0
+	for k in kinds:
+		n += float(SimData.crossing_cost.get(k, 0.0))
+	return n * world_w
+
 ## Sites with no route get a trail to the nearest site in the same band family, so every
-## lair and hamlet can be reached by someone.
-func _add_trails() -> void:
+## lair and hamlet can be reached by someone. A trail over a barrier costs what a road over it
+## does, so the nearest site can be the one on this side.
+func _add_trails(barrier_rows := []) -> void:
 	var linked := {}
 	for r in routes:
 		linked[r.a] = true; linked[r.b] = true
@@ -179,11 +223,14 @@ func _add_trails() -> void:
 			continue
 		var fam := SimData.band_family(s.band)
 		var best: Dictionary = {}
+		var best_d := INF
 		for o in sites:
 			if o.id == s.id or SimData.band_family(o.band) != fam:
 				continue
-			if best.is_empty() or absf(o.x - s.x) < absf(best.x - s.x):
+			var d := absf(o.x - s.x) + crossing_length(_crossed(barrier_rows, s, o))
+			if d < best_d:
 				best = o
+				best_d = d
 		if best.is_empty():
 			for o in sites:
 				if o.id != s.id and (best.is_empty() or absf(o.x - s.x) < absf(best.x - s.x)):
@@ -191,7 +238,8 @@ func _add_trails() -> void:
 		if best.is_empty():
 			continue
 		routes.append({"id": next_id, "a": s.id, "b": best.id, "kind": "road" if fam == "surface" else "deep_road",
-			"length": absf(best.x - s.x) + absf(best.y - s.y) * 0.5, "name": "", "cls": 0, "trail": true})
+			"length": absf(best.x - s.x) + absf(best.y - s.y) * 0.5 + crossing_length(_crossed(barrier_rows, s, best)),
+			"name": "", "cls": 0, "trail": true})
 		linked[s.id] = true; linked[best.id] = true
 		next_id += 1
 
@@ -297,7 +345,8 @@ func _in_settled(arr: Array, sid: int) -> bool:
 
 func _pick_culture(s: Dictionary, prev: String) -> String:
 	var fam := SimData.band_family(s.band)
-	if prev != "" and fam in SimData.culture(prev).bands and rng.randf() < 0.5:
+	# Neighbours tend to be kin, so long as the land suits them.
+	if prev != "" and fam in SimData.culture(prev).bands and rng.randf() < 0.25 * minf(SimData.fit(prev, s.biome), 2.0):
 		return prev
 	var total := 0.0
 	var ws: Array = []
@@ -401,11 +450,11 @@ func _derive_settlement(s: SimSettlement) -> void:
 	var b := SimData.biome(site.biome, site.band)
 	var c := SimData.culture(s.culture)
 	var sf := _size_factor(site)
-	s.cap = {
-		"food": float(b.food) * sf * SimEconomy.FOOD_CAP * float(c.farm),
-		"timber": float(b.timber) * sf * SimEconomy.TIMBER_CAP,
-		"ore": float(b.ore) * sf * SimEconomy.ORE_CAP,
-	}
+	s.land = b
+	s.cap = {"food": float(b.food) * sf * SimEconomy.FOOD_CAP * float(c.farm)}
+	for g in SimData.goods:
+		if SimData.goods[g].has("cap"):
+			s.cap[g] = float(b.get(g, 0.0)) * sf * float(SimData.goods[g].cap)
 	s.seasonal = bool(b.seasonal) and SimData.band_family(site.band) == "surface"
 	s.band = SimData.band_family(site.band)
 	s.x = site.x
@@ -779,6 +828,15 @@ func hold_party(pid: int, on: bool) -> bool:
 	p.held = on
 	return true
 
+# ── Trade ledger ─────────────────────────────────────────────────────────────
+
+## The ledger's row for a route, made on first use.
+func ledger_row(rid: int) -> Dictionary:
+	if not ledger.has(rid):
+		ledger[rid] = {"goods": {}, "value": 0.0, "trips": 0, "ambushes": 0, "taken": 0, "lost": 0.0,
+			"beasts": 0, "raiders": {}}
+	return ledger[rid]
+
 # ── Queries ──────────────────────────────────────────────────────────────────
 
 ## Settlements, lairs and parties whose x lies in [x0, x1]: what a player's interest
@@ -903,6 +961,12 @@ func to_dict() -> Dictionary:
 		for f in route_traffic[k]:
 			inner[str(f)] = route_traffic[k][f]
 		tr[str(k)] = inner
+	var rv := {}
+	for k in route_value:
+		var inner := {}
+		for f in route_value[k]:
+			inner[str(f)] = route_value[k][f]
+		rv[str(k)] = inner
 	var rw := {}
 	for k in region_weather:
 		rw[str(k)] = region_weather[k]
@@ -914,7 +978,7 @@ func to_dict() -> Dictionary:
 		"sites": sites.duplicate(true), "routes": routes.duplicate(true),
 		"settlements": ss, "lairs": ls, "factions": fs, "parties": ps, "ruins": ru,
 		"chronicle": chronicle.duplicate(true), "stats": stats.duplicate(),
-		"route_threat": rt, "route_traffic": tr, "region_weather": rw, "taken_names": tn,
+		"route_threat": rt, "route_traffic": tr, "route_value": rv, "region_weather": rw, "taken_names": tn,
 		"next_party": next_party, "next_faction": next_faction, "world_x0": world_x0, "world_w": world_w,
 	}
 
@@ -933,6 +997,7 @@ static func from_dict(d: Dictionary) -> WorldSim:
 			"length": float(r.length), "name": str(r.name), "cls": int(r.cls)}
 		if r.has("trail"):
 			rr["trail"] = bool(r.trail)
+		rr["crossings"] = Array(r.get("crossings", []))
 		sim.routes.append(rr)
 	sim.world_x0 = float(d.world_x0)
 	sim.world_w = float(d.world_w)
@@ -941,6 +1006,9 @@ static func from_dict(d: Dictionary) -> WorldSim:
 	for sd in d.settlements:
 		var s := SimSettlement.from_dict(sd)
 		sim._derive_settlement(s)
+		for g in SimData.good_names:     # a save from before the good existed
+			if not s.stock.has(g):
+				s.stock[g] = 0.0
 		sim.settlements[s.id] = s
 	for ld in d.lairs:
 		var l := SimLair.from_dict(ld)
@@ -969,6 +1037,11 @@ static func from_dict(d: Dictionary) -> WorldSim:
 		for f in d.route_traffic[k]:
 			inner[int(f)] = float(d.route_traffic[k][f])
 		sim.route_traffic[int(k)] = inner
+	for k in d.get("route_value", {}):
+		var inner := {}
+		for f in d.route_value[k]:
+			inner[int(f)] = float(d.route_value[k][f])
+		sim.route_value[int(k)] = inner
 	for k in d.region_weather:
 		sim.region_weather[int(k)] = float(d.region_weather[k])
 	for n in d.taken_names:

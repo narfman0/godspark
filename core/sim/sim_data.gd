@@ -9,6 +9,12 @@ const NUMBER_WORDS := {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "si
 static var _loaded := false
 static var goods: Dictionary = {}
 static var good_names: Array[String] = []
+## The goods labour takes out of the land (those with a labour rate in goods.json).
+static var raw_goods: Array[String] = []
+## The goods people use up over a year (those with a use in goods.json).
+static var used_goods: Array[String] = []
+## Barrier kind -> what a route crossing it adds to its length, as a share of the world's width.
+static var crossing_cost: Dictionary = {}
 static var biomes: Dictionary = {}
 static var cultures: Dictionary = {}
 static var culture_ids: Array[String] = []
@@ -26,6 +32,11 @@ static func ensure() -> void:
 	goods = _load("res://data/sim/goods.json")
 	for g in goods:
 		good_names.append(g)
+		if goods[g].has("labour"):
+			raw_goods.append(g)
+		if goods[g].has("use"):
+			used_goods.append(g)
+	crossing_cost = _load("res://data/worldgen/barriers.json").get("cost", {})
 	biomes = _load("res://data/sim/biomes.json")
 	cultures = _load("res://data/sim/cultures.json")
 	for c in cultures:
@@ -112,6 +123,10 @@ static func biome(name: String, band: String) -> Dictionary:
 		return biomes[name]
 	var fb: Dictionary = biomes["_band_default"]
 	return biomes[fb.get(band, "meadow")]
+
+## How much a culture likes a biome: its settlement weight, 0.4 where it doesn't say.
+static func fit(culture_id: String, biome_id: String) -> float:
+	return float(culture(culture_id).biomes.get(biome_id, 0.4))
 
 ## Band family used by lairs and route classes: surface, caves or deeps.
 static func band_family(band: String) -> String:

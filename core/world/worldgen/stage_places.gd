@@ -25,7 +25,7 @@ static func run(c: GenContext, _rng: RandomNumberGenerator) -> void:
 	PlaceStyles.ensure()
 	Dressing.ensure()
 	c.places = {}
-	var sim := WorldSim.from_meta({"sites": c.sites, "routes": c.routes, "surface": c.surface}, c.world_seed)
+	var sim := WorldSim.from_meta({"sites": c.sites, "routes": c.routes, "surface": c.surface, "barriers": Barriers.meta(c)}, c.world_seed)
 	for s: Dictionary in c.sites:
 		if s["kind"] != "settlement":
 			continue

@@ -5,8 +5,6 @@ extends RefCounted
 
 ## Food per day a size-1 site of a 1.0 biome yields at full working capacity.
 const FOOD_CAP := 70.0
-const TIMBER_CAP := 6.0
-const ORE_CAP := 3.0
 ## Food one person eats per day (goods.json food.need / 365, rounded to the sim's 360-day year).
 const EAT := 0.1
 ## Food per day one farm worker produces on unworked land (diminishing toward the cap).
@@ -30,22 +28,57 @@ const WEALTH_DECAY := 0.06
 const ABANDON_POP := 12
 ## Caravan: minimum expected profit in coin, cost per wagon per travel day.
 const MIN_PROFIT := 25.0
-const WAGON_DAY_COST := 0.6
+const WAGON_DAY_COST := 5.0
 const SHOCK_DAYS := 360
 ## Roughly how many people one unit of daily food capacity feeds at equilibrium.
 const EQ_PER_CAP := 6.5
+## Local price of a good at its stock target, as a share of base: where the land gives none,
+## and where it gives a full 1.0 share (data/sim/biomes.json). Goods no land gives sit at 1.
+const LAND_PRICE_NONE := 1.3
+const LAND_PRICE_FULL := 0.7
+## A town keeps this many stock targets of a good before hands go elsewhere, plus this many for
+## each 1.0 of biome share: what the land yields, it stockpiles to sell.
+const KEEP_BASE := 2.0
+const KEEP_LAND := 3.0
+## A town with this much coin a head buys food up to this many stock targets, enough that its
+## people grow past what its own land feeds (see grow_f in _tick_settlement).
+const RICH_FOOD_COIN := 3.0
+const RICH_FOOD_STOCK := 1.9
+## What a unit of game feeds, once the granary is empty.
+const GAME_FOOD := 3.0
+## Yield of a field with no water to spare, as a share of a watered one.
+const DRY_FIELD := 0.55
+## Food spoils at this share of its rate with salt to hand, and at this share with none.
+const SPOIL_SALTED := 0.5
+const SPOIL_UNSALTED := 1.5
+## Natural deaths with reagents to hand, and with none, as a share of DEATH.
+const DEATH_TENDED := 0.85
+const DEATH_UNTENDED := 1.2
+## Stone stock under this share of target: walls in disrepair, a step worse (SimConflict.wall_ac).
+const STONE_LOW := 0.25
 
 static func target(s: SimSettlement, g: String) -> float:
 	var d: Dictionary = SimData.goods[g]
 	return s.pop() * float(d.need) * float(d.target_years)
 
+## A good's price: its base, moved by what the land here gives and by the stock against target.
 static func price(s: SimSettlement, g: String) -> float:
 	var d: Dictionary = SimData.goods[g]
 	var tg := target(s, g)
 	if tg <= 0.0:
 		return float(d.base)
 	var st: float = s.stock.get(g, 0.0)
-	return float(d.base) * clampf(pow(tg / maxf(st, 0.05 * tg), 0.8), 0.25, 6.0)
+	return float(d.base) * land_price(s, g) * clampf(pow(tg / maxf(st, 0.05 * tg), 0.8), 0.25, 6.0)
+
+## What the land does to a good's price here (1 for goods no land gives, or a site with no row).
+static func land_price(s: SimSettlement, g: String) -> float:
+	if not s.land.has(g):
+		return 1.0
+	return lerpf(LAND_PRICE_NONE, LAND_PRICE_FULL, clampf(float(s.land[g]), 0.0, 1.0))
+
+## The stock of a good past which a town puts no more hands on it.
+static func stock_cap(s: SimSettlement, g: String) -> float:
+	return target(s, g) * (KEEP_BASE + KEEP_LAND * float(s.land.get(g, 0.0)))
 
 ## Food reserve as a fraction of one season's eating.
 static func security(s: SimSettlement) -> float:
@@ -80,6 +113,14 @@ static func tick(sim: WorldSim) -> void:
 				tr.erase(f)
 		if tr.is_empty():
 			sim.route_traffic.erase(rid)
+	for rid in sim.route_value.keys():
+		var rv: Dictionary = sim.route_value[rid]
+		for f in rv.keys():
+			rv[f] *= 0.9
+			if rv[f] < 1.0:
+				rv.erase(f)
+		if rv.is_empty():
+			sim.route_value.erase(rid)
 
 static func _tick_settlement(sim: WorldSim, s: SimSettlement, days: int) -> void:
 	var c := SimData.culture(s.culture)
@@ -96,32 +137,36 @@ static func _tick_settlement(sim: WorldSim, s: SimSettlement, days: int) -> void
 	var toolf := 1.0 + 0.25 * tools_ok
 	var season_f: float = SEASON_F[sim.season_index()] if s.seasonal else 1.0
 	# Crafts: labour follows the land's strengths; a quarter makes tools and fine goods.
-	var ct: float = s.cap.timber + 0.01
-	var co: float = s.cap.ore + 0.01
 	var raw_l := craft_l * 0.75
-	var timber_l := raw_l * ct / (ct + co)
-	var ore_l := raw_l - timber_l
-	# Full woodpiles and ore heaps send hands back to the fields.
-	var want_t := clampf(2.0 - s.stock.timber / maxf(target(s, "timber") * 2.0, 1.0), 0.0, 1.0)
-	var want_o := clampf(2.0 - s.stock.ore / maxf(target(s, "ore") * 2.0, 1.0), 0.0, 1.0)
-	farm_l += timber_l * (1.0 - want_t) + ore_l * (1.0 - want_o)
-	timber_l *= want_t
-	ore_l *= want_o
-	var timber_day: float = s.cap.timber * (1.0 - exp(-timber_l * 0.08 * toolf / ct))
-	var ore_day: float = s.cap.ore * (1.0 - exp(-ore_l * 0.05 * float(c.craft) * toolf / co))
+	var raw_cap := 0.0
+	for g in SimData.raw_goods:
+		raw_cap += float(s.cap[g]) + 0.01
+	var raw_day := {}
+	for g in SimData.raw_goods:
+		var cg: float = float(s.cap[g]) + 0.01
+		var l := raw_l * cg / raw_cap
+		# Full woodpiles and ore heaps send hands back to the fields.
+		var want := clampf(2.0 - s.stock[g] / maxf(stock_cap(s, g), 1.0), 0.0, 1.0)
+		farm_l += l * (1.0 - want)
+		var d: Dictionary = SimData.goods[g]
+		var skill: float = float(c.craft) if d.get("craft", false) else 1.0
+		raw_day[g] = float(s.cap[g]) * (1.0 - exp(-l * want * float(d.labour) * skill * toolf / cg))
+	# Wells give what they give, up to twice what a town keeps.
+	s.stock.water = minf(s.stock.water + s.cap.water * days, maxf(s.stock.water, stock_cap(s, "water") * 2.0))
+	var water_ok := clampf(s.stock.water / maxf(target(s, "water") * 0.5, 1.0), 0.0, 1.0)
 	var food_day := 0.0
 	var food_norm := 0.0   # an ordinary day's yield, no season or weather
 	var cf: float = s.cap.food
 	if cf > 0.0:
-		food_norm = cf * (1.0 - exp(-farm_l * WORKER_FOOD * toolf / cf))
+		food_norm = cf * (1.0 - exp(-farm_l * WORKER_FOOD * toolf / cf)) * lerpf(DRY_FIELD, 1.0, water_ok)
 		food_day = food_norm * season_f * s.weather
 	if s.besieged_by >= 0:
 		food_day *= 0.3
 	var make_l := craft_l * 0.25
 	var stock: Dictionary = s.stock
 	stock.food += food_day * days
-	stock.timber += timber_day * days
-	stock.ore += ore_day * days
+	for g in SimData.raw_goods:
+		stock[g] += float(raw_day[g]) * days
 	var tools_made := minf(make_l * 0.7 * 0.015 * float(c.craft) * days, minf(stock.ore, stock.timber))
 	stock.ore -= tools_made
 	stock.timber -= tools_made
@@ -132,22 +177,28 @@ static func _tick_settlement(sim: WorldSim, s: SimSettlement, days: int) -> void
 	# Eating.
 	var need := pop * EAT * days
 	var fed := 1.0
+	if stock.food < need and stock.game > 0.0:
+		var eaten := minf(stock.game, (need - stock.food) / GAME_FOOD)
+		stock.game -= eaten
+		stock.food += eaten * GAME_FOOD
 	if stock.food >= need:
 		stock.food -= need
 	else:
 		fed = stock.food / need
 		stock.food = 0.0
-	# Other needs and wear.
-	var timber_need := pop * 1.0 / WorldSim.YEAR_DAYS * days
-	var timber_ok := minf(stock.timber / maxf(timber_need, 0.001), 1.0)
-	stock.timber = maxf(stock.timber - timber_need, 0.0)
-	stock.ore = maxf(stock.ore - pop * 0.1 / WorldSim.YEAR_DAYS * days, 0.0)
-	stock.tools = maxf(stock.tools - pop * 0.15 / WorldSim.YEAR_DAYS * days, 0.0)
-	var lux_need := pop * 0.06 / WorldSim.YEAR_DAYS * days
-	var lux_ok := minf(stock.luxuries / maxf(lux_need, 0.001), 1.0)
-	stock.luxuries = maxf(stock.luxuries - lux_need, 0.0)
+	# Other needs and wear. ok[g]: how much of this tick's need for g was there.
+	var ok := {}
+	for g in SimData.used_goods:
+		var used := pop * float(SimData.goods[g].use) * dt_year
+		ok[g] = minf(stock[g] / maxf(used, 0.001), 1.0)
+		stock[g] = maxf(stock[g] - used, 0.0)
+	var timber_ok: float = ok.timber
+	var lux_ok: float = ok.luxuries
 	for g in SimData.good_names:
-		stock[g] = maxf(float(stock[g]) * (1.0 - float(SimData.goods[g].spoil) * dt_year), 0.0)
+		var spoil := float(SimData.goods[g].spoil)
+		if g == "food":
+			spoil *= lerpf(SPOIL_UNSALTED, SPOIL_SALTED, ok.salt)
+		stock[g] = maxf(float(stock[g]) * (1.0 - spoil * dt_year), 0.0)
 	# Coin.
 	s.wealth += s.workers * INCOME * days * (0.6 + 0.4 * s.morale)
 	s.wealth -= s.soldiers * UPKEEP * days
@@ -164,7 +215,7 @@ static func _tick_settlement(sim: WorldSim, s: SimSettlement, days: int) -> void
 	var ratio := food_norm / maxf(pop * EAT, 0.001)
 	var grow_f := clampf(maxf((ratio - 1.0) / GROW_MARGIN, (sec - 1.0) / 1.5), 0.0, 1.0)
 	var births := pop * BIRTH * dt_year * (0.2 + 0.8 * grow_f) * fed * (0.6 + 0.4 * timber_ok) * (0.8 + 0.4 * s.morale)
-	var deaths := pop * DEATH * dt_year
+	var deaths := pop * DEATH * dt_year * lerpf(DEATH_UNTENDED, DEATH_TENDED, ok.reagents)
 	var starving := pop * (1.0 - fed) * STARVE
 	var nb := _round(sim, births)
 	var nd := _round(sim, deaths)
@@ -211,7 +262,7 @@ static func _tick_settlement(sim: WorldSim, s: SimSettlement, days: int) -> void
 	else:
 		s.hungry = 0
 		if s.shock.is_empty():
-			s.price_ref = s.price_ref + (p_food - s.price_ref) * 0.05
+			s.price_ref = s.price_ref + (p_food - s.price_ref) * 0.02
 	if s.hungry == 2 and s.shock.is_empty():
 		sim.stats_add("famines", 1)
 		s.shock = {"t": sim.t, "price0": s.price_ref, "maxp": p_food, "imports": 0, "migrants": 0, "raids": 0}
@@ -391,7 +442,8 @@ static func _plan_caravan(sim: WorldSim, s: SimSettlement) -> void:
 			if pd < ps * 1.25:
 				continue
 			var carry: float = e[3]
-			var demand := maxf(row[2 * n + i] * 1.3 - row[n + i], 0.0)
+			var wanted := row[2 * n + i] * (RICH_FOOD_STOCK if i == 0 and d.wealth >= d.pop() * RICH_FOOD_COIN else 1.3)
+			var demand := maxf(wanted - row[n + i], 0.0)
 			var amount := minf(minf(e[2], demand), max_wagons * carry)
 			amount = minf(amount, d.wealth * 0.8 / pd)
 			if amount < carry * 0.5:
@@ -400,7 +452,7 @@ static func _plan_caravan(sim: WorldSim, s: SimSettlement) -> void:
 			var profit := amount * (pd - ps) * iso - wagons * days * 2.0 * WAGON_DAY_COST
 			if profit > best_profit:
 				best_profit = profit
-				best = [sid, e[1], int(amount), wagons, ps, 0.0, amount * (pd - ps) * iso]
+				best = [sid, e[1], int(amount), wagons, ps, 0.0, amount * (pd - ps) * iso, pd]
 	if best.is_empty():
 		return
 	# Danger on the way only matters for the deal actually considered.
@@ -433,7 +485,7 @@ static func _plan_caravan(sim: WorldSim, s: SimSettlement) -> void:
 	s.soldiers -= esc_n
 	s.out_caravans += 1
 	sim.stats_add("caravans_sent", 1)
-	_mark_traffic(sim, p)
+	_mark_traffic(sim, p, {good: float(best[7])})
 
 static func _add_member(m: Dictionary, slug: String, n: int) -> void:
 	if n > 0:
@@ -447,13 +499,46 @@ static func _path_risk(sim: WorldSim, a: int, b: int, mask: int) -> float:
 		r += sim.route_threat.get(sim.route_id(path[i], path[i + 1]), 0.0)
 	return clampf(r * 0.08, 0.0, 0.6)
 
-static func _mark_traffic(sim: WorldSim, p: SimParty) -> void:
+## A caravan sets out along its path: every route on it sees the wagons and what they carry,
+## priced at what the far end will pay (`prices`: good -> coin a unit). That is what raiders
+## hear about.
+static func _mark_traffic(sim: WorldSim, p: SimParty, prices: Dictionary) -> void:
+	var value := 0.0
+	for g in p.cargo:
+		value += float(p.cargo[g]) * float(prices.get(g, SimData.goods[g].base))
 	for i in range(p.path.size() - 1):
 		var rid := sim.route_id(p.path[i], p.path[i + 1])
 		if not sim.route_traffic.has(rid):
 			sim.route_traffic[rid] = {}
+			sim.route_value[rid] = {}
 		var tr: Dictionary = sim.route_traffic[rid]
 		tr[p.faction] = float(tr.get(p.faction, 0.0)) + 1.0
+		var rv: Dictionary = sim.route_value.get(rid, {})
+		rv[p.faction] = float(rv.get(p.faction, 0.0)) + value
+		sim.route_value[rid] = rv
+	if sim.ledger_on:
+		_ledger_trip(sim, p, prices, value)
+
+## The trade ledger's books for one trip: per route, and per flow of a good between biomes.
+static func _ledger_trip(sim: WorldSim, p: SimParty, prices: Dictionary, value: float) -> void:
+	var crossed: Array = []
+	for i in range(p.path.size() - 1):
+		var rid := sim.route_id(p.path[i], p.path[i + 1])
+		var row := sim.ledger_row(rid)
+		row.trips += 1
+		row.value += value
+		for g in p.cargo:
+			row.goods[g] = int(row.goods.get(g, 0)) + int(p.cargo[g])
+		crossed.append_array(sim.route_by_id[rid].get("crossings", []))
+	crossed.sort()
+	var from: String = sim.site_by_id[p.path[0]].biome
+	var to: String = sim.site_by_id[p.path[p.path.size() - 1]].biome
+	for g in p.cargo:
+		var key := "%s|%s|%s|%s" % [g, from, to, ",".join(crossed)]
+		var f: Array = sim.flows.get(key, [0, 0.0])
+		f[0] += int(p.cargo[g])
+		f[1] += float(p.cargo[g]) * float(prices.get(g, SimData.goods[g].base))
+		sim.flows[key] = f
 
 ## A caravan reaches its market: sell, buy a return load, head home.
 static func caravan_arrive(sim: WorldSim, p: SimParty) -> void:
@@ -511,6 +596,10 @@ static func caravan_arrive(sim: WorldSim, p: SimParty) -> void:
 				p.cargo[best_g] = int(p.cargo.get(best_g, 0)) + n
 	sim.stats_add("caravans_arrived", 1)
 	sim.stats_add("trade_value", int(sold_value))
+	var back_prices := {}
+	if sim.settlements.has(p.home):
+		for g in p.cargo:
+			back_prices[g] = price(sim.settlements[p.home], g)
 	# Trade warms relations.
 	if d.faction != p.faction and sim.factions.has(p.faction) and sim.factions.has(d.faction):
 		var a: SimFaction = sim.factions[p.faction]
@@ -523,6 +612,8 @@ static func caravan_arrive(sim: WorldSim, p: SimParty) -> void:
 			sim.log_event("trade_opened", {"a": a.name, "b": b.name, "from": sim._site_label(p.home), "to": d.name,
 				"good": p.plan.get("good", "goods")})
 	_go_home(sim, p)
+	if sim.parties.has(p.id) and not p.cargo.is_empty():
+		_mark_traffic(sim, p, back_prices)
 
 static func _clean_cargo(p: SimParty) -> void:
 	for g in p.cargo.keys():
@@ -684,13 +775,14 @@ static func _maybe_found(sim: WorldSim, s: SimSettlement) -> void:
 	var reach: float = WorldSim.REACH_DAYS.settlers * WorldSim.DAY_H * WorldSim.SPEED.settlers
 	var pr: Array = sim.paths_from(s.id, mask)
 	var best := -1
-	var best_h := INF
+	var best_score := INF
 	for sid in pr[2]:
-		if not free_site(sim, sid, s.culture):
+		if not free_site(sim, sid, s.culture) or pr[0][sid] > reach:
 			continue
-		var h: float = pr[0][sid]
-		if h < best_h and h <= reach:
-			best_h = h
+		# Near first, but a people walks further for land that suits it.
+		var score: float = (pr[0][sid] + 12.0) / (0.5 + SimData.fit(s.culture, sim.site_by_id[sid].biome))
+		if score < best_score:
+			best_score = score
 			best = sid
 	if best < 0:
 		return

@@ -6,6 +6,15 @@ extends RefCounted
 
 ## Raid launch chance per econ tick per unit of raiding drive.
 const RAID_P := 0.02
+## Coin in one wagon train that draws a raid as hard as a settlement's loot weighs (see
+## route_targets, _maybe_raid).
+const ROUTE_VALUE := 15.0
+## A road over a barrier pinches its wagons into one place, where raiders can wait for them:
+## what each crossing on a route adds to its worth to a raid, as a share.
+const PINCH := {"pass": 1.0, "ford": 0.35, "bridge": 0.35}
+## Route traffic decays by 0.9 an econ tick, so a steady trickle of caravans sums to the number
+## sent in this many days.
+const TRAFFIC_DAYS := 50.0
 ## Lair hunt chance per day at full hunger, per party on a hunted route.
 const LAIR_HUNT := 0.03
 ## Raiders can carry this much loot each (food units; coin is unlimited).
@@ -142,7 +151,7 @@ static func _encounters(sim: WorldSim, hours: int) -> void:
 					continue
 				if not (v.kind in ["caravan", "migrants", "settlers"]):
 					continue
-				if not _hostile(sim, ra.faction, v.faction, true):
+				if not _preys_on(sim, ra, v):
 					continue
 				if sim.rng.randf() < 0.65 and not (ra.watched or v.watched):
 					var helpers: Array = []
@@ -186,6 +195,14 @@ static func _hostile(sim: WorldSim, a: int, b: int, raiding: bool) -> bool:
 		limit = 25.0 if fa.temperament == "raider" else -25.0
 	return fa.rel(b) < limit
 
+## Whether raiders in ambush fall on this party: their enemies, or anyone but friends once the
+## raid went out hungry (the same test that picked the route, route_targets).
+static func _preys_on(sim: WorldSim, ra: SimParty, v: SimParty) -> bool:
+	if _hostile(sim, ra.faction, v.faction, true):
+		return true
+	return ra.plan.get("motive", "") == "hunger" and sim.factions.has(ra.faction) \
+		and ra.faction != v.faction and sim.factions[ra.faction].rel(v.faction) < 40.0
+
 # ── Fights and their bookkeeping ─────────────────────────────────────────────
 
 static func people_slug(culture: String) -> String:
@@ -224,8 +241,12 @@ static func defenders(s: SimSettlement) -> Array:
 	SimEconomy._add_member(side, people_slug(s.culture), militia)
 	return [side, militia]
 
+## What walls add to a town's armour: its tier, a step less if it has run out of stone.
 static func wall_ac(s: SimSettlement) -> int:
-	return {"hamlet": 0, "village": 1, "town": 2, "city": 3}.get(s.tier, 0)
+	var ac: int = {"hamlet": 0, "village": 1, "town": 2, "city": 3}.get(s.tier, 0)
+	if float(s.stock.get("stone", 1e9)) < SimEconomy.target(s, "stone") * SimEconomy.STONE_LOW:
+		ac = maxi(ac - 1, 0)
+	return ac
 
 ## Apply losses to a settlement's defenders. Returns the number killed.
 static func settlement_losses(s: SimSettlement, dead: Dictionary, militia: int) -> int:
@@ -329,12 +350,14 @@ static func ambush_outcome(sim: WorldSim, ra: SimParty, v: SimParty, rid: int, h
 	var loot_goods := 0
 	var loot_coin := 0
 	var captives := 0
+	var ledger_lost := 0.0
 	if won and ra.size() > 0:
 		sim.stats_add("ambush_wins", 1)
 		var taken := _take_loot(ra, v.cargo, ra.size() * CARRY)
 		for g in taken:
 			if g == "food": loot_food += taken[g]
 			else: loot_goods += taken[g]
+			ledger_lost += float(taken[g]) * float(SimData.goods[g].base)
 		loot_coin = int(v.coin)
 		ra.coin += v.coin
 		v.coin = 0.0
@@ -351,6 +374,13 @@ static func ambush_outcome(sim: WorldSim, ra: SimParty, v: SimParty, rid: int, h
 		if v.kind == "caravan":
 			sim.stats_add("caravans_lost", 1)
 	sim.route_threat[rid] = float(sim.route_threat.get(rid, 0.0)) + 1.0 + victim_dead * 0.1
+	if sim.ledger_on and v.kind == "caravan":
+		var row := sim.ledger_row(rid)
+		row.ambushes += 1
+		row.raiders[ra.culture] = int(row.raiders.get(ra.culture, 0)) + 1
+		if won:
+			row.taken += 1
+			row.lost += ledger_lost
 	_rel_hit(sim, v.faction, ra.faction, 14.0 if won else 7.0)
 	sim.log_event("ambush", {
 		"raiders": _adj(ra.culture), "rfaction": sim.faction_name(ra.faction), "rfrom": _home_name(sim, ra),
@@ -434,6 +464,8 @@ static func _lair_hunt(sim: WorldSim, l: SimLair, v: SimParty, rid: int) -> bool
 	l.hunger = clampf(l.hunger - killed * 0.08 - eaten / 300.0 - (0.1 if won else 0.0), 0.0, 1.0)
 	sim.stats_add("lair_kills", killed)
 	sim.route_threat[rid] = float(sim.route_threat.get(rid, 0.0)) + 0.7
+	if sim.ledger_on and v.kind == "caravan":
+		sim.ledger_row(rid).beasts += 1
 	if sim.settlements.has(v.home):
 		var h: SimSettlement = sim.settlements[v.home]
 		h.grievance[l.id] = float(h.grievance.get(l.id, 0.0)) + killed + (2.0 if won else 1.0)
@@ -632,24 +664,10 @@ static func _maybe_raid(sim: WorldSim, s: SimSettlement) -> void:
 	var pr: Array = sim.paths_from(s.id, mask)
 	var dist: Dictionary = pr[0]
 	var ids: Array = pr[2]
-	var cands: Array = []
+	var cands := route_targets(sim, s, hungry, mask, dist, reach)
 	var total := 0.0
-	for rid in WorldSim._sorted_keys(sim.route_traffic):
-		var r: Dictionary = sim.route_by_id[rid]
-		if (r.cls & mask) == 0:
-			continue
-		var h := minf(dist.get(r.a, INF), dist.get(r.b, INF))
-		if h > reach:
-			continue
-		var w := 0.0
-		var tr: Dictionary = sim.route_traffic[rid]
-		for fid in WorldSim._sorted_keys(tr):
-			if fid != s.faction and (_hostile(sim, s.faction, fid, true) or (hungry and f.rel(fid) < 40.0)):
-				w += float(tr[fid])
-		if w > 0.0:
-			w *= 1.0 - 0.5 * h / reach
-			cands.append(["route", rid, w])
-			total += w
+	for cnd in cands:
+		total += cnd[2]
 	var n_raid := mini(int(s.soldiers * 0.6), 60)
 	var comp := SimData.allocate(c.raiders, n_raid)
 	for sid in ids:
@@ -710,6 +728,36 @@ static func _maybe_raid(sim: WorldSim, s: SimSettlement) -> void:
 	if not s.shock.is_empty():
 		s.shock.raids = int(s.shock.raids) + 1
 
+## Routes worth a raid from s, as ["route", route id, weight]. A raid takes one wagon train and
+## goes home, so it wants the richest train likely to come by while it waits: coin a trip of the
+## people s would rob, times the chance one passes in AMBUSH_DAYS, less for the distance. One
+## rich train a month over the pass draws more raiders than a cart of timber a week down the lane.
+static func route_targets(sim: WorldSim, s: SimSettlement, hungry: bool, mask: int, dist: Dictionary, reach: float) -> Array:
+	var f: SimFaction = sim.factions[s.faction]
+	var out: Array = []
+	for rid in WorldSim._sorted_keys(sim.route_value):
+		var r: Dictionary = sim.route_by_id[rid]
+		if (r.cls & mask) == 0:
+			continue
+		var h := minf(dist.get(r.a, INF), dist.get(r.b, INF))
+		if h > reach:
+			continue
+		var value := 0.0
+		var trips := 0.0
+		var rv: Dictionary = sim.route_value[rid]
+		var tr: Dictionary = sim.route_traffic.get(rid, {})
+		for fid in WorldSim._sorted_keys(rv):
+			if fid != s.faction and (_hostile(sim, s.faction, fid, true) or (hungry and f.rel(fid) < 40.0)):
+				value += float(rv[fid])
+				trips += float(tr.get(fid, 0.0))
+		if value > 0.0:
+			var passes := 1.0 - exp(-trips * AMBUSH_DAYS / TRAFFIC_DAYS)
+			var pinch := 1.0
+			for kind in r.get("crossings", []):
+				pinch += float(PINCH.get(kind, 0.0))
+			out.append(["route", rid, value / maxf(trips, 1.0) * passes * pinch / ROUTE_VALUE * (1.0 - 0.5 * h / reach)])
+	return out
+
 static func _raid_settlement(sim: WorldSim, p: SimParty) -> void:
 	var here: int = p.path[p.path.size() - 1]
 	if not sim.settlements.has(here):
@@ -739,7 +787,7 @@ static func raid_outcome(sim: WorldSim, p: SimParty, d: SimSettlement, won: bool
 		d.stock.food -= float(food)
 		p.cargo["food"] = int(p.cargo.get("food", 0)) + food
 		var rest := cap - food
-		for g in ["luxuries", "tools", "ore"]:
+		for g in ["luxuries", "reagents", "tools", "salt", "ore"]:
 			var n := int(minf(d.stock[g] * 0.4, rest))
 			if n > 0:
 				d.stock[g] -= float(n)

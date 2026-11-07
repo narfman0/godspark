@@ -2,6 +2,7 @@
 ##   godot --headless -s res://tools/run_history.gd -- seed=N years=200 sites=24 [csv=/path.csv] [quiet=1] [full=1]
 ##   godot --headless -s res://tools/run_history.gd -- seed=N years=200 world=dev         # sites and routes from WorldGen
 ##   godot --headless -s res://tools/run_history.gd -- seeds=1..30 years=200 sites=24   # sweep: health stats
+##   godot --headless -s res://tools/run_history.gd -- seeds=1..10 years=100 world=dev [cache=/dir]   # on generated worlds; cache keeps what the sim reads of each
 ##   godot --headless -s res://tools/run_history.gd -- calibrate=1 [trials=200]          # SimCombat vs BattleSimulator
 ##   godot --headless -s res://tools/run_history.gd -- bench=1 sites=100 years=20        # tick cost
 extends SceneTree
@@ -25,12 +26,32 @@ func _initialize() -> void:
 			str(args.get("csv", "")), args.has("quiet"), args.has("full"))
 	quit()
 
+## What the sim reads of a generated world, kept in `cache` if given (the sim's own tuning runs
+## far more often than the world changes).
+func _world_meta(gen: String, seed: int) -> Dictionary:
+	var path := "%s/%s_%d.json" % [str(_args.get("cache", "")), gen, seed]
+	if _args.has("cache") and FileAccess.file_exists(path):
+		return _with_width(JSON.parse_string(FileAccess.get_file_as_string(path)))
+	var m: Dictionary = WorldGen.generate_named(gen, seed).meta
+	if _args.has("cache"):
+		var keep := {"sites": m.sites, "routes": m.routes, "width": (m.surface as Variant).size(), "barriers": m.get("barriers", {})}
+		var f := FileAccess.open(path, FileAccess.WRITE)
+		f.store_string(JSON.stringify(keep))
+		f.close()
+	return m
+
+func _with_width(m: Dictionary) -> Dictionary:
+	var surface: Array = []
+	surface.resize(int(m.width))
+	m["surface"] = surface
+	return m
+
 # ── One history ──────────────────────────────────────────────────────────────
 
 func _history(seed: int, years: int, n_sites: int, csv_path: String, quiet: bool, full: bool) -> void:
 	var sim: WorldSim
 	if _args.has("world"):  # a real generated world: world=dev|small|medium|large
-		sim = WorldSim.from_meta(WorldGen.generate_named(str(_args.world), seed).meta, seed)
+		sim = WorldSim.from_meta(_world_meta(str(_args.world), seed), seed)
 	else:
 		sim = WorldSim.synthetic(n_sites, seed)
 	_print_world(sim)
@@ -183,16 +204,30 @@ func _print_final(sim: WorldSim) -> void:
 func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 	var agg := {}
 	var sigs := {}
+	var biomes := {}
+	var routes := {"pass": {}, "river": {}, "flat": {}}
 	var lines: PackedStringArray = []
 	var n := 0
+	var lo0 := 1 << 40
+	var hi0 := 0
 	var t0 := Time.get_ticks_usec()
 	for seed in range(a, b + 1):
-		var h := SimHealth.run(seed, years, n_sites)
+		var h: Dictionary
+		if _args.has("world"):
+			h = SimHealth.observe(WorldSim.from_meta(_world_meta(str(_args.world), seed), seed), years)
+		else:
+			h = SimHealth.run(seed, years, n_sites)
 		n += 1
+		_add_biomes(biomes, h.biomes)
+		for kind in routes:
+			for k in h.routes[kind]:
+				routes[kind][k] = float(routes[kind].get(k, 0.0)) + float(h.routes[kind][k])
 		sigs[h.sig] = true
 		lines.append("seed %3d: pop %5d -> %5d (min %5d, max %5d)  settl %2d -> %2d  fell %2d  founded %2d  caravans %4d  ambush %3d  raids %3d  wars %2d  conq %d sack %d  famine %3d  lairs cleared %2d  bad %d" % [
 			seed, h.pop0, h.pop1, h.pop_min, h.pop_max, h.settl0, h.settl1, h.fell, h.founded, h.caravans, h.ambushes,
 			h.raids, h.wars, h.conquests, h.sacks, h.famines, h.lairs_cleared, h.bad])
+		lo0 = mini(lo0, h.pop0)
+		hi0 = maxi(hi0, h.pop0)
 		for k in h:
 			if k != "sig" and (h[k] is int or h[k] is float):
 				agg[k] = float(agg.get(k, 0.0)) + float(h[k])
@@ -216,7 +251,47 @@ func _sweep(a: int, b: int, years: int, n_sites: int) -> void:
 	print("  per world means: caravans %.0f, ambushes %.0f, settlement raids %.0f, wars %.1f, conquests %.1f, sacks %.1f, foundings %.1f, settlements fallen %.1f, lairs cleared %.1f" % [
 		agg.caravans / n, agg.ambushes / n, agg.raids / n, agg.wars / n, agg.conquests / n, agg.sacks / n,
 		agg.founded / n, agg.fell / n, agg.lairs_cleared / n])
+	print("  mean trade value %.0f, famines %.1f, starting people %.0f (%d-%d), ending people %.0f" % [
+		agg.get("trade_value", 0.0) / n, agg.famines / n, agg.pop0 / n, lo0, hi0, agg.pop1 / n])
 	print("  distinct chronicle signatures: %d / %d" % [sigs.size(), n])
+	_print_biomes(biomes, n)
+	for kind in routes:
+		var r: Dictionary = routes[kind]
+		var nr := maxf(r.get("routes", 0.0), 1.0)
+		print("  %-6s roads: %.1f a world; each carried %.0f coin in %.0f trips (%.0f a trip), %.1f ambushes (%.1f lost), %.1f lair attacks" % [
+			kind, r.get("routes", 0.0) / n, r.get("value", 0.0) / nr, r.get("trips", 0.0) / nr, r.get("value", 0.0) / maxf(r.get("trips", 0.0), 1.0),
+			r.get("ambushes", 0.0) / nr, r.get("taken", 0.0) / nr, r.get("beasts", 0.0) / nr])
+
+func _add_biomes(into: Dictionary, row: Dictionary) -> void:
+	for b in row:
+		if not into.has(b):
+			into[b] = {"worlds": 0}
+		into[b].worlds += 1
+		for k in row[b]:
+			if k == "cultures":
+				var into_c: Dictionary = into[b].get(k, {})
+				for c in row[b][k]:
+					into_c[c] = int(into_c.get(c, 0)) + row[b][k][c]
+				into[b][k] = into_c
+			elif k == "top":
+				into[b][k] = maxi(int(into[b].get(k, 0)), row[b][k])
+			else:
+				into[b][k] = int(into[b].get(k, 0)) + row[b][k]
+
+func _print_biomes(biomes: Dictionary, n: int) -> void:
+	print("\n== Per biome, %d worlds: settlements and people are means per world" % n)
+	print("  %-10s %6s %7s %7s %7s %7s %7s %6s %7s %7s %7s" % ["biome", "worlds", "settl0", "settl1", "pop0", "pop1", "per pl", "top", "hungry", "short", "rich"])
+	var keys := biomes.keys()
+	keys.sort()
+	for b in keys:
+		var r: Dictionary = biomes[b]
+		var w := float(n)
+		var seasons := maxf(r.seasons, 1.0)
+		print("  %-10s %6d %7.1f %7.1f %7.0f %7.0f %7.0f %6d %6.1f%% %6.1f%% %6.1f%%   towns %.1f" % [b, r.worlds, r.start / w, r.end / w, r.pop0 / w, r.pop1 / w,
+			float(r.people) / seasons, r.top, 100.0 * r.hungry / seasons, 100.0 * r.short / seasons, 100.0 * r.rich / seasons, r.towns / w])
+		var who: Array = r.cultures.keys()
+		who.sort_custom(func(p, q): return r.cultures[p] > r.cultures[q])
+		print("             settled by: %s" % ", ".join(who.slice(0, 6).map(func(c): return "%s %d" % [c, r.cultures[c]])))
 
 # ── Calibration ──────────────────────────────────────────────────────────────
 

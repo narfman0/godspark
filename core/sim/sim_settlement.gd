@@ -35,7 +35,8 @@ var price_ref := 1.0        # slow average of the food price in ordinary times
 var watched := false
 var cooldowns := {}         # decision kind -> hour it may happen again
 # Derived from the site, not saved.
-var cap := {}               # food/timber/ore capacity per day
+var cap := {}               # raw good -> capacity per day (data/sim/goods.json cap x biome share)
+var land := {}              # the biome's row of data/sim/biomes.json
 var seasonal := true
 var band := "surface"
 var x := 0.0
