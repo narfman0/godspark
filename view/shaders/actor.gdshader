@@ -16,5 +16,5 @@ void vertex() {
 
 void fragment() {
 	vec3 L = gs_light_at(wpos.xy / gs_tile_m);
-	ALBEDO = tint.rgb * (L * gs_face_shade(wnrm) + vec3(0.004));
+	ALBEDO = tint.rgb * (L * gs_face_shade(wnrm) + vec3(0.004)) + gs_dark_sight(tint.rgb, L, wpos.xy / gs_tile_m);
 }

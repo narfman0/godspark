@@ -9,6 +9,7 @@ func run(t: TestLog) -> void:
 	_incremental(t)
 	_carried(t)
 	_region_bytes_check(t)
+	_own_light(t)
 
 ## SRD torch: bright to 20 ft (8 tiles), dim another 20 ft (to 16 tiles), dark beyond.
 func _torch_anchor(t: TestLog) -> void:
@@ -162,3 +163,39 @@ func _region_bytes_check(t: TestLog) -> void:
 			if sky[i + j * r.size.x] != light.sky_at(x, y) or blk[i + j * r.size.x] != light.block_at(x, y):
 				bad += 1
 	t.eq(bad, 0, "region_bytes matches sky_at / block_at, padding included")
+
+## The player lights nothing unless a light is held, worn or on (view/light_sources.gd).
+func _own_light(t: TestLog) -> void:
+	t.check(LightSources.own({}, {}, {}, []).is_empty(), "no source: no own light")
+	t.check(LightSources.own({"base": "longsword", "count": 1}, {"main_hand": {"base": "longsword", "count": 1}}, {}, []).is_empty(),
+		"a sword in hand gives no light")
+	var held := LightSources.own({"base": "tile:torch", "count": 10}, {}, {}, [])
+	t.eq(int(held.get("level", 0)), LightEngine.TORCH, "a torch selected in the hotbar is a torch")
+	t.eq(float(held.get("radius", 0.0)), 16.0, "and reaches 16 tiles")
+	t.eq(int(LightSources.own({}, {"off_hand": {"base": "tile:torch", "count": 1}}, {}, []).get("level", 0)), LightEngine.TORCH,
+		"a torch in the off hand lights")
+	t.eq(int(LightSources.own({}, {}, {}, ["light"]).get("level", 0)), LightEngine.strength_for_ft(40.0),
+		"the Light effect lights 20 ft bright, 20 dim")
+	t.eq(int(LightSources.own({}, {}, {}, ["concentration:light"]).get("level", 0)), LightEngine.strength_for_ft(40.0),
+		"a concentration effect's name is the spell's")
+	var glow := LightSources.own({}, {}, {"light": 6}, [])
+	t.eq(int(glow.get("level", 0)), LightEngine.DIM_MIN + 6 * LightEngine.STEP, "a Lantern spark alone glows 6 tiles")
+	t.eq(LightEngine.category_of(int(glow["level"])), Cat.DIM, "and its glow is dim")
+	t.eq(int(LightSources.own({"base": "tile:torch", "count": 1}, {}, {"light": 6}, []).get("level", 0)),
+		LightEngine.TORCH + 6 * LightEngine.STEP, "with a torch held, the spark widens it")
+	t.eq(int(LightSources.own({"base": "tile:torch", "count": 1}, {}, {}, ["light"]).get("level", 0)), LightEngine.TORCH,
+		"two lights: the stronger")
+	# The real items mirror: the light follows the selected slot and the off hand.
+	var items := ItemsClient.new()
+	items.inventory.put(3, Items.make("tile:torch", 10))
+	items.inventory.selected = Inventory.ATTACK_SLOT
+	t.check(LightSources.of_items(items, []).is_empty(), "items: the attack slot selected, no light")
+	items.select_hotbar(3)
+	t.eq(int(LightSources.of_items(items, []).get("level", 0)), LightEngine.TORCH, "items: the torch slot selected, a torch")
+	items.select_hotbar(4)
+	t.check(LightSources.of_items(items, []).is_empty(), "items: another slot, the torch is put away")
+	items.equipment.worn["off_hand"] = Items.make("tile:torch", 1)
+	t.eq(int(LightSources.of_items(items, []).get("level", 0)), LightEngine.TORCH, "items: a torch worn in the off hand lights")
+	items.equipment.worn.erase("off_hand")
+	t.check(LightSources.of_items(items, ["light"]).size() > 0, "items: the Light effect on, a light")
+	t.check(LightSources.of_items(null, []).is_empty(), "no items mirror, no light")

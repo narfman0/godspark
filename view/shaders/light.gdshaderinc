@@ -7,6 +7,8 @@ global uniform vec4 gs_light_rect;
 global uniform float gs_sun;
 global uniform vec4 gs_sky_tint;
 global uniform float gs_tile_m;
+// The own Darkvision: (x, y) tiles, radius tiles (0: none), grey strength.
+global uniform vec4 gs_darkvision;
 
 // LightEngine.SUN (= TORCH): the level that reads as full light.
 const float GS_FULL = 85.0;
@@ -34,6 +36,17 @@ vec3 gs_light_at(vec2 tile) {
 	vec3 lb = GS_TORCH_TINT * gs_curve(l.x) * 1.4;
 	vec3 ls = gs_sky_tint.rgb * gs_curve(l.y * gs_sun);
 	return max(lb, ls) + 0.35 * min(lb, ls);
+}
+
+// Darkvision draws the dark near its owner in grey: the albedo's luminance, no colour, fading
+// out at the radius and where real light already shows the colour.
+vec3 gs_dark_sight(vec3 base, vec3 L, vec2 tile) {
+	if (gs_darkvision.z <= 0.0) {
+		return vec3(0.0);
+	}
+	float d = distance(tile, gs_darkvision.xy) / gs_darkvision.z;
+	float k = gs_darkvision.w * (1.0 - smoothstep(0.55, 1.0, d)) * (1.0 - clamp(max(L.r, max(L.g, L.b)) * 2.5, 0.0, 1.0));
+	return vec3(dot(base, vec3(0.3, 0.55, 0.15))) * k;
 }
 
 float gs_hash(vec2 p) {

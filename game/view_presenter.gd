@@ -1,5 +1,7 @@
 ## The real presenter: a LightEngine over the client's partial world, a WorldView, and a
-## CameraRig following the own player, who carries a torch so caves are playable.
+## CameraRig following the own player. The player lights nothing unless holding or wearing a
+## light (LightSources: a torch selected in the hotbar, worn gear, the Light effect, a Lantern
+## spark's glow); Darkvision draws the dark near them in grey.
 ## Chunks arriving from the host emit chunk_changed on the client world, which WorldView and
 ## LightEngine already listen to.
 class_name ViewPresenter
@@ -22,8 +24,11 @@ var chronicle: ChronicleOverlay
 var ui: GameUi
 ## In-world feedback: numbers, nameplates, telegraphs, drops, projectiles.
 var fx: FxView
-## Carried light strength last set (the Lantern spark and light gear widen it).
-var _torch := LightEngine.TORCH
+## The own light last set (LightSources.own: {level, color, radius, key}); {} = none.
+var _own := {}
+## Effects on the own player (EFFECT events' what, while on): the Light spell lights.
+var _effects := {}
+var _facing := 1
 var dressing: DressingView
 ## Seconds between dressing rebuilds while chunks or objects keep changing.
 const DRESS_EVERY := 0.3
@@ -109,7 +114,8 @@ func actor_added(id: int, look: Dictionary) -> void:
 	if fx != null:
 		fx.actor_added(id, look)
 	if id == my_id:
-		light.add_light(OWN_LIGHT, cw.body.pos.x, cw.body.pos.y + 1.8, LightEngine.TORCH)
+		_own = {}
+		_effects.clear()
 	elif String(look.get("light", "")) == "torch":
 		_carried[id] = false
 
@@ -125,20 +131,17 @@ func actor_moved(id: int, pos: Vector2, facing: int, state: String) -> void:
 	view.move_actor(id, pos, facing, state)
 	if _carried.has(id):
 		var lit := light.sun < 0.5
-		if lit and not bool(_carried[id]):
-			light.add_light(CARRIED_LIGHT + id, pos.x + 0.6 * facing, pos.y + 1.8, LightEngine.TORCH)
-		elif lit:
-			light.move_light(CARRIED_LIGHT + id, pos.x + 0.6 * facing, pos.y + 1.8)
+		var hand := Vector2(pos.x + 0.6 * facing, pos.y + 1.8)
+		if lit:
+			_carry(CARRIED_LIGHT + id, hand, LightSources.row("torch"))
 		elif bool(_carried[id]):
-			light.remove_light(CARRIED_LIGHT + id)
+			_carry(CARRIED_LIGHT + id, hand, {})
 		_carried[id] = lit
 	if id == my_id:
 		_watch_roll()
-		light.move_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8)
-		var want := torch_strength()
-		if want != _torch:
-			_torch = want
-			light.add_light(OWN_LIGHT, pos.x + 0.6 * facing, pos.y + 1.8, want)
+		if facing != 0:
+			_facing = facing
+		_own_light()
 
 func _on_equipment(_slots: Array) -> void:
 	_own_weapon()
@@ -214,6 +217,12 @@ func combat_event(ev: Dictionary) -> void:
 		CombatCodec.Ev.HEAL:
 			if String(_oneshot.get(int(ev["dst"]), [""])[0]) == "death":
 				_oneshot.erase(int(ev["dst"]))
+		CombatCodec.Ev.EFFECT:
+			if int(ev.get("dst", 0)) == my_id:
+				if bool(ev.get("on", false)):
+					_effects[String(ev.get("what", ""))] = true
+				else:
+					_effects.erase(String(ev.get("what", "")))
 
 ## What a remote creature holds, from ENT_ADD's wield or a SWING: the first name that is a weapon
 ## this table knows. A change of weapon shows at its next swing: ENT_ADD goes out once.
@@ -242,7 +251,7 @@ func actor_vitals(id: int, hp: int, max_hp: int) -> void:
 func actor_removed(id: int) -> void:
 	_oneshot.erase(id)
 	if bool(_carried.get(id, false)):
-		light.remove_light(CARRIED_LIGHT + id)
+		_carry(CARRIED_LIGHT + id, Vector2.ZERO, {})
 	_carried.erase(id)
 	if fx != null:
 		fx.actor_removed(id)
@@ -262,6 +271,8 @@ func frame(delta: float) -> void:
 	var s := WorldClock.sun_at(cw.hours())
 	if absf(s - light.sun) > 0.002 or (s != light.sun and (s <= WorldClock.MOON or s >= 1.0)):
 		light.sun = s
+	_own_light()
+	_darkvision()
 	view.view_half = rig.visible_half_extent()
 	view.set_focus(rig.pos)
 	view.keep_clear(0, cw.view_pos() + Vector2(0, cw.body.size.y * 0.5))
@@ -279,12 +290,41 @@ func _keep_target() -> void:
 func tile_at_screen(screen_pos: Vector2) -> Vector2i:
 	return view.tile_at_screen(screen_pos) if view != null else Vector2i.ZERO
 
-## The own carried light: a torch, widened by the items client's `light` tag (Lantern spark,
-## glowing gear): each point of light is one more tile of reach.
-func torch_strength() -> int:
+## The own light from what is held, worn and on (LightSources.own); {} when nothing gives one.
+func own_light() -> Dictionary:
 	var items := cw.system(HostSystem.ITEMS) as ItemsClient if cw != null else null
-	var extra := float(items.tags().get("light", 0.0)) if items != null and items.live else 0.0
-	return mini(LightEngine.MAX, LightEngine.TORCH + roundi(extra * LightEngine.STEP))
+	return LightSources.of_items(items, _effects.keys())
+
+## The light at the own hand follows what is held: lit, moved, changed or put out.
+func _own_light() -> void:
+	if light == null or cw == null or cw.body == null or not _actors.has(my_id):
+		return
+	var want := own_light()
+	var hand := Vector2(cw.body.pos.x + 0.6 * _facing, cw.body.pos.y + 1.8)
+	if want.is_empty() and _own.is_empty():
+		return
+	_carry(OWN_LIGHT, hand, want)
+	_own = want
+
+## A carried light at the hand (tiles): row {} puts it out.
+func _carry(id: int, hand: Vector2, row: Dictionary) -> void:
+	if row.is_empty():
+		light.remove_light(id)
+		if view != null:
+			view.carry(id, Vector2.ZERO, {})
+		return
+	light.add_light(id, hand.x, hand.y, int(row["level"]))   # lights, moves or changes it
+	if view != null:
+		view.carry(id, hand, row)
+
+## Darkvision (the own species', data/combat.json darkvision_species): the view draws the dark
+## within data/lighting.json darkvision_tiles in grey. The rules' range is not the picture's.
+func _darkvision() -> void:
+	var rc := cw.system(HostSystem.RULES) as RulesClient if cw != null else null
+	var species := String(rc.sheet.get("species", "")) if rc != null else ""
+	var ft := float(CombatTempo.section("darkvision_species").get(species, 0))
+	var tiles := float(LightSources.setting("darkvision_tiles", 10.0)) if ft > 0.0 else 0.0
+	view.darkvision(cw.view_pos() + Vector2(0, cw.body.size.y * 0.5), tiles)
 
 ## Aiming preview of a quick spell (LocalInput, while its key is held); {} clears it.
 func aim_preview(spell: Dictionary, aim: Vector2) -> void:

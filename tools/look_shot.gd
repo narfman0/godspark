@@ -6,6 +6,9 @@
 ##     [cache=DIR: load the world from DIR, or generate and save it there]
 ##     [spawn=1: the spawn town] [open=1: walk east to where no place is in view] [hard=1: the old block look]
 ##     [nodress=1: none of the world's dressing, to weigh it]
+##     [cave=1: stand in the nearest cave at least 20 rows under the ground] [torches=3: torch tiles
+##     on the floor around the hero] [torch=0: the hero carries no light] [monster=goblin-warrior: a
+##     creature four tiles right of the hero, facing it]
 ##     [bench=300: pan for that many frames first and print the frame times] [seam=1: x at a seam]
 extends SceneTree
 
@@ -27,6 +30,12 @@ func _initialize() -> void:
 	while o.has("open") and x < world.width - 70 and not _open(world, x):
 		x += 16
 	var y := float(o.get("y", _ground(world, x)))
+	if o.has("cave"):
+		var c := _cave(world, x, int(y))
+		x = c.x
+		y = c.y
+	if o.has("torches"):
+		_torches(world, Vector2i(x, int(y)), int(o["torches"]))
 	var sun := float(o.get("sun", 1.0))
 	var light := LightEngine.new(world)
 	light.sun = sun
@@ -59,8 +68,18 @@ func _initialize() -> void:
 	if not o.has("nohero"):
 		view.add_actor(1, {"player": "fighter", "name": "Ash", "kind": "hero", "color": Color(0.85, 0.3, 0.25)})
 		view.move_actor(1, Vector2(x + 0.5, y), 1, "idle")
-		light.add_light(1, x + 0.5, y + 1.8, LightEngine.TORCH)
+		if String(o.get("torch", "1")) != "0":
+			var r := LightSources.row("tile:torch")
+			light.add_light(1, x + 0.5, y + 1.8, int(r["level"]))
+			view.carry(1, Vector2(x + 1.1, y + 1.8), r)
 		view.keep_clear(0, Vector2(x + 0.5, y + 1.2))
+	if o.has("monster"):
+		var mx := x + 4
+		var my := int(y) + 2
+		while my > 0 and not world.is_solid(mx, my - 1):
+			my -= 1
+		view.add_actor(2, {"slug": String(o["monster"])})
+		view.move_actor(2, Vector2(mx + 0.5, my), -1, "idle")
 	var frames := 0
 	while frames < 900:
 		await process_frame
@@ -167,6 +186,43 @@ static func _biome(world: TileWorld, x: int) -> String:
 		if x >= int(s["x0"]) and x <= int(s["x1"]):
 			return String(s["biome"])
 	return "?"
+
+## A standing spot in a cave: air with ground under it, two clear rows over it, at least 20 rows
+## under the surface, nearest x first.
+static func _cave(world: TileWorld, x: int, surface: int) -> Vector2i:
+	for d in range(0, 200):
+		for cx: int in [x + d, x - d]:
+			for cy in range(surface - 20, maxi(surface - 140, 2), -1):
+				if not world.is_solid(cx, cy) and world.is_solid(cx, cy - 1) \
+						and not world.is_solid(cx, cy + 1) and not world.is_solid(cx, cy + 2) \
+						and world.get_liquid(cx, cy) == 0:
+					return Vector2i(cx, cy)
+	return Vector2i(x, surface)
+
+## n torch tiles on the floor around at, spread left and right: each the nearest free floor cell
+## to its mark, at least 5 tiles from the others.
+static func _torches(world: TileWorld, at: Vector2i, n: int) -> void:
+	var offs := [-10, 9, 18, -19, 27]
+	var torch := TileDefs.id("torch")
+	var put: Array[Vector2i] = [at]
+	for i in mini(n, offs.size()):
+		var best := Vector2i(-1, -1)
+		var best_d := 1e9
+		for ty in range(at.y - 10, at.y + 11):
+			for tx in range(at.x + int(offs[i]) - 8, at.x + int(offs[i]) + 9):
+				if world.get_fg(tx, ty) != TileDefs.AIR or not world.is_solid(tx, ty - 1) or world.is_solid(tx, ty + 1):
+					continue
+				var far := true
+				for q: Vector2i in put:
+					far = far and q.distance_to(Vector2i(tx, ty)) >= 5.0
+				var d := Vector2(tx - at.x - int(offs[i]), (ty - at.y) * 1.5).length()
+				if far and d < best_d:
+					best_d = d
+					best = Vector2i(tx, ty)
+		if best.x >= 0:
+			world.set_fg(best.x, best.y, torch, true)
+			put.append(best)
+			print("TORCH at %d,%d" % [best.x, best.y])
 
 static func _ground(world: TileWorld, x: int) -> int:
 	var y := world.height - 1

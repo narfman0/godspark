@@ -42,7 +42,7 @@ void fragment() {
 	}
 	vec3 n = FRONT_FACING ? wnrm : -wnrm;
 	vec3 L = gs_light_at(wpos.xy / gs_tile_m);
-	ALBEDO = c.rgb * tint.rgb * (L * gs_face_shade(n) + vec3(0.004));
+	ALBEDO = c.rgb * tint.rgb * (L * gs_face_shade(n) + vec3(0.004)) + gs_dark_sight(c.rgb * tint.rgb, L, wpos.xy / gs_tile_m);
 #ifdef GS_SCISSOR
 	ALPHA = c.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_cut;

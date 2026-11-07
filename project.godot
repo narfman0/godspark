@@ -225,6 +225,10 @@ gs_keep_b={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+gs_darkvision={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
 gs_noise={
 "type": "sampler2D",
 "value": ""

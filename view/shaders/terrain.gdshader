@@ -53,7 +53,8 @@ void fragment() {
 		// A natural wall behind a cave: the wall's colour, shaded in the ground's own way.
 		vec4 n = texture(gs_noise, tile * vec2(0.0035, 0.016) + vec2(0.37, 0.11));
 		base *= 0.74 + 0.5 * mix(n.b, n.r, 0.45);
-		ALBEDO = base * 1.35 * (gs_light_at(tile) + vec3(0.004));
+		vec3 L = gs_light_at(tile);
+		ALBEDO = base * 1.35 * (L + vec3(0.004)) + gs_dark_sight(base, L, tile);
 	} else if (kind > 2.5) {
 		// Two looks at the noise pay for everything: broad strata and a fine grain, each also
 		// wandering the sampling point of the material map.
@@ -65,7 +66,7 @@ void fragment() {
 		base = mix(base, blended, smoothstep(0.05, 0.4, m.a));
 		base *= 0.62 + 0.62 * mix(broad.b, broad.r, 0.45) + 0.16 * (fine.a - 0.5);
 		vec3 L = ground_light(tile + wnrm.xy * 0.5);
-		ALBEDO = base * (L * gs_face_shade(wnrm) + vec3(0.004));
+		ALBEDO = base * (L * gs_face_shade(wnrm) + vec3(0.004)) + gs_dark_sight(base, L, tile);
 	} else {
 		vec2 cell = floor(tile - wnrm.xy * 0.02);
 		float h = gs_hash(cell + info.x * 17.13);
@@ -78,7 +79,8 @@ void fragment() {
 			ALBEDO = base * 2.2;  // emissive tile (torch flame)
 		} else if (kind > 1.5) {
 			// Background wall: darker, lit by the cell it is behind.
-			ALBEDO = base * 1.35 * (gs_light_at(tile) + vec3(0.004));
+			vec3 L = gs_light_at(tile);
+			ALBEDO = base * 1.35 * (L + vec3(0.004)) + gs_dark_sight(base, L, tile);
 		} else {
 			vec3 L = gs_light_at(tile + wnrm.xy * 0.5);
 			if (wnrm.z > 0.9) {
@@ -87,7 +89,7 @@ void fragment() {
 				float edge = smoothstep(0.42, 0.5, max(f.x, f.y));
 				base *= (1.0 - 0.22 * edge) * 0.8;
 			}
-			ALBEDO = base * (L * gs_face_shade(wnrm) + vec3(0.004));
+			ALBEDO = base * (L * gs_face_shade(wnrm) + vec3(0.004)) + gs_dark_sight(base, L, tile);
 		}
 	}
 }

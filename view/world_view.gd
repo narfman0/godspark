@@ -60,6 +60,8 @@ var _wanted := {}      ## Vector2i -> true
 var _dirty := {}       ## Vector2i -> true, needs a (re)build
 var _tasks := {}       ## Vector2i -> {"task": int, "out": Dictionary}
 var _actors := {}      ## id -> Node3D
+## Carried lights the presenter reports: id -> {pos: Vector2 tiles, level, color, radius}.
+var carried := {}
 var _light_rect := Rect2i()
 var _light_dirty := true
 var _img_block: Image
@@ -146,6 +148,19 @@ func keep_clear(slot: int, pos: Vector2, radius := -1.0) -> void:
 	if radius < 0.0:
 		radius = float(Backdrops.data().get("fore", {}).get("keep_tiles", 7.0))
 	RenderingServer.global_shader_parameter_set("gs_keep_a" if slot == 0 else "gs_keep_b", Vector4(pos.x, pos.y, radius, 0.0))
+
+## A carried light at pos (tiles, the hand): row from LightSources ({level, color, radius});
+## {} puts it out. The LightEngine field is the presenter's to set; this is the picture's lamp.
+func carry(id: int, pos: Vector2, row: Dictionary) -> void:
+	if row.is_empty():
+		carried.erase(id)
+	else:
+		carried[id] = {"pos": pos, "level": int(row["level"]), "color": row["color"], "radius": float(row["radius"])}
+
+## The own Darkvision: the dark within `tiles` of pos is drawn in grey (0: none).
+func darkvision(pos: Vector2, tiles: float) -> void:
+	var grey := float(LightSources.setting("darkvision_grey", 0.3))
+	RenderingServer.global_shader_parameter_set("gs_darkvision", Vector4(pos.x, pos.y, tiles, grey))
 
 ## Stream chunk meshes and light around pos (tile units).
 func set_focus(pos: Vector2) -> void:

@@ -1,0 +1,12 @@
+{
+ "_comment": "Light tunables. field: read by core/world/light_engine.gd (the per-tile light the rules and the picture share). view: read by the view only (view/light_sources.gd, view/world_lights.gd, the shaders through WorldView).",
+ "field": {
+  "_comment": "sky_covered_step: level sunlight loses per tile once it has left the open column (a cell with nothing opaque above it), sideways or down under cover; the first step out of the open column costs LightEngine.STEP like any other light, so a cave mouth or the edge of a roof is lit a few tiles in. LightEngine.STEP is 5.",
+  "sky_covered_step": 15
+ },
+ "view": {
+  "_comment": "darkvision_tiles: how far the own Darkvision draws the dark in grey (the rules' range is the species', this is the picture's). darkvision_grey: how bright that grey is.",
+  "darkvision_tiles": 10,
+  "darkvision_grey": 0.3
+ }
+}
