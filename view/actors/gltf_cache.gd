@@ -52,7 +52,10 @@ static func state(path: String) -> GLTFState:
 ## the bones (Hips -> Hips_2), which breaks animation retargeting.
 ## lod: which of a Synty chain's meshes to keep, or the last it has below that. Dressing that
 ## many instances draw asks for a cheap one.
-static func instance(path: String, lod := 0) -> Node3D:
+## max_tex > 0: the file's textures are scaled down to that many pixels on their long side,
+## mipmapped, and the parsed originals dropped (monster-forge GLBs carry three 2048 maps,
+## ~100 MB of video memory per creature kind as loaded; a body is a few dozen pixels tall).
+static func instance(path: String, lod := 0, max_tex := 0) -> Node3D:
 	var key := path if lod == 0 else "%s#%d" % [path, lod]
 	if not _templates.has(key):
 		var st := state(path)
@@ -61,9 +64,51 @@ static func instance(path: String, lod := 0) -> Node3D:
 			root = GLTFDocument.new().generate_scene(st) as Node3D
 			if root != null:
 				_finish(root, lod)
+				if max_tex > 0:
+					_shrink_textures(root, max_tex)
+					# The template holds what instances need: drop the parsed state (~50 MB
+					# for a forge GLB, even with its arrays emptied); an empty one stands in so
+					# exists() stays true. Such a file is lod 0 only.
+					_states[path] = GLTFState.new()
 		_templates[key] = root
 	var tpl: Node3D = _templates[key]
 	return tpl.duplicate() as Node3D if tpl != null else null
+
+## Every texture of every material under root, at most max_px on its long side, mipmapped
+## (LitMaterials then keeps it as it is). Shared textures are converted once.
+static func _shrink_textures(root: Node, max_px: int) -> void:
+	var done := {}
+	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		for si in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(si) as BaseMaterial3D
+			if m == null:
+				continue
+			for prop in ["albedo_texture", "normal_texture", "roughness_texture", "metallic_texture", "ao_texture", "emission_texture", "orm_texture"]:
+				if not prop in m:
+					continue
+				var tex: Texture2D = m.get(prop)
+				if tex == null:
+					continue
+				var id := tex.get_instance_id()
+				if not done.has(id):
+					done[id] = _shrunk(tex, max_px)
+				m.set(prop, done[id])
+
+static func _shrunk(tex: Texture2D, max_px: int) -> Texture2D:
+	var img := tex.get_image()
+	if img == null:
+		return tex
+	if img.is_compressed():
+		img.decompress()
+	var long := maxi(img.get_width(), img.get_height())
+	if long > max_px:
+		var k := float(max_px) / float(long)
+		img.resize(maxi(1, roundi(img.get_width() * k)), maxi(1, roundi(img.get_height() * k)), Image.INTERPOLATE_BILINEAR)
+	if not img.has_mipmaps():
+		img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 ## generate_scene() can leave ImporterMeshInstance3D nodes (it does under the headless
 ## dummy renderer): swap them for MeshInstance3D. Synty LOD chains (<name>_LOD0.._LOD3 as

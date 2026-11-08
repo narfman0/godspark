@@ -23,6 +23,9 @@ const ROOT := "res://assets/monsters"
 const LOOPING := ["idle", "walk", "run", "move", "fly", "swim", "hover"]
 const HOLD_LAST := ["death"]
 const MOVE_CLIPS := ["walk", "run", "move", "swim", "fly", "hover"]
+## Longest side of a forge texture once loaded (GltfCache.instance max_tex): 2048 maps cost
+## ~100 MB of video memory per creature kind; at 1024 about a quarter.
+const TEX_MAX := 1024
 
 static var last_error := ""
 
@@ -64,7 +67,7 @@ static func load_monster(monster_id: String, swarm := true) -> ForgeMonster:
 		last_error = "%s/monster.json invalid" % dir
 		return null
 	var lod0_file: String = parsed.get("lods", {}).get("0", {}).get("file", "model_rigged.glb")
-	var mdl := GltfCache.instance("%s/%s" % [dir, lod0_file])
+	var mdl := GltfCache.instance("%s/%s" % [dir, lod0_file], 0, TEX_MAX)
 	if mdl == null:
 		last_error = GltfCache.last_error
 		return null
