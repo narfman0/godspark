@@ -187,6 +187,8 @@ func _add_clip(lib: AnimationLibrary, dir: String, c: String) -> void:
 				a.track_set_path(t, NodePath("%s:%s" % [skel_path, bone]))
 			else:
 				a.remove_track(t)
+		if a.get_track_count() == 0:
+			continue   # made for another rig (a re-rig half synced): no clip beats a T-pose
 		a.loop_mode = Animation.LOOP_LINEAR if c in LOOPING else Animation.LOOP_NONE
 		lib.add_animation(c if names.size() == 1 else "%s:%s" % [c, n], a)
 	sc.free()
