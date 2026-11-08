@@ -8,6 +8,12 @@ below refer to them.
 
 ## Summary
 
+> **Superseded on 2026-11-08 (docs/tracks/hpbars.md):** the user ruled "keep Synty as much as
+> possible; monsters forge only replaces the others". The default is flipped: a slug with its own
+> Synty row keeps it, forge draws the slugs with no row, and `keep_synty` gave way to a short
+> `forge_first` list. The chain and counts below describe this track as it was built. Licensing
+> (below) is not a concern for now, per the user.
+
 - 311 of 330 SRD monsters are synced from the forge viewer over HTTP: LOD0, 3.5 GB, 20.6 s on the
   LAN. A re-run takes 1-2 s and 2 small requests per unchanged monster. `tools/bootstrap.sh` now
   does this by default.

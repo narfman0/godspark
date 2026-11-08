@@ -25,6 +25,18 @@ Defaults I chose (cheap to change now, say so if any is wrong):
 - Finite worlds (a bounded strip, like Terraria), not infinite.
 - Player is an adventurer first; ruling settlements and gathering worshippers come later.
 
+## Decisions
+
+Later rulings from the user, binding for every track:
+
+| Date | Topic | Decision |
+|---|---|---|
+| 2026-11-08 | Where game logic lives | Keep game logic in ONE project, and do not use addons for game features. Game rules stay here: Sunlight Sensitivity stays in `core/combat`, and game rules are not moved into `vendor/godot-srd-addon`, which holds the SRD rules content only |
+| 2026-11-08 | World generation time | About 40 s for a medium world on this machine is accepted. The old 30 s guide is retired (docs/m6.md, docs/tracks/m6-integration.md) |
+| 2026-11-08 | Licensing | Not a concern for now |
+| 2026-11-08 | Synty or forge | Keep Synty as much as possible; monster-forge only replaces the others. A creature with its own Synty row keeps it; forge draws the creatures with no row, plus a short, reasoned `forge_first` list of plainly wrong stand-ins (`data/looks.json`, docs/tracks/hpbars.md) |
+| 2026-11-08 | Hit point bars | Less screen business: a creature's bar shows only when it is hurt and its hit points changed lately, and fades out over a few seconds; nothing for a full-health creature (docs/tracks/hpbars.md) |
+
 ## What already exists and gets reused
 
 - **Rules:** `godot-srd-addon` (submodule at `vendor/godot-srd-addon`, symlink `addons/srd`,
@@ -56,7 +68,7 @@ fresh clone with no art fetched (which is also how headless tests run).
 
 | Thing | First choice | Then | Last resort |
 |---|---|---|---|
-| SRD monsters | monster-forge GLB | Synty stand-in where one fits | tinted primitive + nameplate |
+| SRD monsters | Synty row where the creature has one (kept as much as possible, 2026-11-08) | monster-forge GLB for the rest (and for a short list of wrong stand-ins) | tinted primitive + nameplate |
 | Peoples (townsfolk, guards, drow, dwarves, goblins, bandits) | Synty humanoids via `CharacterVisual` | | primitive |
 | Player characters | Synty `Modular_Fantasy_Hero` (gear pieces show equipped items) | | primitive |
 | Creatures outside the SRD roster | Synty creature packs | | primitive |

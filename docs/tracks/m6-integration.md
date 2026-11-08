@@ -5,7 +5,10 @@ its order: 9468850, 1964b05, b2a09a2, 40ad582, 2228e92, 21f1efa; then three from
 9676081, 69a76ef. Protocol stays 13: nothing on the
 wire changed. The addon was not touched. **Nothing here has been played by a human.**
 
-## One clause fails
+## One clause fails (since accepted)
+
+**Decided 2026-11-08: the user accepts about 40 s for medium generation on this machine; the 30 s
+guide is retired** (docs/plan.md "Decisions"). What follows is the measurement that led there.
 
 **"Medium generation stays under 30 s" does not hold on this machine: 38.5-41.3 s.** The brief's
 26.7-28.8 s are the deep track's, measured before the hardware change. The same world, alone on
@@ -57,7 +60,7 @@ The baseline before any of my changes (2fc1fc3): 10421 checks, `test_sim_world` 
 | Trade report shows deep-road goods and raids from below | `tools/trade_report.gd -- gen=medium seed=1 years=10` | below |
 | Sweep: drow cities live for decades, raid, sometimes fall to a surface war | `tools/run_history.gd -- seeds=1..10 years=100 world=medium` | yes, below |
 | The fall in wars and sacks explained | the same sweep, 4 generator salts, old code and new | mostly chance, below |
-| Medium generation under 30 s | see above | **fails: 38.5-41.3 s** |
+| Medium generation under 30 s | see above | 38.5-41.3 s; about 40 s accepted by the user on 2026-11-08 |
 | Pictures of each region, a drow street, the lake, a tunnel, a raid climbing | | partly: raid, watch, roper, aboleth here; the rest are track 5's |
 
 ## What was built
@@ -253,7 +256,7 @@ At the head of "M6 contracts" in [architecture.md](../architecture.md).
 
 ## Open
 
-- **Generation over 30 s**, above.
+- **Generation over 30 s**, above: accepted by the user on 2026-11-08 (about 40 s is fine).
 - **A sinkhole's walk is real only on its rope and at its ends.** From the rope's foot to the deep
   town `way_cells` is a straight line through rock, and on dev 4 that is 400 rows. Nobody is drawn
   there, so a raid vanishes below the chamber and reappears by the city. A real path needs a search

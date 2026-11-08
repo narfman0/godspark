@@ -247,7 +247,10 @@ Owns `tools/fetch_assets.sh`, `tools/sync_monsters.py`, `tools/bootstrap.sh`,
   and with nothing fetched every actor is a primitive with a nameplate.
 - `WorldView.add_actor(id, look)`: `look` may carry `slug` (an SRD monster slug, or
   `player`, `player:<class>`) or `people` (`human:guard`, `elf:drow:raider`). `Looks`
-  resolves it: monster-forge GLB, then Synty model, then primitive.
+  resolves it: the slug's own Synty row, then the monster-forge GLB, then the by_type Synty
+  model, then a primitive. Forge comes first for slugs with no row of their own and for
+  `looks.json forge.forge_first`; it is also the fallback when a row's Synty files are missing
+  (decided 2026-11-08: keep Synty as much as possible; view/actors/looks.gd).
   `move_actor(id, pos, facing, state, vel)` drives idle, run, jump and fall.
 - `K.TILE_M` stays 0.75: a 1.8 m Synty human is 2.4 tiles in the 2.5-tile Medium box.
   Standard Synty building kits have a 3 m storey (4 tiles) and 3.75 m wall bays (5 tiles);
