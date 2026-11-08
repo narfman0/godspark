@@ -529,10 +529,14 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, so
 	var wk := KIND_WATER if soft else KIND_BLOCK
 	var emit := TileDefs.emit
 	var water := TileDefs.id("water")
+	var fae := TileDefs.id("fae_lamp")
+	var drow := TileDefs.id("dark_stone")
 	for ly in N:
 		for lx in N:
 			var c := lx + 1 + (ly + 1) * PAD
 			var id := ids[c]
+			if soft and id == drow and sol[c + PAD] == 0 and sol[c - 1] == 0 and sol[c + 1] == 0 and sol[c - PAD] != 0:
+				_merlon_cap(buf, lx, ly, colors[id].srgb_to_linear(), id)
 			if id == 0 or sol[c] != 0:
 				continue
 			var col := colors[id].srgb_to_linear()
@@ -548,6 +552,8 @@ static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, so
 					buf.box(Vector3(lx, ly + 0.8, -0.3), Vector3(lx + 1, ly + 1, 0.42), col.lightened(0.3), id, KIND_EMIT)
 			elif emit[id] > 0 and TileDefs.shape[id] != "":
 				_glow(buf, lx, ly, TileDefs.shape[id], col, id, sol[c - PAD] == 0 and sol[c + PAD] != 0)
+			elif id == fae and soft:
+				_fae_lamp(buf, lx, ly, col, id)
 			elif emit[id] > 0:
 				# A stick with a glowing head.
 				buf.box(Vector3(lx + 0.44, ly, -0.06), Vector3(lx + 0.56, ly + 0.5, 0.06), STICK.srgb_to_linear(), id, KIND_BLOCK)
@@ -602,6 +608,33 @@ static func _glow(buf: MeshBuf, lx: int, ly: int, kind: String, col: Color, id: 
 		_:
 			var mat: Array = at.call(0.0, 0.12)
 			buf.box(Vector3(lx, mat[0], -0.4), Vector3(lx + 1, mat[1], 0.4), col, id, KIND_EMIT)
+
+## A drow merlon (a lone dark_stone standing on a roof's edge) wears a spike: a four-sided point
+## over its block, so a drow roof's battlement reads as thorns, not as a row of square teeth. Only
+## the look: the tile is the same block to everything else.
+static func _merlon_cap(buf: MeshBuf, lx: int, ly: int, col: Color, id: int) -> void:
+	var top := Vector3(lx + 0.5, ly + 1.85, 0.0)
+	var c := [Vector3(lx + 0.12, ly + 1.0, 0.38), Vector3(lx + 0.88, ly + 1.0, 0.38),
+		Vector3(lx + 0.88, ly + 1.0, -0.38), Vector3(lx + 0.12, ly + 1.0, -0.38)]
+	for k in 4:
+		var a: Vector3 = c[k]
+		var b: Vector3 = c[(k + 1) % 4]
+		var n := (b - a).cross(top - a).normalized()
+		if n.dot(Vector3((a.x + b.x) * 0.5 - (lx + 0.5), 0.3, (a.z + b.z) * 0.5)) < 0.0:
+			n = -n
+		buf.tri(a, b, top, n, col, id, KIND_BLOCK)
+
+## A drow street lamp (fae_lamp): a slender dark post with a thorn on top and an arm, a violet globe
+## hung from it, in place of the plain stick every other lamp is.
+static func _fae_lamp(buf: MeshBuf, lx: int, ly: int, col: Color, id: int) -> void:
+	var post := Color("#1c1424").srgb_to_linear()
+	buf.box(Vector3(lx + 0.45, ly, -0.05), Vector3(lx + 0.53, ly + 0.86, 0.05), post, id, KIND_BLOCK)
+	buf.box(Vector3(lx + 0.4, ly, -0.09), Vector3(lx + 0.58, ly + 0.08, 0.09), post, id, KIND_BLOCK)
+	buf.box(Vector3(lx + 0.47, ly + 0.86, -0.03), Vector3(lx + 0.51, ly + 0.98, 0.03), post, id, KIND_BLOCK)
+	buf.box(Vector3(lx + 0.49, ly + 0.76, -0.03), Vector3(lx + 0.8, ly + 0.8, 0.03), post, id, KIND_BLOCK)
+	buf.box(Vector3(lx + 0.75, ly + 0.66, -0.015), Vector3(lx + 0.77, ly + 0.76, 0.015), post, id, KIND_BLOCK)
+	buf.box(Vector3(lx + 0.68, ly + 0.5, -0.06), Vector3(lx + 0.84, ly + 0.66, 0.06), col, id, KIND_EMIT)
+	buf.box(Vector3(lx + 0.71, ly + 0.47, -0.09), Vector3(lx + 0.81, ly + 0.69, 0.09), col, id, KIND_EMIT)
 
 ## One stair cell: a tread the full depth at the top of the cell, a riser down its low side,
 ## and a diagonal stringer at the back from this tread's low corner to the next one's.
