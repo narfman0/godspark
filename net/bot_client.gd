@@ -56,6 +56,11 @@ var refused := 0
 var _saw_people := false     ## any of the host's people seen so far (towns fold while nobody is near)
 var phase := "wait"
 var _t := 0.0
+## Where the plain walk began (x, tiles): it walks WALK_TILES before it jumps and digs.
+var _walk_x0 := INF
+## Tiles the plain walk covers (13 at the old pace's 1 s; at a walking pace a 1 s walk stayed on
+## the town's street, where nothing near was diggable and the dig smoke failed half the time).
+const WALK_TILES := 12.0
 var _target := Vector2i(-1, -1)
 var _target_t := 0.0
 var _tried := {}
@@ -206,7 +211,10 @@ func _process(delta: float) -> void:
 			_fight_step(delta)
 		"walk":
 			input.move_x = dir
-			if _t > 1.0:
+			if _walk_x0 == INF:
+				_walk_x0 = cw().body.pos.x
+			if absf(cw().body.pos.x - _walk_x0) >= WALK_TILES or _t > 6.0:
+				_walk_x0 = INF
 				_go("jump")
 				input.jump = true
 				input.jump_pressed = true
