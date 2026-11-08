@@ -139,7 +139,8 @@ TileEdit.can_place(world, body, x, y, tile_id, bodies: Array) -> bool
 
 - Platformer feel: coyote time, jump buffering, variable jump height, automatic step-up of
   one tile, one-way platforms, ladders. Tunables in `data/movement.json`; as built: run
-  13 tiles/s at walk 30, jump about 6.5 tiles, reach 4 tiles from the box edge.
+  at the pace (`pace.tiles_per_s_per_30ft`, 4 tiles/s at walk 30 since 2026-11-08; it was 13;
+  `MoveStats.pace()`, docs/tracks/pace.md), jump about 6.5 tiles, reach 4 tiles from the box edge.
 - The controller steps at a fixed 60 Hz, so the host runs two steps per 30 Hz tick.
   `step` is deterministic: the host can replay a client's inputs to check its position.
 - Also there: `Body.for_size(size_name)`, `TileEdit.DigProgress` (held dig on one tile),

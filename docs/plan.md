@@ -18,6 +18,15 @@ Decisions made with the user (2026-11-05):
 | Combat | Real-time; hits must physically connect, then d20 rules resolve them |
 | Multiplayer | Co-op from the start (host-authoritative) |
 
+Decisions made with the user (2026-11-08):
+
+| Topic | Decision |
+|---|---|
+| Where game rules live | Game logic stays in ONE project; no addons for game features. Sunlight Sensitivity stays in `core/combat`; game rules do not move into `vendor/godot-srd-addon` (the addon keeps SRD rules content) |
+| World generation time | About 40 s for a medium world on this machine is accepted (the old guide was under 30 s) |
+| Licensing | Not a concern for now |
+| Pace | The whole game (player, monsters, people) slows toward SRD real time. One knob, `data/movement.json pace.tiles_per_s_per_30ft`: 4.0 (the SRD Dash in real time; 2.0 is SRD real time, the game ran 13.0). Why 4 and not 2: docs/tracks/pace.md |
+
 Defaults I chose (cheap to change now, say so if any is wrong):
 - Engine Godot 4.7.1, GDScript, new project at `~/workspace/godspark`. The name is a placeholder.
 - 1 to 4 players, free-roaming anywhere in the world; the host plays (listen server), with a

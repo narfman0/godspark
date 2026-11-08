@@ -352,6 +352,12 @@ LitMaterials works on forge bodies. Warm and readable, with no black materials
 
 ## The walk-speed finding (the 0.38 claim)
 
+**Followed up on 2026-11-08 (docs/tracks/pace.md):** the game now runs at 4 tiles/s per 30 ft, not 13;
+`run` clips are played where a forge kind has one (they never were), walk or run is picked by which
+plays nearest 1x, `ground_speed_mps` in clips.json is read when present, and the clamp is 0.5-3x.
+Measured at pace 4: wandering monsters keep their feet in 82 of 225 forge kinds, chasing ones in 16
+(15 and 10 at the old pace). Chases still need forge run clips.
+
 - The claim holds. Measured by forward kinematics on the planted feet listed in
   `anims/clips.json`, for 220 of 286 forge kinds; the others have no feet (fliers, swimmers,
   oozes).

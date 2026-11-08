@@ -107,6 +107,12 @@ the velocity, then move.
 
 ## Tunables and why (data/movement.json, 60 Hz)
 
+**Superseded in part on 2026-11-08 (docs/tracks/pace.md):** every speed below is now a share of
+one pace, `pace.tiles_per_s_per_30ft` (4 tiles/s, not 13), and every acceleration a time to reach
+it (the same times as these: top speed in 0.118 s and so on). At pace 13 the numbers below come
+back (tests/test_pace.gd). Ladders are 0.75 of the pace (3 tiles/s), not 0.54. Jumps are unchanged;
+a full running jump now carries about 3.3 tiles, not 9.75.
+
 | Tunable | Value | Why |
 |---|---|---|
 | step rate | 60 Hz | Platformer feel needs 60. The host ticks at `K.TICK_HZ` = 30, so it runs 2 controller steps per tick. |

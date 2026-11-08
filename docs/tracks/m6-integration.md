@@ -10,7 +10,9 @@ wire changed. The addon was not touched. **Nothing here has been played by a hum
 **Decided 2026-11-08: the user accepts about 40 s for medium generation on this machine; the 30 s
 guide is retired** (docs/plan.md "Decisions"). What follows is the measurement that led there.
 
-**"Medium generation stays under 30 s" does not hold on this machine: 38.5-41.3 s.** The brief's
+**"Medium generation stays under 30 s" does not hold on this machine: 38.5-41.3 s.** Accepted:
+the user ruled on 2026-11-08 that about 40 s for a medium world is fine, so 30 s is no longer a
+target. The brief's
 26.7-28.8 s are the deep track's, measured before the hardware change. The same world, alone on
 the machine, one process at a time:
 
@@ -260,7 +262,7 @@ At the head of "M6 contracts" in [architecture.md](../architecture.md).
 - **A sinkhole's walk is real only on its rope and at its ends.** From the rope's foot to the deep
   town `way_cells` is a straight line through rock, and on dev 4 that is 400 rows. Nobody is drawn
   there, so a raid vanishes below the chamber and reappears by the city. A real path needs a search
-  per way at generation, which the 30 s guide cannot pay. A player walks it fine; passages joined it.
+  per way at generation, which the old 30 s guide could not pay (about 40 s is accepted now). A player walks it fine; passages joined it.
 - **Medium seed 1's walk back takes 9 rewinds.** It passes; the class barriers.md left open.
 - **The walk back in the e2e needed 9 replans**: one edge the follower cannot make, banned and planned
   round. The same class.
