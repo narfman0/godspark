@@ -3,8 +3,17 @@
 ## pillar, so a corner that comes out black or white is easy to spot. Runs under
 ## tools/soft_godot.sh (CPU Vulkan).
 ##   tools/soft_godot.sh -s res://tools/corner_shot.gd -- out=/tmp/x.png [hard=1] [zoom=2] [sky=1]
+##     [region=fungal|crystal|deep_lake|magma] [liquid=water|lava] [shadows=low]
 ##     sky=1: the same shapes open to the sky by day (white corners), else underground by torch.
+##     region: the room cut from that region's rock, floor and wall tiles, the world's meta naming
+##     the region (its rock glow and fog), not plain stone.
+##     liquid: a basin left of the room, its floor a stair of single steps down into water or lava,
+##     the camera on it: corners where ground meets a liquid.
 extends SceneTree
+
+## Rock, wall and floor tiles of each underground region (docs/tracks/deep.md).
+const REGIONS := {"fungal": ["spore_stone", "spore_wall", "mycelium"], "crystal": ["crystal_stone", "crystal_wall", "geode_floor"],
+	"deep_lake": ["lake_stone", "lake_wall", "shore_sand"], "magma": ["basalt", "basalt_wall", "ash"]}
 
 func _initialize() -> void:
 	var o := {}
@@ -17,6 +26,13 @@ func _initialize() -> void:
 	var world := TileWorld.new(128, 128, 1)
 	var stone := TileDefs.id("stone")
 	var wall := TileDefs.wall_id("stone_wall")
+	var floor_tile := stone
+	var region := String(o.get("region", ""))
+	if REGIONS.has(region):
+		stone = TileDefs.id(REGIONS[region][0])
+		wall = TileDefs.wall_id(REGIONS[region][1])
+		floor_tile = TileDefs.id(REGIONS[region][2])
+		world.meta["biomes"] = [{"biome": region, "band": "deeps", "x0": 0, "x1": 127, "y0": 0, "y1": 127, "name": region}]
 	var sky := o.has("sky")
 	var floor_y := 60
 	var top := 128 if sky else 72
@@ -40,6 +56,21 @@ func _initialize() -> void:
 		world.set_fg(67, 71, TileDefs.AIR, true)
 	var x := 63
 	var y := floor_y
+	var liquid := String(o.get("liquid", ""))
+	if liquid in ["water", "lava"]:
+		# The basin: open from x 30 to 43, its floor 52 for six columns, then a step a column up to
+		# the room's floor; the liquid fills it to the room's floor.
+		var fill := TileDefs.id(liquid)
+		for bx in range(30, 44):
+			var bottom := 52 if bx < 36 else 52 + (bx - 35)
+			for by in range(bottom, 72 if not sky else 128):
+				world.set_fg(bx, by, fill if by < floor_y else TileDefs.AIR, true)
+		x = 44
+		y = floor_y
+	for fx in 128:                                           # the floor's top row takes the floor tile
+		for fy in range(1, 128):
+			if world.get_fg(fx, fy) == stone and not world.is_solid(fx, fy + 1) and world.get_fg(fx, fy + 1) == TileDefs.AIR:
+				world.set_fg(fx, fy, floor_tile, true)
 	var sun := 1.0 if sky else 0.0
 	var light := LightEngine.new(world)
 	light.sun = sun
@@ -68,7 +99,7 @@ func _initialize() -> void:
 	view.add_actor(1, {"player": "fighter", "name": "Ash", "kind": "hero", "color": Color(0.85, 0.3, 0.25)})
 	view.move_actor(1, Vector2(x + 0.5, y), 1, "idle")
 	if not sky:
-		for tx: int in [48, 58, 70]:
+		for tx: int in ([46, 48, 58, 70] if liquid != "" else [48, 58, 70]):
 			world.set_fg(tx, y, TileDefs.id("torch"))
 	var frames := 0
 	while frames < 900:
