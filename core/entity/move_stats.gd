@@ -20,6 +20,8 @@ static var _data := {}
 ## a pace in place of the data's for this process. 0 = the data's. Never set it in the game:
 ## host and clients must agree on the pace.
 static var pace_override := 0.0
+## The data's pace, read once (the sim asks for it on every party leg).
+static var _pace := -1.0
 
 # SRD speeds, ft per round. 0 = none.
 var walk := 30.0
@@ -96,7 +98,9 @@ static func data() -> Dictionary:
 static func pace() -> float:
 	if pace_override > 0.0:
 		return pace_override
-	return float((data()["pace"] as Dictionary)["tiles_per_s_per_30ft"])
+	if _pace < 0.0:
+		_pace = float((data()["pace"] as Dictionary)["tiles_per_s_per_30ft"])
+	return _pace
 
 ## Speed a share of the pace takes `seconds` to reach, as an acceleration (tiles/s^2).
 static func _accel(share: float, seconds: float) -> float:

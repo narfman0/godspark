@@ -868,7 +868,9 @@ func leg_hours(kind: String, rid: int) -> float:
 ## Tiles a second a party of this kind moves on screen: TRAVEL_TPS, at most TRAVEL_PACE_CAP x
 ## the pace.
 static func travel_tps(kind: String) -> float:
-	return minf(float(TRAVEL_TPS.get(kind, 2.5)), TRAVEL_PACE_CAP * MoveStats.pace())
+	var tps := float(TRAVEL_TPS.get(kind, 2.5))
+	var cap := TRAVEL_PACE_CAP * MoveStats.pace()
+	return tps if tps <= cap else cap
 
 func remove_party(p: SimParty) -> void:
 	parties.erase(p.id)
