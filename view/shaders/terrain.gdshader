@@ -162,6 +162,10 @@ void fragment() {
 	float shade = 1.0;
 	bool glow = false;
 	float cut_sun = 0.0;
+	// How much of the real lights (sun, lamps) a face takes: a cut-away face of solid ground reads
+	// its light from the open cells beside it (gs_face_levels) and is never in a shadow map's shade,
+	// so at full strength it would glow brighter than the room it borders.
+	float direct = 1.0;
 	vec3 own = vec3(0.0);
 	if (kind > 4.5) {
 		// Water: no tiles, a slow shimmer.
@@ -197,6 +201,7 @@ void fragment() {
 		vec2 dtl = rock_detail(tile, front ? 1.0 : 0.0);
 		base *= dtl.x;
 		lv = front ? gs_face_levels(tile) : gs_levels(cell);
+		direct = front ? 0.35 : 1.0;
 		L = ground_light(cell, lv, front, cut_sun);
 		shade = gs_face_shade(wnrm) * (front ? dtl.y : 1.0);
 		own = base * (gs_deep_glow(tile) + lake_rock(tile));
@@ -222,6 +227,7 @@ void fragment() {
 			}
 		} else {
 			lv = wnrm.z > 0.9 ? gs_face_levels(tile) : gs_levels(cell);
+			direct = wnrm.z > 0.9 ? 0.35 : 1.0;
 			L = gs_light_lv(lv, cell);
 			shade = gs_face_shade(wnrm);
 			own = base * gs_deep_glow(tile);
@@ -245,7 +251,8 @@ void fragment() {
 	} else {
 		ALBEDO = base;
 		GS_MASKS_LV(lv);
-		gs_m_sun = max(gs_m_sun, cut_sun);
+		gs_m_sun = max(gs_m_sun * direct, cut_sun);
+		gs_m_lamp *= direct;
 		EMISSION = gs_fill(base, L * shade) + gs_dark_sight(base, L, tile) + own;
 	}
 }

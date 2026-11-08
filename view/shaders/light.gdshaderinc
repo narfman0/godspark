@@ -114,7 +114,7 @@ const vec2 GS_SOLID_SIZE = vec2(512.0, 256.0);
 // The levels a face of solid ground shows, seen in section (a front face). The field holds nothing
 // inside rock (no opaque tile gives or passes light), so such a face read at its own tile is black
 // with a rim of filtered spill that steps along the tile grid. It shows the mean light of the open
-// cells near it instead, fading over about two tiles into the rock: the field and the solid map
+// cells near it instead, fading over a tile or two into the rock: the field and the solid map
 // read at the same coarser mip levels, the one divided by the other's open share. Two levels summed
 // (2 and 8 tiles across) make a rounder kernel than either: one alone shows its boxes as blotches
 // inside a thick ledge and as steps along a diagonal. Both maps line up with the world's grid
@@ -126,7 +126,7 @@ vec2 gs_face_levels(vec2 tile) {
 	float open = 2.0 - textureLod(gs_solid, suv, 1.0).r - textureLod(gs_solid, suv, 3.0).r;
 	vec2 l = vec2(textureLod(gs_light_block, uv, 1.0).r + textureLod(gs_light_block, uv, 3.0).r,
 		textureLod(gs_light_sky, uv, 1.0).r + textureLod(gs_light_sky, uv, 3.0).r);
-	return l / max(open, 0.04) * smoothstep(0.1, 0.95, open) * (255.0 / GS_FULL);
+	return l / max(open, 0.04) * smoothstep(0.2, 1.0, open) * (255.0 / GS_FULL);
 }
 
 // A faint glow of a deep region's own colour on rock and walls near where its light is: the mean
