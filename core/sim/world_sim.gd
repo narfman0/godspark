@@ -31,8 +31,13 @@ const SPEED := {"caravan": 1.0, "migrants": 0.8, "settlers": 0.85, "raid": 1.5, 
 ## caravan covers 75 tiles of route in a game hour. Planning (reach, costs, risk) still uses
 ## `route_hours` (the old strategic distances: who trades with and raids whom is unchanged);
 ## movement uses `route_travel_h`.
+## At the default pace (data/movement.json, 4 tiles/s for walk 30) these are walking speeds:
+## a wagon at 0.375 of it, people on foot at 0.625. travel_tps() caps them at TRAVEL_PACE_CAP x
+## the pace, so a pace turned down (2.0 is SRD real time) never leaves a party's people behind
+## its point; at pace 4 the cap (3.0) changes nothing.
 const TRAVEL_TPS := {"caravan": 1.5, "settlers": 1.5, "migrants": 2.5, "raid": 2.5, "patrol": 2.5,
 	"army": 2.5, "expedition": 2.5, "pack": 2.5}
+const TRAVEL_PACE_CAP := 0.75
 const GAME_HOUR_S := float(K.DAY_SECONDS) / DAY_H
 ## Furthest a party will go, in days of travel at its own speed.
 const REACH_DAYS := {"caravan": 18.0, "migrants": 20.0, "settlers": 20.0, "raid": 10.0, "patrol": 8.0,
@@ -858,7 +863,12 @@ func party_position(p: SimParty) -> Dictionary:
 
 ## Game hours a party of its kind needs for a route at its on-screen pace.
 func leg_hours(kind: String, rid: int) -> float:
-	return float(route_travel_h[rid]) * 1.5 / float(TRAVEL_TPS.get(kind, 2.5))
+	return float(route_travel_h[rid]) * 1.5 / travel_tps(kind)
+
+## Tiles a second a party of this kind moves on screen: TRAVEL_TPS, at most TRAVEL_PACE_CAP x
+## the pace.
+static func travel_tps(kind: String) -> float:
+	return minf(float(TRAVEL_TPS.get(kind, 2.5)), TRAVEL_PACE_CAP * MoveStats.pace())
 
 func remove_party(p: SimParty) -> void:
 	parties.erase(p.id)

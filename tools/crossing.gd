@@ -8,6 +8,8 @@
 ## Prints the biomes entered with their x, every crossing and its kind, the time on screen, and a
 ## last line with digs=0. A spot in the middle of each biome is printed for tools/look_shot.gd.
 ## cache=DIR loads the world from DIR, or generates it and saves it there.
+## pace=X walks at X tiles a second per 30 ft instead of data/movement.json's pace (measuring
+## only: MoveStats.pace_override); the world is the same at any pace.
 ## Exit code 1 if the walk was not a whole crossing.
 extends SceneTree
 
@@ -16,6 +18,8 @@ func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.split("=", true, 1)
 		o[kv[0]] = kv[1] if kv.size() > 1 else "1"
+	if o.has("pace"):
+		MoveStats.pace_override = float(o["pace"])
 	var gen := String(o.get("gen", "medium"))
 	var sd := int(o.get("seed", 1))
 	var world := _world(gen, sd, String(o.get("cache", "")))
@@ -41,6 +45,7 @@ func _initialize() -> void:
 	if r.has("below_at"):
 		print("  deepest under the line at %s" % [r["below_at"]])
 	var names: Array = (r["entered"] as Array).map(func(e: Dictionary) -> String: return String(e["biome"]))
+	print("CROSSING pace %.1f tiles/s per 30 ft" % MoveStats.pace())
 	print("CROSSING %s seed=%d biomes=%d %s crossings=%d %s time=%.0f s (%.1f min) ticks=%d legs=%d below=%.1f digs=%d tiles_changed=%s walked in %d ms" % [
 		"PASS" if faults.is_empty() else "FAIL", sd, names.size(), ">".join(names), (r["crossed"] as Array).size(), kinds, r["seconds"], float(r["seconds"]) / 60.0, r["ticks"], r["legs"], r["below"],
 		r["digs"], r["tiles_changed"], Time.get_ticks_msec() - t0])
@@ -49,6 +54,7 @@ func _initialize() -> void:
 func _descent(world: TileWorld, gen: String, sd: int) -> void:
 	var t0 := Time.get_ticks_msec()
 	var r := DescentBot.descent(world)
+	print("DESCENT pace %.1f tiles/s per 30 ft" % MoveStats.pace())
 	print("DESCENT gen=%s seed=%d %dx%d from %s to %s" % [gen, sd, world.width, world.height, r["from"], r["to"]])
 	for name: String in ["down", "back"]:
 		var leg: Dictionary = r.get(name, {})

@@ -25,6 +25,6 @@ static func move_lines(s: MoveStats) -> Array:
 	if s.glide_fall > 0.0:
 		out.append("Glide at %.0f tiles/s" % s.glide_fall)
 	if s.climb_speed > 0.0:
-		out.append("Climb walls %.0f tiles/s" % s.climb_speed)
+		out.append("Climb walls %.1f tiles/s" % s.climb_speed)
 	out.append("Swim %.1f tiles/s" % s.swim_speed)
 	return out

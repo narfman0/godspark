@@ -2,6 +2,7 @@
 ## world and prints an ASCII picture of the body's path, so jump arcs can be eyeballed
 ## without a renderer.
 ##   godot --headless -s res://tools/trace_run.gd -- scenario=runjump
+## pace=X runs at X tiles a second per 30 ft instead of data/movement.json's pace.
 ## Scenarios: jump, tap, runjump, pit, platforms, stairs, ladder, swim, spider, sdrop (S
 ## drops through walkways), ladderwalk (down a ladder onto a walkway, then S), stairsup
 ## (W at a staircase's foot, up through a crossing walkway, back down), stairpass (along a
@@ -18,6 +19,8 @@ func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.split("=")
 		args[kv[0]] = kv[1] if kv.size() > 1 else ""
+	if args.has("pace"):
+		MoveStats.pace_override = float(args["pace"])      # pace=X: measure at another pace
 	var scenario: String = args.get("scenario", "runjump")
 	var world := TileWorld.make_test()
 	var ground := world.height / 2

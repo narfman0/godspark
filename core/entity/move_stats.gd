@@ -16,6 +16,10 @@ const PATH := "res://data/movement.json"
 const SIZES: PackedStringArray = ["tiny", "small", "medium", "large", "huge", "gargantuan"]
 
 static var _data := {}
+## Measuring tools only (tools/crossing.gd pace=, tools/trace_run.gd pace=, tests/test_pace.gd):
+## a pace in place of the data's for this process. 0 = the data's. Never set it in the game:
+## host and clients must agree on the pace.
+static var pace_override := 0.0
 
 # SRD speeds, ft per round. 0 = none.
 var walk := 30.0
@@ -90,6 +94,8 @@ static func data() -> Dictionary:
 ## The pace: tiles a second a walk-30 body runs (data/movement.json pace.tiles_per_s_per_30ft).
 ## Code that speaks of tiles a second "at walking pace" reads it here.
 static func pace() -> float:
+	if pace_override > 0.0:
+		return pace_override
 	return float((data()["pace"] as Dictionary)["tiles_per_s_per_30ft"])
 
 ## Speed a share of the pace takes `seconds` to reach, as an acceleration (tiles/s^2).
