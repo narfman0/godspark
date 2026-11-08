@@ -80,6 +80,22 @@ vec3 lake_light(vec2 tile) {
 	return gs_lake_glow.rgb * glow;
 }
 
+// Detail at the scale of a tile and under, so natural ground does not read as an airbrush at zoom 1:
+// a mottled grain, a sparse network of fine cracks, and a relief from the grain's slope against the
+// key light (screen derivatives, so it costs no extra reads). x: the albedo's factor, y: the light's.
+vec2 rock_detail(vec2 tile, float cracks) {
+	float g1 = texture(gs_noise, tile * 0.062 + vec2(0.13, 0.71)).a;
+	vec2 r = vec2(tile.x * 0.8 - tile.y * 0.6, tile.x * 0.6 + tile.y * 0.8);
+	float g2 = texture(gs_noise, r * 0.027 + vec2(0.41, 0.07)).a;
+	float g3 = texture(gs_noise, tile * vec2(0.05, 0.065) + vec2(0.77, 0.29)).b;
+	float h = g1 * 0.65 + g2 * 0.35;
+	vec2 dt = vec2(dFdx(tile.x), dFdy(tile.y));
+	vec2 grad = vec2(dFdx(h), dFdy(h)) / max(abs(dt), vec2(1e-4)) * sign(dt);
+	float relief = clamp(dot(grad, vec2(-0.35, 0.6)) * 0.22, -0.22, 0.22);
+	float crack = smoothstep(0.022, 0.004, abs(g3 - 0.5)) * cracks;
+	return vec2((0.86 + 0.28 * h) * (1.0 - 0.35 * crack), 1.0 + relief);
+}
+
 // Drow masonry (tile dark_stone, id 101; wall dark_wall, id 43): a spider's web cut into the stone
 // every few tiles, a thread of the fae lamps' light in each cut, so a city reads from across a cavern
 // by nothing but its own lines. The web's radial lines and rings, 0..1.
@@ -130,6 +146,9 @@ void fragment() {
 		// A natural wall behind a cave: the wall's colour, shaded in the ground's own way.
 		vec4 n = texture(gs_noise, tile * vec2(0.0035, 0.016) + vec2(0.37, 0.11));
 		base *= (0.74 + 0.5 * mix(n.b, n.r, 0.45)) * 1.35;
+		vec2 dtl = rock_detail(tile * 0.8 + vec2(31.0, 17.0), 0.6);
+		base *= dtl.x;
+		shade = dtl.y;
 		cell = tile;
 		lv = gs_levels_smooth(tile);
 		L = gs_light_lv(lv, tile);
@@ -145,9 +164,11 @@ void fragment() {
 		base = mix(base, blended, smoothstep(0.05, 0.4, m.a));
 		base *= 0.62 + 0.62 * mix(broad.b, broad.r, 0.45) + 0.16 * (fine.a - 0.5);
 		bool front = wnrm.z > 0.5;
+		vec2 dtl = rock_detail(tile, front ? 1.0 : 0.0);
+		base *= dtl.x;
 		lv = front ? gs_face_levels(tile) : gs_levels(cell);
 		L = ground_light(cell, lv, front, cut_sun);
-		shade = gs_face_shade(wnrm);
+		shade = gs_face_shade(wnrm) * (front ? dtl.y : 1.0);
 		own = base * gs_deep_glow(tile);
 	} else {
 		vec2 c = floor(tile - wnrm.xy * 0.02);
