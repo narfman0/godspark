@@ -674,9 +674,10 @@ func _stance(t: TestLog) -> void:
 		host.tick()
 	t.check(life.inside_gate(city, p.body.pos), "the stranger is past the gate")
 	t.eq(life.stance(p, guard), Life.NEUTRAL, "for a while they let it pass")
-	for i in K.TICK_HZ * 21:
+	var grace := float(life.culture_stance(str(host.sim.settlements[city].faction)).get("toll", {}).get("grace_s", 60.0))
+	for i in K.TICK_HZ * int(grace + 1.0):
 		host.tick()
-	t.eq(life.stance(p, guard), Life.HOSTILE, "unpaid past the grace, the city turns on the stranger")
+	t.eq(life.stance(p, guard), Life.HOSTILE, "unpaid past the grace (%.0f s), the city turns on the stranger" % grace)
 	p.body.pos = gate
 	TileCollision.depenetrate(host.world, p.body)
 	for i in K.TICK_HZ * 2:
