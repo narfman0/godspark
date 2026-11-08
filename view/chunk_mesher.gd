@@ -261,6 +261,7 @@ static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArra
 	var colors := TileDefs.colors
 	var wall_colors := TileDefs.wall_colors
 	const CORNERS: Array[Vector2i] = [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(1, -1)]
+	var water := TileDefs.id("water")
 	for ly in N:
 		for lx in N:
 			var c := lx + 1 + (ly + 1) * PAD
@@ -296,6 +297,13 @@ static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArra
 					var o1 := corner - Vector2(s.x, 0) * CUT
 					var o2 := corner - Vector2(0, s.y) * CUT
 					_slope(buf, poly, o1, o2, o1 - out * BEVEL, out, col, id, KIND_SOFT)
+					# Beside water or lava the wedge is filled with its sheet, as the cell beside it
+					# is, so a slope into a lake or a pool is a slope, not a stair of liquid squares.
+					var side := ids[c + s.x]
+					if sol[c + s.x] == 0 and (side == water or TileDefs.burn[side] != 0):
+						var lava := side != water
+						buf.tri(Vector3(o1.x, o1.y, -0.3), Vector3(corner.x, corner.y, -0.3), Vector3(o2.x, o2.y, -0.3),
+							Vector3(0, 0, 1), colors[side].srgb_to_linear(), side, KIND_EMIT if lava else KIND_WATER)
 					var w := 0
 					for n: Vector2i in [Vector2i(lx + s.x, ly), Vector2i(lx, ly + s.y)]:
 						if n.x >= 0 and n.x < N and n.y >= 0 and n.y < N and bg[n.x + n.y * N] != 0:
@@ -305,13 +313,19 @@ static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArra
 						buf.tri(Vector3(o1.x, o1.y, WALL_Z), Vector3(corner.x, corner.y, WALL_Z), Vector3(o2.x, o2.y, WALL_Z),
 							Vector3(0, 0, 1), wall_colors[w].srgb_to_linear(), w, KIND_SOFT_WALL if _soft_wall[w] != 0 else KIND_WALL)
 
-## Air in an inner corner of natural ground: a wedge that carries the slope on.
+## Air in an inner corner of natural ground: a wedge that carries the slope on. Water, lava and a
+## light standing in a cell (a glow cap, a torch) take one too, so a slope under a lake or behind
+## a mushroom does not turn back into a stair.
 static func _fillets(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) -> void:
 	var colors := TileDefs.colors
+	var water := TileDefs.id("water")
+	var emit := TileDefs.emit
+	var burn := TileDefs.burn
 	for ly in N:
 		for lx in N:
 			var c := lx + 1 + (ly + 1) * PAD
-			if ids[c] != 0:
+			var here := ids[c]
+			if here != 0 and (sol[c] != 0 or (here != water and burn[here] == 0 and emit[here] == 0)):
 				continue
 			for sy: int in [-1, 1]:
 				var b := c + sy * PAD
