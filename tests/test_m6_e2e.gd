@@ -327,7 +327,7 @@ func _the_guards() -> void:
 				best = e
 		return best
 	t.check(foe.call() == null, "the street lets him be at first: he has a little while to find a guard")
-	var turned := rig.until(func() -> bool: return foe.call() != null, 40.0)
+	var turned := rig.until(func() -> bool: return foe.call() != null, 90.0)      # toll.grace_s 60
 	t.check(turned >= 5.0, "his grace runs out and the town turns on him (%.0f s)" % turned)
 	var g: HostEntity = foe.call()
 	t.check(g != null and _role(g) == "guard", "a guard comes for him (%s)" % (g.name if g != null else "nobody"))

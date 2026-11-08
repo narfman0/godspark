@@ -246,7 +246,7 @@ func trespassing(p: HostEntity, x: HostEntity) -> bool:
 	if since < 0.0 or not inside_gate(sid, p.body.pos) or toll_due(p, sid) <= 0:
 		return false
 	var st: SimSettlement = host.sim.settlements.get(sid)
-	var grace := float(culture_stance(str(st.faction)).get("toll", {}).get("grace_s", 20.0)) if st != null else 20.0
+	var grace := float(culture_stance(str(st.faction)).get("toll", {}).get("grace_s", 60.0)) if st != null else 60.0
 	return now() - since >= grace
 
 ## Once a second: when each player went past the gate of a shown town that wants a toll.

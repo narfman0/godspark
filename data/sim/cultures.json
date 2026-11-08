@@ -137,7 +137,7 @@
 			"town": ["keeper", "smith", "merchant", "priest", "mage", "merchant"],
 			"city": ["keeper", "smith", "merchant", "priest", "mage", "merchant", "priest", "smith", "mage"]},
 		"stance": {"abroad": "hostile", "spare_at": 10,
-			"toll": {"coin": {"hamlet": 5, "village": 10, "town": 25, "city": 50}, "standing": 8, "free_at": 30, "days": 1, "margin": 10, "grace_s": 20}}
+			"toll": {"coin": {"hamlet": 5, "village": 10, "town": 25, "city": 50}, "standing": 8, "free_at": 30, "days": 1, "margin": 10, "grace_s": 60}}
 	},
 	"goblinoid": {
 		"name": "goblins", "adj": "goblin", "species": "", "lineage": "", "monstrous": true,
