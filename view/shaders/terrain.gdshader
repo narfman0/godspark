@@ -27,8 +27,23 @@ varying vec3 wnrm;
 varying vec2 info;
 varying vec2 face_uv;
 
+// Water's edges on whole rows (the surface among them) ride a slow swell, so a lake's surface is not
+// a ruler line. Every water vertex on a row moves by the same function of x, so the sheet's tiles
+// stay joined; under the surface the rock in front hides the rest.
+float water_swell(float x) {
+	return 0.06 * sin(x * 0.55 + TIME * 0.9) + 0.035 * sin(x * 1.7 - TIME * 1.6) + 0.02 * sin(x * 3.1 + TIME * 2.3);
+}
+
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	if (UV2.y > 4.5) {
+		float ty = wpos.y / gs_tile_m;
+		if (abs(ty - round(ty)) < 0.01) {
+			float dy = water_swell(wpos.x / gs_tile_m) * gs_tile_m;
+			VERTEX.y += dy;
+			wpos.y += dy;
+		}
+	}
 	wnrm = NORMAL;
 	info = UV2;
 	face_uv = UV;
@@ -72,12 +87,27 @@ vec3 lake_light(vec2 tile) {
 	float sway = texture(gs_noise, tile * vec2(0.03, 0.05) + TIME * vec2(0.008, -0.004)).r;
 	float veil = texture(gs_noise, tile * vec2(0.012, 0.07) - TIME * vec2(0.005, 0.0)).g;
 	float glow = (0.012 + 0.13 * exp(-d / 3.5)) * (0.4 + 1.2 * sway) + 0.05 * smoothstep(0.55, 0.8, veil) * exp(-d / 9.0);
-	glow += 0.8 * exp(-d * 1.6) * (0.55 + 0.9 * sway);
+	// The surface: a soft band, not a line, broken into glints where the swell catches the light.
+	float glint = smoothstep(0.45, 0.85, texture(gs_noise, vec2(tile.x * 0.11 + TIME * 0.03, tile.y * 0.02)).b);
+	glow += exp(-d * 1.1) * (0.18 + 0.3 * sway + 0.45 * glint);
 	vec2 mp = tile * 0.8 + vec2(TIME * 0.04, sin(TIME * 0.2 + tile.x * 0.13) * 0.4);
 	vec2 c = floor(mp);
 	vec2 q = fract(mp) - (vec2(gs_hash(c), gs_hash(c + 7.1)) * 0.6 + 0.2);
 	glow += smoothstep(0.07, 0.0, length(q)) * step(0.93, gs_hash(c + 3.3)) * (0.5 + 0.5 * sin(TIME * 1.6 + gs_hash(c) * 40.0));
 	return gs_lake_glow.rgb * glow;
+}
+
+// The lake's light on the rock round it: its bed, its shores and the rock over it take a faint glow
+// of the water's colour within a few tiles, since the water's own light (lake_light) is not in the
+// field. Multiplies the albedo.
+vec3 lake_rock(vec2 tile) {
+	if (gs_lake.y < gs_lake.x) {
+		return vec3(0.0);
+	}
+	float dx = max(gs_lake.x - tile.x, tile.x - gs_lake.y - 1.0);
+	float dy = max(gs_lake.w - tile.y, tile.y - gs_lake.z - 1.0);
+	float d = max(max(dx, 0.0), max(dy, 0.0));
+	return gs_lake_glow.rgb * 0.16 * (1.0 - smoothstep(0.0, 6.0, d));
 }
 
 // Detail at the scale of a tile and under, so natural ground does not read as an airbrush at zoom 1:
@@ -152,7 +182,7 @@ void fragment() {
 		cell = tile;
 		lv = gs_levels_smooth(tile);
 		L = gs_light_lv(lv, tile);
-		own = base * gs_deep_glow(tile);
+		own = base * (gs_deep_glow(tile) + lake_rock(tile));
 	} else if (kind > 2.5) {
 		// Two looks at the noise pay for everything: broad strata and a fine grain, each also
 		// wandering the sampling point of the material map.
@@ -169,7 +199,7 @@ void fragment() {
 		lv = front ? gs_face_levels(tile) : gs_levels(cell);
 		L = ground_light(cell, lv, front, cut_sun);
 		shade = gs_face_shade(wnrm) * (front ? dtl.y : 1.0);
-		own = base * gs_deep_glow(tile);
+		own = base * (gs_deep_glow(tile) + lake_rock(tile));
 	} else {
 		vec2 c = floor(tile - wnrm.xy * 0.02);
 		float h = gs_hash(c + info.x * 17.13);
