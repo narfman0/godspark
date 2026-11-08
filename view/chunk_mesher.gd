@@ -44,6 +44,9 @@ const KIND_WALL := 2.0
 const KIND_SOFT := 3.0
 const KIND_SOFT_WALL := 4.0
 const KIND_WATER := 5.0
+## Added to a soft kind (3, 4) for built things drawn soft (SMOOTH, ROOFS, built walls in
+## NATURAL_WALLS): the shader gives them no rock grain or cracks.
+const KIND_BUILT := 0.25
 ## How far along each side an open corner is cut, and a fillet reaches, in tiles. At a half the cut
 ## of one step and the fillet below it lie on one line.
 const CUT := 0.5
@@ -66,6 +69,10 @@ const STICK := Color("#6b4a2b")
 
 static var _soft := PackedByteArray()        ## per tile id: 1 natural
 static var _soft_wall := PackedByteArray()   ## per wall id: 1 natural
+static var _built := PackedFloat32Array()     ## per tile id: KIND_BUILT for SMOOTH and ROOFS
+static var _built_wall := PackedFloat32Array()   ## per wall id: KIND_BUILT for the built ones
+## Walls in NATURAL_WALLS that are built, not rock or soil.
+const BUILT_WALLS := ["plaster_wall", "wood_wall", "elf_wall", "canvas_wall"]
 
 static func _ensure_soft() -> void:
 	if not _soft.is_empty():
@@ -82,6 +89,18 @@ static func _ensure_soft() -> void:
 		var i := TileDefs.wall_id(n)
 		if i > 0 and i < ws.size():
 			ws[i] = 1
+	var b := PackedFloat32Array()
+	b.resize(TileDefs.names.size())
+	for n: String in SMOOTH + ROOFS:
+		b[TileDefs.id(n)] = KIND_BUILT
+	var bw := PackedFloat32Array()
+	bw.resize(TileDefs.wall_colors.size())
+	for n: String in BUILT_WALLS:
+		var i := TileDefs.wall_id(n)
+		if i > 0 and i < bw.size():
+			bw[i] = KIND_BUILT
+	_built = b
+	_built_wall = bw
 	_soft_wall = ws
 	_soft = s
 
@@ -228,7 +247,7 @@ static func _cuts(ids: PackedInt32Array, sol: PackedByteArray) -> PackedByteArra
 	return cut
 
 static func _kind(id: int, cut: PackedByteArray) -> float:
-	return KIND_SOFT if not cut.is_empty() and _soft[id] != 0 else KIND_BLOCK
+	return KIND_SOFT + _built[id] if not cut.is_empty() and _soft[id] != 0 else KIND_BLOCK
 
 ## Keep the part of a polygon where (p - o).dot(n) >= 0.
 static func _clip(poly: PackedVector2Array, o: Vector2, n: Vector2) -> PackedVector2Array:
@@ -305,7 +324,7 @@ static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArra
 					var o1 := corner - Vector2(s.x, 0) * CUT
 					poly = _clip(poly, o1 - out * BEVEL, -out)
 			if poly.size() >= 3:
-				_fan(buf, poly, col, id, KIND_SOFT)
+				_fan(buf, poly, col, id, KIND_SOFT + _built[id])
 			for k in 4:
 				if m & (1 << k):
 					var s := CORNERS[k]
@@ -313,7 +332,7 @@ static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArra
 					var corner := o + Vector2(0.5, 0.5) + Vector2(s) * 0.5
 					var o1 := corner - Vector2(s.x, 0) * CUT
 					var o2 := corner - Vector2(0, s.y) * CUT
-					_slope(buf, poly, o1, o2, o1 - out * BEVEL, out, col, id, KIND_SOFT)
+					_slope(buf, poly, o1, o2, o1 - out * BEVEL, out, col, id, KIND_SOFT + _built[id])
 					# Beside water or lava the wedge is filled with its sheet, as the cell beside it
 					# is, so a slope into a lake or a pool is a slope, not a stair of liquid squares.
 					var side := ids[c + s.x]
@@ -328,7 +347,7 @@ static func _soft_cells(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArra
 							break
 					if w != 0:
 						buf.tri(Vector3(o1.x, o1.y, WALL_Z), Vector3(corner.x, corner.y, WALL_Z), Vector3(o2.x, o2.y, WALL_Z),
-							Vector3(0, 0, 1), wall_colors[w].srgb_to_linear(), w, KIND_SOFT_WALL if _soft_wall[w] != 0 else KIND_WALL)
+							Vector3(0, 0, 1), wall_colors[w].srgb_to_linear(), w, KIND_SOFT_WALL + _built_wall[w] if _soft_wall[w] != 0 else KIND_WALL)
 
 ## Air in an inner corner of natural ground: a wedge that carries the slope on. Water, lava and a
 ## light standing in a cell (a glow cap, a torch) take one too, so a slope under a lake or behind
@@ -364,8 +383,8 @@ static func _fillets(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray) 
 					var id := ids[b]
 					var col := colors[id].srgb_to_linear()
 					if poly.size() >= 3:
-						_fan(buf, poly, col, id, KIND_SOFT)
-					_slope(buf, poly, o1, o2, o1 + into * BEVEL, -into, col, id, KIND_SOFT)
+						_fan(buf, poly, col, id, KIND_SOFT + _built[id])
+					_slope(buf, poly, o1, o2, o1 + into * BEVEL, -into, col, id, KIND_SOFT + _built[id])
 
 ## Greedy front faces: horizontal runs of one id with the same top/bottom exposure, then
 ## stacked runs with the same span merged upward.
@@ -502,7 +521,7 @@ static func _walls(buf: MeshBuf, _ids: PackedInt32Array, sol: PackedByteArray, b
 	var nz := Vector3(0, 0, 1)
 	for r in rects:
 		buf.quad(Vector3(r[0], r[2], WALL_Z), Vector3(r[1], r[2], WALL_Z), Vector3(r[1], r[3], WALL_Z),
-			Vector3(r[0], r[3], WALL_Z), nz, colors[r[4]].srgb_to_linear(), r[4], KIND_SOFT_WALL if soft and _soft_wall[r[4]] != 0 else KIND_WALL)
+			Vector3(r[0], r[3], WALL_Z), nz, colors[r[4]].srgb_to_linear(), r[4], KIND_SOFT_WALL + _built_wall[r[4]] if soft and _soft_wall[r[4]] != 0 else KIND_WALL)
 
 ## Non-solid, non-air tiles: a small post standing on the cell's floor.
 static func _posts(buf: MeshBuf, ids: PackedInt32Array, sol: PackedByteArray, soft := false) -> void:

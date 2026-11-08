@@ -177,6 +177,9 @@ void fragment() {
 	vec3 base = COLOR.rgb;
 	// The cell whose light a face shows: the open cell it faces, or the tile it stands for.
 	vec2 cell = tile + wnrm.xy * 0.5;
+	// Built things drawn soft (ChunkMesher.KIND_BUILT: paving, planks, roofs, plaster walls) take no
+	// rock grain or cracks.
+	bool built = fract(kind + 0.01) > 0.15;
 	vec3 L = vec3(0.0);
 	vec2 lv = vec2(0.0);
 	float shade = 1.0;
@@ -200,7 +203,7 @@ void fragment() {
 		// A natural wall behind a cave: the wall's colour, shaded in the ground's own way.
 		vec4 n = texture(gs_noise, tile * vec2(0.0035, 0.016) + vec2(0.37, 0.11));
 		base *= (0.74 + 0.5 * mix(n.b, n.r, 0.45)) * 1.35;
-		vec2 dtl = rock_detail(tile * 0.8 + vec2(31.0, 17.0), 0.6);
+		vec2 dtl = built ? vec2(1.0) : rock_detail(tile * 0.8 + vec2(31.0, 17.0), 0.6);
 		base *= dtl.x;
 		shade = dtl.y;
 		cell = tile;
@@ -218,7 +221,7 @@ void fragment() {
 		base = mix(base, blended, smoothstep(0.05, 0.4, m.a));
 		base *= 0.62 + 0.62 * mix(broad.b, broad.r, 0.45) + 0.16 * (fine.a - 0.5);
 		bool front = wnrm.z > 0.5;
-		vec2 dtl = rock_detail(tile, front ? 1.0 : 0.0);
+		vec2 dtl = built ? vec2(1.0) : rock_detail(tile, front ? 1.0 : 0.0);
 		base *= dtl.x;
 		lv = front ? gs_face_levels(tile) : gs_levels(cell);
 		direct = front ? 0.35 : 1.0;
