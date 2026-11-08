@@ -167,27 +167,28 @@ func _with_sparks(t: TestLog) -> void:
 		for y in range(64, 84):
 			w.set_fg(x, y, TileDefs.id("stone"), true)
 	var off := func(i: int, p: PlayerInput) -> void:
-		p.move_x = 1.0 if i < 20 else 0.0
+		p.move_x = 1.0 if i < 60 else 0.0     # off the ledge (2.75 tiles) at any pace from 3
 		p.jump = true
 	var glide := Sparks.move_stats({"walk": 30}, "medium", [{"id": "featherfall", "rank": 2}])
-	var g0 := _run(plain, off, 70, Vector2(99.0, 84), w)
+	var g0 := _run(plain, off, 110, Vector2(99.0, 84), w)
 	var w2 := TileWorld.make_test()
 	for x in range(80, 101):
 		for y in range(64, 84):
 			w2.set_fg(x, y, TileDefs.id("stone"), true)
-	var g1 := _run(glide, off, 70, Vector2(99.0, 84), w2)
+	var g1 := _run(glide, off, 110, Vector2(99.0, 84), w2)
 	t.check(float(g1["low_vy"]) >= -4.0 - 1e-3 and float(g0["low_vy"]) < -10.0,
 			"Featherfall III: holding jump falls at most 4 t/s (%.2f vs %.2f)" % [g1["low_vy"], g0["low_vy"]])
 	var gecko := Sparks.move_stats({"walk": 30}, "medium", [{"id": "gecko", "rank": 1}])
-	t.eq(gecko.climb_speed, 5.0, "Gecko II: climbs walls at 5 t/s")
+	t.check(is_equal_approx(gecko.climb_speed, 0.4 * MoveStats.pace()), "Gecko II: climbs walls at 0.4 x the pace (%.2f t/s)" % gecko.climb_speed)
 	var w3 := TileWorld.make_test()
 	for y in range(64, 80):
 		w3.set_fg(103, y, TileDefs.id("stone"), true)
 	var climb := func(i: int, p: PlayerInput) -> void:
 		p.move_x = 1.0
 		p.up = true
-	t.check(float(_run(gecko, climb, 120, Vector2(100.5, 64), w3)["peak"]) > 5.0, "Gecko: up a wall")
-	t.check(float(_run(plain, climb, 120, Vector2(100.5, 64), w3)["peak"]) < 1.0, "without Gecko: not")
+	var up_steps := 60 + ceili(6.0 / gecko.climb_speed * 60.0)
+	t.check(float(_run(gecko, climb, up_steps, Vector2(100.5, 64), w3)["peak"]) > 5.0, "Gecko: up a wall")
+	t.check(float(_run(plain, climb, up_steps, Vector2(100.5, 64), w3)["peak"]) < 1.0, "without Gecko: not")
 	var otter := Sparks.move_stats({"walk": 30}, "medium", [{"id": "otter", "rank": 2}])
 	t.check(is_equal_approx(otter.swim_speed, plain.swim_speed * 1.8), "Otter III: swim x1.8")
 	var tg := Sparks.tags([{"id": "magnet", "rank": 1}, {"id": "mole", "rank": 0}, {"id": "lantern", "rank": 2}])

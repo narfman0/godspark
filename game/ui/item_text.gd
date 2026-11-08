@@ -219,8 +219,8 @@ static func spark_effect(id: String, rank: int) -> String:
 		parts.append("dash every %ss (Shift or double tap)" % _num(float(mv.get("dash_cooldown", 1.0))))
 	if mv.has("glide_fall"):
 		parts.append("hold jump to fall at most %s tiles/s" % _num(float(mv["glide_fall"])))
-	if mv.has("climb_speed"):
-		parts.append("cling and climb walls at %s tiles/s" % _num(float(mv["climb_speed"])))
+	if mv.has("climb_speed") or mv.has("climb_mult"):
+		parts.append("cling and climb walls at %s tiles/s" % _num(snappedf(Sparks.climb_of(mv), 0.1)))
 	if mv.has("swim_mult"):
 		parts.append("swim %d%% faster" % roundi((float(mv["swim_mult"]) - 1.0) * 100.0))
 	for t in tag_words(eff.get("tags", {})):

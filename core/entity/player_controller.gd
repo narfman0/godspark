@@ -8,10 +8,13 @@
 ##
 ## Modes, picked fresh each step in this order:
 ##   fly     stats.fly_speed > 0 and (airborne, or up/jump held): no gravity
-##   ladder  body.climbing: grabbed with up (overlapping a ladder) or down (also from a
-##           ladder top); jump lets go (with a jump unless down is held)
+##   ladder  body.climbing: grabbed with up (overlapping a ladder; not while rising in the
+##           air, so a jump off a rope with W held carries away from it at a walking pace)
+##           or down (also from a ladder top); jump lets go (with a jump
+##           unless down is held)
 ##   swim    in_liquid >= swim_threshold: weak gravity against buoyancy, drag, jump/up
-##           swims up, a jump press strokes up, or leaps if the head is out
+##           swims up, a jump press strokes up, or leaps if the head is out (so does jump held
+##           pushing into a bank with the head out)
 ##   cling   stats.climb_speed > 0 and pushing into a wall: walk up walls (spiders);
 ##           jump kicks off the wall
 ##   roll    a dodge roll under way, on the ground (core/combat/dodge.gd): a fixed speed in
@@ -66,7 +69,7 @@ static func step(world: TileWorld, body: Body, input: PlayerInput, stats: MoveSt
 	elif body.climbing:
 		if not TileCollision.ladder_at(world, body):
 			body.climbing = false
-	elif not input.jump_pressed and ((input.up and TileCollision.ladder_at(world, body))
+	elif not input.jump_pressed and ((input.up and not (body.vel.y > 0.0 and not body.on_floor) and TileCollision.ladder_at(world, body))
 			or (input.down and TileCollision.ladder_at(world, body, true) and not body.swimming)):
 		body.climbing = true
 		body.drop_y = Body.NO_DROP
@@ -196,7 +199,14 @@ static func _ladder(world: TileWorld, body: Body, input: PlayerInput, stats: Mov
 static func _swim(world: TileWorld, body: Body, input: PlayerInput, stats: MoveStats, dt: float) -> void:
 	body.jumping = false
 	_approach_x(body, input.move_x * stats.swim_speed, stats.swim_accel, stats.swim_accel, stats.swim_accel, dt)
-	if input.jump_pressed:
+	# Holding jump with the head out while pushing into a bank leaps out, as a press does: at a
+	# walking pace a swimmer no longer rises fast enough to pop out over the lip.
+	var climb_out := input.jump and input.move_x != 0.0 and body.on_wall \
+		and body.wall_dir == int(signf(input.move_x)) and body.in_liquid < stats.leap_below
+	if climb_out and body.vel.y < stats.jump_velocity * stats.leap_mult * 0.5:
+		body.vel.y = stats.jump_velocity * stats.leap_mult
+		body.jump_buffer = 0.0
+	elif input.jump_pressed:
 		if body.in_liquid < stats.leap_below:
 			body.vel.y = maxf(body.vel.y, stats.jump_velocity * stats.leap_mult)
 		else:

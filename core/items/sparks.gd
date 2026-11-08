@@ -76,10 +76,17 @@ static func _move(s: MoveStats, mv: Dictionary) -> void:
 	if mv.has("glide_fall"):
 		var g := float(mv["glide_fall"])
 		s.glide_fall = g if s.glide_fall <= 0.0 else minf(s.glide_fall, g)
-	if mv.has("climb_speed"):
-		s.climb_speed = maxf(s.climb_speed, float(mv["climb_speed"]))
+	if mv.has("climb_speed") or mv.has("climb_mult"):
+		s.climb_speed = maxf(s.climb_speed, climb_of(mv))
 	if mv.has("swim_mult"):
 		s.swim_speed *= float(mv["swim_mult"])
+
+## Gecko's wall-climb speed (tiles/s) from a spark's move block: climb_mult x the pace, or
+## an absolute climb_speed.
+static func climb_of(mv: Dictionary) -> float:
+	if mv.has("climb_mult"):
+		return float(mv["climb_mult"]) * MoveStats.pace()
+	return float(mv.get("climb_speed", 0.0))
 
 ## The MoveStats a player moves with: MoveStats.from_srd(speeds, size) plus the kindled
 ## sparks. speeds: {walk, climb?, swim?, fly?} in ft (what the host mirrors).

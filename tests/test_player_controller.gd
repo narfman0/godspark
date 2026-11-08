@@ -36,6 +36,12 @@ static func sim(world: TileWorld, body: Body, stats: MoveStats, n: int, script: 
 		out.append(body.pos)
 	return out
 
+## Steps to cover `tiles` at `speed` (default: a walk-30 body's run, i.e. the pace in
+## data/movement.json), plus `extra`. Walks are sized by this so they hold at any pace.
+static func steps(tiles: float, speed := 0.0, extra := 20) -> int:
+	var v := speed if speed > 0.0 else MoveStats.player().run_speed
+	return ceili(tiles / v * 60.0) + extra
+
 static func peak(path: Array[Vector2]) -> float:
 	var m := -INF
 	for p in path:
@@ -48,17 +54,18 @@ func _run_speed(t: TestLog) -> void:
 	var body := stats.make_body()
 	body.pos = Vector2(10.5, 8)
 	var path := sim(world, body, stats, 60, func(_i): return inp(1.0))
-	t.eq(body.vel.x, 13.0, "walk 30 runs at 13 tiles/s")
+	var pace := MoveStats.pace()
+	t.eq(body.vel.x, pace, "walk 30 runs at the pace (%.1f tiles/s)" % pace)
 	var steps_to_top := 0
 	for i in path.size() - 1:
-		if path[i + 1].x - path[i].x >= 13.0 * DT - 1e-4:
+		if path[i + 1].x - path[i].x >= pace * DT - 1e-4:
 			steps_to_top = i + 1
 			break
 	t.check(steps_to_top > 0 and steps_to_top <= 9, "reaches top speed within 0.15 s (step %d)" % steps_to_top)
 	sim(world, body, stats, 20, func(_i): return inp())
 	t.eq(body.vel.x, 0.0, "friction stops it within 20 steps")
 	var fast := MoveStats.from_srd({"walk": 40})
-	t.check(absf(fast.run_speed - 13.0 * 40.0 / 30.0) < 1e-6, "walk 40 is proportionally faster (%.2f)" % fast.run_speed)
+	t.check(absf(fast.run_speed - pace * 40.0 / 30.0) < 1e-6, "walk 40 is proportionally faster (%.2f)" % fast.run_speed)
 	t.eq(body.facing, 1, "facing follows the last move")
 
 func _jump(t: TestLog) -> void:
@@ -78,6 +85,7 @@ func _jump(t: TestLog) -> void:
 	# running jump distance on flat ground: from takeoff to touchdown
 	body.pos = Vector2(10.5, 8)
 	var path := sim(world, body, stats, 150, func(i): return inp(1.0, i >= 40, i == 40))
+	# (40 steps reach top speed at any pace: it takes 0.12 s)
 	var takeoff := path[39].x
 	var land := -1.0
 	for i in range(41, path.size()):
@@ -85,7 +93,9 @@ func _jump(t: TestLog) -> void:
 			land = path[i].x
 			break
 	var dist := land - takeoff
-	t.check(dist >= 8.0 and dist <= 12.0, "a full running jump carries 8-12 tiles (%.2f)" % dist)
+	# 0.75-0.85 s in the air at full run: 9.75 tiles at the old pace of 13, 3.3 at pace 4.
+	t.check(dist >= stats.run_speed * 0.7 and dist <= stats.run_speed * 0.9,
+		"a full running jump carries 0.7-0.9 s of the run (%.2f tiles, %.2f s)" % [dist, dist / stats.run_speed])
 
 func _ledge(t: TestLog) -> void:
 	var world := Col.flat(64)
@@ -93,7 +103,7 @@ func _ledge(t: TestLog) -> void:
 	var stats := MoveStats.player()
 	var body := stats.make_body()
 	body.pos = Vector2(15.5, 14)
-	sim(world, body, stats, 40, func(_i): return inp(1.0))
+	sim(world, body, stats, steps(6.0, 0.0, 0), func(_i): return inp(1.0))
 	sim(world, body, stats, 60, func(_i): return inp())
 	t.eq(body.pos.y, 8.0, "walking off a ledge lands on the ground below")
 	t.check(body.on_floor and body.pos.x > 20.75, "on the floor past the ledge (x %.2f)" % body.pos.x)
@@ -102,7 +112,7 @@ func _ledge(t: TestLog) -> void:
 static func _leave_step(world: TileWorld, stats: MoveStats) -> int:
 	var body := stats.make_body()
 	body.pos = Vector2(15.5, 14)
-	for i in 100:
+	for i in steps(10.0):
 		PlayerController.step(world, body, inp(1.0), stats, DT)
 		if not body.on_floor:
 			return i
@@ -151,7 +161,7 @@ func _step_up(t: TestLog) -> void:
 	Col.fill(one, 30, 8, 64, 9, TileDefs.id("stone"))
 	var body := stats.make_body()
 	body.pos = Vector2(20.5, 8)
-	var path := sim(one, body, stats, 90, func(_i): return inp(1.0))
+	var path := sim(one, body, stats, steps(15.0), func(_i): return inp(1.0))
 	t.check(body.pos.x > 35.0 and body.pos.y == 9.0, "steps up a 1-tile ledge while running (%s)" % body.pos)
 	var dips := 0
 	for i in range(1, path.size()):
@@ -163,7 +173,7 @@ func _step_up(t: TestLog) -> void:
 	Col.fill(two, 30, 8, 64, 10, TileDefs.id("stone"))
 	body = stats.make_body()
 	body.pos = Vector2(20.5, 8)
-	sim(two, body, stats, 90, func(_i): return inp(1.0))
+	sim(two, body, stats, steps(15.0), func(_i): return inp(1.0))
 	t.eq(body.pos, Vector2(29.25, 8), "does not step up a 2-tile ledge")
 
 	var low := Col.flat(64)
@@ -171,14 +181,14 @@ func _step_up(t: TestLog) -> void:
 	Col.fill(low, 20, 11, 64, 12, TileDefs.id("stone"))   # ceiling 3 tiles above the floor
 	body = stats.make_body()
 	body.pos = Vector2(22.5, 8)
-	sim(low, body, stats, 90, func(_i): return inp(1.0))
+	sim(low, body, stats, steps(15.0), func(_i): return inp(1.0))
 	t.eq(body.pos, Vector2(29.25, 8), "does not step up into a ceiling")
 
 	var down := Col.flat(64)
 	Col.fill(down, 0, 8, 30, 9, TileDefs.id("stone"))
 	body = stats.make_body()
 	body.pos = Vector2(20.5, 9)
-	path = sim(down, body, stats, 60, func(_i): return inp(1.0))
+	path = sim(down, body, stats, steps(12.0), func(_i): return inp(1.0))
 	var airborne := 0
 	for i in path.size():
 		if path[i].y != 9.0 and path[i].y != 8.0:
@@ -252,9 +262,9 @@ func _s_drop(t: TestLog) -> void:
 	body = stats.make_body()
 	body.pos = Vector2(25.5, 22)
 	TileCollision.update_contacts(lw, body)
-	sim(lw, body, stats, 120, func(_i): return inp(0, false, false, false, true))
+	sim(lw, body, stats, steps(9.0, stats.ladder_speed), func(_i): return inp(0, false, false, false, true))
 	t.check(body.pos.y == 13.0 and body.on_floor, "climbing down a ladder onto a walkway with S held stops on the walkway (%.2f)" % body.pos.y)
-	sim(lw, body, stats, 30, func(_i): return inp(1.0))
+	sim(lw, body, stats, steps(2.0, 0.0, 0), func(_i): return inp(1.0))
 	t.check(body.pos.y == 13.0 and not body.climbing, "and walks off the ladder along it")
 	sim(lw, body, stats, 1, func(_i): return inp())
 	sim(lw, body, stats, 60, func(_i): return inp(0, false, false, false, true))
@@ -303,14 +313,15 @@ static func run_on(world: TileWorld, x: float, y: float, n: int, script: Callabl
 
 func _stairs(t: TestLog) -> void:
 	var w := stairs_world()
-	var b := run_on(w, 12.0, 8.0, 90, func(_i): return inp(1.0))
+	var b := run_on(w, 12.0, 8.0, steps(18.0), func(_i): return inp(1.0))
 	t.check(b.pos.y == 8.0 and b.pos.x > 28.0, "running past the foot of a staircase without W stays on the ground (%s)" % b.pos)
-	b = run_on(w, 12.0, 8.0, 90, func(_i): return inp(1.0, false, false, true))
+	b = run_on(w, 12.0, 8.0, steps(18.0), func(_i): return inp(1.0, false, false, true))
 	t.check(b.pos.y == 16.0 and b.pos.x > 28.0, "holding W takes the staircase up to the walkway at the top (%s)" % b.pos)
 	var stats := MoveStats.player()
 	b = stats.make_body()
 	b.pos = Vector2(18.0, 8.0)
-	var up := sim(w, b, stats, 50, func(i): return inp(1.0, false, false, i < 12))
+	var w_steps := steps(2.0, 0.0, 0)
+	var up := sim(w, b, stats, steps(10.0), func(i): return inp(1.0, false, false, i < w_steps))
 	var ys: Array = []
 	for p in up:
 		ys.append(p.y)
@@ -320,23 +331,24 @@ func _stairs(t: TestLog) -> void:
 		if up[i].y - up[i - 1].y > 1.01:
 			tops += 1
 	t.eq(tops, 0, "one tread at a time")
-	var speed := (up[30].x - up[20].x) / (10 * DT)
+	var i0 := steps(4.0, 0.0, 0)
+	var speed := (up[i0 + 10].x - up[i0].x) / (10 * DT)
 	t.check(absf(speed - stats.run_speed) < 1e-3, "full run speed up the stairs (%.2f t/s)" % speed)
-	b = run_on(w, 16.0, 12.0, 90, func(_i): return inp(1.0))
+	b = run_on(w, 16.0, 12.0, steps(19.0), func(_i): return inp(1.0))
 	t.check(b.pos.y == 12.0 and b.pos.x > 33.0, "running along a walkway across a staircase stays on the walkway (%s)" % b.pos)
-	b = run_on(w, 16.0, 12.0, 90, func(_i): return inp(1.0, false, false, true))
+	b = run_on(w, 16.0, 12.0, steps(19.0), func(_i): return inp(1.0, false, false, true))
 	t.check(b.pos.y == 16.0, "holding W where the walkway crosses the stairs takes them up (%s)" % b.pos)
-	b = run_on(w, 36.0, 16.0, 120, func(_i): return inp(-1.0))
+	b = run_on(w, 36.0, 16.0, steps(22.0), func(_i): return inp(-1.0))
 	t.check(b.pos.y == 8.0 and b.pos.x < 18.0, "running off the top walkway down the stairs stays on them through the crossing to the ground (%s)" % b.pos)
 	# S from the lower walkway onto the stairs below it, then down them
 	b = run_on(w, 20.5, 12.0, 40, func(_i): return inp(0, false, false, false, true))
 	t.check(b.pos.y == 10.0 and b.on_stairs, "S on the walkway drops onto the tread below and is on the staircase (%s)" % b.pos)
-	sim(w, b, stats, 60, func(_i): return inp(-1.0))
+	sim(w, b, stats, steps(5.0), func(_i): return inp(-1.0))
 	t.check(b.pos.y == 8.0 and b.pos.x < 18.0, "and runs down it (%s)" % b.pos)
 	# S on the stairs: moving, it walks them; standing, it drops
-	b = run_on(w, 18.0, 8.0, 24, func(_i): return inp(1.0, false, false, true))
+	b = run_on(w, 18.0, 8.0, steps(4.0, 0.0, 0), func(_i): return inp(1.0, false, false, true))
 	var y0: float = b.pos.y
-	sim(w, b, stats, 6, func(_i): return inp(-1.0, false, false, false, true))
+	sim(w, b, stats, steps(1.5, 0.0, 0), func(_i): return inp(-1.0, false, false, false, true))
 	t.check(b.on_stairs and b.pos.y < y0 and b.pos.y >= y0 - 2.0, "S while running down the stairs does not drop off them (%.1f -> %.1f)" % [y0, b.pos.y])
 	sim(w, b, stats, 60, func(_i): return inp(0, false, false, false, true))
 	t.check(not b.on_stairs and b.pos.y == 8.0, "S standing on the stairs drops off them (%.1f)" % b.pos.y)
@@ -345,7 +357,7 @@ func _stairs(t: TestLog) -> void:
 	for i in 8:
 		m.set_fg(40 - i, 8 + i, TileDefs.id("stairs_l"), true)
 	Col.fill(m, 20, 15, 33, 16, TileDefs.id("platform"))
-	b = run_on(m, 50.0, 8.0, 90, func(_i): return inp(-1.0, false, false, true))
+	b = run_on(m, 50.0, 8.0, steps(19.0), func(_i): return inp(-1.0, false, false, true))
 	t.check(b.pos.y == 16.0 and b.on_floor, "a left-rising staircase climbs to its top tread (%s)" % b.pos)
 	# stairs are passable from below and from the side
 	b = run_on(w, 24.0, 8.0, 60, func(i): return inp(0, true, i == 0))
@@ -357,14 +369,14 @@ func _ladder(t: TestLog) -> void:
 	var stats := MoveStats.player()
 	var body := stats.make_body()
 	body.pos = Vector2(40.5, 8)
-	var path := sim(world, body, stats, 120, func(_i): return inp(0, false, false, true))
+	var path := sim(world, body, stats, steps(10.0, stats.ladder_speed), func(_i): return inp(0, false, false, true))
 	t.eq(body.pos.y, 18.0, "climbs a ladder and stands on its top")
 	t.check(not body.climbing and body.on_floor, "off the ladder, on its top rung")
 	var rate := (path[30].y - path[20].y) / (10 * DT)
 	t.check(absf(rate - stats.ladder_speed) < 1e-3, "climbs at ladder speed (%.2f t/s)" % rate)
 	sim(world, body, stats, 120, func(_i): return inp())
 	t.eq(body.pos.y, 18.0, "rests on the ladder top")
-	sim(world, body, stats, 120, func(_i): return inp(0, false, false, false, true))
+	sim(world, body, stats, steps(10.0, stats.ladder_speed), func(_i): return inp(0, false, false, false, true))
 	t.eq(body.pos.y, 8.0, "down on the top climbs back down to the ground")
 	sim(world, body, stats, 30, func(_i): return inp(0, false, false, true))
 	var before := body.pos.y
@@ -390,7 +402,7 @@ func _swim(t: TestLog) -> void:
 	var sink := (path[29].y - path[19].y) / (10 * DT)
 	t.check(sink < 0.0 and sink > -stats.max_sink - 1e-3, "sinks slowly (%.2f t/s)" % sink)
 	var y0 := body.pos.y
-	sim(world, body, stats, 30, func(_i): return inp(0, true))
+	sim(world, body, stats, steps(1.0, stats.swim_speed, 30), func(_i): return inp(0, true))
 	t.check(body.pos.y > y0 + 1.0, "holding jump swims up")
 	body.pos = Vector2(25, 10)
 	body.vel = Vector2.ZERO
@@ -400,7 +412,8 @@ func _swim(t: TestLog) -> void:
 	body.vel = Vector2(0, -stats.terminal_fall)
 	sim(world, body, stats, 12, func(_i): return inp())
 	t.check(body.vel.y >= -stats.swim_speed - 1e-3, "a dive into water brakes to swim speed within 0.2 s (%.2f)" % body.vel.y)
-	t.check(absf(MoveStats.from_srd({"walk": 10, "swim": 40}).swim_speed - 40.0 / 30.0 * 10.0) < 1e-6, "a swim speed sets the swim rate")
+	var swim_per_30 := MoveStats.pace() * float(MoveStats.data()["swim"]["speed"])
+	t.check(absf(MoveStats.from_srd({"walk": 10, "swim": 40}).swim_speed - 40.0 / 30.0 * swim_per_30) < 1e-6, "a swim speed sets the swim rate")
 	# reach the surface holding jump, then leap out onto the bank
 	var bank := Col.flat(64)
 	Col.fill(bank, 0, 8, 20, 18, TileDefs.id("stone"))
@@ -409,7 +422,8 @@ func _swim(t: TestLog) -> void:
 			bank.set_liquid(x, y, 15, true)
 	body = stats.make_body()
 	body.pos = Vector2(22, 9)
-	sim(bank, body, stats, 300, func(i): return inp(-1.0 if i >= 60 and i < 200 else 0.0, i < 200, i < 200 and i % 30 == 0))
+	var n := steps(8.0, stats.swim_speed, 200)
+	sim(bank, body, stats, n, func(i): return inp(-1.0 if i >= 60 and i < n - 100 else 0.0, i < n - 100, i < n - 100 and i % 30 == 0))
 	t.check(body.pos.y == 18.0 and body.pos.x < 20.0, "swims up and leaps out onto a bank 1 tile above the water (%s)" % body.pos)
 
 func _climb_and_fly(t: TestLog) -> void:
@@ -418,23 +432,23 @@ func _climb_and_fly(t: TestLog) -> void:
 	var spider := MoveStats.from_srd({"walk": 30, "climb": 30}, "large")
 	var body := spider.make_body()
 	body.pos = Vector2(20, 8)
-	sim(world, body, spider, 180, func(_i): return inp(1.0))
+	sim(world, body, spider, steps(10.0) + steps(9.0, spider.climb_speed), func(_i): return inp(1.0))
 	t.check(body.pos.y == 16.0 or body.pos.x > 34.0, "a climber walks up an 8-high wall and over (%s)" % body.pos)
 	var stats := MoveStats.player()
 	body = stats.make_body()
 	body.pos = Vector2(20, 8)
-	sim(world, body, stats, 180, func(_i): return inp(1.0))
+	sim(world, body, stats, steps(12.0), func(_i): return inp(1.0))
 	t.eq(body.pos, Vector2(29.25, 8), "a walker without a climb speed cannot")
 
 	var bird := MoveStats.from_srd({"walk": 10, "fly": 60}, "small")
 	body = bird.make_body()
 	body.pos = Vector2(10.5, 8)
-	sim(world, body, bird, 30, func(_i): return inp(0, false, false, true))
+	sim(world, body, bird, steps(4.0, bird.fly_speed, 30), func(_i): return inp(0, false, false, true))
 	var y0 := body.pos.y
 	t.check(body.flying and y0 > 12.0, "a flyer takes off with up (y %.2f)" % y0)
 	sim(world, body, bird, 60, func(_i): return inp())
 	t.check(body.vel == Vector2.ZERO and body.pos.y > y0, "and hovers with no input")
-	sim(world, body, bird, 120, func(_i): return inp(0, false, false, false, true))
+	sim(world, body, bird, steps(y0 - 8.0, bird.fly_speed, 90), func(_i): return inp(0, false, false, false, true))
 	t.check(body.pos.y == 8.0 and not body.flying, "and lands with down")
 
 func _determinism(t: TestLog) -> void:

@@ -104,7 +104,7 @@ func _gaps(t: TestLog) -> void:
 		body.pos = Vector2(20, 8)
 		var p := PlayerInput.new()
 		p.move_x = 1.0
-		for i in 180:
+		for i in ceili(30.0 / stats.run_speed / DT):
 			PlayerController.step(world, body, p, stats, DT)
 		out[size_name] = body.pos.x
 	t.check(out["medium"] > 45.0, "Medium walks through a 3-high tunnel (x %.2f)" % out["medium"])

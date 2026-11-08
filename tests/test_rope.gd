@@ -79,12 +79,12 @@ func _climb(t: TestLog) -> void:
 		p.jump = jp
 		p.jump_pressed = jp
 		return p
-	for i in 20:
+	for i in 200:
 		PlayerController.step(w, b, inp.call(-0.5, false, false), stats, DT)
 		if floori(b.pos.x) == 102:
 			break
 	t.check(b.on_floor and b.pos.y == 64.0, "steps onto the rope's top from the ledge (%s)" % b.pos)
-	for i in 120:
+	for i in ceili(14.0 / stats.ladder_speed / DT):
 		PlayerController.step(w, b, inp.call(0.0, false, true), stats, DT)
 	t.check(b.climbing and b.pos.y < 53.0 and absf(b.pos.x - 102.25) < 1e-4, "S climbs down the rope, swung in clear of the rock (%s)" % b.pos)
 	var y0: float = b.pos.y

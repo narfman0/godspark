@@ -1,5 +1,10 @@
 {
-	"_comment": "Track C movement tunables. Units: tiles (2.5 ft), seconds. Speeds marked _per_30ft scale linearly with the SRD speed in ft per round (walk 30 = baseline). See docs/tracks/movement.md for the reasoning.",
+	"_comment": "Track C movement tunables. Units: tiles (2.5 ft), seconds. See docs/tracks/movement.md and docs/tracks/pace.md for the reasoning.",
+	"pace": {
+		"_comment": "THE pace knob: tiles a second a walk-30 body runs. Every horizontal and movement-mode speed below is a share of it (speed: x pace, scaled again by the body's SRD speed / 30 ft), and every acceleration is the time (s) to reach it, so this one number retunes the player, monsters and people together. 2.0 is SRD real time (30 ft per 6 s round). 4.0 is the SRD Dash in real time (60 ft a round) and what the game ships with (docs/tracks/pace.md). The game ran 13.0 before 2026-11-08. Jumps do not scale (height and time to apex stay), so they clear the same obstacles at any pace; what a pace changes is how far a running jump carries.",
+		"tiles_per_s_per_30ft": 4.0,
+		"srd_real_time": 2.0
+	},
 	"step_hz": 60,
 	"sizes": {
 		"_comment": "Collision box per SRD size: w x h in tiles (multiples of 1/8 so contact positions are exact in float32); step = tiles of automatic step-up.",
@@ -11,12 +16,13 @@
 		"gargantuan": {"w": 7.0, "h": 7.0, "step": 3}
 	},
 	"run": {
-		"tiles_per_s_per_30ft": 13.0,
-		"ground_accel": 110.0,
-		"ground_friction": 140.0,
-		"turn_accel": 220.0,
-		"air_accel": 55.0,
-		"air_friction": 12.0
+		"_comment": "speed: x pace. *_s: seconds from a standstill to pace (accel), from pace to a stop (friction), and from pace one way to a stop on turning (turn); air_*: the same in the air.",
+		"speed": 1.0,
+		"accel_s": 0.118,
+		"friction_s": 0.093,
+		"turn_s": 0.059,
+		"air_accel_s": 0.236,
+		"air_friction_s": 1.083
 	},
 	"jump": {
 		"height": 6.75,
@@ -36,20 +42,23 @@
 		"length": 30
 	},
 	"ladder": {
-		"speed": 7.0,
-		"side_speed": 4.0
+		"_comment": "x pace, the same for every body (anyone can use a ladder or rope; a climb speed raises it). 0.75: a 30-tile rope takes 10 s at pace 4.",
+		"speed": 0.75,
+		"side_speed": 0.4
 	},
 	"climb": {
-		"tiles_per_s_per_30ft": 8.0,
+		"_comment": "Wall climbing with an SRD climb speed: speed x pace per 30 ft of climb.",
+		"speed": 0.6,
 		"jump_off_mult": 0.8
 	},
 	"swim": {
-		"tiles_per_s_per_30ft": 10.0,
+		"_comment": "speed: x pace per 30 ft of swim speed (no swim speed: half the walk, the SRD's costs double). accel_s: seconds to swim speed at pace. gravity, buoyancy, drag, max_sink, brake are water physics and do not scale.",
+		"speed": 0.75,
 		"threshold": 0.5,
 		"gravity": 20.0,
 		"buoyancy": 17.0,
 		"drag": 3.0,
-		"accel": 40.0,
+		"accel_s": 0.25,
 		"max_sink": 4.0,
 		"brake": 150.0,
 		"stroke_mult": 1.0,
@@ -57,7 +66,12 @@
 		"leap_mult": 0.75
 	},
 	"fly": {
-		"tiles_per_s_per_30ft": 13.0,
-		"accel": 60.0
+		"_comment": "speed: x pace per 30 ft of fly speed; accel_s: seconds to pace.",
+		"speed": 1.0,
+		"accel_s": 0.217
+	},
+	"burrow": {
+		"_comment": "speed: x pace per 30 ft of burrow speed.",
+		"speed": 1.0
 	}
 }

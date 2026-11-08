@@ -1,5 +1,5 @@
 {
-	"_comment": "Sparks (original content): scraps of divinity kindled into constellation slots. THE RULE: a spark never changes attack rolls, AC, save DCs or damage dice (tests/test_sparks.gd proves it); it changes how you move and live. ranks: I, II, III (index 0-2). move: MoveStats changes, applied identically by host and client (Sparks.apply): run_mult (x run speed), jump_add (tiles of jump height, gravity kept), air_jumps and air_jump_mult (Skyhook: extra jumps in the air, x jump velocity), dash_speed / dash_time / dash_cooldown (Dash: double-tap a direction or PlayerInput.dash; tiles/s, s, s), glide_fall (Featherfall: most fall speed in tiles/s while jump is held), climb_speed (Gecko: wall cling and climb, tiles/s), swim_mult (x swim speed). tags: summed into items.tags(e) for other systems (units in data/items/affixes.json; plus cast_move: fraction of speed kept while casting, price_mult: fraction off prices, reputation_mult: extra reputation gain, beast_peace: chance a beast is not hostile). depth: which ranks drop where, by worldgen band (Loot).",
+	"_comment": "Sparks (original content): scraps of divinity kindled into constellation slots. THE RULE: a spark never changes attack rolls, AC, save DCs or damage dice (tests/test_sparks.gd proves it); it changes how you move and live. ranks: I, II, III (index 0-2). move: MoveStats changes, applied identically by host and client (Sparks.apply): run_mult (x run speed), jump_add (tiles of jump height, gravity kept), air_jumps and air_jump_mult (Skyhook: extra jumps in the air, x jump velocity), dash_speed / dash_time / dash_cooldown (Dash: double-tap a direction or PlayerInput.dash; tiles/s, s, s), glide_fall (Featherfall: most fall speed in tiles/s while jump is held), climb_mult (Gecko: wall cling and climb at this share of the pace, data/movement.json; a climb_speed in tiles/s also works), swim_mult (x swim speed). tags: summed into items.tags(e) for other systems (units in data/items/affixes.json; plus cast_move: fraction of speed kept while casting, price_mult: fraction off prices, reputation_mult: extra reputation gain, beast_peace: chance a beast is not hostile). depth: which ranks drop where, by worldgen band (Loot).",
 	"groups": ["motion", "senses", "tempo", "bonds"],
 	"rank_names": ["I", "II", "III"],
 	"sparks": {
@@ -22,7 +22,7 @@
 		"longarm": {"name": "Longarm", "group": "motion", "text": "Dig and build further away.", "ranks": [
 			{"tags": {"reach": 1.0}}, {"tags": {"reach": 2.0}}, {"tags": {"reach": 3.0}}]},
 		"gecko": {"name": "Gecko", "group": "motion", "text": "Cling to walls and climb them.", "ranks": [
-			{"move": {"climb_speed": 3.0}}, {"move": {"climb_speed": 5.0}}, {"move": {"climb_speed": 7.0}}]},
+			{"move": {"climb_mult": 0.25}}, {"move": {"climb_mult": 0.4}}, {"move": {"climb_mult": 0.55}}]},
 		"otter": {"name": "Otter", "group": "motion", "text": "Swim faster.", "ranks": [
 			{"move": {"swim_mult": 1.25}}, {"move": {"swim_mult": 1.5}}, {"move": {"swim_mult": 1.8}}]},
 		"lantern": {"name": "Lantern", "group": "senses", "text": "Carry a glow.", "ranks": [
