@@ -77,7 +77,12 @@ func _apply_quality() -> void:
 	sun.shadow_enabled = bool(_q.get("sun", true))
 	RenderingServer.directional_shadow_atlas_set_size(int(_q.get("sun_size", 2048)), true)
 	var soft := RenderingServer.SHADOW_QUALITY_SOFT_LOW if bool(_q.get("soft", false)) else RenderingServer.SHADOW_QUALITY_HARD
-	RenderingServer.directional_soft_shadow_filter_set_quality(soft)
+	# sun_soft: the sun's edge alone filtered a little, so a hard map's texels do not show as a row of
+	# teeth along a shadow's edge on a wall when the camera is close.
+	var sun_soft := soft
+	if soft == RenderingServer.SHADOW_QUALITY_HARD and bool(_q.get("sun_soft", false)):
+		sun_soft = RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW
+	RenderingServer.directional_soft_shadow_filter_set_quality(sun_soft)
 	RenderingServer.positional_soft_shadow_filter_set_quality(soft)
 	var vp := get_viewport()
 	if vp != null:
