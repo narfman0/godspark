@@ -84,6 +84,10 @@ var _img_block: Image
 var _img_sky: Image
 var _tex_block: ImageTexture
 var _tex_sky: ImageTexture
+## The ground line (meta.surface, else the client's sky_line) over the light rectangle's columns, one
+## float per column: the terrain shader's sun share under the ground goes by depth below it.
+var _surf_tex: ImageTexture
+var _surf_at := Vector2i(-1, -1)
 ## Timings, microseconds: chunk builds on workers, main-thread snapshot and mesh upload,
 ## light texture refills (including any lazy light computation).
 var stats := {"build": PackedInt32Array(), "snapshot": PackedInt32Array(),
@@ -559,8 +563,51 @@ func _refill_light() -> void:
 		_tex_sky.update(_img_sky)
 	RenderingServer.global_shader_parameter_set("gs_light_rect",
 		Vector4(_light_rect.position.x, _light_rect.position.y, size.x, size.y))
+	if _surf_at != Vector2i(_light_rect.position.x, size.x):
+		_surf_at = Vector2i(_light_rect.position.x, size.x)
+		_fill_surface()
 	below.rect_changed(_light_rect)
 	stats["light"].append(Time.get_ticks_usec() - t0)
+
+## The ground line under the light rectangle's columns into gs_surface, or gs_surface_on 0 for a
+## world with none (the shader then reads the sky field above, as before). meta.surface is the top
+## of the built world (a house's roof is on it), so each column steps down from it past built tiles,
+## air and water to the first natural ground: a house casts nothing into the ground under it.
+func _fill_surface() -> void:
+	var line: Variant = world.meta.get("surface", null)
+	if not (line is Array or line is PackedInt32Array) or (line as Variant).size() < world.width:
+		line = world.sky_line if world.sky_line.size() >= world.width else null
+	RenderingServer.global_shader_parameter_set("gs_surface_on", 0.0 if line == null else 1.0)
+	if line == null:
+		return
+	var n := _light_rect.size.x
+	var f := PackedFloat32Array()
+	f.resize(n)
+	for i in n:
+		var x := clampi(_light_rect.position.x + i, 0, world.width - 1)
+		f[i] = float(ground_under(world, x, int(line[x])))
+	var img := Image.create_from_data(n, 1, false, Image.FORMAT_RF, f.to_byte_array())
+	if _surf_tex == null or _surf_tex.get_width() != n:
+		_surf_tex = ImageTexture.create_from_image(img)
+		RenderingServer.global_shader_parameter_set("gs_surface", _surf_tex)
+	else:
+		_surf_tex.update(img)
+
+## The row over the first natural ground tile (ChunkMesher.NATURAL) at or under row `top` of column
+## x, at most GROUND_SCAN rows down (else `top`); an unloaded chunk counts as ground.
+const GROUND_SCAN := 40
+static var _ground_ids := PackedByteArray()
+static func ground_under(w: TileWorld, x: int, top: int) -> int:
+	if _ground_ids.is_empty():
+		var g := PackedByteArray()
+		g.resize(TileDefs.names.size())
+		for name: String in ChunkMesher.NATURAL:
+			g[TileDefs.id(name)] = 1
+		_ground_ids = g
+	for y in range(mini(top, w.height - 1), maxi(top - GROUND_SCAN, -1), -1):
+		if not w.has_chunk(x >> 5, y >> 5) or _ground_ids[w.get_fg(x, y)] != 0:
+			return y + 1
+	return top
 
 func _apply_sun() -> void:
 	var s := light.sun

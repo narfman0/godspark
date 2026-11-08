@@ -12,6 +12,9 @@ render_mode cull_back;
 
 global uniform sampler2D gs_noise : filter_linear_mipmap, repeat_enable;
 global uniform sampler2D gs_mat : filter_linear, repeat_enable;
+// The ground line per column of the light rectangle (WorldView._fill_surface); gs_surface_on 0: none.
+global uniform sampler2D gs_surface : filter_linear, repeat_disable;
+global uniform float gs_surface_on;
 // The deep lake (view/below_look.gd): x0, x1, surface and bed rows, and the colour of its light.
 global uniform vec4 gs_lake;
 global uniform vec4 gs_lake_glow : source_color;
@@ -33,19 +36,28 @@ void vertex() {
 
 // The sky's light on the ground's front face (the cut-away), reaching further down than the light
 // field does: the field stops at the first tile of rock, and a hard black line under the grass is
-// the block-game look. A share of the light some rows up carries the shade down about 20 rows, on
-// front faces only, and only where the field has run out: a cave's own faces and walls take the
-// field alone, so a cave stays dark. `sun` is how much of the sun the face takes: the same fade,
-// so the sun's shading does not stop at the first row of tiles in steps.
+// the block-game look. The share falls off with depth under the ground line (gs_surface, the world's
+// surface before anything was built on it) over about 24 rows, on front faces only, and only where
+// the field has run out: a cave's own faces and walls take the field alone, so a cave stays dark.
+// The ground line, not the sky field over the face, so a house or a tree on the ground casts no dark
+// shape twenty rows down into it. With no ground line (an old world) the sky field some rows up is
+// read instead. `sun` is how much of the sun the face takes: the same fade, so the sun's shading
+// does not stop at the first row of tiles in steps.
 vec3 ground_light(vec2 tile, vec2 lv, bool front, out float sun) {
 	vec3 L = gs_light_lv(lv, tile);
 	sun = 0.0;
 	if (!front || L.g > 0.3) {
 		return L;
 	}
-	float s = texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 9.0))).r * 0.55
-		+ texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 20.0))).r * 0.45;
-	s = min(s * (255.0 / GS_FULL), 1.0);
+	float s;
+	if (gs_surface_on > 0.5) {
+		float top = texture(gs_surface, vec2((tile.x - gs_light_rect.x) / gs_light_rect.z, 0.5)).r;
+		s = 1.0 - smoothstep(2.0, 26.0, top - tile.y);
+	} else {
+		s = texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 9.0))).r * 0.55
+			+ texture(gs_light_sky, gs_light_uv(tile + vec2(0.0, 20.0))).r * 0.45;
+		s = min(s * (255.0 / GS_FULL), 1.0);
+	}
 	sun = smoothstep(0.25, 0.95, s) * 0.8;
 	return max(L, gs_sky_tint.rgb * gs_curve(s * gs_sun) * 0.62);
 }

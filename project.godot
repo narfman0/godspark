@@ -273,3 +273,11 @@ gs_below_rock={
 "type": "sampler2D",
 "value": ""
 }
+gs_surface={
+"type": "sampler2D",
+"value": ""
+}
+gs_surface_on={
+"type": "float",
+"value": 0.0
+}
