@@ -8,6 +8,14 @@
 ##                                                                         body = "synty"
 ##   3. a tinted primitive with a nameplate                                body = "primitive"
 ##
+## Synty people stay (docs/tracks/forge-art.md): a player look, or a people look of a
+## humanoid (a forge.synty_first_types type), never takes a forge body (a giant spider in a
+## drow escort carries a people key and still gets its spider); a slug listed in looks.json forge.keep_synty, or one of a
+## forge.synty_first_types type (humanoid: guard, mage...) that has its own row, tries Synty
+## before forge (2, 1, 3): forge only covers it when the Synty files are missing. A slug in
+## data/forge_quarantine.json, or a look with no_forge = true (ActorBody, after a forge body
+## failed to load), skips 1.
+##
 ## look keys (all optional): slug ("goblin-warrior"), people ("human:guard" or
 ## "people:human:guard"), player ("fighter" or "player:fighter"), key (any row key), name,
 ## size (Vector2 tiles: the collision box), size_name ("medium"), type ("beast"), color,
@@ -23,10 +31,13 @@ extends RefCounted
 
 const FILE := "res://data/looks.json"
 const CREATURES := "res://data/looks_creatures.json"
+const QUARANTINE := "res://data/forge_quarantine.json"
 const SIZES := ["tiny", "small", "medium", "large", "huge", "gargantuan"]
 
 static var _table := {}
 static var _creatures := {}
+static var _quarantine := {}
+static var _quarantine_read := false
 
 static func table() -> Dictionary:
 	if _table.is_empty():
@@ -42,6 +53,26 @@ static func creatures() -> Dictionary:
 		var c = JSON.parse_string(FileAccess.get_file_as_string(CREATURES))
 		_creatures = c.get("creatures", {}) if c is Dictionary else {}
 	return _creatures
+
+## slug -> reason: forge monsters known bad today (data/forge_quarantine.json).
+static func quarantine() -> Dictionary:
+	if not _quarantine_read:
+		_quarantine_read = true
+		var q = JSON.parse_string(FileAccess.get_file_as_string(QUARANTINE)) if FileAccess.file_exists(QUARANTINE) else null
+		_quarantine = q.get("monsters", {}) if q is Dictionary and q.get("monsters", {}) is Dictionary else {}
+	return _quarantine
+
+## Whether a forge body may stand for this look at all (synced or not), and whether Synty
+## comes first for it. Pure on the table: [forge_allowed, synty_first].
+static func forge_rule(look: Dictionary, slug: String, ctype: String) -> Array:
+	var f: Dictionary = table().get("forge", {})
+	var person: bool = ctype in f.get("synty_first_types", [])
+	if slug == "" or look.has("player") or (look.has("people") and person) or bool(look.get("no_forge", false)):
+		return [false, false]
+	if quarantine().has(slug) or not creatures().has(slug):
+		return [false, false]
+	var first: bool = f.get("keep_synty", {}).has(slug) or (person and table().get("looks", {}).has(slug))
+	return [true, first]
 
 ## Keys to try for a look, most specific first.
 static func keys_for(look: Dictionary) -> PackedStringArray:
@@ -112,14 +143,11 @@ static func resolve(look: Dictionary, has_file: Callable = Callable()) -> Dictio
 	var tint := _color(look.get("tint", row.get("tint", null)), Color.WHITE)
 	plan["tint"] = tint
 	plan["scale"] = float(look.get("scale", 1.0)) * float(row.get("scale", 1.0))
-	# 1. monster-forge
-	if slug != "" and has_file.call("res://assets/monsters/%s/monster.json" % slug):
-		plan["body"] = "forge"
-		plan["forge_dir"] = "res://assets/monsters/" + slug
-		plan["nameplate"] = bool(look.get("nameplate", false))
-		plan["height_m"] = 0.0
-		plan["color"] = _color(look.get("color", null), Color.WHITE)
-		return plan
+	# 1. monster-forge (after Synty for a keep-Synty slug)
+	var rule := forge_rule(look, slug, ctype)
+	var forge: bool = rule[0] and has_file.call("res://assets/monsters/%s/monster.json" % slug)
+	if forge and not rule[1]:
+		return _forge_plan(plan, look, slug)
 	# 2. Synty model from the row, else from the creature type
 	var model_key := String(row.get("model", ""))
 	var from_type := false
@@ -143,9 +171,24 @@ static func resolve(look: Dictionary, has_file: Callable = Callable()) -> Dictio
 		plan["height_m"] = h * float(plan["scale"])
 		plan["nameplate"] = bool(look.get("nameplate", row.get("nameplate", from_type or type_row.get("nameplate", false))))
 		return plan
+	if forge:
+		return _forge_plan(plan, look, slug)
 	# 3. primitive
 	plan["height_m"] = size.y * K.TILE_M
 	plan["nameplate"] = bool(look.get("nameplate", nm != ""))
+	return plan
+
+static func _forge_plan(plan: Dictionary, look: Dictionary, slug: String) -> Dictionary:
+	plan["body"] = "forge"
+	plan["forge_dir"] = "res://assets/monsters/" + slug
+	plan["nameplate"] = bool(look.get("nameplate", false))
+	plan["height_m"] = 0.0
+	plan["color"] = _color(look.get("color", null), Color.WHITE)
+	# A row's tint and scale dress its Synty stand-in; the forge body is the creature itself.
+	plan["tint"] = _color(look.get("tint", null), Color.WHITE)
+	plan["scale"] = float(look.get("scale", 1.0))
+	plan["model"] = ""
+	plan["model_def"] = {}
 	return plan
 
 ## A model counts as available when its file is there and, for humanoids, the reference

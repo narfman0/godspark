@@ -7,7 +7,9 @@ extends RefCounted
 func run(t: TestLog) -> void:
 	_schema(t)
 	_resolution(t)
+	_forge_chain(t)
 	_bodies(t)
+	_forge_bodies(t)
 	_dressing(t)
 	_index(t)
 
@@ -19,6 +21,10 @@ static func _all(_p: String) -> bool:
 
 static func _no_forge(p: String) -> bool:
 	return not p.begins_with("res://assets/monsters/")
+
+## Forge monsters only: no Synty file at all.
+static func _forge_only(p: String) -> bool:
+	return p.begins_with("res://assets/monsters/")
 
 ## Model files only: no reference character, no clips, no monsters.
 static func _models_only(p: String) -> bool:
@@ -74,7 +80,9 @@ func _resolution(t: TestLog) -> void:
 	t.eq(ab["name"], "Aboleth", "SRD name from the registry")
 	t.eq(ab["color"], Color.from_string("#8a7fd0", Color.WHITE), "by_type colour")
 	# Order: forge, then Synty, then primitive.
-	t.eq(Looks.resolve({"slug": "goblin-warrior"}, _all)["body"], "forge", "forge wins when synced")
+	t.eq(Looks.resolve({"slug": "hobgoblin-warrior"}, _all)["body"], "forge", "forge wins when synced")
+	t.eq(Looks.resolve({"slug": "goblin-warrior"}, _all)["body"], "synty", "a keep_synty slug (goblin): Synty first")
+	t.eq(Looks.resolve({"slug": "goblin-warrior"}, _forge_only)["body"], "forge", "a keep_synty slug without Synty files: forge")
 	var g := Looks.resolve({"slug": "goblin-warrior"}, _no_forge)
 	t.check(g["body"] == "synty" and g["model"] == "goblin", "no forge: the Synty stand-in")
 	t.eq(g["size"], Vector2(1.0, 1.75), "goblin-warrior is small")
@@ -98,6 +106,56 @@ func _resolution(t: TestLog) -> void:
 	t.eq(Looks.resolve({"people": "halfling"}, _all)["height_m"], 0.95, "row height wins")
 	t.eq(Looks.resolve({"slug": "ogre"}, _no_forge)["height_m"], 2.5, "by_size height for a large stand-in")
 	t.eq(Looks.resolve({"people": "human:guard", "scale": 1.1}, _all)["height_m"], 1.8 * 1.1, "look scale multiplies")
+
+## The chain after the user's ruling (docs/tracks/forge-art.md): forge for non-human
+## creatures even over a Synty row; Synty first for humanoid NPC rows and keep_synty; never
+## forge for people / player looks or quarantined slugs.
+func _forge_chain(t: TestLog) -> void:
+	t.eq(Looks.resolve({"slug": "owlbear"}, _all)["body"], "forge", "a creature with no row: forge when synced")
+	t.eq(Looks.resolve({"slug": "ogre"}, _all)["body"], "forge", "forge beats a loose Synty stand-in row (ogre -> giant)")
+	var hob := Looks.resolve({"slug": "hobgoblin-warrior"}, _all)
+	t.eq(hob["tint"], Color.WHITE, "a forge body does not take its stand-in row's tint")
+	t.eq(hob["model"], "", "a forge plan names no Synty model")
+	var gd := Looks.resolve({"slug": "guard"}, _all)
+	t.check(gd["body"] == "synty" and gd["model"] == "soldier", "a humanoid NPC row stays Synty when its files are there")
+	t.eq(Looks.resolve({"slug": "guard"}, _forge_only)["body"], "forge", "a humanoid NPC without Synty files takes the forge body")
+	t.eq(Looks.resolve({"slug": "guard"}, _none)["body"], "primitive", "a humanoid NPC with nothing fetched: primitive")
+	t.eq(Looks.resolve({"slug": "vampire-familiar"}, _all)["body"], "forge", "a humanoid with no row of its own: forge over by_type")
+	t.eq(Looks.resolve({"people": "human:guard"}, _forge_only)["body"], "primitive", "a people look never takes a forge body")
+	t.eq(Looks.resolve({"people": "human:guard", "slug": "guard"}, _all)["body"], "synty", "people + slug: Synty person")
+	t.eq(Looks.resolve({"player": "fighter", "slug": "knight"}, _forge_only)["body"], "primitive", "a player look never takes a forge body")
+	t.eq(Looks.resolve({"slug": "giant-spider", "people": "elf:drow:guard"}, _all)["body"], "forge", "a drow escort's spider (people key, not a humanoid) is a forge spider")
+	t.eq(Looks.resolve({"slug": "player:fighter"}, _all)["body"], "synty", "a non-SRD slug never looks for a forge body")
+	t.eq(Looks.resolve({"slug": "ogre", "no_forge": true}, _all)["body"], "synty", "no_forge skips the forge link")
+	# keep_synty and the quarantine, injected (the committed lists change as the forge improves)
+	var keep: Dictionary = Looks.table()["forge"]["keep_synty"]
+	var had := keep.has("ogre")
+	keep["ogre"] = "test"
+	t.eq(Looks.resolve({"slug": "ogre"}, _all)["body"], "synty", "keep_synty: the Synty stand-in first")
+	t.eq(Looks.resolve({"slug": "ogre"}, _forge_only)["body"], "forge", "keep_synty without Synty files: forge")
+	if not had:
+		keep.erase("ogre")
+	var q := Looks.quarantine()
+	var hadq := q.has("ogre")
+	q["ogre"] = {"reason": "test"}
+	t.eq(Looks.resolve({"slug": "ogre"}, _all)["body"], "synty", "quarantined: the next link")
+	t.eq(Looks.resolve({"slug": "ogre"}, _forge_only)["body"], "primitive", "quarantined with no Synty: primitive")
+	if not hadq:
+		q.erase("ogre")
+	# The committed lists name real creatures.
+	var cr := Looks.creatures()
+	var odd := []
+	for k: String in keep:
+		if not cr.has(k):
+			odd.append(k)
+	for k: String in q:
+		if not cr.has(k):
+			odd.append(k)
+	t.eq(odd, [], "keep_synty and data/forge_quarantine.json name SRD slugs")
+	for k: String in keep:
+		if not Looks.table()["looks"].has(k):
+			odd.append(k)
+	t.eq(odd, [], "every keep_synty slug has a Synty row to keep")
 
 func _bodies(t: TestLog) -> void:
 	var mat := ShaderMaterial.new()
@@ -137,6 +195,40 @@ func _bodies(t: TestLog) -> void:
 	view.remove_actor(3)
 	t.eq(view.get_actor(3), null, "remove_actor")
 	view.free()
+
+## A forge body that cannot load falls back; with art fetched, a real one is checked too.
+func _forge_bodies(t: TestLog) -> void:
+	var mat := ShaderMaterial.new()
+	# An SRD slug the forge has no animated body for yet; has_file claims it is synced.
+	var cr := Looks.creatures()
+	var slug := "xorn"
+	ActorBody.forge_failed.erase(slug)
+	var a := ActorBody.build({"slug": slug}, mat, func(p: String) -> bool: return p.begins_with("res://assets/monsters/xorn/") or (not p.begins_with("res://assets/monsters/") and FileAccess.file_exists(p)))
+	t.check((a.kind != "forge" or ForgeMonster.is_synced(slug)) and a.visual != null, "a forge body that fails to load falls back (%s)" % a.kind)
+	t.check(ActorBody.forge_failed.has(slug) or ForgeMonster.is_synced(slug), "the failure is remembered for later actors")
+	t.check(cr.has(slug), "xorn is an SRD slug")
+	a.free()
+	ActorBody.forge_failed.erase(slug)
+	for s: String in ["hobgoblin-warrior", "dire-wolf"]:     # not in keep_synty: forge first
+		if not ForgeMonster.is_synced(s) or Looks.quarantine().has(s):
+			t.check(true, "%s not synced: forge body checks skipped" % s)
+			continue
+		var b := ActorBody.build({"slug": s}, mat)
+		t.eq(b.kind, "forge", "%s: forge body" % s)
+		var m := b.visual as ForgeMonster
+		t.check(m.has_clip("idle") and m.move_clip() != "", "%s: idle and a move clip" % s)
+		var g := m.ground_speed()
+		t.check(g > 0.1 and g < 5.0, "%s: walk ground speed measured (%.2f m/s)" % [s, g])
+		var box := GltfCache.visible_aabb(b)
+		t.check(box.size.y <= b.size.y * K.TILE_M * 1.15 + 0.01, "%s: no taller than 1.15x its box (%.2f m)" % [s, box.size.y])
+		t.check(absf(box.position.y) < 0.15, "%s: feet near the ground (%.3f)" % [s, box.position.y])
+		var mps := maxf(0.8 * g * m.scale.x, 0.3)     # (under 0.25 m/s a body stands)
+		var slow: Array = b.forge_clip_speed("run", Vector2(mps / K.TILE_M, 0))
+		t.check(slow[0] == "walk" and absf(float(slow[1]) - clampf(mps / (g * m.scale.x), ActorBody.FORGE_SPEED_MIN, ActorBody.FORGE_SPEED_MAX)) < 0.01,
+			"%s: the walk plays at body speed / ground speed (%.2f m/s -> %.2fx)" % [s, mps, float(slow[1])])
+		t.eq(b.forge_clip_speed("run", Vector2(100, 0))[1], ActorBody.FORGE_SPEED_MAX, "%s: a fast body clamps the walk speed" % s)
+		t.eq(b.forge_clip_speed("idle", Vector2.ZERO)[0], "idle", "%s: standing: idle" % s)
+		b.free()
 
 func _dressing(t: TestLog) -> void:
 	var defs := DressingView.defs()

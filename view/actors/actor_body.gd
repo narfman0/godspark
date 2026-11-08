@@ -31,8 +31,14 @@ const RUN_MPS := 3.6
 const SPRINT_MPS := 6.0
 const RIM := preload("res://view/actors/rim.gdshader")
 const FLASH := preload("res://view/actors/flash.gdshader")
+## Forge walk playback: the clip runs at (body speed / its ground speed), within these bounds
+## (faster than 2.5x the legs blur; the body then slides a little, like a Synty sprint does).
+const FORGE_SPEED_MIN := 0.5
+const FORGE_SPEED_MAX := 2.5
 static var _rim_mat: ShaderMaterial
 static var _flash_mat: ShaderMaterial
+## slug -> why its forge body failed to load: later actors of that slug skip it at once.
+static var forge_failed := {}
 
 var plan: Dictionary = {}
 var size := Vector2(1.5, 2.5)
@@ -65,20 +71,29 @@ var _flash_s := 0.0
 var _flash_len := 0.0
 var _hold := 0.0
 var _weapon_bar: Node3D
+## The forge body's scale and the m/s its walk carries it at speed 1 (0: not measured).
+var _forge_scale := 1.0
+var _forge_ground := 0.0
 
 ## Builds the actor for a look. primitive_mat: the placeholder shader material (WorldView's).
 static func build(look: Dictionary, primitive_mat: Material, has_file: Callable = Callable()) -> ActorBody:
 	var a := ActorBody.new()
+	if forge_failed.has(String(look.get("slug", ""))):
+		look = look.merged({"no_forge": true})
 	a.plan = Looks.resolve(look, has_file)
 	a.size = a.plan["size"]
 	a.turn = Node3D.new()
 	a.turn.name = "turn"
 	a.add_child(a.turn)
-	match String(a.plan["body"]):
-		"forge":
-			a._build_forge()
-		"synty":
-			a._build_synty()
+	if String(a.plan["body"]) == "forge":
+		a._build_forge()
+		if a.visual == null:
+			# A broken or partial forge monster: the next link of the chain (Synty, primitive).
+			forge_failed[String(a.plan["slug"])] = ForgeMonster.last_error
+			push_warning("forge body failed, falling back: " + ForgeMonster.last_error)
+			a.plan = Looks.resolve(look.merged({"no_forge": true}), has_file)
+	if String(a.plan["body"]) == "synty":
+		a._build_synty()
 	if a.visual == null:
 		a._build_primitive(primitive_mat, a.plan.get("color", Color(0.8, 0.7, 0.55)))
 	if a.plan.get("nameplate", false) and String(a.plan.get("name", "")) != "":
@@ -96,6 +111,9 @@ func _build_forge() -> void:
 	var long := maxf(maxf(m.aabb.size.x, m.aabb.size.z), 0.01)
 	var s := minf(1.0, minf(size.y * t * 1.15 / h, size.x * t * 2.2 / long)) * float(plan.get("scale", 1.0))
 	m.scale = Vector3.ONE * s
+	_forge_scale = s
+	_forge_ground = m.ground_speed() * s
+	plan["height_m"] = h * s
 	LitMaterials.set_tint(m, plan.get("tint", Color.WHITE))
 	m.name = "forge"
 	turn.add_child(m)
@@ -184,6 +202,10 @@ func set_state(s: String) -> void:
 		return
 	if s in ["attack", "hit"] and not changed:
 		return   # one-shots fire on entry only
+	if kind == "forge" and s in ["idle", "walk", "run", "climb"]:
+		var cs := forge_clip_speed(s, vel)
+		visual.call("play", cs[0], cs[1])
+		return
 	var clip := s
 	var speed := 1.0
 	var h: float = float(plan.get("height_m", 1.8))
@@ -209,6 +231,18 @@ func set_state(s: String) -> void:
 			clip = "swim" if kind == "forge" else "walk"
 			speed = 0.7
 	visual.call("play", clip, speed)
+
+## [clip, speed] for a forge body moving at v (tiles/s): its move clip at the speed that keeps
+## its feet planted (FORGE_SPEED_MIN..MAX); without a measured ground speed, scaled to its
+## height like a Synty body.
+func forge_clip_speed(s: String, v: Vector2) -> Array:
+	var mps := (absf(v.y) if s == "climb" else absf(v.x)) * K.TILE_M
+	if mps < 0.25 and s != "climb":
+		return ["idle", 1.0]
+	var g := _forge_ground
+	if g <= 0.01:
+		g = WALK_MPS * maxf(float(plan.get("height_m", 1.8)), 0.3) / 1.8
+	return ["walk", clampf(mps / g, FORGE_SPEED_MIN if s != "climb" else 0.0, FORGE_SPEED_MAX)]
 
 func _process(delta: float) -> void:
 	_face_s = maxf(0.0, _face_s - delta)

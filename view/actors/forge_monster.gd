@@ -1,7 +1,14 @@
 ## A monster synced from monster-forge (tools/sync_monsters.py), loaded at runtime.
 ## Trimmed port of godot-dnd's scripts/monster.gd: one skeleton, LOD0 only, every
 ## anims/<clip>.glb bound to it by bone name, a RESET animation so un-keyed bones return to
-## rest. Not ported (yet): LOD1-3, props and sockets, swarm units.
+## rest. Not ported (yet): LOD1-3, props and sockets.
+## A swarm made as ONE unit (monster.json swarm_unit: bats, ravens, piranhas, insects, claws)
+## is drawn as several units spread over the swarm's span (swarm_unit.swarm.scale_m): mates,
+## ForgeMonsters of the same id that copy the leader's state at their own phase.
+## A monster without an idle clip and a move clip does not load (null, last_error): the actor
+## falls back to the next look (ActorBody). ground_speed(clip) is how fast its feet carry it
+## at speed 1 (from anims/clips.json's feet, measured by forward kinematics), so ActorBody
+## can play the walk at the speed the body really moves.
 ##
 ##   var m := ForgeMonster.load_monster("wolf")    # null if not synced (see last_error)
 ##   add_child(m); m.play("walk")
@@ -32,6 +39,13 @@ var weapon := ""
 var _weapon_node: Node3D
 ## "monster/clip" -> seconds of its blow (the fastest moment of its fastest bone)
 static var _contacts := {}
+## "monster/clip" -> m/s (model metres) a planted foot slides back at speed 1; 0 = unknown
+static var _ground := {}
+## anims/clips.json (feet per clip), {} when the sync did not bring it
+var clip_meta: Dictionary = {}
+## The other units of a one-unit swarm (empty for everything else), and this unit's phase.
+var mates: Array[ForgeMonster] = []
+var _phase := 0.0
 
 static func dir_of(monster_id: String) -> String:
 	return "%s/%s" % [ROOT, monster_id]
@@ -39,7 +53,7 @@ static func dir_of(monster_id: String) -> String:
 static func is_synced(monster_id: String) -> bool:
 	return monster_id != "" and FileAccess.file_exists(dir_of(monster_id) + "/monster.json")
 
-static func load_monster(monster_id: String) -> ForgeMonster:
+static func load_monster(monster_id: String, swarm := true) -> ForgeMonster:
 	last_error = ""
 	if not is_synced(monster_id):
 		last_error = "%s: not synced" % monster_id
@@ -65,7 +79,37 @@ static func load_monster(monster_id: String) -> ForgeMonster:
 	if not m._setup(dir):
 		m.free()
 		return null
+	if swarm and m.info.get("swarm_unit") is Dictionary:
+		m._add_mates()
 	return m
+
+## Units of a one-unit swarm: about 1.2 per unit length of the swarm's span (3 to 8),
+## scattered over it (fliers and swimmers also up), in a fixed pattern per id.
+func _add_mates() -> void:
+	var su: Dictionary = info["swarm_unit"]
+	var span := float(su.get("swarm", {}).get("scale_m", 1.5))
+	var unit := maxf(float(su.get("scale_m", info.get("scale_m", 0.3))), 0.05)
+	var n := clampi(roundi(span / unit * 1.2), 3, 8)
+	var aloft := move_clip() in ["fly", "swim", "hover"]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id)
+	var box := model.transform * aabb
+	for i in n - 1:
+		var mate := load_monster(id, false)
+		if mate == null:
+			break
+		mate.name = "mate%d" % i
+		mate.position = Vector3(rng.randf_range(-0.5, 0.5) * span, rng.randf_range(0.0, 0.6) * span if aloft else 0.0,
+			rng.randf_range(-0.3, 0.3) * span)
+		mate.rotation.y = rng.randf_range(-0.35, 0.35)
+		mate.scale = Vector3.ONE * rng.randf_range(0.85, 1.1)
+		mate._phase = rng.randf()
+		add_child(mate)
+		mates.append(mate)
+		box = box.merge(mate.transform * (mate.model.transform * mate.aabb))
+	if aloft:
+		position.y = 0.0
+	aabb = model.transform.affine_inverse() * box
 
 func _setup(dir: String) -> bool:
 	var skels := model.find_children("*", "Skeleton3D", true, false)
@@ -91,6 +135,12 @@ func _setup(dir: String) -> bool:
 		_add_clip(lib, dir, String(c))
 	lib.add_animation("RESET", _reset_animation())
 	anim.add_animation_library("", lib)
+	if not anim.has_animation("idle") or move_clip() == "":
+		last_error = "%s: no idle or no move clip (%s)" % [id, ",".join(clips())]
+		return false
+	var cj = JSON.parse_string(FileAccess.get_file_as_string(dir + "/anims/clips.json")) \
+		if FileAccess.file_exists(dir + "/anims/clips.json") else null
+	clip_meta = cj if cj is Dictionary else {}
 	anim.animation_finished.connect(_on_finished)
 	anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	layer = SwingLayer.new(skeleton)
@@ -193,10 +243,91 @@ func contact_of(c: String) -> float:
 	_contacts[key] = at
 	return at
 
+## How fast (m/s, model metres, at speed 1) the clip's planted feet slide back: the speed the
+## body must move for the feet not to skate. The feet come from anims/clips.json; a foot counts
+## as planted within 15% of its lift from its lowest point. 0 when unknown (no feet: fliers,
+## swimmers, oozes). Cached per creature and clip.
+func ground_speed(c := "") -> float:
+	if c == "":
+		c = move_clip()
+	var key := "%s/%s" % [id, c]
+	if _ground.has(key):
+		return _ground[key]
+	var v := _measure_ground(c)
+	_ground[key] = v
+	return v
+
+func _measure_ground(c: String) -> float:
+	var a := anim.get_animation(c) if anim != null and anim.has_animation(c) else null
+	var feet: Array = clip_meta.get("clips", {}).get(c, {}).get("feet", [])
+	if a == null or feet.is_empty():
+		return 0.0
+	var foot_ids: Array[int] = []
+	for f: Variant in feet:
+		var b := skeleton.find_bone(String(f))
+		if b >= 0:
+			foot_ids.append(b)
+	if foot_ids.is_empty():
+		return 0.0
+	var rot := {}
+	var pos := {}
+	for t in a.get_track_count():
+		var bone := skeleton.find_bone(String(a.track_get_path(t).get_concatenated_subnames()))
+		if bone >= 0:
+			match a.track_get_type(t):
+				Animation.TYPE_ROTATION_3D: rot[bone] = t
+				Animation.TYPE_POSITION_3D: pos[bone] = t
+	# The skeleton's place in the model (the GLB may put it under scaled nodes).
+	var to_model := skeleton.transform
+	var p := skeleton.get_parent()
+	while p != null and p != model:
+		to_model = (p as Node3D).transform * to_model if p is Node3D else to_model
+		p = p.get_parent()
+	var n := 48
+	var dt := a.length / float(n)
+	var ys := {}
+	var zs := {}
+	for b in foot_ids:
+		ys[b] = []          # (Arrays: a PackedFloat32Array read out of a Dictionary is a copy)
+		zs[b] = []
+	for i in n + 1:
+		var t := dt * i
+		var g: Array[Transform3D] = []
+		g.resize(skeleton.get_bone_count())
+		for b in skeleton.get_bone_count():
+			var rest := skeleton.get_bone_rest(b)
+			var xf := Transform3D(Basis(a.rotation_track_interpolate(rot[b], t)) if rot.has(b) else rest.basis,
+				a.position_track_interpolate(pos[b], t) if pos.has(b) else rest.origin)
+			var pb := skeleton.get_bone_parent(b)
+			g[b] = xf if pb < 0 else g[pb] * xf
+		for b in foot_ids:
+			var o := to_model * g[b].origin
+			(ys[b] as Array).append(o.y)
+			(zs[b] as Array).append(o.z)
+	var speeds := PackedFloat32Array()
+	for b in foot_ids:
+		var y: Array = ys[b]
+		var z: Array = zs[b]
+		var lo := INF
+		var hi := -INF
+		for v: float in y:
+			lo = minf(lo, v)
+			hi = maxf(hi, v)
+		var gate := lo + maxf((hi - lo) * 0.15, 0.002)
+		for i in n:
+			if float(y[i]) <= gate and float(y[i + 1]) <= gate:
+				speeds.append((float(z[i + 1]) - float(z[i])) / dt)   # forge faces -Z: a planted foot goes +Z
+	if speeds.size() < 2:
+		return 0.0
+	speeds.sort()
+	return maxf(speeds[speeds.size() / 2], 0.0)
+
 ## A swing on this clip: its blow at `windup`, its end at `total` seconds. False without it.
 func swing(c: String, windup: float, total: float, f_in: float, f_out: float) -> bool:
 	if not has_clip(c):
 		return false
+	for m in mates:
+		m.swing(c, windup * lerpf(0.8, 1.2, m._phase), total, f_in, f_out)
 	var a := anim.get_animation(c)
 	var at := contact_of(c)
 	if not layer.has_clip(c):
@@ -211,6 +342,8 @@ func swing(c: String, windup: float, total: float, f_in: float, f_out: float) ->
 func stop_swing() -> void:
 	if layer != null:
 		layer.stop()
+	for m in mates:
+		m.stop_swing()
 
 ## A one-shot laid over the movement (the flinch): the whole clip over `dur`.
 func flash_clip(c: String, dur: float, f_in: float, f_out: float) -> void:
@@ -225,6 +358,8 @@ func step(delta: float, moving: bool) -> void:
 	if anim != null:
 		anim.advance(delta)
 		layer.step(delta, moving)
+	for m in mates:
+		m.step(delta, moving)
 
 ## A weapon on the grip bone: an SRD slug, "" for none.
 func set_weapon(slug: String) -> void:
@@ -275,6 +410,8 @@ func has_clip(c: String) -> bool:
 func play(state: String, speed := 1.0) -> void:
 	if anim == null:
 		return
+	for m in mates:
+		m.play(state, speed)
 	var c := state
 	match state:
 		"walk", "run", "sprint", "climb":
@@ -303,6 +440,8 @@ func play(state: String, speed := 1.0) -> void:
 	current_clip = c
 	anim.play(c, 0.15)
 	anim.speed_scale = speed if not one else 1.0
+	if _phase > 0.0 and not one:
+		anim.seek(anim.get_animation(c).length * _phase, false)
 
 func _on_finished(a: StringName) -> void:
 	if String(a) in HOLD_LAST:
