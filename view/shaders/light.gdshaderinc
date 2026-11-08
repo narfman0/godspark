@@ -84,19 +84,6 @@ vec2 gs_levels_smooth(vec2 tile) {
 	return mix(mix(s3, s2, a.x), mix(s1, s0, a.x), a.y) * (255.0 / GS_FULL);
 }
 
-// The block field's mean over 2^lod tiles through the spline (lod a whole number), as a fraction of
-// full light.
-float gs_block_mean(vec2 tile, float lod) {
-	float k = exp2(lod);
-	vec2 a;
-	vec4 o = gs_cubic_uv((tile - gs_light_rect.xy) / k - 0.5, gs_light_rect.zw / k, a);
-	float s0 = textureLod(gs_light_block, o.xz, lod).r;
-	float s1 = textureLod(gs_light_block, o.yz, lod).r;
-	float s2 = textureLod(gs_light_block, o.xw, lod).r;
-	float s3 = textureLod(gs_light_block, o.yw, lod).r;
-	return mix(mix(s3, s2, a.x), mix(s1, s0, a.x), a.y) * (255.0 / GS_FULL);
-}
-
 // Light colour from levels (as gs_levels) at a point in tile units.
 vec3 gs_light_lv(vec2 l, vec2 tile) {
 	vec3 lb = gs_block_tint(tile) * gs_curve(l.x) * 1.4;
@@ -139,8 +126,11 @@ vec3 gs_deep_glow(vec2 tile) {
 	if (r.a < 0.004) {
 		return vec3(0.0);
 	}
-	float far = gs_block_mean(tile, 4.0);
-	return r.rgb * smoothstep(0.0, 0.2, far);
+	// Levels 4 and 5 (16 and 32 tiles) averaged, through a soft knee: bilinear filtering creases each
+	// level at its texel centres, and a sharp curve (a smoothstep) drew one as a faint straight line
+	// across the fungal fog. Two levels halve each crease; the knee does not sharpen them.
+	float far = (textureLod(gs_light_block, uv, 4.0).r + textureLod(gs_light_block, uv, 5.0).r) * (0.5 * 255.0 / GS_FULL);
+	return r.rgb * min(far / (far + 0.06) * 1.3, 1.0);
 }
 
 // Darkvision draws the dark near its owner in grey: the albedo's luminance, no colour, fading

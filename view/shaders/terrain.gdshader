@@ -117,11 +117,11 @@ vec3 lake_rock(vec2 tile) {
 // a mottled grain, a sparse network of fine cracks, and a relief from the grain's slope against the
 // key light (screen derivatives, so it costs no extra reads). x: the albedo's factor, y: the light's.
 vec2 rock_detail(vec2 tile, float cracks) {
-	float g1 = texture(gs_noise, tile * 0.062 + vec2(0.13, 0.71)).a;
+	vec4 n1 = texture(gs_noise, tile * 0.062 + vec2(0.13, 0.71));
 	vec2 r = vec2(tile.x * 0.8 - tile.y * 0.6, tile.x * 0.6 + tile.y * 0.8);
-	float g2 = texture(gs_noise, r * 0.027 + vec2(0.41, 0.07)).a;
-	float g3 = texture(gs_noise, tile * vec2(0.05, 0.065) + vec2(0.77, 0.29)).b;
-	float h = g1 * 0.65 + g2 * 0.35;
+	vec4 n2 = texture(gs_noise, r * 0.05 + vec2(0.41, 0.07));
+	float h = n1.a * 0.65 + n2.a * 0.35;
+	float g3 = n2.b;
 	vec2 dt = vec2(dFdx(tile.x), dFdy(tile.y));
 	vec2 grad = vec2(dFdx(h), dFdy(h)) / max(abs(dt), vec2(1e-4)) * sign(dt);
 	float relief = clamp(dot(grad, vec2(-0.35, 0.6)) * 0.22, -0.22, 0.22);
