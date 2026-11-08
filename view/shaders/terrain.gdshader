@@ -126,6 +126,26 @@ vec2 rock_detail(vec2 tile, float cracks) {
 	return vec2((0.86 + 0.28 * h) * (1.0 - 0.35 * crack), 1.0 + relief);
 }
 
+// Built walls (cobble, dressed stone, the drow's dark wall: kind 2) as laid stone: staggered courses
+// with mortar between, each stone its own shade and a lighter upper edge, cobbles small and round,
+// so a wall reads as masonry and not as a grid of tile-sized squares. The albedo's factor.
+float masonry(vec2 tile, float id) {
+	bool cobble = abs(id - 9.0) < 0.5;
+	vec2 size = cobble ? vec2(0.62, 0.42) : vec2(1.0, 0.5);
+	vec2 p = tile / size;
+	float row = floor(p.y);
+	p.x += fract(row * 0.5) + (cobble ? gs_hash(vec2(row, 5.0)) * 0.6 : 0.0);
+	vec2 c = floor(p);
+	vec2 q = (fract(p) - 0.5) * size;
+	float r = cobble ? 0.13 : 0.03;
+	vec2 b = abs(q) - (size * 0.5 - vec2(0.035) - r);
+	float sd = length(max(b, 0.0)) + min(max(b.x, b.y), 0.0) - r;
+	float inside = 1.0 - smoothstep(-0.025, 0.01, sd);
+	float h = gs_hash(c + id * 7.31);
+	float top = clamp(q.y / (size.y * 0.5), -1.0, 1.0) * 0.1;
+	return mix(0.42, 0.78 + 0.34 * h + top, inside);
+}
+
 // Drow masonry (tile dark_stone, id 101; wall dark_wall, id 43): a spider's web cut into the stone
 // every few tiles, a thread of the fae lamps' light in each cut, so a city reads from across a cavern
 // by nothing but its own lines. The web's radial lines and rings, 0..1.
@@ -216,8 +236,8 @@ void fragment() {
 		if (kind > 0.5 && kind < 1.5) {
 			glow = true;   // an emissive tile (a torch's flame): its own light, no other
 		} else if (kind > 1.5) {
-			// Background wall: darker, lit by the cell it is behind.
-			base *= 1.35;
+			// Background wall: laid stone, lit by the cell it is behind.
+			base = COLOR.rgb * masonry(tile, info.x) * 1.35;
 			cell = tile;
 			lv = gs_levels_smooth(tile);
 			L = gs_light_lv(lv, tile);
