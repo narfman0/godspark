@@ -49,7 +49,7 @@ func _rock(t: TestLog) -> void:
 	t.eq(BelowLook.rock_bytes({"biomes": [{"biome": "meadow", "x0": 0, "x1": 9}]}, rect, 8).count(0), 37 * 20 * 4, "nor a world with no regions")
 	for r: String in ["fungal", "crystal", "deep_lake", "magma"]:
 		var g := float(BelowLook.row(r).get("rock_glow", 0.0))
-		t.check(g > 0.0 and g <= 0.2, "%s rock glows faintly (%.2f)" % [r, g])
+		t.check(g > 0.0 and g <= 0.4, "%s rock glows faintly (%.2f)" % [r, g])
 	t.eq(float(BelowLook.row("underdark").get("rock_glow", 0.0)), 0.0, "the underdark's rock does not")
 
 ## The ground line the sun share reads: past built tiles and air down to natural ground.

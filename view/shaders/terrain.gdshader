@@ -36,10 +36,13 @@ float water_swell(float x) {
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	if (UV2.y > 4.5) {
+	// Lava (an emissive sheet of tile 120) heaves the same way, slower and lower.
+	bool lava = UV2.y > 0.5 && UV2.y < 1.5 && abs(UV2.x - 120.0) < 0.5;
+	if (UV2.y > 4.5 || lava) {
 		float ty = wpos.y / gs_tile_m;
 		if (abs(ty - round(ty)) < 0.01) {
-			float dy = water_swell(wpos.x / gs_tile_m) * gs_tile_m;
+			float x = wpos.x / gs_tile_m;
+			float dy = (lava ? 0.6 * water_swell(x * 0.7 + 13.0) : water_swell(x)) * gs_tile_m;
 			VERTEX.y += dy;
 			wpos.y += dy;
 		}
