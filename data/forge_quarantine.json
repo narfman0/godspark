@@ -1,0 +1,6 @@
+{
+ "_comment": "monster-forge monsters known bad today: tools/sync_monsters.py skips them (unless --force) and view/actors/looks.gd never shows their forge body, so they fall back to the next link (a Synty row, by_type, a primitive). Shrink this as the forge fixes them (docs/tracks/forge-art.md). Only list a monster whose forge body reads worse than its fallback: a rig defect alone is not enough.",
+ "monsters": {
+  "constrictor-snake": {"reason": "index reports a forge error; serpentine plan still on hold", "since": "2026-11-08"}
+ }
+}
