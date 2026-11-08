@@ -26,24 +26,32 @@ When ../monster-forge is missing, it says so and exits 0: the game runs without 
 See docs/tracks/assets.md.
 
 HTTP mode (docs/tracks/forge-art.md): the forge machine's viewer (monster-forge tools/viewer.py)
-serves /api/index.json and out/ read-only, so no checkout of the 55 GB out/ is needed:
+serves /api/index.json, the download API and out/ read-only, so no checkout of its 55 GB out/
+is needed:
 
     python3 -I tools/sync_monsters.py --http --all            # every usable monster + every prop
     python3 -I tools/sync_monsters.py --http --ids wolf ape   # these (+ the props they wield)
     python3 -I tools/sync_monsters.py --http --all --dry-run  # what would change, and its size
-    python3 -I tools/sync_monsters.py --http URL --all --lod 0 --prune
+    python3 -I tools/sync_monsters.py --http URL --all --prune
 
-"Usable" is decided from the index: rig and anim stages done, an idle clip and a move clip
-(walk / fly / swim / run / move / hover), not listed in data/forge_quarantine.json (the slugs
-known bad today, with a reason; --force ignores it). Each file is fetched only when its size or
-Last-Modified differs from what the last sync recorded; GLBs are checked (magic, JSON chunk,
-LOD0 has a skin) in a temp file before they replace anything, so a broken upstream re-roll
-keeps the previous copy. monster.json records where it came from: forge.url, the index's
-generated_at, the manifest's sha256 and each file's bytes + Last-Modified, so the next run (or
-a person) can tell what changed. Every run writes assets/monsters/_sync.json: status per id
-(added, updated, unchanged, skipped + reason, quarantined, failed). Sequential and polite:
-one request at a time. The wielded props come from the registry of a local monster-forge
-checkout when there is one (read only), else monsters wield nothing.
+"Usable" is decided from /api/index.json: rig and anim stages done, an idle clip and a move
+clip (walk / fly / swim / run / move / hover), not listed in data/forge_quarantine.json (the
+slugs known bad today, with a reason; --force ignores it). Each monster's files come from
+/api/download/<id>?lods=0 (name, url, bytes): model_rigged.glb, anims/<clip>.glb and
+anims/clips.json (feet per clip, for the walk speed); --lod k also keeps model_rigged_lod1..k
+(the game loads LOD0 only, so the default is 0). Re-runs are cheap: when the manifest's
+sha256 and every listed size match what monster.json recorded, nothing else is asked
+(2 small requests per monster); otherwise a file is fetched when its size differs, or its
+Last-Modified (HEAD) does. Fetched GLBs are checked (magic, JSON chunk, LOD0 has a skin, a
+clip has channels) in .incoming/ before they replace anything, so a broken upstream re-roll
+keeps the previous copy. monster.json records where it came from: forge.url, the manifest's
+sha256, each file's bytes + Last-Modified, and the index's quality flags, so the next run (or a
+person) can tell what changed. Every run writes assets/monsters/_sync.json: status per id
+(added, updated, unchanged, skipped + reason, quarantined, failed). Monsters no longer usable
+upstream are kept unless --prune. Sequential and polite: one request at a time. Props come
+from /out/props/<id>/. The wielded props come from the registry of a local monster-forge
+checkout when there is one (read only), else monsters wield nothing. A viewer without the
+download API (404) falls back to the index's file names under /out/.
 """
 import argparse
 import email.utils
@@ -319,7 +327,8 @@ class Forge:
         self.bytes = 0
 
     def url(self, path: str) -> str:
-        return self.base + "/" + urllib.parse.quote(path.lstrip("/"))
+        path, _, query = path.partition("?")
+        return self.base + "/" + urllib.parse.quote(path.lstrip("/")) + ("?" + query if query else "")
 
     def _open(self, path: str, method: str = "GET"):
         last = None
@@ -395,22 +404,32 @@ def _recorded(dest: Path, name: str = "monster.json") -> dict:
         return {}
 
 
-def _stage(forge: Forge, plan: dict[str, str], dest: Path, rec: dict, check) -> tuple[dict, list, list, int]:
-    """HEAD every planned file, fetch what changed into dest/.incoming. Returns
-    (file meta by rel, rels fetched, warnings, bytes to fetch). check(rel, path) -> '' or why."""
+def _stage(forge: Forge, plan: dict[str, str], dest: Path, rec: dict, check,
+           sizes: dict[str, int] | None = None) -> tuple[dict, list, list, int]:
+    """Fetch what changed into dest/.incoming. A file whose listed size (sizes, from the
+    download API) differs from the local copy is fetched without asking; one of the same size
+    is HEADed and kept when its Last-Modified matches the record. Without sizes every file is
+    HEADed. Returns (file meta by rel, rels fetched, warnings, bytes to fetch).
+    check(rel, path) -> '' or why; None = dry run (nothing fetched)."""
     meta, fetched, warn, size = {}, [], [], 0
     inc = dest / ".incoming"
+    sizes = sizes or {}
     for rel, sp in plan.items():
-        h = forge.head(sp)
-        if h is None:
-            warn.append(f"{rel}: listed but not served")
-            continue
         dp = dest / rel
         old = rec.get(rel) or {}
-        if dp.exists() and dp.stat().st_size == h["bytes"] and old.get("modified") == h["modified"]:
-            meta[rel] = {"bytes": h["bytes"], "modified": h["modified"]}
-            continue
-        size += h["bytes"]
+        listed = sizes.get(rel)
+        local = dp.stat().st_size if dp.exists() else -1
+        if listed is not None and listed != local:
+            h = {"bytes": listed, "modified": ""}
+        else:
+            h = forge.head(sp)
+            if h is None:
+                warn.append(f"{rel}: listed but not served")
+                continue
+            if local == h["bytes"] and old.get("modified") == h["modified"]:
+                meta[rel] = {"bytes": h["bytes"], "modified": h["modified"]}
+                continue
+        size += max(h["bytes"], 0)
         if check is None:          # dry run
             meta[rel] = h
             fetched.append(rel)
@@ -446,29 +465,101 @@ def _commit(dest: Path, fetched: list[str], keep: set[str], glob_pats: tuple[str
     return changes
 
 
+def download_plan(listing: dict, mid: str, lod_max: int) -> dict[str, str]:
+    """Relative destination path -> server path, from the viewer's /api/download/<id> file
+    list ({files: [{name: "<id>/<rel>", url, bytes}]}). Keeps model_rigged.glb, the LOD files up
+    to lod_max, anims/<clip>.glb and anims/clips.json (feet and stride of each clip); the
+    manifest is read, not kept. Pure."""
+    out = {}
+    for f in listing.get("files", []):
+        rel = str(f.get("name", ""))
+        rel = rel[len(mid) + 1:] if rel.startswith(mid + "/") else rel
+        url = str(f.get("url", ""))
+        if not url or ".." in rel.split("/"):
+            continue
+        if rel == "model_rigged.glb" or rel == "anims/clips.json" \
+                or (rel.startswith("anims/") and rel.endswith(".glb") and rel.count("/") == 1):
+            out[rel] = url
+        elif rel.startswith("model_rigged_lod") and rel.endswith(".glb"):
+            k = rel[len("model_rigged_lod"):-len(".glb")]
+            if k.isdigit() and 0 < int(k) <= lod_max:
+                out[rel] = url
+    return out
+
+
+def listing_bytes(listing: dict, mid: str) -> dict[str, int]:
+    """rel -> bytes from a /api/download/<id> file list. Pure."""
+    out = {}
+    for f in listing.get("files", []):
+        rel = str(f.get("name", ""))
+        out[rel[len(mid) + 1:] if rel.startswith(mid + "/") else rel] = int(f.get("bytes", -1))
+    return out
+
+
+def unchanged(dest: Path, plan: dict[str, str], sizes: dict[str, int], recorded: dict,
+              old_sha: str, new_sha: str) -> bool:
+    """True when nothing needs a request: same manifest, every planned file present with the
+    listed size and the size recorded last time, no file recorded that is no longer planned."""
+    if not old_sha or old_sha != new_sha or set(recorded) != set(plan):
+        return False
+    for rel in plan:
+        dp = dest / rel
+        if not dp.exists() or dp.stat().st_size != sizes.get(rel, -2) \
+                or (recorded.get(rel) or {}).get("bytes") != sizes.get(rel):
+            return False
+    return True
+
+
 def sync_one_http(forge: Forge, entry: dict, dest: Path, rec: dict, lod_max: int,
                   dry_run: bool = False) -> dict:
     """One monster. Returns {status, changes, warnings, bytes}; status added | updated |
-    unchanged | failed | would-fetch."""
+    unchanged | failed | would-fetch. The file list comes from /api/download/<id> (bytes per
+    file); the manifest's sha256 and those sizes decide, without a HEAD, that nothing changed.
+    When something did, a file is fetched only if its size or Last-Modified differs."""
     mid = entry["id"]
-    plan = http_plan(entry, lod_max)
+    d = str(entry.get("dir") or f"/out/{entry.get('source', 'srd-5.2.1')}/{mid}/")
+    d = d if d.endswith("/") else d + "/"
     recorded = _recorded(dest)
-    man_bytes = forge.get(entry.get("dir", f"/out/srd-5.2.1/{mid}/") + "manifest.json")
-    man = json.loads(man_bytes)
+    old = {}
+    try:
+        old = json.loads((dest / "monster.json").read_text()).get("forge", {})
+    except (OSError, ValueError, AttributeError):
+        pass
+    try:
+        listing = json.loads(forge.get(f"/api/download/{mid}" + ("?lods=0" if lod_max == 0 else "")))
+        plan = download_plan(listing, mid, lod_max)
+        sizes = listing_bytes(listing, mid)
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            return {"status": "failed", "changes": [], "warnings": [f"download list: {e}"], "bytes": 0}
+        plan, sizes = http_plan(entry, lod_max), {}      # an older viewer: no download API
+    except (OSError, ValueError, urllib.error.URLError) as e:
+        return {"status": "failed", "changes": [], "warnings": [f"download list: {e}"], "bytes": 0}
+    try:
+        man_bytes = forge.get(d + "manifest.json")
+        man = json.loads(man_bytes)
+    except (OSError, ValueError, urllib.error.URLError) as e:
+        return {"status": "failed", "changes": [], "warnings": [f"manifest.json: {e}"], "bytes": 0}
     man_sha = hashlib.sha256(man_bytes).hexdigest()
+    if sizes and unchanged(dest, plan, sizes, recorded, old.get("manifest_sha256", ""), man_sha):
+        return {"status": "unchanged", "changes": [], "warnings": [], "bytes": 0, "manifest_sha256": man_sha}
 
     def check(rel: str, p: Path) -> str:
-        if rel == "model_rigged.glb":
-            return glb_check(p, need_skin=True)
+        if rel.endswith(".json"):
+            try:
+                json.loads(p.read_text())
+                return ""
+            except (OSError, ValueError) as e:
+                return f"unreadable JSON ({e})"
         if rel.startswith("anims/"):
             return glb_check(p, need_anim=True)
         return glb_check(p, need_skin=True)
 
     if dry_run:
-        meta, fetched, warn, size = _stage(forge, plan, dest, recorded, None)
+        meta, fetched, warn, size = _stage(forge, plan, dest, recorded, None, sizes)
         return {"status": "would-fetch" if fetched else "unchanged", "changes": fetched, "warnings": warn, "bytes": size}
     try:
-        meta, fetched, warn, size = _stage(forge, plan, dest, recorded, check)
+        meta, fetched, warn, size = _stage(forge, plan, dest, recorded, check, sizes)
     except (OSError, ValueError, urllib.error.URLError) as e:
         shutil.rmtree(dest / ".incoming", ignore_errors=True)
         return {"status": "failed", "changes": [], "warnings": [str(e)], "bytes": 0}
@@ -476,7 +567,7 @@ def sync_one_http(forge: Forge, entry: dict, dest: Path, rec: dict, lod_max: int
         shutil.rmtree(dest / ".incoming", ignore_errors=True)
         why = next((w for w in warn if w.startswith("model_rigged.glb")), "model_rigged.glb missing")
         return {"status": "failed", "changes": [], "warnings": [why + (" (kept the previous copy)" if (dest / "monster.json").exists() else "")], "bytes": size}
-    clips = [r for r in meta if r.startswith("anims/")]
+    clips = [r for r in meta if r.startswith("anims/") and r.endswith(".glb")]
     if not any(Path(r).stem == "idle" for r in clips) or not any(Path(r).stem in MOVE_CLIPS for r in clips):
         shutil.rmtree(dest / ".incoming", ignore_errors=True)
         return {"status": "failed", "changes": [], "warnings": warn + ["no usable idle or move clip"], "bytes": size}
@@ -484,12 +575,11 @@ def sync_one_http(forge: Forge, entry: dict, dest: Path, rec: dict, lod_max: int
     existed = mj.exists()
     if fetched and existed:
         mj.unlink()          # never a monster.json that names half-replaced files
-    changes = _commit(dest, fetched, set(meta), ("*.glb", "anims/*.glb"))
-    files = {rel: dest / rel for rel in meta}
+    changes = _commit(dest, fetched, set(meta), ("*.glb", "anims/*.glb", "anims/*.json"))
+    files = {rel: dest / rel for rel in meta if rel.endswith(".glb")}
     ov = {"rider_height_m": entry["rider_height_m"]} if entry.get("rider_height_m") is not None else {}
     doc = monster_doc(man, files, rec, ov)
-    doc["forge"] = {"url": forge.base, "manifest_sha256": man_sha,
-                    "files": {k: meta[k] for k in sorted(meta)}}
+    doc["forge"] = {"url": forge.base, "manifest_sha256": man_sha, "files": {k: meta[k] for k in sorted(meta)}}
     q = entry.get("rig_quality") or {}
     if q.get("problems") or entry.get("missing_clips"):
         doc["forge"]["flags"] = {"rig_problems": q.get("problems", []), "missing_clips": entry.get("missing_clips", [])}
@@ -499,7 +589,7 @@ def sync_one_http(forge: Forge, entry: dict, dest: Path, rec: dict, lod_max: int
             changes.append("updated monster.json")
         mj.write_text(text)
     status = "unchanged" if not changes else ("added" if not existed else "updated")
-    return {"status": status, "changes": changes, "warnings": warn, "bytes": size}
+    return {"status": status, "changes": changes, "warnings": warn, "bytes": size, "manifest_sha256": man_sha}
 
 
 def sync_prop_http(forge: Forge, pid: str, dest: Path, lod_max: int, dry_run: bool = False) -> dict:
@@ -670,7 +760,8 @@ def main() -> int:
     ap.add_argument("--props-dest", type=Path, default=PROPS_DEST)
     ap.add_argument("--http", nargs="?", const=DEFAULT_URL, metavar="URL",
                     help=f"fetch from the forge viewer over HTTP (default {DEFAULT_URL}, env MONSTER_FORGE_URL)")
-    ap.add_argument("--lod", type=int, default=3, choices=range(0, 4), help="HTTP: highest LOD to fetch (default 3)")
+    ap.add_argument("--lod", type=int, default=0, choices=range(0, 4),
+                    help="HTTP: highest LOD to fetch (default 0: the game loads LOD0 only)")
     ap.add_argument("--dry-run", action="store_true", help="HTTP: report what would change and its size, write nothing")
     ap.add_argument("--prune", action="store_true", help="HTTP --all: delete synced monsters that are no longer usable upstream")
     ap.add_argument("--force", action="store_true", help="HTTP: ignore data/forge_quarantine.json")
