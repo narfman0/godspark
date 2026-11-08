@@ -6,7 +6,8 @@
 ## Used by tools/crossing.gd and tests/test_m5_crossing.gd.
 ##   var r := CrossingBot.walk(world)
 ##   r = {ok, why, entered: [{biome, name, x, t}], crossed: [{kind, id, name, x0, x1, t, off}],
-##        seconds, ticks, digs, tiles_changed, below, trail: [{biome, x, y}], start, end}
+##        seconds, ticks, digs, tiles_changed, below, trail: [{biome, x, y}], start, end,
+##        reached: Array of float (seconds on screen the body first stood in each column; -1 never)}
 class_name CrossingBot
 extends RefCounted
 
@@ -96,7 +97,9 @@ static func walk(world: TileWorld) -> Dictionary:
 	TileCollision.update_contacts(world, b)
 	var hash0 := world.content_hash()
 	var r := {"ok": false, "why": "", "entered": [], "crossed": [], "seconds": 0.0, "ticks": 0, "digs": 0, "tiles_changed": false,
-		"below": 0.0, "trail": [], "start": x0, "end": x1, "legs": 0}
+		"below": 0.0, "trail": [], "start": x0, "end": x1, "legs": 0, "reached": []}
+	(r["reached"] as Array).resize(world.width)
+	(r["reached"] as Array).fill(-1.0)
 	var todo: Array = []
 	for span: Dictionary in spans(world):
 		span["off"] = 0.0
@@ -171,6 +174,9 @@ static func _note(b: Body, w: Dictionary) -> void:
 	var r: Dictionary = w["r"]
 	var x := floori(b.pos.x)
 	var t := float(w["ticks"]) / K.TICK_HZ
+	var reached: Array = r["reached"]
+	if x >= 0 and x < reached.size() and float(reached[x]) < 0.0:
+		reached[x] = t
 	var biomes: Array = w["b"]
 	var seg := int(w["seg"])
 	if seg + 1 < biomes.size() and x >= int(biomes[seg + 1]["x0"]):

@@ -39,6 +39,7 @@ func _initialize() -> void:
 	var kinds := {}
 	for c: Dictionary in r["crossed"]:
 		kinds[c["kind"]] = int(kinds.get(c["kind"], 0)) + 1
+	_towns(world, r)
 	var faults := CrossingBot.faults(world, r)
 	for f: String in faults:
 		print("  FAULT %s" % f)
@@ -50,6 +51,35 @@ func _initialize() -> void:
 		"PASS" if faults.is_empty() else "FAIL", sd, names.size(), ">".join(names), (r["crossed"] as Array).size(), kinds, r["seconds"], float(r["seconds"]) / 60.0, r["ticks"], r["legs"], r["below"],
 		r["digs"], r["tiles_changed"], Time.get_ticks_msec() - t0])
 	quit(0 if faults.is_empty() else 1)
+
+## Each surface settlement's street, west to east, with the time the walker first stood in its
+## middle column, and the walk between neighbours; the spawn is the first settled surface place
+## (game/main.gd spawn_for), so its neighbours are the first towns a new player walks to.
+func _towns(world: TileWorld, r: Dictionary) -> void:
+	var reached: Array = r["reached"]
+	var spawn: Vector2 = load("res://game/main.gd").spawn_for(world, Vector2.ZERO)
+	var rows: Array = []
+	var all := Places.all(world)
+	for k: String in all:
+		var p: Dictionary = all[k]
+		if not p.has("street") or String(p.get("tier", "")) == "":
+			continue
+		var st: Array = p["street"]
+		var mx := (int(st[0]) + int(st[1])) / 2
+		var t := -1.0
+		for x in range(mx, mini(mx + 40, reached.size())):
+			if float(reached[x]) >= 0.0:
+				t = float(reached[x])
+				break
+		rows.append({"site": k, "x": mx, "y": int(st[2]), "t": t, "tier": p["tier"],
+			"spawn": spawn.x >= int(st[0]) and spawn.x <= int(st[1]) and absf(spawn.y - int(st[2])) < 4.0})
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["x"]) < int(b["x"]))
+	for i in rows.size():
+		var row: Dictionary = rows[i]
+		var gap := ""
+		if i > 0 and float(row["t"]) >= 0.0 and float(rows[i - 1]["t"]) >= 0.0:
+			gap = "  %5.1f s (%d tiles) from the last" % [float(row["t"]) - float(rows[i - 1]["t"]), int(row["x"]) - int(rows[i - 1]["x"])]
+		print("  town %-4s %-8s x=%-5d t=%6.1f s%s%s" % [row["site"], row["tier"], row["x"], row["t"], gap, "  <- spawn" if row["spawn"] else ""])
 
 func _descent(world: TileWorld, gen: String, sd: int) -> void:
 	var t0 := Time.get_ticks_msec()
