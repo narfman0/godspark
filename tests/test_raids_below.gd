@@ -536,11 +536,19 @@ func _two_players(t: TestLog) -> void:
 	if sim.parties.has(pid):
 		var d1 := life.road.party_pos(rig.host, ra).distance_to(life.below.mouth(rig.host, way))
 		t.check(d1 < d0 or ra.route == way, "walking back to their way (%.0f -> %.0f tiles from the mouth)" % [d0, d1])
+		# each client sees the raiders its interest holds: those within the radius in chunks of
+		# it, none past radius + 1 (in between, as it was). At a walking pace the raiders string
+		# out along the road, so the two players 50 tiles apart need not see the same ones.
 		var seen2 := [0, 0]
+		var wrong := []
 		for e: HostEntity in life.actors_of(pid):
 			for i in 2:
-				if rig.cw(i).remotes.has(e.id):
+				var d := Interest.dist(Interest.chunk_of(e.body.center()), Interest.chunk_of(rig.host_entity(i).body.center()))
+				var has: bool = rig.cw(i).remotes.has(e.id)
+				if has:
 					seen2[i] += 1
-		t.check(seen2[0] == seen2[1], "both still see the same raiders (%d, %d)" % [seen2[0], seen2[1]])
+				if (d <= Interest.DEFAULT_RADIUS and not has) or (d > Interest.DEFAULT_RADIUS + 1 and has):
+					wrong.append("%s client %d d %d" % [e.name, i, d])
+		t.check(wrong.is_empty(), "both still see the raiders their interest holds (%d, %d) %s" % [seen2[0], seen2[1], wrong])
 	t.eq(sim.audit(), [] as Array[String], "the books balance")
 	Dice.rng = null

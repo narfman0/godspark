@@ -349,6 +349,7 @@ func clash(h: WorldHost, pa: int, pb: int, by_player := 0) -> void:
 		clashes[key] = {"ra": a.id, "v": b.id, "rid": a.route, "nr": a.size(), "nv": b.size(),
 			"fv": b.size() - b.people, "players": {}, "ra_obj": a, "v_obj": b}
 		life.stats["clashes"] += 1
+	clashes[key]["last"] = life.now()
 	if by_player != 0:
 		clashes[key]["players"][by_player] = true
 
@@ -511,6 +512,12 @@ func _resolve(h: WorldHost) -> void:
 			won = 0
 		elif v.size() - v.people <= 0 or lost_v >= ceili(int(c["nv"]) * float(brk.get("ambush_victims", 0.6))):
 			won = 1
+		elif life.now() - float(c.get("last", life.now())) > float(Life.people_cfg().get("stall_s", 45.0)):
+			# no blows for stall_s and neither side broke (a fighter who fled is never caught when
+			# both sides run at the same walking pace): the side holding more of its strength
+			# keeps the field, as the sim's rules would have it
+			won = 1 if float(ra.size()) / maxf(int(c["nr"]), 1) > float(v.size() - v.people) / maxf(int(c["fv"]), 1) else 0
+			life.stats["ambushes_stalled"] = int(life.stats.get("ambushes_stalled", 0)) + 1
 		if won < 0:
 			continue
 		clashes.erase(k)

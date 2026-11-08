@@ -7,6 +7,9 @@
 class_name LifeBrain
 extends MonsterBrain
 
+## Tiles from its post past which a calm civilian walks at the full pace instead of 0.45 of it.
+const HURRY_TILES := 6.0
+
 var life_role := "townsfolk"
 var fighter := false
 ## Where it should be now (Life sets it) and the door it runs to.
@@ -48,7 +51,9 @@ func _civilian(host: WorldHost, e: HostEntity, dt: float) -> PlayerInput:
 			_raise(seen.id)
 			alarmed = true
 	var goal := post
-	var speed := 0.45
+	# a calm walk: 0.45 of the pace (1.8 tiles/s at pace 4). A party on foot moves its post at
+	# 2.5 tiles/s (WorldSim.TRAVEL_TPS), so a civilian that has fallen behind its post hurries.
+	var speed := 0.45 if absf(goal.x - e.body.pos.x) <= HURRY_TILES else 1.0
 	if alarmed:
 		speed = 1.0
 		var foe := host.entity(target_id)
