@@ -5,6 +5,8 @@
 ## A swarm made as ONE unit (monster.json swarm_unit: bats, ravens, piranhas, insects, claws)
 ## is drawn as several units spread over the swarm's span (swarm_unit.swarm.scale_m): mates,
 ## ForgeMonsters of the same id that copy the leader's state at their own phase.
+## play("run") plays the run clip where the forge made one (else the move clip): ActorBody picks
+## walk or run by which keeps the feet planted at the body's speed.
 ## A monster without an idle clip and a move clip does not load (null, last_error): the actor
 ## falls back to the next look (ActorBody). ground_speed(clip) is how fast its feet carry it
 ## at speed 1 (from anims/clips.json's feet, measured by forward kinematics), so ActorBody
@@ -251,22 +253,27 @@ func contact_of(c: String) -> float:
 	return at
 
 ## How fast (m/s, model metres, at speed 1) the clip's planted feet slide back: the speed the
-## body must move for the feet not to skate. The feet come from anims/clips.json; a foot counts
-## as planted within 15% of its lift from its lowest point. 0 when unknown (no feet: fliers,
-## swimmers, oozes). Cached per creature and clip.
+## body must move for the feet not to skate. anims/clips.json's ground_speed_mps for the clip
+## when the forge exports it; else measured here by forward kinematics on the clip's feet from
+## clips.json (a clip listed without feet, like most forge runs, uses the walk's: the same
+## bones), a foot counting as planted within 15% of its lift from its lowest point. 0 when
+## unknown (no feet: fliers, swimmers, oozes). Cached per creature and clip.
 func ground_speed(c := "") -> float:
 	if c == "":
 		c = move_clip()
 	var key := "%s/%s" % [id, c]
 	if _ground.has(key):
 		return _ground[key]
-	var v := _measure_ground(c)
+	var row: Dictionary = clip_meta.get("clips", {}).get(c, {})
+	var v := float(row["ground_speed_mps"]) if row.has("ground_speed_mps") else _measure_ground(c)
 	_ground[key] = v
 	return v
 
 func _measure_ground(c: String) -> float:
 	var a := anim.get_animation(c) if anim != null and anim.has_animation(c) else null
 	var feet: Array = clip_meta.get("clips", {}).get(c, {}).get("feet", [])
+	if feet.is_empty():
+		feet = clip_meta.get("clips", {}).get("walk", {}).get("feet", [])
 	if a == null or feet.is_empty():
 		return 0.0
 	var foot_ids: Array[int] = []
@@ -425,8 +432,10 @@ func play(state: String, speed := 1.0) -> void:
 		m.play(state, speed)
 	var c := state
 	match state:
-		"walk", "run", "sprint", "climb":
+		"walk", "climb":
 			c = move_clip()
+		"run", "sprint":
+			c = "run" if has_clip("run") else move_clip()
 		"jump", "fall":
 			c = "fly" if has_clip("fly") else "idle"
 		"swim":

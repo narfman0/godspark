@@ -25,16 +25,27 @@ extends Node3D
 ## camera (which looks down -Z from +Z).
 const SIDE_YAW := PI * 0.5 - 0.3
 const TURN_TIME := 0.12
-## Authored clip speeds (m/s) for a 1.8 m Synty character.
-const WALK_MPS := 1.4
-const RUN_MPS := 3.6
+## How fast (m/s) a 1.8 m Synty character's walk, run and sprint carry it at speed 1: measured
+## where the planted foot stands still (tools/gait_strip.gd sweep=1 player=fighter; the run was
+## taken as 3.6 before and slid at every speed).
+const WALK_MPS := 1.2
+const RUN_MPS := 1.8
 const SPRINT_MPS := 6.0
+## Under this (m/s) a body stands (idle). A walk-5 ft creature wanders at 0.2 m/s at pace 4.
+const STAND_MPS := 0.1
+## A Synty gait's playback stays within these (the clip nearest 1 is picked first).
+const SYNTY_SPEED_MIN := 0.5
+const SYNTY_SPEED_MAX := 2.0
 const RIM := preload("res://view/actors/rim.gdshader")
 const FLASH := preload("res://view/actors/flash.gdshader")
-## Forge walk playback: the clip runs at (body speed / its ground speed), within these bounds
-## (faster than 2.5x the legs blur; the body then slides a little, like a Synty sprint does).
+## Forge gait playback: the walk or run clip, whichever plays nearest its authored speed at the
+## body's speed, at (body speed / its ground speed), within these bounds (faster than 3x a forge
+## walk's legs blur; past them the body slides a little, like a Synty sprint does).
 const FORGE_SPEED_MIN := 0.5
-const FORGE_SPEED_MAX := 2.5
+const FORGE_SPEED_MAX := 3.0
+## The gait playing now is kept until the other plays this much nearer its own speed (a factor
+## of 1.25), so a body near the crossover does not flicker between walk and run.
+const GAIT_STICK := 0.223
 static var _rim_mat: ShaderMaterial
 static var _flash_mat: ShaderMaterial
 ## slug -> why its forge body failed to load: later actors of that slug skip it at once.
@@ -71,9 +82,15 @@ var _flash_s := 0.0
 var _flash_len := 0.0
 var _hold := 0.0
 var _weapon_bar: Node3D
-## The forge body's scale and the m/s its walk carries it at speed 1 (0: not measured).
+## The forge body's scale and the m/s its move clip carries it at speed 1 (0: not measured).
 var _forge_scale := 1.0
 var _forge_ground := 0.0
+## Its gaits: clip ("walk", "run", or its only move clip) -> m/s at speed 1 as scaled here (0: not
+## measured), and the gait playing now.
+var _forge_gaits := {}
+var _forge_gait := ""
+## The Synty gait playing now (walk, run, sprint), held by GAIT_STICK like a forge one.
+var _synty_gait := ""
 
 ## Builds the actor for a look. primitive_mat: the placeholder shader material (WorldView's).
 static func build(look: Dictionary, primitive_mat: Material, has_file: Callable = Callable()) -> ActorBody:
@@ -112,7 +129,14 @@ func _build_forge() -> void:
 	var s := minf(1.0, minf(size.y * t * 1.15 / h, size.x * t * 2.2 / long)) * float(plan.get("scale", 1.0))
 	m.scale = Vector3.ONE * s
 	_forge_scale = s
-	_forge_ground = m.ground_speed() * s
+	_forge_gaits.clear()
+	for c: String in ["walk", "run"]:
+		if m.has_clip(c):
+			_forge_gaits[c] = m.ground_speed(c) * s
+	var mc := m.move_clip()
+	if mc != "" and not _forge_gaits.has(mc):
+		_forge_gaits[mc] = m.ground_speed(mc) * s
+	_forge_ground = float(_forge_gaits.get(mc, 0.0))
 	plan["height_m"] = h * s
 	LitMaterials.set_tint(m, plan.get("tint", Color.WHITE))
 	m.name = "forge"
@@ -213,17 +237,13 @@ func set_state(s: String) -> void:
 	var mps := absf(vel.x) * K.TILE_M
 	match s:
 		"idle", "walk", "run":
-			if mps < 0.25:
+			if mps < STAND_MPS:
 				clip = "idle"
-			elif mps < 2.2 * k:
-				clip = "walk"
-				speed = clampf(mps / (WALK_MPS * k), 0.6, 1.8)
-			elif mps < 5.0 * k:
-				clip = "run"
-				speed = clampf(mps / (RUN_MPS * k), 0.7, 1.6)
 			else:
-				clip = "sprint"
-				speed = clampf(mps / (SPRINT_MPS * k), 0.8, 1.8)
+				var g := synty_gait(mps / k, _synty_gait)
+				clip = String(g[0])
+				_synty_gait = clip
+				speed = clampf(float(g[1]), SYNTY_SPEED_MIN, SYNTY_SPEED_MAX)
 		"climb":
 			clip = "walk"
 			speed = clampf(absf(vel.y) * K.TILE_M / (WALK_MPS * k), 0.0, 1.8)
@@ -232,17 +252,69 @@ func set_state(s: String) -> void:
 			speed = 0.7
 	visual.call("play", clip, speed)
 
-## [clip, speed] for a forge body moving at v (tiles/s): its move clip at the speed that keeps
-## its feet planted (FORGE_SPEED_MIN..MAX); without a measured ground speed, scaled to its
-## height like a Synty body.
+## [clip, playback] for a 1.8 m Synty body at mps m/s: the walk, run or sprint whose playback is
+## nearest 1 (the held one favoured by GAIT_STICK), unclamped.
+static func synty_gait(mps: float, held := "") -> Array:
+	var best := "walk"
+	var best_r := mps / WALK_MPS
+	var best_e := INF
+	for g: Array in [["walk", WALK_MPS], ["run", RUN_MPS], ["sprint", SPRINT_MPS]]:
+		var r: float = mps / float(g[1])
+		var e := absf(log(r)) - (GAIT_STICK if g[0] == held else 0.0)
+		if e < best_e:
+			best_e = e
+			best = g[0]
+			best_r = r
+	return [best, best_r]
+
+## [clip, speed] for a forge body moving at v (tiles/s): its walk or run (the gait whose
+## playback is nearest 1 at this speed, held by GAIT_STICK) at the speed that keeps its feet
+## planted (FORGE_SPEED_MIN..MAX); without a measured ground speed, its walk scaled to its
+## height like a Synty body. A climb plays the walk at the vertical speed.
 func forge_clip_speed(s: String, v: Vector2) -> Array:
 	var mps := (absf(v.y) if s == "climb" else absf(v.x)) * K.TILE_M
-	if mps < 0.25 and s != "climb":
+	if mps < STAND_MPS and s != "climb":
 		return ["idle", 1.0]
-	var g := _forge_ground
-	if g <= 0.01:
-		g = WALK_MPS * maxf(float(plan.get("height_m", 1.8)), 0.3) / 1.8
-	return ["walk", clampf(mps / g, FORGE_SPEED_MIN if s != "climb" else 0.0, FORGE_SPEED_MAX)]
+	if s == "climb":
+		var gw := float(_forge_gaits.get("walk", _forge_ground))
+		return ["walk", clampf(mps / (gw if gw > 0.01 else _height_walk()), 0.0, FORGE_SPEED_MAX)]
+	var pick := _pick_gait(mps, _forge_gait)
+	_forge_gait = String(pick[0])
+	return [pick[0], clampf(float(pick[1]), FORGE_SPEED_MIN, FORGE_SPEED_MAX)]
+
+## The forge body's gaits (clip -> m/s at speed 1, scaled), for tools/gait_probe.gd.
+func forge_gaits() -> Dictionary:
+	return _forge_gaits
+
+## The playback, unclamped, that keeps the feet planted at v tiles/s in the gait picked from
+## rest (no gait held): what FORGE_SPEED_MIN..MAX are judged against. 0 when nothing is measured.
+func forge_natural(v: float) -> float:
+	var pick := _pick_gait(absf(v) * K.TILE_M, "")
+	return float(pick[1]) if bool(pick[2]) else 0.0
+
+## [clip, playback, measured] for mps m/s: the measured gait whose playback is nearest 1 (in
+## ratio), the held one favoured by GAIT_STICK; the walk by height when none is measured.
+func _pick_gait(mps: float, held: String) -> Array:
+	var best := ""
+	var best_r := 0.0
+	var best_e := INF
+	for c: String in _forge_gaits:
+		var g := float(_forge_gaits[c])
+		if g <= 0.01:
+			continue
+		var r := mps / g
+		var e := absf(log(r)) - (GAIT_STICK if c == held else 0.0)
+		if e < best_e:
+			best_e = e
+			best = c
+			best_r = r
+	if best == "":
+		return ["walk", mps / _height_walk(), false]
+	return [best, best_r, true]
+
+## A Synty-like walk's m/s for a body of this height (no ground speed measured).
+func _height_walk() -> float:
+	return WALK_MPS * maxf(float(plan.get("height_m", 1.8)), 0.3) / 1.8
 
 func _process(delta: float) -> void:
 	_face_s = maxf(0.0, _face_s - delta)
