@@ -43,7 +43,10 @@ func _jumps_recorded(t: TestLog) -> void:
 		far = maxi(far, absi(int(j["dl"])))
 	# the controller's measured peak is 6.47 tiles: feet clear 6 rows
 	t.check(up == 6, "highest recorded landing is 6 rows up (got %d)" % up)
-	t.check(far >= 7, "a running jump crosses at least 7 columns (got %d)" % far)
+	# the passages stage joins spots up to JUMP_ACROSS columns apart by a running jump; at the
+	# old pace of 13 tiles/s a recorded jump crossed 7, at pace 4 it crosses 4 (docs/tracks/pace.md)
+	var across: int = load("res://core/world/worldgen/stage_passages.gd").JUMP_ACROSS
+	t.check(far >= across, "a running jump crosses at least the %d columns worldgen counts on (got %d)" % [across, far])
 	var slow := MonsterNav.profile(NavMaps.stats("medium", {"walk": 20}))
 	var far2 := 0
 	for j: Dictionary in slow.jumps:
@@ -151,17 +154,18 @@ func _stairs_by_ladder(t: TestLog) -> void:
 func _gap(t: TestLog) -> void:
 	var m := NavMaps.build([
 		"S.................G..",
-		"#########.....#######",
-		"#########.....#######",
-		"#########.....#######",
-		"#########.....#######",
-		"#########.....#######",
-		"#########.....#######",
-		"#########.....#######",
-		"#########.....#######",
+		"#########...#########",
+		"#########...#########",
+		"#########...#########",
+		"#########...#########",
+		"#########...#########",
+		"#########...#########",
+		"#########...#########",
+		"#########...#########",
 		"#####################"])
+	# 3 open columns: the widest gap the passages stage jumps (5 before the pace change)
 	var r := NavMaps.run(m, NavMaps.stats("medium"))
-	_ok(t, "gap of 5", r, [MonsterNav.Edge.JUMP])
+	_ok(t, "gap of 3", r, [MonsterNav.Edge.JUMP])
 
 func _pit(t: TestLog) -> void:
 	var m := NavMaps.build([

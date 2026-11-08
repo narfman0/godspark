@@ -21,6 +21,13 @@ const STUCK_S := 1.2
 const ALIGN_S := 1.0
 ## How many times a path may be picked up again behind where it was before it fails.
 const MAX_FALLBACKS := 6
+## Tiles a climb may stop short of a ladder node's row and count as there: float noise only,
+## under TileCollision.EPS (a body held EPS under the top rung beside rock cannot step off).
+const LADDER_TOL := 5e-4
+## Tiles a climb goes past a ladder node's row before a walk sideways off the ladder: let go
+## at the row, a body at a walking pace drops into a hole between the ladder and the ledge
+## before its box is over the ledge (dev seed 2's descent).
+const STEP_OFF_LIFT := 0.45
 ## Seconds a platform drop waits before pressing down + jump again.
 const DROP_RETRY_S := 0.3
 
@@ -231,9 +238,10 @@ func input(world: TileWorld, b: Body, dt: float, dig_rate := 1.0) -> PlayerInput
 			if prof.cw % 2 == 0:
 				lx += minf(0.2, (prof.cw - prof.w) * 0.5 - 0.02)
 			inp.move_x = _steer(lx - b.pos.x, 4.0 if not b.climbing else 2.0)
-			inp.up = tgt.y > floori(b.pos.y + 0.05) or (b.climbing and tp.y > b.pos.y + 0.002)
+			var lift := _step_off_lift(b)
+			inp.up = tgt.y > floori(b.pos.y + 0.05) or (b.climbing and tp.y + lift > b.pos.y + LADDER_TOL)
 			inp.down = not inp.up and (tgt.y < floori(b.pos.y + 0.05) or tgt.y < b.pos.y - 0.2
-				or (b.climbing and tp.y < b.pos.y - 0.01))
+				or (b.climbing and tp.y < b.pos.y - LADDER_TOL))
 		E.CLING:
 			var side := b.wall_dir if b.wall_dir != 0 else ((extra & 3) - 1 if extra != 0 else _wall_side(world, prof, tgt))
 			if tgt.x != path.nodes[i - 1].x:          # over the top of the wall
@@ -379,9 +387,11 @@ func _arrived(prof: NavProfile, b: Body, tgt: Vector2i, edge: int) -> bool:
 		E.FLY, E.SWIM:
 			return dx <= 0.45 and dy <= 0.45
 		E.LADDER:
-			# past the node's row in the direction of travel (a body half in a floor row cannot leave sideways)
+			# past the node's row in the direction of travel (a body half in a floor row cannot leave
+			# sideways; at 3 tiles/s a climb that stopped 0.001 short of the top rung was held by
+			# the rock beside it, so only float noise is forgiven: LADDER_TOL)
 			var up := i > 0 and tgt.y > path.nodes[i - 1].y
-			var past := b.pos.y >= tp.y - 0.02 if up else b.pos.y <= tp.y + 0.02
+			var past := b.pos.y >= tp.y + _step_off_lift(b) - LADDER_TOL if up else b.pos.y <= tp.y + LADDER_TOL
 			return past and dy <= 0.6 and (b.climbing or b.on_floor or b.clinging) and dx <= 0.75
 		E.CLING:
 			return dy <= 0.35 and dx <= 0.6 and (b.clinging or b.on_floor or b.climbing)
@@ -390,6 +400,16 @@ func _arrived(prof: NavProfile, b: Body, tgt: Vector2i, edge: int) -> bool:
 			return MonsterNav.node_of(prof, b.pos) == tgt and (b.on_floor or b.climbing or b.swimming) \
 				or (dx <= 0.3 and dy <= 0.3)
 	return (b.on_floor or b.swimming or b.climbing) and dx <= 0.65 and dy <= 0.3
+
+## STEP_OFF_LIFT while climbing up to node i when the path walks sideways off it next, else 0.
+func _step_off_lift(b: Body) -> float:
+	if not b.climbing or i < 1 or i + 1 >= path.size():
+		return 0.0
+	var tgt: Vector2i = path.nodes[i]
+	var nxt: Vector2i = path.nodes[i + 1]
+	if tgt.y <= path.nodes[i - 1].y or nxt.y != tgt.y or (path.how[i + 1] & 15) != E.WALK:
+		return 0.0
+	return STEP_OFF_LIFT
 
 static func _steer(d: float, gain: float) -> float:
 	if absf(d) < 0.04:
