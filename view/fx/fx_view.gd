@@ -5,7 +5,8 @@
 ## the client world and its systems; owns no game state. Every tunable: data/combat.json "feel".
 ##
 ## The target highlight: CombatClient.target_at(aim), the host's own choice of what the next
-## blow touches, outlines that creature, shows its plate and draws the arc that must reach it.
+## blow touches, outlines that creature and draws the arc that must reach it (its hit point bar
+## shows only while hurt and recently hit or healed: Nameplates.show_rule).
 ##
 ## Projectiles: the combat client's PROJECTILE events carry pos, vel and gravity; they are
 ## stepped here until their IMPACT (or a wall, or 4 s).
@@ -161,12 +162,9 @@ func combat_event(ev: Dictionary) -> void:
 	var src := int(ev["src"])
 	var dst := int(ev["dst"])
 	var mine := dst == cw.my_id
-	if src != 0:
-		plates.touch(src)
-	if dst != 0:
-		plates.touch(dst)
 	match int(ev["kind"]):
 		CombatCodec.Ev.DAMAGE:
+			plates.changed(dst)
 			var crit := bool(_crit.get(dst, false))
 			_crit.erase(dst)
 			var p := _head(dst)
@@ -197,6 +195,7 @@ func combat_event(ev: Dictionary) -> void:
 			if p6 != Vector2.INF:
 				numbers.spawn(dst, p6, "dodged", SwingFx.color("slash"), _size("dodged"))
 		CombatCodec.Ev.HEAL:
+			plates.changed(dst)
 			var p4 := _head(dst)
 			if p4 != Vector2.INF and int(ev.get("amount", 0)) > 0:
 				numbers.spawn(dst, p4, "+%d" % int(ev["amount"]), UiTheme.MOSS.lightened(0.3), 22)
