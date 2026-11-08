@@ -265,3 +265,11 @@ gs_mat={
 "type": "sampler2D",
 "value": ""
 }
+gs_solid={
+"type": "sampler2D",
+"value": ""
+}
+gs_below_rock={
+"type": "sampler2D",
+"value": ""
+}

@@ -57,6 +57,11 @@ var soft := true       ## false: the old block look, for comparison pictures
 var _mat_img: Image
 var _mat_tex: ImageTexture
 var _mat_dirty := false
+## Which tiles block light, one byte per tile (255 opaque), wrapping like the material map, with
+## mipmaps: a shader reads how much of the ground around a point is open (gs_solid).
+var _solid_img: Image
+var _solid_tex: ImageTexture
+var _solid_dirty := false
 var _chunks := {}      ## Vector2i -> MeshInstance3D (null while empty)
 var _wanted := {}      ## Vector2i -> true
 var _dirty := {}       ## Vector2i -> true, needs a (re)build
@@ -108,6 +113,9 @@ func setup(w: TileWorld, l: LightEngine) -> void:
 	_mat_img = Image.create(MAT_W, MAT_H, false, Image.FORMAT_RGBA8)
 	_mat_tex = ImageTexture.create_from_image(_mat_img)
 	RenderingServer.global_shader_parameter_set("gs_mat", _mat_tex)
+	_solid_img = Image.create(MAT_W, MAT_H, false, Image.FORMAT_R8)
+	_solid_tex = ImageTexture.create_from_image(_mipped(_solid_img))
+	RenderingServer.global_shader_parameter_set("gs_solid", _solid_tex)
 	RenderingServer.global_shader_parameter_set("gs_noise", Backdrops.noise_texture())
 	backdrops = Backdrops.new()
 	add_child(backdrops)
@@ -210,7 +218,7 @@ func set_focus(pos: Vector2) -> void:
 	if not _light_rect.encloses(need):
 		var half := Vector2i((view_half + Vector2(24, 24)).ceil())
 		half = (half + Vector2i(15, 15)) / 16 * 16
-		var origin := (Vector2i(pos.floor()) - half) / 8 * 8
+		var origin := (Vector2i(pos.floor()) - half) / 16 * 16
 		_light_rect = Rect2i(origin, half * 2)
 		_light_dirty = true
 
@@ -369,6 +377,9 @@ func _process(delta: float) -> void:
 	if _mat_dirty:
 		_mat_dirty = false
 		_mat_tex.update(_mat_img)
+	if _solid_dirty:
+		_solid_dirty = false
+		_solid_tex.update(_mipped(_solid_img))
 	_launch()
 	_apply_sun()
 	if light.deferred and light.backlog() > 0:
@@ -394,6 +405,7 @@ func _collect() -> void:
 		if not _wanted.has(key) or _dirty.has(key):
 			continue  # gone out of view, or edited again since: the next build wins
 		_write_mat(key, out.get("mat", PackedByteArray()))
+		_write_solid(key, out.get("solid", PackedByteArray()))
 		var em: Array = out.get("emit", [])
 		if em.is_empty():
 			if emitters.erase(key):
@@ -454,6 +466,7 @@ func _launch() -> void:
 			out["emit"] = ChunkMesher.emitters(snap)
 			if snap["soft"]:
 				out["mat"] = ChunkMesher.material_bytes(snap)
+			out["solid"] = ChunkMesher.opaque_bytes(snap)
 			out["usec"] = Time.get_ticks_usec() - s, false, "chunk mesh")
 		_tasks[key] = {"task": task, "out": out}
 
@@ -464,6 +477,22 @@ func _write_mat(key: Vector2i, bytes: PackedByteArray) -> void:
 	var img := Image.create_from_data(K.CHUNK, K.CHUNK, false, Image.FORMAT_RGBA8, bytes)
 	_mat_img.blit_rect(img, Rect2i(0, 0, K.CHUNK, K.CHUNK), Vector2i((key.x * K.CHUNK) % MAT_W, (key.y * K.CHUNK) % MAT_H))
 	_mat_dirty = true
+
+## A chunk's opaque tiles into the wrapping solid map. An unloaded chunk reads as the mesher
+## reads it (open sky over the surface line, else rock).
+func _write_solid(key: Vector2i, bytes: PackedByteArray) -> void:
+	if bytes.size() != K.CHUNK * K.CHUNK:
+		return
+	var img := Image.create_from_data(K.CHUNK, K.CHUNK, false, Image.FORMAT_R8, bytes)
+	_solid_img.blit_rect(img, Rect2i(0, 0, K.CHUNK, K.CHUNK), Vector2i((key.x * K.CHUNK) % MAT_W, (key.y * K.CHUNK) % MAT_H))
+	_solid_dirty = true
+
+## A copy of img with mipmaps: the shaders blur the light and the solid map by reading them at a
+## coarser level (light.gdshaderinc gs_face_levels), which costs a texture read, not a pass.
+static func _mipped(img: Image) -> Image:
+	var m := img.duplicate() as Image
+	m.generate_mipmaps()
+	return m
 
 func _mark(cx: int, cy: int) -> void:
 	if cx < 0 or cy < 0 or cx >= world.chunks_x or cy >= world.chunks_y:
@@ -512,16 +541,20 @@ func _refill_light() -> void:
 	var size := _light_rect.size
 	var blk := light.region_bytes(_light_rect, false)
 	var sky := light.region_bytes(_light_rect, true)
-	if _img_block == null or _img_block.get_size() != size:
-		_img_block = Image.create_from_data(size.x, size.y, false, Image.FORMAT_R8, blk)
-		_img_sky = Image.create_from_data(size.x, size.y, false, Image.FORMAT_R8, sky)
+	# With mipmaps: the faces of solid ground read the field blurred (gs_face_levels). The rectangle's
+	# origin is a multiple of 16 tiles, so levels up to 4 line up with the world's grid and the
+	# solid map's, and do not shift when the rectangle moves.
+	var fresh := _img_block == null or _img_block.get_size() != size
+	_img_block = Image.create_from_data(size.x, size.y, false, Image.FORMAT_R8, blk)
+	_img_sky = Image.create_from_data(size.x, size.y, false, Image.FORMAT_R8, sky)
+	_img_block.generate_mipmaps()
+	_img_sky.generate_mipmaps()
+	if fresh:
 		_tex_block = ImageTexture.create_from_image(_img_block)
 		_tex_sky = ImageTexture.create_from_image(_img_sky)
 		RenderingServer.global_shader_parameter_set("gs_light_block", _tex_block)
 		RenderingServer.global_shader_parameter_set("gs_light_sky", _tex_sky)
 	else:
-		_img_block.set_data(size.x, size.y, false, Image.FORMAT_R8, blk)
-		_img_sky.set_data(size.x, size.y, false, Image.FORMAT_R8, sky)
 		_tex_block.update(_img_block)
 		_tex_sky.update(_img_sky)
 	RenderingServer.global_shader_parameter_set("gs_light_rect",

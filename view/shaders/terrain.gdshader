@@ -37,8 +37,8 @@ void vertex() {
 // front faces only, and only where the field has run out: a cave's own faces and walls take the
 // field alone, so a cave stays dark. `sun` is how much of the sun the face takes: the same fade,
 // so the sun's shading does not stop at the first row of tiles in steps.
-vec3 ground_light(vec2 tile, bool front, out float sun) {
-	vec3 L = gs_light_at(tile);
+vec3 ground_light(vec2 tile, vec2 lv, bool front, out float sun) {
+	vec3 L = gs_light_lv(lv, tile);
 	sun = 0.0;
 	if (!front || L.g > 0.3) {
 		return L;
@@ -100,6 +100,7 @@ void fragment() {
 	// The cell whose light a face shows: the open cell it faces, or the tile it stands for.
 	vec2 cell = tile + wnrm.xy * 0.5;
 	vec3 L = vec3(0.0);
+	vec2 lv = vec2(0.0);
 	float shade = 1.0;
 	bool glow = false;
 	float cut_sun = 0.0;
@@ -110,14 +111,17 @@ void fragment() {
 			+ texture(gs_noise, tile * vec2(0.04, 0.02) - TIME * vec2(0.004, 0.0)).g;
 		base *= 0.7 + 0.6 * n;
 		cell = tile;
-		L = gs_light_at(tile);
+		lv = gs_levels(tile);
+		L = gs_light_lv(lv, tile);
 		own = lake_light(tile);
 	} else if (kind > 3.5) {
 		// A natural wall behind a cave: the wall's colour, shaded in the ground's own way.
 		vec4 n = texture(gs_noise, tile * vec2(0.0035, 0.016) + vec2(0.37, 0.11));
 		base *= (0.74 + 0.5 * mix(n.b, n.r, 0.45)) * 1.35;
 		cell = tile;
-		L = gs_light_at(tile);
+		lv = gs_levels_smooth(tile);
+		L = gs_light_lv(lv, tile);
+		own = base * gs_deep_glow(tile);
 	} else if (kind > 2.5) {
 		// Two looks at the noise pay for everything: broad strata and a fine grain, each also
 		// wandering the sampling point of the material map.
@@ -128,8 +132,11 @@ void fragment() {
 		vec3 blended = m.a > 0.02 ? pow(m.rgb / m.a, vec3(2.2)) : base;
 		base = mix(base, blended, smoothstep(0.05, 0.4, m.a));
 		base *= 0.62 + 0.62 * mix(broad.b, broad.r, 0.45) + 0.16 * (fine.a - 0.5);
-		L = ground_light(cell, wnrm.z > 0.5, cut_sun);
+		bool front = wnrm.z > 0.5;
+		lv = front ? gs_face_levels(tile) : gs_levels(cell);
+		L = ground_light(cell, lv, front, cut_sun);
 		shade = gs_face_shade(wnrm);
+		own = base * gs_deep_glow(tile);
 	} else {
 		vec2 c = floor(tile - wnrm.xy * 0.02);
 		float h = gs_hash(c + info.x * 17.13);
@@ -144,15 +151,19 @@ void fragment() {
 			// Background wall: darker, lit by the cell it is behind.
 			base *= 1.35;
 			cell = tile;
-			L = gs_light_at(tile);
+			lv = gs_levels_smooth(tile);
+			L = gs_light_lv(lv, tile);
+			own = base * gs_deep_glow(tile);
 			if (abs(info.x - 43.0) < 0.5) {
-				own = vec3(0.3, 0.13, 0.62) * drow_web(tile) * (0.42 + 0.14 * sin(TIME * 0.7 + tile.x * 0.11));
+				own += vec3(0.3, 0.13, 0.62) * drow_web(tile) * (0.42 + 0.14 * sin(TIME * 0.7 + tile.x * 0.11));
 			}
 		} else {
-			L = gs_light_at(cell);
+			lv = wnrm.z > 0.9 ? gs_face_levels(tile) : gs_levels(cell);
+			L = gs_light_lv(lv, cell);
 			shade = gs_face_shade(wnrm);
+			own = base * gs_deep_glow(tile);
 			if (abs(info.x - 101.0) < 0.5 && wnrm.z > 0.9) {
-				own = vec3(0.3, 0.13, 0.62) * drow_web(tile) * 0.5;
+				own += vec3(0.3, 0.13, 0.62) * drow_web(tile) * 0.5;
 			}
 			if (wnrm.z > 0.9) {
 				// Grout between tiles on front faces, so single blocks read inside merged faces.
@@ -170,7 +181,7 @@ void fragment() {
 		gs_m_lamp = 0.0;
 	} else {
 		ALBEDO = base;
-		GS_MASKS(cell);
+		GS_MASKS_LV(lv);
 		gs_m_sun = max(gs_m_sun, cut_sun);
 		EMISSION = gs_fill(base, L * shade) + gs_dark_sight(base, L, tile) + own;
 	}

@@ -18,6 +18,8 @@ varying float gs_m_lamp;
 
 // The masks from the field at a tile: each 0 where its field is dark, 1 from about Dim up.
 #define GS_MASKS(cell) { vec2 gs_l_ = gs_levels(cell); gs_m_sun = smoothstep(0.03, 0.4, gs_l_.y); gs_m_lamp = smoothstep(0.03, 0.4, gs_l_.x); }
+// The same from levels already read (gs_levels or gs_face_levels).
+#define GS_MASKS_LV(lv) { gs_m_sun = smoothstep(0.03, 0.4, (lv).y); gs_m_lamp = smoothstep(0.03, 0.4, (lv).x); }
 
 vec3 gs_fill(vec3 albedo, vec3 L) {
 	return albedo * L * gs_lit.x;

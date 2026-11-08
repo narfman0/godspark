@@ -17,6 +17,10 @@
 ## The lake's water gives its own faint light (gs_lake: terrain.gdshader), since nothing on the shore
 ## reaches it.
 ##
+## Rock glow. Rock and walls near a deep region's light take a faint glow of the region's colour
+## (`rock`, `rock_glow` in its row; gs_below_rock, at FOG_CELL), so a lit cavern sits in tinted
+## shadow, not in a black void. The plain underdark has none: unlit is black there.
+##
 ## Glowing props. A dressing row with `light` lights the picture: the nearest of them are sources in
 ## the view's own light field (ViewPresenter's LightEngine, which is not the host's: combat reads its
 ## own, so a prop's light is never a rule), lamps for WorldLights, and tints.
@@ -25,6 +29,7 @@
 ##   BelowLook.row("fungal")                       # {fog, density, ambient, motes, ...}
 ##   BelowLook.tint_bytes(sources, rect, cell)     # the tint map's bytes, pure
 ##   BelowLook.fog_bytes(meta, rect, cell)         # the fog map's bytes, pure
+##   BelowLook.rock_bytes(meta, rect, cell)        # the rock glow map's bytes, pure
 ##   b.set_props(records)                          # DressingView does this: {id, x, y} records
 class_name BelowLook
 extends Node3D
@@ -50,6 +55,8 @@ var _tint_img: Image
 var _tint_tex: ImageTexture
 var _fog_img: Image
 var _fog_tex: ImageTexture
+var _rock_img: Image
+var _rock_tex: ImageTexture
 var _sheet: MeshInstance3D
 var _sheet_mat: ShaderMaterial
 var _tint_dirty := true
@@ -165,13 +172,42 @@ static func fog_bytes(meta: Dictionary, rect: Rect2i, cell: int) -> PackedByteAr
 			out[i + 3] = clampi(roundi(d * 255.0), 0, 255)
 	return out
 
+## RGBA8 over rect, one texel per `cell` tiles: a region's rock glow, its `rock` colour times
+## `rock_glow` (premultiplied), alpha the glow. Zero outside the regions and where a row has none.
+static func rock_bytes(meta: Dictionary, rect: Rect2i, cell: int) -> PackedByteArray:
+	var w := ceili(float(rect.size.x) / cell)
+	var h := ceili(float(rect.size.y) / cell)
+	var out := PackedByteArray()
+	out.resize(w * h * 4)
+	if BiomeIds.regions(meta).is_empty():
+		return out
+	for ty in h:
+		var y := rect.position.y + ty * cell + cell / 2
+		for tx in w:
+			var reg := BiomeIds.region_at(meta, rect.position.x + tx * cell + cell / 2, y)
+			if reg.is_empty():
+				continue
+			var l := row(String(reg["biome"]))
+			var g := clampf(float(l.get("rock_glow", 0.0)), 0.0, 1.0)
+			if g <= 0.0:
+				continue
+			var c := Color(String(l.get("rock", "#000000")))
+			var i := (tx + ty * w) * 4
+			out[i] = clampi(roundi(c.r * g * 255.0), 0, 255)
+			out[i + 1] = clampi(roundi(c.g * g * 255.0), 0, 255)
+			out[i + 2] = clampi(roundi(c.b * g * 255.0), 0, 255)
+			out[i + 3] = clampi(roundi(g * 255.0), 0, 255)
+	return out
+
 func setup(v: WorldView) -> void:
 	view = v
 	var clear := Image.create(1, 1, false, Image.FORMAT_RGBA8)
 	_tint_tex = ImageTexture.create_from_image(clear)
 	_fog_tex = ImageTexture.create_from_image(clear)
+	_rock_tex = ImageTexture.create_from_image(clear)
 	RenderingServer.global_shader_parameter_set("gs_below_tint", _tint_tex)
 	RenderingServer.global_shader_parameter_set("gs_below_fog", _fog_tex)
+	RenderingServer.global_shader_parameter_set("gs_below_rock", _rock_tex)
 	RenderingServer.global_shader_parameter_set("gs_own_lamp", Vector4.ZERO)
 	_sheet = MeshInstance3D.new()
 	_sheet.name = "deep_fog"
@@ -283,6 +319,7 @@ func _refill_fog() -> void:
 	var w := ceili(float(_rect.size.x) / FOG_CELL)
 	var h := ceili(float(_rect.size.y) / FOG_CELL)
 	_fog_img = _put(_fog_img, _fog_tex, w, h, fog_bytes(view.world.meta, _rect, FOG_CELL), "gs_below_fog")
+	_rock_img = _put(_rock_img, _rock_tex, w, h, rock_bytes(view.world.meta, _rect, FOG_CELL), "gs_below_rock")
 
 func _put(img: Image, tex: ImageTexture, w: int, h: int, bytes: PackedByteArray, global: String) -> Image:
 	if img == null or img.get_size() != Vector2i(w, h):

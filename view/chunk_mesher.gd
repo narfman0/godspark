@@ -194,6 +194,23 @@ static func material_bytes(snap: Dictionary) -> PackedByteArray:
 			out[p * 4 + 3] = 255
 	return out
 
+## The chunk's opaque tiles (TileDefs.opaque), row by row: R8, 255 where a tile blocks light. An
+## unloaded or outside chunk reads as the mesher reads it. Safe on a worker.
+static func opaque_bytes(snap: Dictionary) -> PackedByteArray:
+	var src: Variant = (snap["fgs"] as Array)[4]
+	var out := PackedByteArray()
+	out.resize(N * N)
+	if not src is PackedByteArray:
+		if int(src) == 1:
+			out.fill(255)
+		return out
+	var fg := src as PackedByteArray
+	var opaque := TileDefs.opaque
+	for p in N * N:
+		if opaque[fg.decode_u16(p * 2)] != 0:
+			out[p] = 255
+	return out
+
 ## Per padded cell, which of its corners are cut: bit 0 (+x, +y), 1 (-x, +y), 2 (-x, -y), 3 (+x, -y).
 static func _cuts(ids: PackedInt32Array, sol: PackedByteArray) -> PackedByteArray:
 	var cut := PackedByteArray()
