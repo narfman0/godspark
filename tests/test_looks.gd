@@ -79,10 +79,10 @@ func _resolution(t: TestLog) -> void:
 	t.eq(ab["size"], Vector2(2.5, 3.5), "slug size from the registry: large box")
 	t.eq(ab["name"], "Aboleth", "SRD name from the registry")
 	t.eq(ab["color"], Color.from_string("#8a7fd0", Color.WHITE), "by_type colour")
-	# Order: forge, then Synty, then primitive.
-	t.eq(Looks.resolve({"slug": "hobgoblin-warrior"}, _all)["body"], "forge", "forge wins when synced")
-	t.eq(Looks.resolve({"slug": "goblin-warrior"}, _all)["body"], "synty", "a keep_synty slug (goblin): Synty first")
-	t.eq(Looks.resolve({"slug": "goblin-warrior"}, _forge_only)["body"], "forge", "a keep_synty slug without Synty files: forge")
+	# Order: a slug's own Synty row, then forge, then by_type, then primitive.
+	t.eq(Looks.resolve({"slug": "owlbear"}, _all)["body"], "forge", "no row of its own: forge wins when synced")
+	t.eq(Looks.resolve({"slug": "goblin-warrior"}, _all)["body"], "synty", "a slug with its own row (goblin): Synty first")
+	t.eq(Looks.resolve({"slug": "goblin-warrior"}, _forge_only)["body"], "forge", "its own row without Synty files: forge")
 	var g := Looks.resolve({"slug": "goblin-warrior"}, _no_forge)
 	t.check(g["body"] == "synty" and g["model"] == "goblin", "no forge: the Synty stand-in")
 	t.eq(g["size"], Vector2(1.0, 1.75), "goblin-warrior is small")
@@ -107,15 +107,40 @@ func _resolution(t: TestLog) -> void:
 	t.eq(Looks.resolve({"slug": "ogre"}, _no_forge)["height_m"], 2.5, "by_size height for a large stand-in")
 	t.eq(Looks.resolve({"people": "human:guard", "scale": 1.1}, _all)["height_m"], 1.8 * 1.1, "look scale multiplies")
 
-## The chain after the user's ruling (docs/tracks/forge-art.md): forge for non-human
-## creatures even over a Synty row; Synty first for humanoid NPC rows and keep_synty; never
-## forge for people / player looks or quarantined slugs.
+## The chain after the user's ruling (2026-11-08, docs/plan.md "Decisions"): keep Synty as
+## much as possible. A slug with its own Synty row keeps it; forge for slugs with no row of
+## their own (over by_type) and for looks.json forge.forge_first; forge as the fallback when the
+## Synty files are missing; never forge for people / player looks or quarantined slugs.
 func _forge_chain(t: TestLog) -> void:
 	t.eq(Looks.resolve({"slug": "owlbear"}, _all)["body"], "forge", "a creature with no row: forge when synced")
-	t.eq(Looks.resolve({"slug": "ogre"}, _all)["body"], "forge", "forge beats a loose Synty stand-in row (ogre -> giant)")
+	var ogre := Looks.resolve({"slug": "ogre"}, _all)
+	t.check(ogre["body"] == "synty" and ogre["model"] == "giant", "a slug's own Synty row beats forge (ogre -> giant)")
+	t.eq(Looks.resolve({"slug": "ogre"}, _forge_only)["body"], "forge", "its own row without Synty files: forge")
+	t.eq(Looks.resolve({"slug": "ogre"}, _none)["body"], "primitive", "nothing fetched: primitive")
 	var hob := Looks.resolve({"slug": "hobgoblin-warrior"}, _all)
-	t.eq(hob["tint"], Color.WHITE, "a forge body does not take its stand-in row's tint")
-	t.eq(hob["model"], "", "a forge plan names no Synty model")
+	t.check(hob["body"] == "synty" and hob["model"] == "goblin_knight", "a tinted stand-in row is kept too (hobgoblin -> goblin knight)")
+	t.eq(hob["tint"], Color.from_string("#d08060", Color.WHITE), "and keeps its tint")
+	var hobf := Looks.resolve({"slug": "hobgoblin-warrior"}, _forge_only)
+	t.eq(hobf["tint"], Color.WHITE, "a forge body does not take its stand-in row's tint")
+	t.eq(hobf["model"], "", "a forge plan names no Synty model")
+	var ml := Looks.resolve({"slug": "mummy-lord"}, _all)
+	t.eq(ml["body"], "forge", "no row of its own: forge beats the by_type stand-in (undead -> skeleton)")
+	# forge_first: the committed list (stand-ins that are plainly wrong)
+	var ff: Dictionary = Looks.table()["forge"]["forge_first"]
+	t.check(ff.has("goat") and ff.has("polar-bear"), "forge_first holds the goat on its side and the brown polar bear")
+	t.eq(Looks.resolve({"slug": "polar-bear"}, _all)["body"], "forge", "a forge_first slug: forge over its row")
+	t.eq(Looks.resolve({"slug": "polar-bear"}, _all)["tint"], Color.WHITE, "without the row's tint")
+	var pb := Looks.resolve({"slug": "polar-bear"}, _no_forge)
+	t.check(pb["body"] == "synty" and pb["model"] == "bear", "a forge_first slug with no forge body: its Synty row")
+	t.check(ff.size() <= 12, "forge_first stays short (%d)" % ff.size())
+	# Every other slug with its own row stays Synty with every file there.
+	var rows: Dictionary = Looks.table()["looks"]
+	var cr0 := Looks.creatures()
+	var lost := []
+	for k: String in rows:
+		if cr0.has(k) and not ff.has(k) and Looks.resolve({"slug": k}, _all)["body"] != "synty":
+			lost.append(k)
+	t.eq(lost, [], "every SRD slug with its own row (not forge_first) draws Synty when its files are there")
 	var gd := Looks.resolve({"slug": "guard"}, _all)
 	t.check(gd["body"] == "synty" and gd["model"] == "soldier", "a humanoid NPC row stays Synty when its files are there")
 	t.eq(Looks.resolve({"slug": "guard"}, _forge_only)["body"], "forge", "a humanoid NPC without Synty files takes the forge body")
@@ -127,14 +152,13 @@ func _forge_chain(t: TestLog) -> void:
 	t.eq(Looks.resolve({"slug": "giant-spider", "people": "elf:drow:guard"}, _all)["body"], "forge", "a drow escort's spider (people key, not a humanoid) is a forge spider")
 	t.eq(Looks.resolve({"slug": "player:fighter"}, _all)["body"], "synty", "a non-SRD slug never looks for a forge body")
 	t.eq(Looks.resolve({"slug": "ogre", "no_forge": true}, _all)["body"], "synty", "no_forge skips the forge link")
-	# keep_synty and the quarantine, injected (the committed lists change as the forge improves)
-	var keep: Dictionary = Looks.table()["forge"]["keep_synty"]
-	var had := keep.has("ogre")
-	keep["ogre"] = "test"
-	t.eq(Looks.resolve({"slug": "ogre"}, _all)["body"], "synty", "keep_synty: the Synty stand-in first")
-	t.eq(Looks.resolve({"slug": "ogre"}, _forge_only)["body"], "forge", "keep_synty without Synty files: forge")
+	# forge_first and the quarantine, injected (the committed lists change as the forge improves)
+	var had := ff.has("ogre")
+	ff["ogre"] = "test"
+	t.eq(Looks.resolve({"slug": "ogre"}, _all)["body"], "forge", "forge_first: the forge body first")
+	t.eq(Looks.resolve({"slug": "ogre"}, _no_forge)["body"], "synty", "forge_first without a forge body: the Synty row")
 	if not had:
-		keep.erase("ogre")
+		ff.erase("ogre")
 	var q := Looks.quarantine()
 	var hadq := q.has("ogre")
 	q["ogre"] = {"reason": "test"}
@@ -142,20 +166,25 @@ func _forge_chain(t: TestLog) -> void:
 	t.eq(Looks.resolve({"slug": "ogre"}, _forge_only)["body"], "primitive", "quarantined with no Synty: primitive")
 	if not hadq:
 		q.erase("ogre")
+	var hado := q.has("owlbear")
+	q["owlbear"] = {"reason": "test"}
+	t.check(Looks.resolve({"slug": "owlbear"}, _all)["body"] != "forge", "quarantined, no row: never the forge body")
+	if not hado:
+		q.erase("owlbear")
 	# The committed lists name real creatures.
 	var cr := Looks.creatures()
 	var odd := []
-	for k: String in keep:
+	for k: String in ff:
 		if not cr.has(k):
 			odd.append(k)
 	for k: String in q:
 		if not cr.has(k):
 			odd.append(k)
-	t.eq(odd, [], "keep_synty and data/forge_quarantine.json name SRD slugs")
-	for k: String in keep:
-		if not Looks.table()["looks"].has(k):
+	t.eq(odd, [], "forge_first and data/forge_quarantine.json name SRD slugs")
+	for k: String in ff:
+		if not Looks.table()["looks"].has(k) or String(ff[k]) == "":
 			odd.append(k)
-	t.eq(odd, [], "every keep_synty slug has a Synty row to keep")
+	t.eq(odd, [], "every forge_first slug has a Synty row it overrides, and a reason")
 
 func _bodies(t: TestLog) -> void:
 	var mat := ShaderMaterial.new()
@@ -209,7 +238,7 @@ func _forge_bodies(t: TestLog) -> void:
 	t.check(cr.has(slug), "xorn is an SRD slug")
 	a.free()
 	ActorBody.forge_failed.erase(slug)
-	for s: String in ["hobgoblin-warrior", "dire-wolf"]:     # not in keep_synty: forge first
+	for s: String in ["owlbear", "polar-bear"]:     # no row of its own; forge_first: forge first
 		if not ForgeMonster.is_synced(s) or Looks.quarantine().has(s):
 			t.check(true, "%s not synced: forge body checks skipped" % s)
 			continue

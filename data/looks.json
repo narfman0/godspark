@@ -1,25 +1,17 @@
 {
- "_comment": "One table from a creature look to a body (view/actors/looks.gd). Resolution: a monster-forge GLB when assets/monsters/<slug> is synced; else the row for the slug / people key / player key (keys fall back by dropping their last ':' part, so people:elf:drow:raider -> people:elf:drow -> people:elf; peoples of the deep without a lineage are species:deep, people:dwarf:deep:guard for a deep dwarf guard); else by_type (creature type from data/looks_creatures.json), then default. A row names a model; when its files are not fetched the actor is a tinted primitive with a nameplate, sized by by_size. Rows: model (a key of models), size_name (the box size when the look has no slug: people:goblin is small), tint (hex, multiplies colours), height_m (overrides the model's height), scale (multiplies it), nameplate (true: show the name), color (primitive colour). models: path (res:// literal, so tools/fetch_assets.sh fetches it), show (mesh node names to keep in a multi-character file), set (masc | femn: which locomotion clips; omitted = not a humanoid, no retargeting), height_m (the model is scaled to this height; people are scaled to their box otherwise), clip (static models: play the file's own animation). Synty supplies looks only: every key is an SRD slug, an SRD species/role, or a class.",
+ "_comment": "One table from a creature look to a body (view/actors/looks.gd). Resolution (forge block below for monster-forge bodies): the row for the slug / people key / player key (keys fall back by dropping their last ':' part, so people:elf:drow:raider -> people:elf:drow -> people:elf; peoples of the deep without a lineage are species:deep, people:dwarf:deep:guard for a deep dwarf guard); else a synced monster-forge body; else by_type (creature type from data/looks_creatures.json), then default. A row names a model; when its files are not fetched the actor is a tinted primitive with a nameplate, sized by by_size. Rows: model (a key of models), size_name (the box size when the look has no slug: people:goblin is small), tint (hex, multiplies colours), height_m (overrides the model's height), scale (multiplies it), nameplate (true: show the name), color (primitive colour). models: path (res:// literal, so tools/fetch_assets.sh fetches it), show (mesh node names to keep in a multi-character file), set (masc | femn: which locomotion clips; omitted = not a humanoid, no retargeting), height_m (the model is scaled to this height; people are scaled to their box otherwise), clip (static models: play the file's own animation). Synty supplies looks only: every key is an SRD slug, an SRD species/role, or a class.",
  "forge": {
-  "_comment": "monster-forge bodies (assets/monsters/<slug>, tools/sync_monsters.py) stand for SRD creatures ahead of the Synty rows, except: a people or player look (Synty people stay); a slug of a synty_first_types type that has its own row (the humanoid NPCs: guard, mage, bandit...); a slug in keep_synty, whose Synty stand-in reads as well as the forge body (reason given). Those try Synty first and take the forge body only when the Synty files are missing. Slugs in data/forge_quarantine.json never take one. docs/tracks/forge-art.md.",
-  "synty_first_types": ["humanoid"],
-  "keep_synty": {
-   "wolf": "the Synty wolf is a wolf, untinted (forge wolf as good: either reads)",
-   "brown-bear": "the Synty bear is a brown bear, untinted",
-   "boar": "the Synty boar is a boar, untinted",
-   "deer": "the Synty doe is a deer",
-   "elk": "the Synty stag is an elk-sized deer",
-   "riding-horse": "the Synty horse is a riding horse, untinted",
-   "skeleton": "the Synty skeleton is a skeleton and shares the Synty clips",
-   "zombie": "the Synty flesh skeleton reads as a zombie",
-   "ghost": "the Synty ghost is a ghost (the forge one is as good)",
-   "wight": "the Synty undead knight reads as a wight",
-   "goblin-minion": "the Synty goblin is a goblin and matches the goblin camp dressing",
-   "goblin-warrior": "the Synty goblin is a goblin and matches the goblin camp dressing",
-   "goblin-boss": "the Synty goblin boss is a goblin boss",
-   "medusa": "forge medusa (2026-11-08): the snake hair is a detached green mass beside the body",
-   "stone-golem": "forge stone golem (2026-11-08) reads as painted armour; the Synty fort golem is stone",
-   "iron-golem": "forge iron golem (2026-11-08) reads as an armoured knight; the Synty mechanical golem reads as a construct"
+  "_comment": "Keep Synty as much as possible; monster-forge only replaces the others (the user's ruling, 2026-11-08). A slug with its OWN row below keeps its Synty model and takes the forge body (assets/monsters/<slug>, tools/sync_monsters.py) only when the Synty files are missing. The forge body comes first for a slug with no row of its own (it would otherwise reach by_type, by_size or a primitive) and for forge_first: stand-ins that are plainly wrong, each with its reason, judged on proof sheets (tools/forge_sheet.gd forge=1 against no_forge=1; docs/tracks/hpbars.md). Keep forge_first short. A player look, or a people look of a person_types type, never takes a forge body; slugs in data/forge_quarantine.json never do either. view/actors/looks.gd.",
+  "person_types": ["humanoid"],
+  "forge_first": {
+   "goat": "the Synty goat lies on its side",
+   "giant-goat": "the Synty goat lies on its side",
+   "polar-bear": "the Synty bear stays brown under the white tint",
+   "werewolf": "the Synty stand-in is a plain human hunter, no wolf in it",
+   "warhorse-skeleton": "the Synty stand-in is a living horse with a bone tint",
+   "kobold-warrior": "the Synty stand-in is a tinted goblin; a kobold is a small reptile",
+   "gnoll-warrior": "the Synty stand-in is a human butcher; a gnoll is hyena-headed",
+   "treant": "the Synty forest guardian is a small antlered person, far under a Huge tree's box"
   }
  },
  "clips": {

@@ -2,19 +2,22 @@
 ## data/looks_creatures.json (size, type, body plan of every SRD monster slug).
 ## Pure: it only decides; ActorBody builds. The order, first that is available wins:
 ##
-##   1. monster-forge: look.slug is synced in assets/monsters/<slug>       body = "forge"
-##   2. a row (slug, people or player key; keys drop their last ":" part until one matches),
-##      or by_type for the slug's creature type, naming a Synty model whose files are there
-##                                                                         body = "synty"
-##   3. a tinted primitive with a nameplate                                body = "primitive"
+##   1. a row (slug, people or player key; keys drop their last ":" part until one matches),
+##      naming a Synty model whose files are there                         body = "synty"
+##   2. monster-forge: look.slug is synced in assets/monsters/<slug>       body = "forge"
+##   3. by_type for the slug's creature type, a Synty model                body = "synty"
+##   4. a tinted primitive with a nameplate                                body = "primitive"
 ##
-## Synty people stay (docs/tracks/forge-art.md): a player look, or a people look of a
-## humanoid (a forge.synty_first_types type), never takes a forge body (a giant spider in a
-## drow escort carries a people key and still gets its spider); a slug listed in looks.json forge.keep_synty, or one of a
-## forge.synty_first_types type (humanoid: guard, mage...) that has its own row, tries Synty
-## before forge (2, 1, 3): forge only covers it when the Synty files are missing. A slug in
-## data/forge_quarantine.json, or a look with no_forge = true (ActorBody, after a forge body
-## failed to load), skips 1.
+## Keep Synty as much as possible; the forge only replaces the others (the user's ruling,
+## 2026-11-08, docs/plan.md "Decisions"). So a slug with its OWN Synty row keeps it, and the
+## forge body stands for it only when the Synty files are missing. The forge body comes first
+## (2 before 1) for a slug with no row of its own (one that would reach by_type, by_size or a
+## primitive) and for the few in looks.json forge.forge_first, stand-ins that are plainly wrong
+## (the goat lying on its side, a brown polar bear: reason given per slug).
+## A player look, or a people look of a humanoid (a forge.person_types type), never takes a
+## forge body (a giant spider in a drow escort carries a people key and still gets its spider).
+## A slug in data/forge_quarantine.json, or a look with no_forge = true (ActorBody, after a
+## forge body failed to load), skips the forge link.
 ##
 ## look keys (all optional): slug ("goblin-warrior"), people ("human:guard" or
 ## "people:human:guard"), player ("fighter" or "player:fighter"), key (any row key), name,
@@ -66,13 +69,13 @@ static func quarantine() -> Dictionary:
 ## comes first for it. Pure on the table: [forge_allowed, synty_first].
 static func forge_rule(look: Dictionary, slug: String, ctype: String) -> Array:
 	var f: Dictionary = table().get("forge", {})
-	var person: bool = ctype in f.get("synty_first_types", [])
+	var person: bool = ctype in f.get("person_types", [])
 	if slug == "" or look.has("player") or (look.has("people") and person) or bool(look.get("no_forge", false)):
 		return [false, false]
 	if quarantine().has(slug) or not creatures().has(slug):
 		return [false, false]
-	var first: bool = f.get("keep_synty", {}).has(slug) or (person and table().get("looks", {}).has(slug))
-	return [true, first]
+	var own_row: bool = table().get("looks", {}).has(slug)
+	return [true, own_row and not f.get("forge_first", {}).has(slug)]
 
 ## Keys to try for a look, most specific first.
 static func keys_for(look: Dictionary) -> PackedStringArray:
@@ -143,12 +146,12 @@ static func resolve(look: Dictionary, has_file: Callable = Callable()) -> Dictio
 	var tint := _color(look.get("tint", row.get("tint", null)), Color.WHITE)
 	plan["tint"] = tint
 	plan["scale"] = float(look.get("scale", 1.0)) * float(row.get("scale", 1.0))
-	# 1. monster-forge (after Synty for a keep-Synty slug)
+	# monster-forge: before Synty for a slug with no row of its own (or forge_first), after it otherwise
 	var rule := forge_rule(look, slug, ctype)
 	var forge: bool = rule[0] and has_file.call("res://assets/monsters/%s/monster.json" % slug)
 	if forge and not rule[1]:
 		return _forge_plan(plan, look, slug)
-	# 2. Synty model from the row, else from the creature type
+	# Synty model from the row, else from the creature type
 	var model_key := String(row.get("model", ""))
 	var from_type := false
 	if model_key == "" and row.is_empty():
@@ -173,7 +176,7 @@ static func resolve(look: Dictionary, has_file: Callable = Callable()) -> Dictio
 		return plan
 	if forge:
 		return _forge_plan(plan, look, slug)
-	# 3. primitive
+	# primitive
 	plan["height_m"] = size.y * K.TILE_M
 	plan["nameplate"] = bool(look.get("nameplate", nm != ""))
 	return plan

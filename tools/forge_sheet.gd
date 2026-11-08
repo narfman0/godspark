@@ -5,6 +5,7 @@
 ##   tools/soft_godot.sh -s res://tools/forge_sheet.gd -- out=sheet.png [ids=wolf,ape | pick=40]
 ##       [state=idle|walk|attack|hit|death] [at=0.5: how far into the clip] [light=day|torch]
 ##       [cols=8] [cell=160] [no_forge=1: the same slugs without their forge body]
+##       [forge=1: the same slugs as if no Synty file were fetched: their forge body, to compare]
 ##       [weapons=1: forge bodies hold what they wield (game/view_presenter.gd does the same)]
 ## pick=N: N synced monsters spread over the body plans (deterministic).
 extends SceneTree
@@ -80,7 +81,7 @@ func _run() -> void:
 		if opts.has("no_forge"):
 			look["no_forge"] = true
 		var t0 := Time.get_ticks_usec()
-		var a := ActorBody.build(look, mat)
+		var a := ActorBody.build(look, mat, (func(p: String) -> bool: return not p.begins_with("res://assets/meshes/") and FileAccess.file_exists(p)) if opts.has("forge") else Callable())
 		var ms := (Time.get_ticks_usec() - t0) / 1000.0
 		a.set_process(false)
 		vp.add_child(a)
