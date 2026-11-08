@@ -497,6 +497,16 @@ LitMaterials works on forge bodies. Warm and readable, with no black materials
   shipped builds bundle forge art (3.5 GB at 2048 textures; about 1.2 GB if the forge ships
   1024) or fetch it on first run.
 
+## Verification
+
+- `tools/gate.sh` at `1bb4abb` (all the code; this report came after), with the 311 monsters,
+  props and Synty fetched:
+  - import exit 0
+  - suite: 10680 checks in 83 files, ALL PASS
+  - all 8 net smokes PASS
+  - 3 unseeded end-to-end runs: 264 checks each, ALL PASS
+- `tools/test.sh looks` also passes with `assets/` moved away: 101 checks, no art.
+
 ## Deviations, open issues, honesty notes
 
 - Found by the inventory, not fixed (pre-existing, outside this scope): `Looks.keys_for` tries
