@@ -191,12 +191,14 @@ func _add_clip(lib: AnimationLibrary, dir: String, c: String) -> void:
 		lib.add_animation(c if names.size() == 1 else "%s:%s" % [c, n], a)
 	sc.free()
 
-## The first SRD weapon the creature wields that this table can show ("" for none): the forge
-## models are bare-handed and carry it on their grip bone.
+## The first SRD weapon the creature wields that can be shown ("" for none): a synced
+## monster-forge prop, or a row of the weapons table. The forge models are bare-handed and carry
+## it on their grip bone.
 func wielded() -> String:
 	for w: Variant in info.get("wields", []):
-		if String(w) != "shield" and not Looks.weapon(String(w)).is_empty():
-			return String(w)
+		var ws := String(w)
+		if ws != "shield" and (FileAccess.file_exists("res://assets/props/%s/model.glb" % ws) or not Looks.weapon(ws).is_empty()):
+			return ws
 	return ""
 
 ## Seconds into a clip where its blow lands: forward kinematics over the clip, the moment any
@@ -379,7 +381,11 @@ func set_weapon(slug: String) -> void:
 	var att := BoneAttachment3D.new()
 	att.bone_name = "grip_r"
 	skeleton.add_child(att)
-	var mesh := WeaponMesh.build(Looks.weapon(slug), maxf(aabb.size.y, 0.3) / 1.8)
+	# Props are made for a 1.8 m wielder; a centauroid / naga carries its rider's height.
+	var k := float(info.get("rider_height_m", maxf(aabb.size.y, 0.3))) / 1.8
+	var mesh := WeaponMesh.forge_prop(slug, k)
+	if mesh == null:
+		mesh = WeaponMesh.build(Looks.weapon(slug), k)
 	var at := Node3D.new()
 	at.rotation = Vector3(deg_to_rad(float(rot[0])), deg_to_rad(float(rot[1])), deg_to_rad(float(rot[2])))
 	at.position = Vector3(float(off[0]), float(off[1]), float(off[2]))

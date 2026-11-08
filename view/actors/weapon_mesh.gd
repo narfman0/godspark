@@ -18,6 +18,20 @@ static func build(row: Dictionary, k := 1.0) -> Node3D:
 	inst.scale *= Vector3(broad if box.size.x < long else scale, broad if box.size.y < long else scale, broad if box.size.z < long else scale)
 	return inst
 
+## A monster-forge prop (assets/props/<slug>/model.glb, tools/sync_monsters.py): already in prop
+## space (metres for a 1.8 m wielder, origin at the grip, +Y toward the tip), so it is only
+## scaled by k. null when the prop is not synced.
+static func forge_prop(slug: String, k := 1.0) -> Node3D:
+	var path := "res://assets/props/%s/model.glb" % slug
+	if slug == "" or not FileAccess.file_exists(path):
+		return null
+	var inst := GltfCache.instance(path)
+	if inst == null:
+		return null
+	LitMaterials.apply(inst)
+	inst.scale *= k
+	return inst
+
 static func _bar(row: Dictionary, k: float) -> Node3D:
 	var p: Dictionary = Looks.table().get("weapons", {}).get("primitive", {})
 	var len_m := float(row.get("length_m", p.get("length_m", 0.9))) * k
