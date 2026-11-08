@@ -53,7 +53,8 @@ func run(t: TestLog) -> void:
 	t.check(not ann.cw.remotes.has(carl.cw.my_id), "nor ann him")
 	# carl walks to the others
 	rig.inputs[2].move_x = -1.0
-	var met := rig.until(func() -> bool: return carl.cw.remotes.has(ann.cw.my_id) and carl.cw.has_chunk((mid - 1) >> 5, (ground - 1) >> 5), 15.0)
+	# up to 160 tiles at the pace (15 s did at the old pace of 13 tiles/s)
+	var met := rig.until(func() -> bool: return carl.cw.remotes.has(ann.cw.my_id) and carl.cw.has_chunk((mid - 1) >> 5, (ground - 1) >> 5), 160.0 / MoveStats.pace() + 3.0)
 	t.check(met >= 0.0, "walking over, carl gets ann's chunk and sees her (%.1f s)" % met)
 	rig.inputs[2].move_x = 0.0
 	rig.run(0.3)

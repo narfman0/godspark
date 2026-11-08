@@ -77,8 +77,11 @@ func _timing(t: TestLog) -> void:
 	var speed := run.vel.x
 	go.roll = true
 	PlayerController.step(w, run, go, stats, STEP)
-	t.check(run.roll_t >= 0.0 and is_equal_approx(run.vel.x, speed), "a roll from a run keeps the run's speed (%.1f)" % run.vel.x)
-	t.eq(stats.run_speed, 13.0, "and the run itself is untouched by this track")
+	# at pace 4 the run (4 tiles/s) is under the roll's own 5 tiles/s; at the old pace (13) the
+	# roll kept the run's speed: either way it is never a brake
+	t.check(run.roll_t >= 0.0 and is_equal_approx(run.vel.x, maxf(speed, Dodge.base_speed())),
+		"a roll from a run keeps the faster of the run's speed and its own (%.1f)" % run.vel.x)
+	t.eq(stats.run_speed, MoveStats.pace(), "and the run itself is untouched by this track")
 	# a left press rolls left
 	var left := body(w)
 	var back := PlayerInput.new()

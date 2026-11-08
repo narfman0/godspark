@@ -190,7 +190,7 @@ func _monster_slot(t: TestLog) -> void:
 	var x0 := m.body.pos.x
 	for i in 30:
 		host.tick()
-	t.check(m.body.pos.x > x0 + 5.0, "a host-simulated monster walks with its brain (%.1f tiles)" % (m.body.pos.x - x0))
+	t.check(m.body.pos.x > x0 + stats.run_speed * 0.75, "a host-simulated monster walks with its brain (%.1f tiles in 1 s)" % (m.body.pos.x - x0))
 	t.eq(brain.calls, 30, "brain thinks once per tick")
 	t.eq(m.kind, HostEntity.Kind.MONSTER, "kind monster")
 	t.check(m.flags & HostEntity.F_FLOOR != 0, "its flags are kept for snapshots")

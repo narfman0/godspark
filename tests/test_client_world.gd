@@ -32,7 +32,7 @@ func _chunks_and_freeze(t: TestLog) -> void:
 	t.eq(arrived.size(), 9, "chunk_arrived for each")
 	t.eq(changed.size(), 9, "the client TileWorld emits chunk_changed for each (meshes and light rebuild)")
 	t.check(cw.area_ready(1) and not cw.area_ready(2), "area_ready by radius")
-	for i in 30:
+	for i in ceili(6.0 / MoveStats.pace() * MoveStats.step_hz()):   # 6 tiles at the pace
 		cw.step(inp)
 	t.check(not cw.frozen, "with its chunks present the player moves")
 	t.check(cw.body.pos.x > p0.x + 4.0 and cw.body.on_floor, "running on the arrived ground")

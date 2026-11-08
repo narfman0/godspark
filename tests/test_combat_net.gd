@@ -159,6 +159,8 @@ func _aim_lag(t: TestLog) -> void:
 			comp = combat._rect(a).position.distance_to(rig.cw(0).body.rect().position)
 	print("  AIM running at %.1f t/s, 50 ms one way: host copy behind by %.2f tiles; estimated lead %.3f s; at the contact frame %.2f tiles uncompensated, %.2f led" % [
 		e.stats.run_speed, raw, lag, at_contact, comp])
-	t.check(raw > 0.5 and at_contact > 0.5, "at 50 ms the host's copy trails a running player (%.2f tiles)" % at_contact)
+	# 40 ms of running (0.5 tiles at the old pace of 13 tiles/s, 0.16 at pace 4)
+	var trail := e.stats.run_speed * 0.04
+	t.check(raw > trail and at_contact > trail, "at 50 ms the host's copy trails a running player (%.2f tiles > %.2f)" % [at_contact, trail])
 	t.check(lag > 0.03 and lag < 0.12, "the lead estimate is about the one-way delay (%.3f s)" % lag)
 	t.check(comp >= 0.0 and comp < at_contact * 0.5, "leading by velocity brings the swing origin to the player (%.2f < %.2f)" % [comp, at_contact])

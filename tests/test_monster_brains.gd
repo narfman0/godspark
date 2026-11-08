@@ -80,7 +80,7 @@ func _bruiser(t: TestLog) -> void:
 	var p := hero(r)
 	var e: HostEntity = r["ms"].spawn("goblin-warrior", Vector2(75.5, GROUND), {"brain": "bruiser"})
 	var b: MonsterBrain = e.brain
-	ticks(r, 90)
+	ticks(r, 150)      # 15 tiles to close: 3.75 s at pace 4 (90 ticks did at the old pace)
 	t.check(b.target_id == p.id, "a bruiser notices the player in daylight")
 	t.check(absf(e.body.pos.x - p.body.pos.x) < 4.0, "and closes in (%.1f)" % absf(e.body.pos.x - p.body.pos.x))
 	t.check(b.attacks > 0, "and attacks (%d)" % b.attacks)
@@ -165,7 +165,7 @@ func _leash(t: TestLog) -> void:
 	b.state = MonsterBrain.State.CHASE
 	ticks(r, 10)
 	t.eq(b.state, MonsterBrain.State.RETURN, "past its leash it goes home")
-	ticks(r, 200)
+	ticks(r, 450)      # 50 tiles home: 12.5 s at pace 4 (200 ticks did at the old pace)
 	t.check(absf(e.body.pos.x - 100.5) < 8.0, "and gets there (%.1f)" % e.body.pos.x)
 
 func _flee(t: TestLog) -> void:
@@ -336,7 +336,7 @@ func _affixes(t: TestLog) -> void:
 	t.check(ms.profile_of(tu).dig > 0.0, "tunnelling digs (nav profile)")
 	# skittering: runs faster
 	var sk := ms.spawn("goblin-warrior", Vector2(230.5, GROUND), {"affixes": ["skittering"]})
-	t.check(sk.stats.run_speed > 13.5, "skittering runs faster (%.1f)" % sk.stats.run_speed)
+	t.check(sk.stats.run_speed > MoveStats.pace() * 1.04, "skittering runs faster (%.1f)" % sk.stats.run_speed)
 	# howling: more of its pack come when it sees prey (needs off-screen room)
 	var r2 := rig(27, world(512))
 	var p2 := hero(r2, 250.5)

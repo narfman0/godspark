@@ -51,7 +51,7 @@ func _loopback(t: TestLog) -> void:
 	# A predicted place the host refuses (a solid block where bob stands: ann's client only
 	# checks her own body) is rolled back.
 	rig.inputs[1].move_x = 1.0                             # bob steps a few tiles away
-	rig.run(0.2)
+	rig.run(2.6 / MoveStats.pace())                        # (0.2 s at the old pace of 13)
 	rig.inputs[1].move_x = 0.0
 	rig.run(0.5)
 	var bf := Vector2i(floori(rig.host_entity(1).body.pos.x), g)

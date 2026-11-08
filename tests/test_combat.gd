@@ -586,6 +586,11 @@ func _brain(t: TestLog) -> void:
 	var x0 := g.body.pos.x
 	ticks(r, 60)
 	t.check(g.body.pos.x < x0 - 5.0, "the reference brain walks toward the player")
+	# 12 tiles to close: under a second at the old pace, 3 s at pace 4
+	for k in 8:
+		if not evs(r, Ev.SWING, g.id).is_empty():
+			break
+		ticks(r, 15)
 	var sw := evs(r, Ev.SWING, g.id)
 	t.check(not sw.is_empty() and is_equal_approx(sw[0]["windup"], 0.5), "and swings with a 0.5 s wind-up")
 	ticks(r, 120)
